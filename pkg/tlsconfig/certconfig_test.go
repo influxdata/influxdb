@@ -729,3 +729,159 @@ func TestTLSCertLoader_SetupTLSConfig(t *testing.T) {
 		require.Nil(t, tlsConfig.GetClientCertificate)
 	})
 }
+
+func TestTLSCertLoader_ConstructorValidation(t *testing.T) {
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	t.Run("combined role is rejected", func(t *testing.T) {
+		// A cert loader holds one certificate, so it serves one role. A manager
+		// that acts as both uses two loaders.
+		cl, err := NewTLSCertLoader(
+			ServerAndClientRole,
+			monitor,
+			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		require.ErrorIs(t, err, ErrSingleRoleRequired)
+		require.Nil(t, cl)
+	})
+
+	t.Run("invalid role is rejected", func(t *testing.T) {
+		cl, err := NewTLSCertLoader(
+			InvalidRole,
+			monitor,
+			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		require.ErrorIs(t, err, ErrSingleRoleRequired)
+		require.Nil(t, cl)
+	})
+
+	t.Run("missing monitor is rejected", func(t *testing.T) {
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			nil,
+			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		require.ErrorIs(t, err, ErrNoCertificateMonitor)
+		require.Nil(t, cl)
+	})
+
+	t.Run("error names the usage", func(t *testing.T) {
+		cl, err := NewTLSCertLoader(
+			ServerAndClientRole,
+			monitor,
+			WithCertLoaderUsage("httpd.server"),
+			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		require.ErrorContains(t, err, `usage="httpd.server"`)
+		require.Nil(t, cl)
+	})
+}
+
+func TestTLSCertLoader_GetCertificateWithoutCertificate(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	// Only a client loader can exist without a certificate; a server loader
+	// with an empty certificate is refused at construction.
+	cl, err := NewTLSCertLoader(ClientOnlyRole, monitor)
+	require.NoError(t, err)
+	require.NotNil(t, cl)
+	defer th.CheckedClose(t, cl)()
+
+	require.Nil(t, cl.Certificate())
+	require.Nil(t, cl.Leaf())
+	require.True(t, cl.LoadedCertificate().IsEmpty())
+
+	cert, err := cl.GetCertificate(&tls.ClientHelloInfo{})
+	require.ErrorIs(t, err, ErrCertificateNil)
+	require.Nil(t, cert)
+
+	// GetClientCertificate must honor its contract and return a non-nil,
+	// empty certificate alongside the error.
+	clientCert, err := cl.GetClientCertificate(&tls.CertificateRequestInfo{
+		SignatureSchemes: []tls.SignatureScheme{tls.PKCS1WithSHA256},
+	})
+	require.ErrorIs(t, err, ErrCertificateNil)
+	require.NotNil(t, clientCert)
+	require.Empty(t, clientCert.Certificate)
+
+	// A loader with no certificate leaves the tls.Config callbacks unset so the
+	// config falls back to whatever the base config specified.
+	tlsConfig := &tls.Config{}
+	cl.SetupTLSConfig(tlsConfig)
+	require.Nil(t, tlsConfig.GetClientCertificate)
+	require.Nil(t, tlsConfig.GetCertificate)
+}
+
+func TestTLSCertLoader_EmptyCertificateRejectedForServer(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	cl, err := NewTLSCertLoader(
+		ServerOnlyRole,
+		monitor,
+		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+	require.NoError(t, err)
+	defer th.CheckedClose(t, cl)()
+
+	// Clearing the paths would leave the server with no certificate to present.
+	apply, err := cl.PrepareLoad(WithCertLoaderCertificate("", ""))
+	require.ErrorIs(t, err, ErrCertificateEmpty)
+	require.Nil(t, apply)
+
+	// The previously loaded certificate is still in place.
+	certPath, _ := cl.Paths()
+	require.Equal(t, ss.CertPath, certPath)
+}
+
+func TestTLSCertLoader_Clear(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	cl, err := NewTLSCertLoader(
+		ClientOnlyRole,
+		monitor,
+		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+	require.NoError(t, err)
+	defer th.CheckedClose(t, cl)()
+	require.False(t, cl.LoadedCertificate().IsEmpty())
+
+	cl.Clear()
+
+	require.True(t, cl.LoadedCertificate().IsEmpty())
+	require.Nil(t, cl.Certificate())
+	certPath, keyPath := cl.Paths()
+	require.Empty(t, certPath)
+	require.Empty(t, keyPath)
+
+	// A cleared loader can be reloaded.
+	require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+	certPath, keyPath = cl.Paths()
+	require.Equal(t, ss.CertPath, certPath)
+	require.Equal(t, ss.KeyPath, keyPath)
+}
+
+func TestRole_Predicates(t *testing.T) {
+	tests := []struct {
+		name                                  string
+		role                                  Role
+		valid, single, serverRole, clientRole bool
+	}{
+		{name: "invalid", role: InvalidRole},
+		{name: "server only", role: ServerOnlyRole, valid: true, single: true, serverRole: true},
+		{name: "client only", role: ClientOnlyRole, valid: true, single: true, clientRole: true},
+		{name: "server and client", role: ServerAndClientRole, valid: true, serverRole: true, clientRole: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.valid, tt.role.IsValid())
+			require.Equal(t, tt.single, tt.role.IsSingleRole())
+			require.Equal(t, tt.serverRole, tt.role.IsServerRole())
+			require.Equal(t, tt.clientRole, tt.role.IsClientRole())
+		})
+	}
+}

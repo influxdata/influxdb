@@ -1705,11 +1705,8 @@ func TestTLSConfigManager_ClientAuthOverride(t *testing.T) {
 	})
 }
 
-// testManagerCheckTime is the TLS certificate check time in logging tests.
-const testManagerCheckTime = 333 * time.Millisecond
-
 // testManagerCheckCapture time is how long to capture logs during logging tests. To prevent flaky tests,
-// it should be more than testManagerCheckTime, but less than 2 * testManagerCheckTime.
+// it should be more than testCheckTime, but less than 2 * testCheckTime.
 const testManagerCheckCapture = 500 * time.Millisecond
 
 func TestTLSConfigManager_WithCertLoaderOptions(t *testing.T) {
@@ -1919,5 +1916,214 @@ func TestTLSConfigManager_DialWithDialer(t *testing.T) {
 		testDialWithDialerConnection(t, listener, func(dialer *net.Dialer, addr string) (net.Conn, error) {
 			return manager.DialWithDialer(dialer, "tcp", addr)
 		})
+	})
+}
+
+func TestTLSConfigManager_WithUsage(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	t.Run("usage names the cert loaders by role", func(t *testing.T) {
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("subscriber"),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		require.Equal(t, "subscriber.server", manager.serverCertLoader.Usage())
+		require.Equal(t, "subscriber.client", manager.clientCertLoader.Usage())
+	})
+
+	t.Run("usage prefixes manager errors", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("httpd"),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		// A server manager cannot dial; the message should say which manager.
+		_, err = manager.Dial("tcp", "127.0.0.1:0")
+		require.ErrorContains(t, err, "httpd: ")
+	})
+
+	t.Run("unset usage still names the loaders", func(t *testing.T) {
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		require.Equal(t, ".server", manager.serverCertLoader.Usage())
+		require.Equal(t, ".client", manager.clientCertLoader.Usage())
+	})
+}
+
+func TestTLSConfigManager_RoleRestrictions(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	t.Run("client manager cannot Listen", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(monitor, WithUseTLS(true))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		listener, err := manager.Listen("tcp", "127.0.0.1:0")
+		require.ErrorIs(t, err, ErrClientListen)
+		require.Nil(t, listener)
+	})
+
+	t.Run("server manager cannot Dial", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		conn, err := manager.Dial("tcp", "127.0.0.1:0")
+		require.ErrorIs(t, err, ErrServerDial)
+		require.Nil(t, conn)
+
+		conn, err = manager.DialWithDialer(&net.Dialer{}, "tcp", "127.0.0.1:0")
+		require.ErrorIs(t, err, ErrServerDial)
+		require.Nil(t, conn)
+	})
+
+	t.Run("client and server manager can do both", func(t *testing.T) {
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
+			WithAllowInsecure(true))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		listener, err := manager.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		// The same manager serves and dials its own listener.
+		testData := []byte("hello")
+		serverDone := make(chan error, 1)
+		go simpleEchoServer(serverDone, listener, len(testData))
+
+		conn, err := manager.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+		defer th.CheckedClose(t, conn)()
+
+		_, err = conn.Write(testData)
+		require.NoError(t, err)
+
+		buf := make([]byte, len(testData))
+		_, err = conn.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, testData, buf)
+
+		require.NoError(t, <-serverDone)
+	})
+}
+
+func TestTLSConfigManager_ConstructorValidation(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	t.Run("missing monitor", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(nil, WithUseTLS(false))
+		require.ErrorIs(t, err, ErrNoCertificateMonitor)
+		require.Nil(t, manager)
+	})
+
+	t.Run("missing role", func(t *testing.T) {
+		// The exported constructors always supply a role, so this guards
+		// against misuse of the internal constructor.
+		manager, err := newTLSConfigManager(withMonitor(monitor), WithUseTLS(false))
+		require.ErrorIs(t, err, ErrNoRole)
+		require.Nil(t, manager)
+	})
+}
+
+func TestTLSConfigManager_PrepareReconfigureDisabled(t *testing.T) {
+	disabled := NewDisabledTLSConfigManager()
+	defer th.CheckedClose(t, disabled)()
+
+	// A disabled manager has no configuration to copy. Reconfiguring it must
+	// report that clearly instead of panicking.
+	require.NotPanics(t, func() {
+		apply, err := disabled.PrepareReconfigure(WithUseTLS(true))
+		require.ErrorIs(t, err, ErrConfigureDisabledManager)
+		require.Nil(t, apply)
+	})
+
+	require.False(t, disabled.UseTLS(), "a disabled manager stays disabled")
+}
+
+func TestTLSConfigManager_PrepareReconfigureUseTLS(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	t.Run("server cannot toggle TLS", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		// A listener is already bound with the current configuration, so
+		// turning TLS off underneath it is refused.
+		apply, err := manager.PrepareReconfigure(WithUseTLS(false))
+		require.ErrorIs(t, err, ErrNotSupportedServer)
+		require.Nil(t, apply)
+		require.True(t, manager.UseTLS(), "a refused reconfigure must not change the manager")
+	})
+
+	t.Run("server reconfigure without a TLS change is allowed", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		newSS := selfsigned.NewSelfSignedCert(t)
+		apply, err := manager.PrepareReconfigure(WithServerCertificate(newSS.CertPath, newSS.KeyPath))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+
+		certPath, _ := manager.serverCertLoader.Paths()
+		require.Equal(t, newSS.CertPath, certPath)
+	})
+
+	t.Run("client can turn TLS off", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+		require.True(t, manager.UseTLS())
+
+		apply, err := manager.PrepareReconfigure(WithUseTLS(false))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+
+		require.False(t, manager.UseTLS())
+		require.Nil(t, manager.TLSConfig())
+
+		// Disabling TLS clears the loaded certificate.
+		certPath, keyPath := manager.clientCertLoader.Paths()
+		require.Empty(t, certPath)
+		require.Empty(t, keyPath)
 	})
 }
