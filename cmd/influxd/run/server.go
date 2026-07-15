@@ -630,8 +630,7 @@ func (s *Server) ApplyReloadedConfig(config *Config, log *zap.Logger) error {
 		}
 	}
 
-	// Reload the subscriber's client TLS certificate at its currently
-	// configured path so rotated certificates are picked up.
+	// Reload the subscriber's TLS configuration, including certificates, CAs, and other TLS settings.
 	if s.Subscriber != nil {
 		if af, err := s.Subscriber.PrepareReloadTLSCertificates(config.Subscriber); err == nil {
 			applyFuncs = append(applyFuncs, af)

@@ -27,7 +27,7 @@ const (
 
 var (
 	// ErrConfigureDisabledManager is returned when an attempt is made to reconfigure
-	// a disabled config managaer.
+	// a disabled config manager.
 	ErrConfigureDisabledManager = errors.New("cannot configure disabled TLS manager")
 
 	// ErrClientListen is returned when attempt is made to have a client role manager
@@ -814,16 +814,12 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 // use.
 //
 // Previously, many options were required parameters to this function. They are still
-// required, but given using With*() parameters. This has the advantaged of allowing
+// required, but given using With*() parameters. This has the advantage of allowing
 // a single function to convert a TOML configuration to a slice of With* parameters for
-// both construction and re-configuration. It does make missing an option a run-time
+// both construction and reconfiguration. It does make missing an option a run-time
 // error instead of a compile-time error.
 //
-// The following are require options. It is an error if they are missing.
-// - WithUseTLS
-// - WithBaseConfig
-//
-// If WithUseTLS(true) is given, then WithCertificate must also be given.
+// If WithUseTLS(true) is given, then WithServerCertificate must also be given.
 //
 // All options given as direct positional parameters are required and can not be changed
 // after construction.
