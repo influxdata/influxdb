@@ -4,7 +4,6 @@ package subscriber // import "github.com/influxdata/influxdb/services/subscriber
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -459,15 +458,12 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 		}
 		// Writers dial through the manager, which resolves the TLS
 		// configuration on each connection, so a reloaded configuration reaches
-		// writers that already exist. The config snapshot is only a fallback for
-		// proxied requests, which do not dial through the manager.
-		var tlsConfig *tls.Config
+		// writers that already exist.
 		var dialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)
 		if s.tlsManager != nil {
-			tlsConfig = s.tlsManager.TLSConfig()
 			dialTLSContext = s.tlsManager.DialContext
 		}
-		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), tlsConfig, dialTLSContext)
+		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), dialTLSContext)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}

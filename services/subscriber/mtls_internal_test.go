@@ -95,7 +95,7 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 		cm := newManager(true)
 		defer cm.Close()
 
-		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig(), cm.DialContext)
+		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.DialContext)
 		require.NoError(t, err)
 
 		_, err = w.WritePointsContext(context.Background(), WriteRequest{
@@ -111,7 +111,7 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 		cm := newManager(false)
 		defer cm.Close()
 
-		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig(), cm.DialContext)
+		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.DialContext)
 		require.NoError(t, err)
 
 		_, err = w.WritePointsContext(context.Background(), WriteRequest{

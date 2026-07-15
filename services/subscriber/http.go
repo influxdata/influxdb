@@ -3,7 +3,6 @@ package subscriber
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"net"
 	"time"
 
@@ -18,31 +17,25 @@ type HTTP struct {
 
 // NewHTTP returns a new HTTP points writer with default options.
 func NewHTTP(addr string, timeout time.Duration) (*HTTP, error) {
-	return NewHTTPS(addr, timeout, nil, nil)
+	return NewHTTPS(addr, timeout, nil)
 }
 
 // NewHTTPS returns a new HTTPS points writer with default options and HTTPS
 // configured.
 //
-// dialTLSContext dials the writer's TLS connections, normally
-// tlsconfig.TLSConfigManager.DialContext, which resolves the TLS configuration
-// on each connection. That is what allows a reloaded configuration to reach a
-// writer that already exists: the writer keeps dialing through the manager
-// rather than through a configuration captured when it was built.
-//
-// tlsConfig is the fully-resolved client TLS configuration (root CAs, any client
-// certificate, and InsecureSkipVerify). It is only consulted for proxied
-// requests, which tunnel through the proxy instead of using dialTLSContext, and
-// is therefore a snapshot that a reload does not update. Both may be nil to use
-// Go's defaults.
+// dialTLSContext dials the writer's TLS connections and is the only source of
+// its TLS configuration. It is normally tlsconfig.TLSConfigManager.DialContext,
+// which resolves the configuration on each connection. That is what allows a
+// reloaded configuration to reach a writer that already exists: the writer keeps
+// dialing through the manager rather than through a configuration captured when
+// it was built. It may be nil to use Go's defaults, as NewHTTP does.
 //
 // timeout bounds the whole request, including the connection and TLS handshake,
 // so no separate handshake timeout is needed.
-func NewHTTPS(addr string, timeout time.Duration, tlsConfig *tls.Config, dialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)) (*HTTP, error) {
+func NewHTTPS(addr string, timeout time.Duration, dialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)) (*HTTP, error) {
 	conf := client.HTTPConfig{
 		Addr:           addr,
 		Timeout:        timeout,
-		TLSConfig:      tlsConfig,
 		DialTLSContext: dialTLSContext,
 	}
 
