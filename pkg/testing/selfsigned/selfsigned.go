@@ -48,6 +48,14 @@ type CertOptions struct {
 
 	// CACommonName sets the CA certificate's Subject.CommonName field
 	CACommonName string
+
+	// ExtKeyUsage replaces the leaf certificate's extended key usages. It is
+	// only consulted when ExtKeyUsageSet is true, so that an empty value can
+	// omit the extension entirely rather than mean "unset".
+	ExtKeyUsage []x509.ExtKeyUsage
+
+	// ExtKeyUsageSet indicates ExtKeyUsage was configured with WithExtKeyUsage.
+	ExtKeyUsageSet bool
 }
 
 type CertOpt func(*CertOptions)
@@ -85,6 +93,16 @@ func WithNotAfter(notAfter time.Time) CertOpt {
 func WithCombinedFile() CertOpt {
 	return func(o *CertOptions) {
 		o.CombinedFile = true
+	}
+}
+
+// WithExtKeyUsage replaces the leaf certificate's extended key usages, which
+// default to server and client authentication. Passing no usages omits the
+// extension entirely, leaving the certificate unrestricted.
+func WithExtKeyUsage(eku ...x509.ExtKeyUsage) CertOpt {
+	return func(o *CertOptions) {
+		o.ExtKeyUsage = eku
+		o.ExtKeyUsageSet = true
 	}
 }
 
@@ -172,6 +190,12 @@ func NewSelfSignedCert(t *testing.T, opts ...CertOpt) *Cert {
 
 	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	require.NoError(t, err)
+
+	extKeyUsage := []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
+	if options.ExtKeyUsageSet {
+		extKeyUsage = options.ExtKeyUsage
+	}
+
 	// Basically the same as the CA template, but its own serial, and with ip addresses and dns names.
 	template := x509.Certificate{
 		SerialNumber: serial,
@@ -179,7 +203,7 @@ func NewSelfSignedCert(t *testing.T, opts ...CertOpt) *Cert {
 		NotAfter:     options.NotAfter,
 
 		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		ExtKeyUsage: extKeyUsage,
 
 		BasicConstraintsValid: true,
 

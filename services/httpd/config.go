@@ -33,43 +33,46 @@ const (
 
 // Config represents a configuration for a HTTP service.
 type Config struct {
-	Enabled                  bool                    `toml:"enabled"`
-	BindAddress              string                  `toml:"bind-address"`
-	AuthEnabled              bool                    `toml:"auth-enabled"`
-	LogEnabled               bool                    `toml:"log-enabled"`
-	SuppressWriteLog         bool                    `toml:"suppress-write-log"`
-	WriteTracing             bool                    `toml:"write-tracing"`
-	FluxEnabled              bool                    `toml:"flux-enabled"`
-	FluxLogEnabled           bool                    `toml:"flux-log-enabled"`
-	FluxTesting              bool                    `toml:"flux-testing"`
-	PprofEnabled             bool                    `toml:"pprof-enabled"`
-	PprofAuthEnabled         bool                    `toml:"pprof-auth-enabled"`
-	DebugPprofEnabled        bool                    `toml:"debug-pprof-enabled"`
-	PingAuthEnabled          bool                    `toml:"ping-auth-enabled"`
-	PromReadAuthEnabled      bool                    `toml:"prom-read-auth-enabled"`
-	HTTPHeaders              map[string]string       `toml:"headers"`
-	HTTPSEnabled             bool                    `toml:"https-enabled"`
-	HTTPSCertificate         string                  `toml:"https-certificate"`
-	HTTPSPrivateKey          string                  `toml:"https-private-key"`
-	HTTPSInsecureCertificate bool                    `toml:"https-insecure-certificate"`
-	HTTPSClientAuthType      *toml.TlsClientAuthType `toml:"https-client-auth-type"`
-	HTTPSClientCA            *tlsconfig.CAConfig     `toml:"https-client-ca"`
-	MaxRowLimit              int                     `toml:"max-row-limit"`
-	MaxConnectionLimit       int                     `toml:"max-connection-limit"`
-	SharedSecret             string                  `toml:"shared-secret"`
-	Realm                    string                  `toml:"realm"`
-	UnixSocketEnabled        bool                    `toml:"unix-socket-enabled"`
-	UnixSocketGroup          *toml.Group             `toml:"unix-socket-group"`
-	UnixSocketPermissions    toml.FileMode           `toml:"unix-socket-permissions"`
-	BindSocket               string                  `toml:"bind-socket"`
-	MaxBodySize              toml.SSize              `toml:"max-body-size"`
-	AccessLogPath            string                  `toml:"access-log-path"`
-	AccessLogStatusFilters   []StatusFilter          `toml:"access-log-status-filters"`
-	MaxConcurrentWriteLimit  int                     `toml:"max-concurrent-write-limit"`
-	MaxEnqueuedWriteLimit    int                     `toml:"max-enqueued-write-limit"`
-	EnqueuedWriteTimeout     time.Duration           `toml:"enqueued-write-timeout"`
-	UserQueryBytesEnabled    bool                    `toml:"user-query-bytes-enabled"`
-	TLS                      *tls.Config             `toml:"-"`
+	Enabled                  bool              `toml:"enabled"`
+	BindAddress              string            `toml:"bind-address"`
+	AuthEnabled              bool              `toml:"auth-enabled"`
+	LogEnabled               bool              `toml:"log-enabled"`
+	SuppressWriteLog         bool              `toml:"suppress-write-log"`
+	WriteTracing             bool              `toml:"write-tracing"`
+	FluxEnabled              bool              `toml:"flux-enabled"`
+	FluxLogEnabled           bool              `toml:"flux-log-enabled"`
+	FluxTesting              bool              `toml:"flux-testing"`
+	PprofEnabled             bool              `toml:"pprof-enabled"`
+	PprofAuthEnabled         bool              `toml:"pprof-auth-enabled"`
+	DebugPprofEnabled        bool              `toml:"debug-pprof-enabled"`
+	PingAuthEnabled          bool              `toml:"ping-auth-enabled"`
+	PromReadAuthEnabled      bool              `toml:"prom-read-auth-enabled"`
+	HTTPHeaders              map[string]string `toml:"headers"`
+	HTTPSEnabled             bool              `toml:"https-enabled"`
+	HTTPSCertificate         string            `toml:"https-certificate"`
+	HTTPSPrivateKey          string            `toml:"https-private-key"`
+	HTTPSInsecureCertificate bool              `toml:"https-insecure-certificate"`
+	// HTTPSIgnoreSanityChecks loads the certificate even when it fails the
+	// checks that decide whether a server can use it at all.
+	HTTPSIgnoreSanityChecks bool                    `toml:"https-ignore-sanity-checks"`
+	HTTPSClientAuthType     *toml.TlsClientAuthType `toml:"https-client-auth-type"`
+	HTTPSClientCA           *tlsconfig.CAConfig     `toml:"https-client-ca"`
+	MaxRowLimit             int                     `toml:"max-row-limit"`
+	MaxConnectionLimit      int                     `toml:"max-connection-limit"`
+	SharedSecret            string                  `toml:"shared-secret"`
+	Realm                   string                  `toml:"realm"`
+	UnixSocketEnabled       bool                    `toml:"unix-socket-enabled"`
+	UnixSocketGroup         *toml.Group             `toml:"unix-socket-group"`
+	UnixSocketPermissions   toml.FileMode           `toml:"unix-socket-permissions"`
+	BindSocket              string                  `toml:"bind-socket"`
+	MaxBodySize             toml.SSize              `toml:"max-body-size"`
+	AccessLogPath           string                  `toml:"access-log-path"`
+	AccessLogStatusFilters  []StatusFilter          `toml:"access-log-status-filters"`
+	MaxConcurrentWriteLimit int                     `toml:"max-concurrent-write-limit"`
+	MaxEnqueuedWriteLimit   int                     `toml:"max-enqueued-write-limit"`
+	EnqueuedWriteTimeout    time.Duration           `toml:"enqueued-write-timeout"`
+	UserQueryBytesEnabled   bool                    `toml:"user-query-bytes-enabled"`
+	TLS                     *tls.Config             `toml:"-"`
 }
 
 // NewConfig returns a new Config with default settings.
@@ -89,6 +92,7 @@ func NewConfig() Config {
 		HTTPSEnabled:             false,
 		HTTPSCertificate:         "/etc/ssl/influxdb.pem",
 		HTTPSInsecureCertificate: false,
+		HTTPSIgnoreSanityChecks:  false,
 		// A nil HTTPSClientAuthType or HTTPSClientCA means "not configured" and
 		// leaves the base TLS config's value in place. When set, tlsconfig
 		// resolves and validates them (see tlsconfig.CAConfig and WithClientAuthPtr).
@@ -118,6 +122,7 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"bind-address":               c.BindAddress,
 		"https-enabled":              c.HTTPSEnabled,
 		"https-insecure-certificate": c.HTTPSInsecureCertificate,
+		"https-ignore-sanity-checks": c.HTTPSIgnoreSanityChecks,
 		"max-row-limit":              c.MaxRowLimit,
 		"max-connection-limit":       c.MaxConnectionLimit,
 		"access-log-path":            c.AccessLogPath,
@@ -236,6 +241,7 @@ func (c Config) TLSManagerOpts() []tlsconfig.TLSConfigManagerOpt {
 		tlsconfig.WithBaseConfig(c.TLS),
 		tlsconfig.WithServerCertificate(c.HTTPSCertificate, c.HTTPSPrivateKey),
 		tlsconfig.WithIgnoreFilePermissions(c.HTTPSInsecureCertificate),
+		tlsconfig.WithIgnoreSanityChecks(c.HTTPSIgnoreSanityChecks),
 		tlsconfig.WithClientAuthPtr(clientAuthType),
 		tlsconfig.WithClientCA(c.HTTPSClientCA),
 	}

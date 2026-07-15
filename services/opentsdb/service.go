@@ -54,12 +54,13 @@ type Service struct {
 
 	certMonitor *tlsconfig.TLSCertMonitor
 
-	tls          bool
-	tlsManager   *tlsconfig.TLSConfigManager
-	tlsConfig    *tls.Config
-	cert         string
-	privateKey   string
-	insecureCert bool
+	tls                bool
+	tlsManager         *tlsconfig.TLSConfigManager
+	tlsConfig          *tls.Config
+	cert               string
+	privateKey         string
+	insecureCert       bool
+	ignoreSanityChecks bool
 
 	// clientAuthType controls TLS client-certificate authentication (mTLS). A
 	// nil value leaves the base TLS config's ClientAuth in place.
@@ -110,24 +111,25 @@ func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) (*Service, erro
 	}
 
 	s := &Service{
-		certMonitor:     certMonitor,
-		tls:             d.TLSEnabled,
-		tlsConfig:       d.TLS,
-		cert:            d.Certificate,
-		privateKey:      d.PrivateKey,
-		insecureCert:    d.InsecureCertificate,
-		clientAuthType:  clientAuthType,
-		clientCA:        d.ClientCA,
-		BindAddress:     d.BindAddress,
-		Database:        d.Database,
-		RetentionPolicy: d.RetentionPolicy,
-		batchSize:       d.BatchSize,
-		batchPending:    d.BatchPending,
-		batchTimeout:    time.Duration(d.BatchTimeout),
-		Logger:          zap.NewNop(),
-		LogPointErrors:  d.LogPointErrors,
-		stats:           &Statistics{},
-		defaultTags:     models.StatisticTags{"bind": d.BindAddress},
+		certMonitor:        certMonitor,
+		tls:                d.TLSEnabled,
+		tlsConfig:          d.TLS,
+		cert:               d.Certificate,
+		privateKey:         d.PrivateKey,
+		insecureCert:       d.InsecureCertificate,
+		ignoreSanityChecks: d.IgnoreSanityChecks,
+		clientAuthType:     clientAuthType,
+		clientCA:           d.ClientCA,
+		BindAddress:        d.BindAddress,
+		Database:           d.Database,
+		RetentionPolicy:    d.RetentionPolicy,
+		batchSize:          d.BatchSize,
+		batchPending:       d.BatchPending,
+		batchTimeout:       time.Duration(d.BatchTimeout),
+		Logger:             zap.NewNop(),
+		LogPointErrors:     d.LogPointErrors,
+		stats:              &Statistics{},
+		defaultTags:        models.StatisticTags{"bind": d.BindAddress},
 	}
 	if s.tlsConfig == nil {
 		s.tlsConfig = new(tls.Config)
@@ -165,6 +167,7 @@ func (s *Service) Open() error {
 		tlsconfig.WithBaseConfig(s.tlsConfig),
 		tlsconfig.WithServerCertificate(s.cert, s.privateKey),
 		tlsconfig.WithIgnoreFilePermissions(s.insecureCert),
+		tlsconfig.WithIgnoreSanityChecks(s.ignoreSanityChecks),
 		tlsconfig.WithClientAuthPtr(s.clientAuthType),
 		tlsconfig.WithClientCA(s.clientCA),
 		tlsconfig.WithLogger(s.Logger))

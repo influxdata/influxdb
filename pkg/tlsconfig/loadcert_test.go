@@ -1,6 +1,8 @@
 package tlsconfig
 
 import (
+	"crypto/x509"
+	"encoding/asn1"
 	"os"
 	"path"
 	"testing"
@@ -297,5 +299,79 @@ func TestLoadCertificate_MalformedFiles(t *testing.T) {
 		lc, err := LoadCertificate(ss.CertPath, path.Join(t.TempDir(), "absent.pem"))
 		require.ErrorContains(t, err, "LoadCertificate: error opening")
 		require.False(t, lc.IsValid())
+	})
+}
+
+func TestX509Certificate_SupportsServerAuth(t *testing.T) {
+	tests := []struct {
+		name      string
+		eku       []x509.ExtKeyUsage
+		unknown   []asn1.ObjectIdentifier
+		supported bool
+	}{
+		{
+			name:      "no extension is unrestricted",
+			supported: true,
+		},
+		{
+			name:      "server auth",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			supported: true,
+		},
+		{
+			name:      "server and client auth",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+			supported: true,
+		},
+		{
+			name:      "any extended key usage",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+			supported: true,
+		},
+		{
+			name:      "server auth among others",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageServerAuth},
+			supported: true,
+		},
+		{
+			name:      "client auth only",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			supported: false,
+		},
+		{
+			name:      "unrelated usage only",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection},
+			supported: false,
+		},
+		{
+			// The extension is present but names only OIDs x509 does not
+			// recognize, which still restricts the certificate. ExtKeyUsage
+			// being empty is therefore not enough to call it unrestricted.
+			name:      "only unrecognized usages",
+			unknown:   []asn1.ObjectIdentifier{{1, 3, 6, 1, 4, 1, 99999, 1}},
+			supported: false,
+		},
+		{
+			name:      "server auth alongside an unrecognized usage",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			unknown:   []asn1.ObjectIdentifier{{1, 3, 6, 1, 4, 1, 99999, 1}},
+			supported: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			xc := &X509Certificate{Certificate: &x509.Certificate{
+				ExtKeyUsage:        tt.eku,
+				UnknownExtKeyUsage: tt.unknown,
+			}}
+			require.Equal(t, tt.supported, xc.SupportsServerAuth())
+		})
+	}
+
+	t.Run("nil certificate", func(t *testing.T) {
+		var xc *X509Certificate
+		require.False(t, xc.SupportsServerAuth())
+		require.False(t, (&X509Certificate{}).SupportsServerAuth())
 	})
 }

@@ -885,3 +885,217 @@ func TestRole_Predicates(t *testing.T) {
 		})
 	}
 }
+
+func TestTLSCertLoader_ServerCertificateMustSupportServerAuth(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	// A certificate issued only for client authentication. Every compliant TLS
+	// client refuses it from a server, so a server must not load it.
+	clientOnlySS := selfsigned.NewSelfSignedCert(t,
+		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+	serverSS := selfsigned.NewSelfSignedCert(t)
+
+	t.Run("server role rejects a client-only certificate", func(t *testing.T) {
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			monitor,
+			WithCertLoaderUsage("httpd.server"),
+			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.ErrorContains(t, err, "httpd.server: ", "the error should name the usage that failed")
+		require.Nil(t, cl)
+	})
+
+	t.Run("client role accepts a client-only certificate", func(t *testing.T) {
+		// The check is specific to how a server uses the certificate; a client
+		// presenting it is exactly what it was issued for.
+		cl, err := NewTLSCertLoader(
+			ClientOnlyRole,
+			monitor,
+			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, cl)
+		defer th.CheckedClose(t, cl)()
+	})
+
+	t.Run("a certificate with no extended key usage is unrestricted", func(t *testing.T) {
+		unrestrictedSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithExtKeyUsage())
+
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			monitor,
+			WithCertLoaderCertificate(unrestrictedSS.CertPath, unrestrictedSS.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, cl)
+		defer th.CheckedClose(t, cl)()
+	})
+
+	t.Run("reload to a client-only certificate is refused", func(t *testing.T) {
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			monitor,
+			WithCertLoaderCertificate(serverSS.CertPath, serverSS.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, cl)()
+
+		apply, err := cl.PrepareLoad(WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.Nil(t, apply)
+
+		// The working certificate stays in place.
+		certPath, _ := cl.Paths()
+		require.Equal(t, serverSS.CertPath, certPath)
+	})
+}
+
+func TestTLSConfigManager_ServerCertificateMustSupportServerAuth(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	clientOnlySS := selfsigned.NewSelfSignedCert(t,
+		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+	t.Run("server manager refuses it", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.Nil(t, manager)
+	})
+
+	t.Run("client manager accepts it as a client certificate", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithClientCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+	})
+}
+
+func TestTLSCertLoader_IgnoreSanityChecks(t *testing.T) {
+	// A certificate issued only for client authentication: real and parseable,
+	// but a server should not be presenting it.
+	clientOnlySS := selfsigned.NewSelfSignedCert(t,
+		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+	t.Run("loads the certificate and warns", func(t *testing.T) {
+		core, logs := observer.New(zapcore.InfoLevel)
+
+		monitor := newTestCertMonitor(t)
+		defer th.CheckedClose(t, monitor)()
+
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			monitor,
+			WithCertLoaderUsage("httpd.server"),
+			WithCertLoaderLogger(zap.New(core)),
+			WithCertLoaderIgnoreSanityChecks(true),
+			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.NoError(t, err, "an ignored sanity check must not fail the load")
+		require.NotNil(t, cl)
+		defer th.CheckedClose(t, cl)()
+
+		// The certificate is genuinely in use, not merely accepted.
+		certPath, _ := cl.Paths()
+		require.Equal(t, clientOnlySS.CertPath, certPath)
+		require.NotNil(t, cl.Certificate())
+
+		warnings := logs.FilterMessage("TLS certificate failed sanity checks, loading it anyway because sanity checks are being ignored").TakeAll()
+		require.Len(t, warnings, 1, "ignoring a sanity check must still say so")
+		require.Equal(t, zap.WarnLevel, warnings[0].Level)
+		require.Contains(t, warnings[0].ContextMap()["error"], ErrCertificateNotServerAuth.Error(),
+			"the warning should say which check failed")
+	})
+
+	t.Run("still fails when not ignored", func(t *testing.T) {
+		monitor := newTestCertMonitor(t)
+		defer th.CheckedClose(t, monitor)()
+
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			monitor,
+			WithCertLoaderIgnoreSanityChecks(false),
+			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.Nil(t, cl)
+	})
+
+	t.Run("an empty certificate still fails", func(t *testing.T) {
+		monitor := newTestCertMonitor(t)
+		defer th.CheckedClose(t, monitor)()
+
+		ss := selfsigned.NewSelfSignedCert(t)
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			monitor,
+			WithCertLoaderIgnoreSanityChecks(true),
+			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, cl)()
+
+		// A server always needs a certificate: that is a fault, not a sanity
+		// check, so ignoring sanity checks does not excuse it.
+		apply, err := cl.PrepareLoad(WithCertLoaderCertificate("", ""))
+		require.ErrorIs(t, err, ErrCertificateEmpty)
+		require.Nil(t, apply)
+	})
+
+	t.Run("reload can ignore sanity checks", func(t *testing.T) {
+		monitor := newTestCertMonitor(t)
+		defer th.CheckedClose(t, monitor)()
+
+		ss := selfsigned.NewSelfSignedCert(t)
+		cl, err := NewTLSCertLoader(
+			ServerOnlyRole,
+			monitor,
+			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, cl)()
+
+		// The option carries through a reload like the rest of the config.
+		apply, err := cl.PrepareLoad(
+			WithCertLoaderIgnoreSanityChecks(true),
+			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+
+		certPath, _ := cl.Paths()
+		require.Equal(t, clientOnlySS.CertPath, certPath)
+	})
+}
+
+func TestTLSConfigManager_WithIgnoreSanityChecks(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	clientOnlySS := selfsigned.NewSelfSignedCert(t,
+		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+	t.Run("passes through to the cert loader", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithIgnoreSanityChecks(true),
+			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.NoError(t, err, "the manager option must reach the cert loader")
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+
+		certPath, _ := manager.serverCertLoader.Paths()
+		require.Equal(t, clientOnlySS.CertPath, certPath)
+		require.NotNil(t, manager.TLSConfig().GetCertificate)
+	})
+
+	t.Run("defaults to enforcing", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.Nil(t, manager)
+	})
+}

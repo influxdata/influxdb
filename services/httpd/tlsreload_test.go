@@ -245,3 +245,42 @@ func TestService_TLSUsage(t *testing.T) {
 	require.Len(t, entries, 1)
 	require.Equal(t, "httpd.server", entries[0].ContextMap()["usage"])
 }
+
+// TestConfig_IgnoreSanityChecks covers the config option reaching the
+// TLS manager. A certificate issued only for client authentication fails the
+// server sanity checks, so it loads only when the option is set.
+func TestConfig_IgnoreSanityChecks(t *testing.T) {
+	clientOnlySS := selfsigned.NewSelfSignedCert(t,
+		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+	newService := func(t *testing.T, ignore bool) error {
+		t.Helper()
+
+		certMonitor := tlsconfig.NewTLSCertMonitor()
+		require.NoError(t, certMonitor.Open())
+		t.Cleanup(th.CheckedClose(t, certMonitor))
+
+		s := httpd.NewService(httpd.Config{
+			BindAddress:             "127.0.0.1:0",
+			HTTPSEnabled:            true,
+			HTTPSCertificate:        clientOnlySS.CertPath,
+			HTTPSPrivateKey:         clientOnlySS.KeyPath,
+			HTTPSIgnoreSanityChecks: ignore,
+		}, certMonitor)
+		s.WithLogger(zap.NewNop())
+
+		err := s.Open()
+		if err == nil {
+			t.Cleanup(th.CheckedClose(t, s))
+		}
+		return err
+	}
+
+	t.Run("enforced by default", func(t *testing.T) {
+		require.ErrorContains(t, newService(t, false), tlsconfig.ErrCertificateNotServerAuth.Error())
+	})
+
+	t.Run("ignored when configured", func(t *testing.T) {
+		require.NoError(t, newService(t, true))
+	})
+}

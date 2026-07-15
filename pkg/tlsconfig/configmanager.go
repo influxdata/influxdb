@@ -273,6 +273,10 @@ type tlsConfigManagerConfig struct {
 
 	// ignoreFilePermissions indicates if cert loaders should ignore file permissions.
 	ignoreFilePermissions bool
+
+	// ignoreSanityChecks indicates if cert loaders should log and overlook failed
+	// certificate sanity checks instead of failing the load.
+	ignoreSanityChecks bool
 }
 
 // commonCertLoaderOpts returns a common list of options for the TLSCertLoader.
@@ -280,6 +284,7 @@ func (c *tlsConfigManagerConfig) commonCertLoaderOpts() []TLSCertLoaderOpt {
 	return []TLSCertLoaderOpt{
 		WithCertLoaderLogger(c.logger),
 		WithCertLoaderIgnoreFilePermissions(c.ignoreFilePermissions),
+		WithCertLoaderIgnoreSanityChecks(c.ignoreSanityChecks),
 	}
 }
 
@@ -405,6 +410,17 @@ func WithLogger(logger *zap.Logger) TLSConfigManagerOpt {
 func WithIgnoreFilePermissions(ignore bool) TLSConfigManagerOpt {
 	return func(cl *tlsConfigManagerConfig) {
 		cl.ignoreFilePermissions = ignore
+	}
+}
+
+// WithIgnoreSanityChecks logs failed certificate sanity checks and loads the
+// certificate anyway, instead of failing. It is an escape hatch for a
+// certificate this package judges unusable but a deployment relies on. It does
+// not relax the requirement that a server have a present, parseable
+// certificate, which is a fault rather than a judgment.
+func WithIgnoreSanityChecks(ignore bool) TLSConfigManagerOpt {
+	return func(cl *tlsConfigManagerConfig) {
+		cl.ignoreSanityChecks = ignore
 	}
 }
 

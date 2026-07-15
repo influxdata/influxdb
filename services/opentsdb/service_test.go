@@ -2,6 +2,7 @@ package opentsdb
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -440,4 +441,50 @@ func TestService_TLSUsage(t *testing.T) {
 	entries := logs.FilterMessage("Registered certificate loader").TakeAll()
 	require.Len(t, entries, 1)
 	require.Equal(t, "opentsdb("+bind+").server", entries[0].ContextMap()["usage"])
+}
+
+// TestConfig_IgnoreSanityChecks covers the config option reaching the
+// TLS manager. A certificate issued only for client authentication fails the
+// server sanity checks, so it opens only when the option is set.
+func TestConfig_IgnoreSanityChecks(t *testing.T) {
+	clientOnlySS := selfsigned.NewSelfSignedCert(t,
+		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+	openService := func(t *testing.T, ignore bool) error {
+		t.Helper()
+
+		certMonitor := tlsconfig.NewTLSCertMonitor()
+		require.NoError(t, certMonitor.Open())
+		t.Cleanup(th.CheckedClose(t, certMonitor))
+
+		s, err := NewService(Config{
+			BindAddress:        "127.0.0.1:0",
+			Database:           "db0",
+			ConsistencyLevel:   "one",
+			TLSEnabled:         true,
+			Certificate:        clientOnlySS.CertPath,
+			PrivateKey:         clientOnlySS.KeyPath,
+			IgnoreSanityChecks: ignore,
+			TLS:                new(tls.Config),
+		}, certMonitor)
+		require.NoError(t, err)
+
+		s.MetaClient = &internal.MetaClientMock{
+			CreateDatabaseFn: func(string) (*meta.DatabaseInfo, error) { return nil, nil },
+		}
+
+		openErr := s.Open()
+		if openErr == nil {
+			t.Cleanup(func() { require.NoError(t, s.Close()) })
+		}
+		return openErr
+	}
+
+	t.Run("enforced by default", func(t *testing.T) {
+		require.ErrorContains(t, openService(t, false), tlsconfig.ErrCertificateNotServerAuth.Error())
+	})
+
+	t.Run("ignored when configured", func(t *testing.T) {
+		require.NoError(t, openService(t, true))
+	})
 }

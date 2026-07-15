@@ -30,6 +30,7 @@ var (
 	ErrCertificateNil            = errors.New("TLS certificate is nil")
 	ErrCertificateEmpty          = errors.New("TLS certificate is empty")
 	ErrCertificateInvalid        = errors.New("TLS certificate is invalid")
+	ErrCertificateNotServerAuth  = errors.New("TLS certificate does not permit server authentication")
 	ErrCertificateRequestInfoNil = errors.New("CertificateRequestInfo is nil")
 	ErrLoadedCertificateInvalid  = errors.New("LoadedCertificate is invalid")
 	ErrNoCertificateMonitor      = errors.New("no certificate monitor")
@@ -81,16 +82,18 @@ type tlsCertLoaderConfig struct {
 	// usage is the descriptive usage of the cert loader.
 	usage string
 
-	// ignoreFilePermissions is true if file permission checks should be bypassed.
-	// It is during a reconfiguration if ignoreFilePermissionsSet is false.
+	// ignoreFilePermissions is true if file permission checks should be bypassed
+	// when loading certificates.
 	ignoreFilePermissions bool
 
-	// logger is the logger to use for logging. It is ignored during reconfiguration
-	// if loggerSet is false.
-	logger *zap.Logger
+	// ignoreSanityChecks is true if failed certificate sanity checks should be
+	// logged and overlooked instead of failing the load.
+	ignoreSanityChecks bool
 
-	// loggerSet is only true if WithCertLoaderLogger was used.
-	loggerSet bool
+	// logger is the logger to use for logging. It is only applied when the cert
+	// loader is constructed: a reconfiguration through PrepareLoad keeps the
+	// logger the loader already has.
+	logger *zap.Logger
 }
 
 // TLSCertLoaderOpt is a function to configure a TLSCertLoader.
@@ -105,11 +108,11 @@ func WithCertLoaderCertificate(certPath string, keyPath string) TLSCertLoaderOpt
 	}
 }
 
-// WithCertLoaderLogger assigns a logger for to use.
+// WithCertLoaderLogger assigns a logger to use. It only takes effect when given
+// to NewTLSCertLoader; a loader keeps its original logger through a PrepareLoad.
 func WithCertLoaderLogger(logger *zap.Logger) TLSCertLoaderOpt {
 	return func(c *tlsCertLoaderConfig) {
 		c.logger = logger
-		c.loggerSet = true
 	}
 }
 
@@ -124,6 +127,17 @@ func WithCertLoaderUsage(usage string) TLSCertLoaderOpt {
 func WithCertLoaderIgnoreFilePermissions(ignore bool) TLSCertLoaderOpt {
 	return func(c *tlsCertLoaderConfig) {
 		c.ignoreFilePermissions = ignore
+	}
+}
+
+// WithCertLoaderIgnoreSanityChecks logs failed certificate sanity checks and
+// loads the certificate anyway, instead of failing the load. It is an escape
+// hatch for a certificate this package judges unusable but a deployment relies
+// on; it does not relax the checks that a certificate be present and parseable,
+// which are faults rather than judgments.
+func WithCertLoaderIgnoreSanityChecks(ignore bool) TLSCertLoaderOpt {
+	return func(c *tlsCertLoaderConfig) {
+		c.ignoreSanityChecks = ignore
 	}
 }
 
@@ -338,10 +352,46 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 		return nil, err
 	}
 
-	if loadedCert.IsEmpty() && cl.role.IsServerRole() {
-		err := fmt.Errorf("%s: can not use an empty certificate for a server: %w", cl.usage, ErrCertificateEmpty)
-		logLoadError(err)
-		return nil, err
+	// Sanity check the certificate against how a server will use it. A
+	// certificate a server can not present, or that every client will refuse, is
+	// caught here rather than at the first handshake, where it would surface
+	// per-connection as an error naming neither the certificate nor the reason.
+	if cl.role.IsServerRole() {
+		// These two are faults rather than judgments, so they fail the load even
+		// when sanity checks are ignored: a server using TLS always needs a
+		// certificate, and a leaf that will not parse is a real problem.
+		if loadedCert.IsEmpty() {
+			err := fmt.Errorf("%s: can not use an empty certificate for a server: %w", cl.usage, ErrCertificateEmpty)
+			logLoadError(err)
+			return nil, err
+		}
+
+		leaf, err := loadedCert.GetLeaf()
+		if err != nil {
+			err = fmt.Errorf("%s: %w", cl.usage, err)
+			logLoadError(err)
+			return nil, err
+		}
+
+		// Everything below is a sanity check: the certificate is real, but this
+		// package judges a server unable to use it. Collect them all so one load
+		// reports every problem rather than only the first.
+		var sanityErrs []error
+
+		if !leaf.SupportsServerAuth() {
+			sanityErrs = append(sanityErrs, fmt.Errorf("%s: can not use a certificate that does not permit server authentication for a server: %w",
+				cl.usage, ErrCertificateNotServerAuth))
+		}
+
+		if len(sanityErrs) > 0 {
+			sanityErr := errors.Join(sanityErrs...)
+			if !c.ignoreSanityChecks {
+				logLoadError(sanityErr)
+				return nil, sanityErr
+			}
+			log.Warn("TLS certificate failed sanity checks, loading it anyway because sanity checks are being ignored",
+				zap.Error(sanityErr))
+		}
 	}
 
 	loadedCert.WithLogContext(log).Info("Successfully loaded TLS certificate")
