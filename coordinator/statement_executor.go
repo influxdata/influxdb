@@ -1416,12 +1416,13 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 	fieldIndexes := make(map[string]int)
 	tagIndexes := make(map[string]int, len(row.GroupingKeys))
 	for i, c := range row.Columns {
-		switch {
-		case c == models.TimeString:
+		if c == models.TimeString {
 			timeIndex = i
-		case isGroupingColumn(groupingCols, c):
+		} else if _, ok := groupingCols[c]; ok {
+			// A GROUP BY date_part grouping dimension is written as a tag
+			// rather than a field.
 			tagIndexes[c] = i
-		default:
+		} else {
 			fieldIndexes[c] = i
 		}
 	}
@@ -1457,13 +1458,6 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 		points = append(points, p)
 	}
 	return points, nil
-}
-
-// isGroupingColumn reports whether column c is a GROUP BY date_part grouping
-// dimension (and so must be written as a tag rather than a field).
-func isGroupingColumn(groupingCols map[string]struct{}, c string) bool {
-	_, ok := groupingCols[c]
-	return ok
 }
 
 // groupingTags builds the tag set for a single INTO point. It starts from the

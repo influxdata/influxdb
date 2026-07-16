@@ -1115,7 +1115,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}

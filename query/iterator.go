@@ -693,13 +693,9 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 		if d, ok := d.Expr.(*influxql.Call); ok && d.Name == DatePartString {
 			// This should already be validated during compilation, but keep this code
 			// defensive to avoid panics if an invalid statement reaches this point.
-			lit, ok := d.Args[0].(*influxql.StringLiteral)
+			expr, ok := matchDatePartCall(d)
 			if !ok {
-				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
-			}
-			expr, ok := ParseDatePartExpr(lit.Val)
-			if !ok {
-				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
+				return opt, fmt.Errorf("invalid date part expression: %s", d.String())
 			}
 			// Skip a duplicate date_part dimension (e.g. GROUP BY date_part('year',
 			// time), date_part('year', time)); a repeated part would inject a
@@ -723,7 +719,8 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	}
 
 	opt.Condition = condition
-	opt.NeedTimeRef = conditionNeedsTimeRef(condition)
+	// date_part calls in the condition need access to the point's timestamp.
+	opt.NeedTimeRef = exprContainsDatePart(condition)
 	opt.Ascending = stmt.TimeAscending()
 	opt.Dedupe = stmt.Dedupe
 	opt.StripName = stmt.StripName
@@ -741,12 +738,6 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Authorizer = sopt.Authorizer
 
 	return opt, nil
-}
-
-// conditionNeedsTimeRef returns true if the condition expression contains
-// function calls that require access to the point's timestamp (e.g. date_part).
-func conditionNeedsTimeRef(condition influxql.Expr) bool {
-	return exprContainsDatePart(condition)
 }
 
 func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {

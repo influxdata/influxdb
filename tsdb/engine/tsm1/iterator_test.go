@@ -142,9 +142,10 @@ func TestIntegerIterator_Next_DatePartCondition_ZeroAllocs(t *testing.T) {
 
 // TestIntegerIterator_Next_NeedTimeRef_NilCondition guards against a nil-map panic
 // when an IteratorOptions arrives with NeedTimeRef=true but Condition=nil. Locally
-// conditionNeedsTimeRef(nil) keeps the invariant (NeedTimeRef implies a condition),
-// but the enterprise wire codec encodes the two fields independently and could
-// deliver this combination; itr.m must still be allocated before the time-ref write.
+// newIteratorOptionsStmt derives NeedTimeRef from the condition, keeping the
+// invariant (NeedTimeRef implies a condition), but the enterprise wire codec
+// encodes the two fields independently and could deliver this combination; itr.m
+// must still be allocated before the time-ref write.
 func TestIntegerIterator_Next_NeedTimeRef_NilCondition(t *testing.T) {
 	opt := query.IteratorOptions{
 		Aux:         []influxql.VarRef{{Val: "f1", Type: influxql.Integer}},

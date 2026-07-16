@@ -238,7 +238,7 @@ func TestComputeDimKey_SignedValueOrdering(t *testing.T) {
 	for _, hasTags := range []bool{false, true} {
 		var prev string
 		for i, v := range vals {
-			key := computeDimKey(Epoch, v, "tagid", hasTags)
+			key := computeDimKey(Epoch, v, TagSubset{ID: "tagid", HasTags: hasTags})
 			if i > 0 {
 				require.Less(t, prev, key,
 					"DimKey for %d must sort before DimKey for %d (hasTags=%v)", vals[i-1], v, hasTags)

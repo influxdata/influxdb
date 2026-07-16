@@ -1111,7 +1111,7 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -1469,7 +1469,7 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -1827,7 +1827,7 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -2185,7 +2185,7 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -2543,7 +2543,7 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -4130,7 +4130,7 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -4488,7 +4488,7 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -4846,7 +4846,7 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -5204,7 +5204,7 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -5562,7 +5562,7 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -7149,7 +7149,7 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -7507,7 +7507,7 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -7865,7 +7865,7 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -8223,7 +8223,7 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -8581,7 +8581,7 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -10154,7 +10154,7 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -10512,7 +10512,7 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -10870,7 +10870,7 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -11228,7 +11228,7 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -11586,7 +11586,7 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -13159,7 +13159,7 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -13517,7 +13517,7 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -13875,7 +13875,7 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -14233,7 +14233,7 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}
@@ -14591,7 +14591,7 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// If we have group-by key entries, create separate iterators for them.
 		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
-			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
 			if err != nil {
 				return nil, err
 			}

@@ -472,7 +472,7 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {
 	})
 
 	aux := []interface{}{int64(3)}
-	entries, err := g.ResolveKeys(aux, "", false)
+	entries, err := g.ResolveKeys(aux, query.TagSubset{})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.NotEmpty(t, entries[0].DimKey)
@@ -485,7 +485,7 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
 	})
 
 	aux := []interface{}{int64(3)}
-	entries, err := g.ResolveKeys(aux, "host=server01", true)
+	entries, err := g.ResolveKeys(aux, query.TagSubset{ID: "host=server01", HasTags: true})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.NotEmpty(t, entries[0].DimKey)
@@ -500,9 +500,9 @@ func TestDatePartGrouper_DimKey_NoCollisionWithNulBytesInTagID(t *testing.T) {
 		{Expr: query.Month},
 	})
 
-	a, err := g.ResolveKeys([]interface{}{int64(3)}, "a\x00\x00b", true)
+	a, err := g.ResolveKeys([]interface{}{int64(3)}, query.TagSubset{ID: "a\x00\x00b", HasTags: true})
 	require.NoError(t, err)
-	b, err := g.ResolveKeys([]interface{}{int64(3)}, "a\x00\x00b\x00\x00c", true)
+	b, err := g.ResolveKeys([]interface{}{int64(3)}, query.TagSubset{ID: "a\x00\x00b\x00\x00c", HasTags: true})
 	require.NoError(t, err)
 	require.NotEqual(t, a[0].DimKey, b[0].DimKey, "distinct tag IDs must yield distinct grouping keys")
 }
@@ -513,7 +513,7 @@ func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
 	})
 
 	aux := []interface{}{query.DecodedDatePartKey{Expr: query.Month, Val: 3}}
-	entries, err := g.ResolveKeys(aux, "", false)
+	entries, err := g.ResolveKeys(aux, query.TagSubset{})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 }
@@ -524,7 +524,7 @@ func TestDatePartGrouper_DecodeEntry(t *testing.T) {
 	})
 
 	aux := []interface{}{int64(7)}
-	entries, err := g.ResolveKeys(aux, "", false)
+	entries, err := g.ResolveKeys(aux, query.TagSubset{})
 	require.NoError(t, err)
 
 	decoded, err := g.DecodeEntry(entries[0].EncodedKey)
@@ -542,7 +542,7 @@ func TestDatePartGrouper_ResolveKeys_AuxShorterThanDims(t *testing.T) {
 		{Expr: query.Month},
 	})
 
-	entries, err := g.ResolveKeys([]interface{}{int64(3)}, "", false)
+	entries, err := g.ResolveKeys([]interface{}{int64(3)}, query.TagSubset{})
 	require.NoError(t, err)
 	require.Nil(t, entries)
 }
@@ -554,7 +554,7 @@ func TestDatePartGrouper_ResolveKeys_UnexpectedAuxType(t *testing.T) {
 		{Expr: query.Month},
 	})
 
-	entries, err := g.ResolveKeys([]interface{}{"not an int"}, "", false)
+	entries, err := g.ResolveKeys([]interface{}{"not an int"}, query.TagSubset{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected aux value type")
 	require.Nil(t, entries)
@@ -596,7 +596,7 @@ func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
 	})
 
 	aux := []interface{}{int64(2026), int64(3)}
-	entries, err := g.ResolveKeys(aux, "", false)
+	entries, err := g.ResolveKeys(aux, query.TagSubset{})
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
 
