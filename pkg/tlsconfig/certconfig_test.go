@@ -154,9 +154,7 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		WithCertLoaderLogger(logger))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
-	defer func() {
-		require.NoError(t, cl.Close())
-	}()
+	defer th.CheckedClose(t, cl)()
 
 	var goodSerial big.Int
 	{
@@ -252,7 +250,7 @@ func TestTLSCertLoader_FileNotFound(t *testing.T) {
 		ServerOnlyRole,
 		monitor,
 		WithCertLoaderCertificate("/nonexistent/path/to/cert.pem", ss.KeyPath))
-	require.ErrorContains(t, err, "no such file or directory")
+	require.ErrorIs(t, err, os.ErrNotExist)
 	require.Nil(t, cl)
 
 	// Non-existent key file
@@ -260,7 +258,7 @@ func TestTLSCertLoader_FileNotFound(t *testing.T) {
 		ServerOnlyRole,
 		monitor,
 		WithCertLoaderCertificate(ss.CertPath, "/nonexistent/path/to/key.pem"))
-	require.ErrorContains(t, err, "no such file or directory")
+	require.ErrorIs(t, err, os.ErrNotExist)
 	require.Nil(t, cl)
 
 	// Both files non-existent
@@ -268,7 +266,7 @@ func TestTLSCertLoader_FileNotFound(t *testing.T) {
 		ServerOnlyRole,
 		monitor,
 		WithCertLoaderCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
-	require.ErrorContains(t, err, "no such file or directory")
+	require.ErrorIs(t, err, os.ErrNotExist)
 	require.Nil(t, cl)
 }
 
@@ -316,9 +314,7 @@ func TestTLSCertLoader_CombinedFile(t *testing.T) {
 		WithCertLoaderCertificate(ss.CertPath, ""))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
-	defer func() {
-		require.NoError(t, cl.Close())
-	}()
+	defer th.CheckedClose(t, cl)()
 
 	// Get certificate and verify it
 	cert, err := cl.GetCertificate(nil)
@@ -444,9 +440,7 @@ func TestTLSCertLoader_ExpiredCertificateLogging(t *testing.T) {
 		WithCertLoaderLogger(logger))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
-	defer func() {
-		require.NoError(t, cl.Close())
-	}()
+	defer th.CheckedClose(t, cl)()
 
 	checkWarning := func(t *testing.T) {
 		warning := logs.FilterMessage("Certificate is expired").TakeAll()

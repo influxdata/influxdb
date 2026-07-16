@@ -291,7 +291,7 @@ func (s *Service) PrepareReloadConfig(c Config) (func() error, error) {
 
 	// Let the user know that changing the https-enabled setting doesn't work.
 	if s.httpsEnabled != c.HTTPSEnabled {
-		return nil, fmt.Errorf("httpd: can not change https-enabled on a running server")
+		return nil, fmt.Errorf("httpd: cannot change https-enabled on a running server")
 	}
 
 	if s.httpsEnabled {

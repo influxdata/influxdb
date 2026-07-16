@@ -180,7 +180,7 @@ func TestTLSConfigManager_WithClientCertificate_Paths(t *testing.T) {
 			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath),
 			WithClientCertificate(missing, missing))
 		require.ErrorContains(t, err, "error configuring client cert loader")
-		require.ErrorContains(t, err, "no such file or directory")
+		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Nil(t, manager)
 	})
 }
@@ -379,7 +379,7 @@ func TestTLSConfigManager_ReconfigureClientCertificate(t *testing.T) {
 		missing := path.Join(t.TempDir(), "absent.pem")
 
 		apply, err := manager.PrepareReconfigure(WithClientCertificate(missing, missing))
-		require.ErrorContains(t, err, "no such file or directory")
+		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Nil(t, apply)
 
 		clientCert, _ := manager.clientCertLoader.Paths()

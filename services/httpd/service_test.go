@@ -62,7 +62,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSEnabled: false,
 		}
 		applyFunc, err := s.PrepareReloadConfig(newConfig)
-		require.ErrorContains(t, err, "can not change https-enabled on a running server")
+		require.ErrorContains(t, err, "cannot change https-enabled on a running server")
 		require.Nil(t, applyFunc)
 	})
 
@@ -84,7 +84,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSPrivateKey:  ss.KeyPath,
 		}
 		applyFunc, err := s.PrepareReloadConfig(newConfig)
-		require.ErrorContains(t, err, "can not change https-enabled on a running server")
+		require.ErrorContains(t, err, "cannot change https-enabled on a running server")
 		require.Nil(t, applyFunc)
 	})
 

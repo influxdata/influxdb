@@ -821,7 +821,7 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 //
 // If WithUseTLS(true) is given, then WithServerCertificate must also be given.
 //
-// All options given as direct positional parameters are required and can not be changed
+// All options given as direct positional parameters are required and cannot be changed
 // after construction.
 //
 // The returned TLSConfigManager can be used for server operations (e.g. Listen), but not for client operations (e.g. Dial).
@@ -846,7 +846,7 @@ func NewClientServerTLSConfigManager(monitor *TLSCertMonitor, opts ...TLSConfigM
 }
 
 // NewDisabledTLSConfigManager creates a TLSConfigManager that has TLS disabled. A disabled
-// config manager can not be reconfigured to enable TLS later. It is primarily useful for tests
+// config manager cannot be reconfigured to enable TLS later. It is primarily useful for tests
 // that do not require TLS.
 func NewDisabledTLSConfigManager() *TLSConfigManager {
 	cm := &TLSConfigManager{

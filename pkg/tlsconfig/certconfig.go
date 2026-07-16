@@ -143,7 +143,7 @@ func WithCertLoaderIgnoreSanityChecks(ignore bool) TLSCertLoaderOpt {
 
 // NewTLSCertLoader creates a TLSCertLoader loaded with the certificate found in certPath and keyPath.
 // Only trusted input (standard configuration files) should be used for certPath and keyPath.
-// If the certificate can not be loaded, an error is returned. On success, a monitor is setup to
+// If the certificate cannot be loaded, an error is returned. On success, a monitor is setup to
 // periodically check the certificate for expiration.
 func NewTLSCertLoader(role Role, monitor *TLSCertMonitor, opts ...TLSCertLoaderOpt) (rCertLoader *TLSCertLoader, rErr error) {
 	cl := &TLSCertLoader{
@@ -353,7 +353,7 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 	}
 
 	// Sanity check the certificate against how a server will use it. A
-	// certificate a server can not present, or that every client will refuse, is
+	// certificate a server cannot present, or that every client will refuse, is
 	// caught here rather than at the first handshake, where it would surface
 	// per-connection as an error naming neither the certificate nor the reason.
 	if cl.role.IsServerRole() {
@@ -361,7 +361,7 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 		// when sanity checks are ignored: a server using TLS always needs a
 		// certificate, and a leaf that will not parse is a real problem.
 		if loadedCert.IsEmpty() {
-			err := fmt.Errorf("%s: can not use an empty certificate for a server: %w", cl.usage, ErrCertificateEmpty)
+			err := fmt.Errorf("%s: cannot use an empty certificate for a server: %w", cl.usage, ErrCertificateEmpty)
 			logLoadError(err)
 			return nil, err
 		}
@@ -379,7 +379,7 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 		var sanityErrs []error
 
 		if !leaf.SupportsServerAuth() {
-			sanityErrs = append(sanityErrs, fmt.Errorf("%s: can not use a certificate that does not permit server authentication for a server: %w",
+			sanityErrs = append(sanityErrs, fmt.Errorf("%s: cannot use a certificate that does not permit server authentication for a server: %w",
 				cl.usage, ErrCertificateNotServerAuth))
 		}
 

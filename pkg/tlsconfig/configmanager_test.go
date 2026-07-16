@@ -161,7 +161,8 @@ func TestTLSConfigManager_ConstructorError(t *testing.T) {
 		WithUseTLS(true),
 		WithBaseConfig(nil),
 		WithServerCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
-	require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading: open /nonexistent/cert.pem: no such file or directory")
+	require.ErrorIs(t, err, os.ErrNotExist)
+	require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading:")
 	require.Nil(t, manager)
 }
 
@@ -473,7 +474,8 @@ func TestTLSConfigManager_PrepareCertificateLoad(t *testing.T) {
 		// Prepare loading with nonexistent paths should fail
 		callback, err := manager.PrepareReconfigure(
 			WithServerCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
-		require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading: open /nonexistent/cert.pem: no such file or directory")
+		require.ErrorIs(t, err, os.ErrNotExist)
+		require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading:")
 		require.Nil(t, callback)
 	})
 
@@ -1101,7 +1103,7 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 			WithUseTLS(true),
 			WithRootCA(&CAConfig{Paths: []string{"/nonexistent/ca.pem"}}))
 		require.ErrorIs(t, err, os.ErrNotExist)
-		require.ErrorContains(t, err, "error creating root CA pool: error reading file \"/nonexistent/ca.pem\" for CA store: open /nonexistent/ca.pem: no such file or directory")
+		require.ErrorContains(t, err, "error creating root CA pool: error reading file \"/nonexistent/ca.pem\" for CA store:")
 		require.Nil(t, manager)
 	})
 
@@ -1366,7 +1368,7 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{"/nonexistent/ca.pem"}}))
 		require.ErrorIs(t, err, os.ErrNotExist)
-		require.ErrorContains(t, err, "error creating client CA pool: error reading file \"/nonexistent/ca.pem\" for CA store: open /nonexistent/ca.pem: no such file or directory")
+		require.ErrorContains(t, err, "error creating client CA pool: error reading file \"/nonexistent/ca.pem\" for CA store:")
 		require.Nil(t, manager)
 	})
 
