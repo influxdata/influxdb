@@ -205,7 +205,11 @@ func (m *TLSCertMonitor) logger() *zap.Logger {
 func (m *TLSCertMonitor) SetLogger(log *zap.Logger) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.log = log
+	if log != nil {
+		m.log = log
+	} else {
+		m.log = zap.NewNop()
+	}
 }
 
 // isClosed returns true if the monitor has been closed.
@@ -427,7 +431,7 @@ func (m *TLSCertMonitor) checkCerts(filter []*TLSCertLoader) {
 // monitor periodically logs certificate errors with the currently registered
 // TLSCertLoader objects.
 func (m *TLSCertMonitor) monitorCerts(startWg *sync.WaitGroup, stopWg *sync.WaitGroup) {
-	m.log.Info("Starting TLS certificate monitor")
+	m.logger().Info("Starting TLS certificate monitor")
 
 	ticker := time.NewTicker(m.checkInterval())
 	defer ticker.Stop()
@@ -451,7 +455,7 @@ func (m *TLSCertMonitor) monitorCerts(startWg *sync.WaitGroup, stopWg *sync.Wait
 			m.triggerDelay.Reset(d)
 
 		case <-m.closeCh:
-			m.log.Info("Stopping TLS certificate monitor")
+			m.logger().Info("Stopping TLS certificate monitor")
 			ticker.Stop()
 			m.triggerDelay.Stop()
 			if stopWg != nil {
