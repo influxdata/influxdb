@@ -48,6 +48,21 @@ OPTIONS
 -unsafeSsl::
   Set this with '-ssl' to allow unsafe connections.
 
+-cert <path>::
+  Path to the client certificate file (PEM) presented to the server for mutual TLS. If the file also contains the private key, '-key' may be omitted. May also be set with the 'INFLUX_CERT' environment variable.
+
+-key <path>::
+  Path to the client private key file (PEM) for mutual TLS, when the key is stored separately from the certificate given by '-cert'. May also be set with the 'INFLUX_KEY' environment variable.
+
+-root-ca <path>::
+  Path to the CA bundle file (PEM) used to verify the server certificate. May also be set with the 'INFLUX_ROOT_CA' environment variable.
+
+-insecure-certificate::
+  Ignore file permission checks when loading the client certificate and key. May also be set with the 'INFLUX_INSECURE_CERTIFICATE' environment variable.
+
+-ignore-cert-sanity-checks::
+  Load the client certificate even if it fails client-authentication sanity checks. May also be set with the 'INFLUX_IGNORE_CERT_SANITY_CHECKS' environment variable.
+
 -execute <command>::
   Executes the command and exits.
 
