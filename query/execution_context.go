@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 )
 
 // ExecutionContext contains state that the query is currently executing with.
@@ -27,6 +28,11 @@ type ExecutionContext struct {
 	mu   sync.RWMutex
 	done chan struct{}
 	err  error
+
+	// failed is set (via send/Send) whenever a Result with a non-nil Err is
+	// passed to the execution context for sending (even if the query is aborted
+	// before it can be delivered). Read by the Executor to count queriesFailed.
+	failed int32
 }
 
 func (ctx *ExecutionContext) watch() {
@@ -88,9 +94,18 @@ func (ctx *ExecutionContext) Value(key interface{}) interface{} {
 	return ctx.Context.Value(key)
 }
 
+// Failed reports whether any Result carrying a non-nil Err has been emitted for
+// this query.
+func (ctx *ExecutionContext) Failed() bool {
+	return atomic.LoadInt32(&ctx.failed) != 0
+}
+
 // send sends a Result to the Results channel and will exit if the query has
 // been aborted.
 func (ctx *ExecutionContext) send(result *Result) error {
+	if result.Err != nil {
+		atomic.StoreInt32(&ctx.failed, 1)
+	}
 	select {
 	case <-ctx.AbortCh:
 		return ErrQueryAborted
@@ -103,6 +118,9 @@ func (ctx *ExecutionContext) send(result *Result) error {
 // been interrupted or aborted.
 func (ctx *ExecutionContext) Send(result *Result) error {
 	result.StatementID = ctx.statementID
+	if result.Err != nil {
+		atomic.StoreInt32(&ctx.failed, 1)
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
