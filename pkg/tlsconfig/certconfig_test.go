@@ -202,7 +202,33 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		require.NotNil(t, x509Cert.SerialNumber)
 		require.Equal(t, goodSerial, *x509Cert.SerialNumber)
 
-		// TODO: Check log lines
+		// The failed reload should log that it kept the previously loaded
+		// certificate, naming both the certificate that failed and the one still
+		// in use (with its serial), so operators can tell the reload was rejected
+		// rather than silently applied.
+		require.Equal(t, 3, logs.Len())
+		logLines := logs.TakeAll()
+		require.Equal(t, "Loading TLS certificate (start)", logLines[0].Message)
+		require.Equal(t, "Error loading TLS certificate, continuing to use previously loaded certificate", logLines[1].Message)
+		require.Equal(t, "Loading TLS certificate (end)", logLines[2].Message)
+
+		// The start and end lines name the certificate whose load was attempted.
+		for _, l := range []observer.LoggedEntry{logLines[0], logLines[2]} {
+			ctx := l.ContextMap()
+			require.Equal(t, emptyPath, ctx["cert"])
+			require.Equal(t, emptyPath, ctx["key"])
+		}
+
+		// The error line is logged at error level and distinguishes the failed
+		// certificate from the active one that remains in use.
+		require.Equal(t, zapcore.ErrorLevel, logLines[1].Level)
+		cm := logLines[1].ContextMap()
+		require.Equal(t, emptyPath, cm["failedCert"])
+		require.Equal(t, emptyPath, cm["failedKey"])
+		require.Equal(t, ss.CertPath, cm["activeCert"])
+		require.Equal(t, ss.KeyPath, cm["activeKey"])
+		require.Equal(t, goodSerial.String(), cm["activeCertSerial"])
+		require.Contains(t, cm["error"], "failed to find any PEM data")
 	}
 
 }

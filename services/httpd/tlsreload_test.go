@@ -55,7 +55,7 @@ func clientCertPool(t *testing.T, ss *selfsigned.Cert) *x509.CertPool {
 // The client's own error is not enough: under TLS 1.3 a client can finish its
 // handshake before the server's rejection arrives, so a read is needed to
 // surface it.
-func handshake(t *testing.T, s *httpd.Service, clientCfg *tls.Config) error {
+func handshake(t *testing.T, s *httpd.Service, clientCfg *tls.Config) (rErr error) {
 	t.Helper()
 
 	clientCfg.InsecureSkipVerify = true
@@ -63,7 +63,17 @@ func handshake(t *testing.T, s *httpd.Service, clientCfg *tls.Config) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		// If a handshake error occurs, conn is automatically closed and we might
+		// get an error close because the connection is automatically closed.
+		// The closeErr doesn't give any indication it was due to a TLS error
+		// and the error is not consistent. The best we can do is say there should
+		// not be an error if the overall function did not return an error.
+		closeErr := conn.Close()
+		if rErr == nil {
+			require.NoError(t, closeErr)
+		}
+	}()
 
 	if err := conn.Handshake(); err != nil {
 		return err

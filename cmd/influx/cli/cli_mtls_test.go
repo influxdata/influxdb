@@ -88,7 +88,8 @@ func TestRunCLI_MutualTLS_MissingClientCert(t *testing.T) {
 	c.IgnoreSignals = true
 	c.ForceTTY = true
 
-	require.Error(t, c.Run())
+	// The server aborts the handshake because no client certificate was sent.
+	require.ErrorContains(t, c.Run(), "certificate required")
 }
 
 // TestRunCLI_MutualTLS_UntrustedServer verifies the server certificate is
@@ -108,5 +109,10 @@ func TestRunCLI_MutualTLS_UntrustedServer(t *testing.T) {
 	c.IgnoreSignals = true
 	c.ForceTTY = true
 
-	require.Error(t, c.Run())
+	// The server certificate cannot be verified against any trusted CA, which
+	// surfaces as a TLS certificate-verification error in the wrapped chain.
+	err := c.Run()
+	var certErr *tls.CertificateVerificationError
+	require.ErrorAs(t, err, &certErr)
+	require.ErrorContains(t, err, "certificate signed by unknown authority")
 }

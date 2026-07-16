@@ -183,7 +183,7 @@ func (c *CommandLine) Run() error {
 			}
 			c.ClientConfig.UnsafeSsl = false
 		}
-		return fmt.Errorf("Failed to connect to %s: %s\n%s", c.Client.Addr(), err.Error(), msg)
+		return fmt.Errorf("Failed to connect to %s: %w\n%s", c.Client.Addr(), err, msg)
 	}
 
 	// Modify precision.
