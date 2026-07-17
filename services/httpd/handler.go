@@ -151,6 +151,7 @@ type Handler struct {
 	accessLogFilters  StatusFilters
 	stats             *Statistics
 	queryBytesPerUser gensyncmap.Map[string, *atomic.Int64]
+	writeBytesPerUser gensyncmap.Map[string, *atomic.Int64]
 
 	requestTracker *RequestTracker
 	writeThrottler *Throttler
@@ -480,23 +481,36 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 		},
 	}}
 
-	// Add per-user query bytes as separate statistics (one per user) if enabled
-	if h.Config.UserQueryBytesEnabled && !h.queryBytesPerUser.IsEmpty() {
-		h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
-			userTag := user
-			if user == "" {
-				userTag = StatAnonymousUser
-			}
-			userTags := models.NewTags(tags).Merge(map[string]string{StatUserTagKey: userTag}).Map()
-			stats = append(stats, models.Statistic{
-				Name:   "userquerybytes",
-				Tags:   userTags,
-				Values: map[string]interface{}{statUserQueryRespBytes: counter.Load()},
-			})
-			return true
-		})
+	// Add per-user query and write bytes as separate statistics (one per user
+	// per measurement) if enabled.
+	if h.Config.UserQueryBytesEnabled {
+		stats = appendUserByteStats(stats, tags, &h.queryBytesPerUser, "userquerybytes", statUserQueryRespBytes)
+	}
+	if h.Config.UserWriteBytesEnabled {
+		stats = appendUserByteStats(stats, tags, &h.writeBytesPerUser, "userwritebytes", statUserWriteReqBytes)
 	}
 
+	return stats
+}
+
+// appendUserByteStats appends one statistic per user in counters to stats. Each
+// appended statistic is named measurement, carries tags plus a StatUserTagKey
+// tag naming the user, and has valueField as its sole value field. The empty
+// user is reported as StatAnonymousUser.
+func appendUserByteStats(stats []models.Statistic, tags map[string]string, counters *gensyncmap.Map[string, *atomic.Int64], measurement, valueField string) []models.Statistic {
+	counters.Range(func(user string, counter *atomic.Int64) bool {
+		userTag := user
+		if user == "" {
+			userTag = StatAnonymousUser
+		}
+		userTags := models.NewTags(tags).Merge(map[string]string{StatUserTagKey: userTag}).Map()
+		stats = append(stats, models.Statistic{
+			Name:   measurement,
+			Tags:   userTags,
+			Values: map[string]interface{}{valueField: counter.Load()},
+		})
+		return true
+	})
 	return stats
 }
 
@@ -507,6 +521,25 @@ func (h *Handler) addQueryBytesForUser(user string, n int64) {
 		return
 	}
 	counter, _ := h.queryBytesPerUser.LoadOrStore(user, &atomic.Int64{})
+	counter.Add(n)
+}
+
+// addWriteBytesForUser atomically adds bytes to the per-user write bytes
+// counter. user may be nil, which attributes the bytes to the anonymous user.
+// This is a no-op if UserWriteBytesEnabled is false.
+//
+// Unlike addQueryBytesForUser, this takes a meta.User rather than a username:
+// the write call sites have no other need for the username, so deriving it here
+// keeps the nil check off the ingest path's call sites.
+func (h *Handler) addWriteBytesForUser(user meta.User, n int64) {
+	if !h.Config.UserWriteBytesEnabled {
+		return
+	}
+	var userName string
+	if user != nil {
+		userName = user.ID()
+	}
+	counter, _ := h.writeBytesPerUser.LoadOrStore(userName, &atomic.Int64{})
 	counter.Add(n)
 }
 
@@ -1700,10 +1733,6 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 	}
 
 	body := r.Body
-	if h.Config.MaxBodySize > 0 {
-		body = truncateReader(body, int64(h.Config.MaxBodySize))
-	}
-
 	// Handle gzip decoding of the body
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		b, err := gzip.NewReader(r.Body)
@@ -1713,6 +1742,15 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		}
 		defer b.Close()
 		body = b
+	}
+
+	// Enforce MaxBodySize on the stream we actually buffer into memory. This
+	// must wrap the (possibly gzip-decoded) body, not the raw request body, so
+	// that a small compressed body cannot decompress without bound into memory
+	// (a decompression bomb). buf.ReadFrom below returns errTruncated once the
+	// limit is exceeded, which is translated to a 413 response.
+	if h.Config.MaxBodySize > 0 {
+		body = truncateReader(body, int64(h.Config.MaxBodySize))
 	}
 
 	var bs []byte
@@ -1742,6 +1780,7 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		return
 	}
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
+	h.addWriteBytesForUser(user, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
 		h.Logger.Info("Write body received by handler", zap.ByteString("body", buf.Bytes()))
@@ -1960,6 +1999,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 		return
 	}
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
+	h.addWriteBytesForUser(user, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
 		h.Logger.Info("Prom write body received by handler", zap.ByteString("body", buf.Bytes()))
