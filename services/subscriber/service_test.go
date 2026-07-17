@@ -13,6 +13,8 @@ import (
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/testing/assert"
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/stretchr/testify/require"
@@ -42,7 +44,17 @@ func (s Subscription) WritePointsContext(_ context.Context, request subscriber.W
 	return s.WritePointsFn(request)
 }
 
+func newCertMonitor(t *testing.T) *tlsconfig.TLSCertMonitor {
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	t.Cleanup(th.CheckedClose(t, certMonitor))
+
+	return certMonitor
+}
+
 func TestService_IgnoreNonMatch(t *testing.T) {
+	certMonitor := newCertMonitor(t)
+
 	dataChanged := make(chan struct{})
 	ms := MetaClient{}
 	ms.WaitForDataChangedFn = func() chan struct{} {
@@ -76,7 +88,7 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 		return sub, nil
 	}
 
-	s := subscriber.NewService(subscriber.NewConfig())
+	s := subscriber.NewService(subscriber.NewConfig(), certMonitor)
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	require.NoError(t, s.Open())
@@ -120,6 +132,7 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 }
 
 func TestService_ModeALL(t *testing.T) {
+	certMonitor := newCertMonitor(t)
 	dataChanged := make(chan struct{})
 	ms := MetaClient{}
 	ms.WaitForDataChangedFn = func() chan struct{} {
@@ -153,7 +166,7 @@ func TestService_ModeALL(t *testing.T) {
 		return sub, nil
 	}
 
-	s := subscriber.NewService(subscriber.NewConfig())
+	s := subscriber.NewService(subscriber.NewConfig(), certMonitor)
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	require.NoError(t, s.Open())
@@ -199,6 +212,7 @@ func TestService_ModeALL(t *testing.T) {
 }
 
 func TestService_ModeANY(t *testing.T) {
+	certMonitor := newCertMonitor(t)
 	dataChanged := make(chan struct{})
 	ms := MetaClient{}
 	ms.WaitForDataChangedFn = func() chan struct{} {
@@ -232,7 +246,7 @@ func TestService_ModeANY(t *testing.T) {
 		return sub, nil
 	}
 
-	s := subscriber.NewService(subscriber.NewConfig())
+	s := subscriber.NewService(subscriber.NewConfig(), certMonitor)
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	require.NoError(t, s.Open())
@@ -282,6 +296,7 @@ func TestService_ModeANY(t *testing.T) {
 }
 
 func TestService_Multiple(t *testing.T) {
+	certMonitor := newCertMonitor(t)
 	dataChanged := make(chan struct{})
 	ms := MetaClient{}
 	ms.WaitForDataChangedFn = func() chan struct{} {
@@ -321,7 +336,7 @@ func TestService_Multiple(t *testing.T) {
 		return sub, nil
 	}
 
-	s := subscriber.NewService(subscriber.NewConfig())
+	s := subscriber.NewService(subscriber.NewConfig(), certMonitor)
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	require.NoError(t, s.Open())
@@ -400,6 +415,7 @@ func TestService_Multiple(t *testing.T) {
 }
 
 func TestService_WaitForDataChanged(t *testing.T) {
+	certMonitor := newCertMonitor(t)
 	dataChanged := make(chan struct{}, 1)
 	defer close(dataChanged)
 	ms := MetaClient{}
@@ -445,7 +461,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 		return currentDatabaseInfo
 	}
 
-	s := subscriber.NewService(subscriber.NewConfig())
+	s := subscriber.NewService(subscriber.NewConfig(), certMonitor)
 	s.MetaClient = ms
 	// Explicitly closed below for testing
 	require.NoError(t, s.Open())
@@ -528,6 +544,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 }
 
 func TestService_BadUTF8(t *testing.T) {
+	certMonitor := newCertMonitor(t)
 	dataChanged := make(chan struct{})
 	ms := MetaClient{}
 	ms.WaitForDataChangedFn = func() chan struct{} {
@@ -561,7 +578,7 @@ func TestService_BadUTF8(t *testing.T) {
 		return sub, nil
 	}
 
-	s := subscriber.NewService(subscriber.NewConfig())
+	s := subscriber.NewService(subscriber.NewConfig(), certMonitor)
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	require.NoError(t, s.Open())

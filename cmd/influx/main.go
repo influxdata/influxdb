@@ -49,6 +49,11 @@ func main() {
 	fs.Var(&c.Type, "type", "query language for executing commands or invoking the REPL: influxql, flux")
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
 	fs.BoolVar(&c.ClientConfig.UnsafeSsl, "unsafeSsl", false, "Set this when connecting to the cluster using https and not use SSL verification.")
+	fs.StringVar(&c.ClientCert, "cert", "", "Path to the client certificate file (PEM) presented for mutual TLS. Also settable via INFLUX_CERT.")
+	fs.StringVar(&c.ClientKey, "key", "", "Path to the client private key file (PEM) for mutual TLS. Also settable via INFLUX_KEY.")
+	fs.StringVar(&c.RootCA, "root-ca", "", "Path to the CA bundle (PEM) used to verify the server certificate. Also settable via INFLUX_ROOT_CA.")
+	fs.BoolVar(&c.InsecureCertificate, "insecure-certificate", false, "Ignore file permission checks when loading the client certificate and key. Also settable via INFLUX_INSECURE_CERTIFICATE.")
+	fs.BoolVar(&c.IgnoreCertSanityChecks, "ignore-cert-sanity-checks", false, "Load the client certificate even if it fails client-authentication sanity checks. Also settable via INFLUX_IGNORE_CERT_SANITY_CHECKS.")
 	fs.StringVar(&c.Format, "format", defaultFormat, "Format specifies the format of the server responses:  json, csv, or column.")
 	fs.StringVar(&c.ClientConfig.Precision, "precision", defaultPrecision, "Precision specifies the format of the timestamp:  rfc3339,h,m,s,ms,u or ns.")
 	fs.StringVar(&c.ClientConfig.WriteConsistency, "consistency", "all", "Set write consistency level: any, one, quorum, or all.")
@@ -84,6 +89,16 @@ func main() {
 			Use https for requests.
   -unsafeSsl
 			Set this when connecting to the cluster using https and not use SSL verification.
+  -cert 'path'
+			Path to the client certificate file (PEM) presented for mutual TLS.
+  -key 'path'
+			Path to the client private key file (PEM) for mutual TLS.
+  -root-ca 'path'
+			Path to the CA bundle (PEM) used to verify the server certificate.
+  -insecure-certificate
+			Ignore file permission checks when loading the client certificate and key.
+  -ignore-cert-sanity-checks
+			Load the client certificate even if it fails client-authentication sanity checks.
   -execute 'command'
 			Execute command and quit.
   -type 'influxql|flux'

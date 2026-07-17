@@ -19,12 +19,16 @@ import (
 )
 
 func TestService_VerifyReloadedConfig(t *testing.T) {
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)()
+
 	t.Run("HTTPS disabled, no change", func(t *testing.T) {
 		// Create service with HTTPS disabled
 		config := httpd.Config{
 			HTTPSEnabled: false,
 		}
-		s := httpd.NewService(config)
+		s := httpd.NewService(config, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		// Verify reload with HTTPS still disabled
@@ -46,7 +50,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSCertificate: ss.CertPath,
 			HTTPSPrivateKey:  ss.KeyPath,
 		}
-		s := httpd.NewService(config)
+		s := httpd.NewService(config, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		// Open service to initialize certLoader
@@ -58,7 +62,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSEnabled: false,
 		}
 		applyFunc, err := s.PrepareReloadConfig(newConfig)
-		require.ErrorContains(t, err, "can not change https-enabled on a running server")
+		require.ErrorContains(t, err, "cannot change https-enabled on a running server")
 		require.Nil(t, applyFunc)
 	})
 
@@ -67,7 +71,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		config := httpd.Config{
 			HTTPSEnabled: false,
 		}
-		s := httpd.NewService(config)
+		s := httpd.NewService(config, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		// Create certificates for reload attempt
@@ -80,7 +84,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSPrivateKey:  ss.KeyPath,
 		}
 		applyFunc, err := s.PrepareReloadConfig(newConfig)
-		require.ErrorContains(t, err, "can not change https-enabled on a running server")
+		require.ErrorContains(t, err, "cannot change https-enabled on a running server")
 		require.Nil(t, applyFunc)
 	})
 
@@ -96,7 +100,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSPrivateKey:  ss1.KeyPath,
 			TLS:              new(tls.Config),
 		}
-		s := httpd.NewService(config)
+		s := httpd.NewService(config, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		// Open service to initialize certLoader
@@ -169,7 +173,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSCertificate: ss.CertPath,
 			HTTPSPrivateKey:  ss.KeyPath,
 		}
-		s := httpd.NewService(config)
+		s := httpd.NewService(config, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		// Open service to initialize certLoader
@@ -183,7 +187,8 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSPrivateKey:  "/nonexistent/path/key.pem",
 		}
 		applyFunc, err := s.PrepareReloadConfig(newConfig)
-		require.ErrorContains(t, err, "error loading certificate")
+		require.ErrorContains(t, err, "error reloading TLS configuration")
+		require.ErrorContains(t, err, "/nonexistent/path/cert.pem", "the error should name the path that failed")
 		require.Nil(t, applyFunc)
 	})
 
@@ -198,7 +203,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSPrivateKey:  ss.KeyPath,
 			TLS:              new(tls.Config),
 		}
-		s := httpd.NewService(config)
+		s := httpd.NewService(config, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		// Open service to initialize certLoader
@@ -265,6 +270,10 @@ func TestService_Open_ClientCertAuth(t *testing.T) {
 	serverSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("localhost"))
 	clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("client", "Client CA"))
 
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)()
+
 	authType := toml.TlsClientAuthType(tls.RequireAndVerifyClientCert)
 	s := httpd.NewService(httpd.Config{
 		BindAddress:         "localhost:",
@@ -274,7 +283,7 @@ func TestService_Open_ClientCertAuth(t *testing.T) {
 		HTTPSClientAuthType: &authType,
 		HTTPSClientCA:       &tlsconfig.CAConfig{Paths: []string{clientSS.CACertPath}},
 		TLS:                 new(tls.Config),
-	})
+	}, certMonitor)
 	s.WithLogger(zap.NewNop())
 	require.NoError(t, s.Open())
 	defer th.CheckedClose(t, s)()
@@ -327,7 +336,12 @@ func TestService_Open_ClientCertAuth(t *testing.T) {
 // openService creates, opens, and registers cleanup for an httpd.Service.
 func openService(t *testing.T, config httpd.Config) *httpd.Service {
 	t.Helper()
-	s := httpd.NewService(config)
+
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	t.Cleanup(th.CheckedClose(t, certMonitor))
+
+	s := httpd.NewService(config, certMonitor)
 	s.WithLogger(zap.NewNop())
 	require.NoError(t, s.Open())
 	t.Cleanup(th.CheckedClose(t, s))
@@ -370,6 +384,10 @@ func loadCertSerial(t *testing.T, certPath, keyPath string) *big.Int {
 // TestService_Open_TLSConfigManager verifies that the TLSConfigManager created
 // in Service.Open is configured properly based on the Service's configuration.
 func TestService_Open_TLSConfigManager(t *testing.T) {
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)()
+
 	t.Run("HTTPS disabled creates non-TLS listener", func(t *testing.T) {
 		s := openService(t, httpd.Config{
 			BindAddress:  "localhost:",
@@ -402,7 +420,7 @@ func TestService_Open_TLSConfigManager(t *testing.T) {
 			HTTPSEnabled:     true,
 			HTTPSCertificate: "/nonexistent/cert.pem",
 			HTTPSPrivateKey:  "/nonexistent/key.pem",
-		})
+		}, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		err := s.Open()
@@ -449,7 +467,7 @@ func TestService_Open_TLSConfigManager(t *testing.T) {
 			HTTPSCertificate:         ss.CertPath,
 			HTTPSPrivateKey:          ss.KeyPath,
 			HTTPSInsecureCertificate: false,
-		})
+		}, certMonitor)
 		s.WithLogger(zap.NewNop())
 
 		err := s.Open()

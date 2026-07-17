@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
@@ -59,6 +60,10 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 	serverSS := selfsigned.NewSelfSignedCert(t)
 	clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("client", "Client CA"))
 
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)()
+
 	var sawClientCert bool
 	srv := newMTLSServer(t, serverSS, clientSS.CACertPath, &sawClientCert)
 	defer srv.Close()
@@ -73,11 +78,15 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 	}
 
 	newManager := func(withClientCert bool) *tlsconfig.TLSConfigManager {
-		opts := []tlsconfig.TLSConfigManagerOpt{tlsconfig.WithRootCA(conf.effectiveRootCA())}
+		opts := []tlsconfig.TLSConfigManagerOpt{
+			tlsconfig.WithUseTLS(true),
+			tlsconfig.WithBaseConfig(conf.TLS),
+			tlsconfig.WithAllowInsecure(conf.InsecureSkipVerify),
+			tlsconfig.WithRootCA(conf.effectiveRootCA())}
 		if withClientCert {
-			opts = append(opts, tlsconfig.WithCertificate(conf.Certificate, conf.PrivateKey))
+			opts = append(opts, tlsconfig.WithServerCertificate(conf.Certificate, conf.PrivateKey))
 		}
-		cm, err := tlsconfig.NewClientTLSConfigManager(true, conf.TLS, conf.InsecureSkipVerify, opts...)
+		cm, err := tlsconfig.NewClientTLSConfigManager(certMonitor, opts...)
 		require.NoError(t, err)
 		return cm
 	}
@@ -86,7 +95,7 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 		cm := newManager(true)
 		defer cm.Close()
 
-		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig())
+		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.DialContext)
 		require.NoError(t, err)
 
 		_, err = w.WritePointsContext(context.Background(), WriteRequest{
@@ -102,7 +111,7 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 		cm := newManager(false)
 		defer cm.Close()
 
-		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig())
+		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.DialContext)
 		require.NoError(t, err)
 
 		_, err = w.WritePointsContext(context.Background(), WriteRequest{
@@ -126,16 +135,23 @@ func (stubMetaClient) WaitForDataChanged() chan struct{} { return make(chan stru
 func TestService_PrepareReloadTLSCertificates(t *testing.T) {
 	open := func(t *testing.T, c Config) *Service {
 		t.Helper()
-		s := NewService(c)
+
+		certMonitor := tlsconfig.NewTLSCertMonitor()
+		require.NoError(t, certMonitor.Open())
+		t.Cleanup(th.CheckedClose(t, certMonitor))
+
+		s := NewService(c, certMonitor)
 		s.MetaClient = stubMetaClient{}
+
 		require.NoError(t, s.Open())
 		t.Cleanup(func() { require.NoError(t, s.Close()) })
 		return s
 	}
 
 	t.Run("no client certificate is a no-op", func(t *testing.T) {
-		s := open(t, NewConfig())
-		apply, err := s.PrepareReloadTLSCertificates()
+		conf := NewConfig()
+		s := open(t, conf)
+		apply, err := s.PrepareReloadTLSCertificates(conf)
 		require.NoError(t, err)
 		require.NotNil(t, apply)
 		require.NoError(t, apply())
@@ -148,7 +164,7 @@ func TestService_PrepareReloadTLSCertificates(t *testing.T) {
 		c.PrivateKey = clientSS.KeyPath
 
 		s := open(t, c)
-		apply, err := s.PrepareReloadTLSCertificates()
+		apply, err := s.PrepareReloadTLSCertificates(c)
 		require.NoError(t, err)
 		require.NotNil(t, apply)
 		require.NoError(t, apply())

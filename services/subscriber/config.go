@@ -54,6 +54,12 @@ type Config struct {
 	// should be ignored when it is loaded.
 	InsecureCertificate bool `toml:"insecure-certificate"`
 
+	// IgnoreCertSanityChecks loads the certificate even when it fails the
+	// checks that decide whether it can be used at all. The checks currently
+	// only cover server certificates, so this has no effect on the subscriber's
+	// client certificate today.
+	IgnoreCertSanityChecks bool `toml:"ignore-cert-sanity-checks"`
+
 	// The number of writer goroutines processing the write channel.
 	WriteConcurrency int `toml:"write-concurrency"`
 
@@ -124,6 +130,20 @@ func (c Config) effectiveRootCA() *tlsconfig.CAConfig {
 		cc.Paths = append(cc.Paths, c.CaCerts)
 	}
 	return cc
+}
+
+// TLSManagerOpts returns the list of TLS manager options specified by c.
+func (c Config) TLSManagerOpts() []tlsconfig.TLSConfigManagerOpt {
+	return []tlsconfig.TLSConfigManagerOpt{
+		tlsconfig.WithUsage("subscriber"),
+		tlsconfig.WithUseTLS(true),
+		tlsconfig.WithBaseConfig(c.TLS),
+		tlsconfig.WithAllowInsecure(c.InsecureSkipVerify),
+		tlsconfig.WithClientCertificate(c.Certificate, c.PrivateKey),
+		tlsconfig.WithRootCA(c.effectiveRootCA()),
+		tlsconfig.WithIgnoreFilePermissions(c.InsecureCertificate),
+		tlsconfig.WithIgnoreSanityChecks(c.IgnoreCertSanityChecks),
+	}
 }
 
 func fileExists(fileName string) bool {

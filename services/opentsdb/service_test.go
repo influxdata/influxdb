@@ -2,6 +2,7 @@ package opentsdb
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -14,21 +15,26 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
 	// Let the OS assign a random port since we are only opening and closing the service,
 	// not actually connecting to it.
-	service := NewTestService("db0", "127.0.0.1:0")
+	service := NewTestService(t, "db0", "127.0.0.1:0")
 
 	// Closing a closed service is fine.
 	if err := service.Service.Close(); err != nil {
@@ -69,7 +75,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 
 	database := "db0"
-	s := NewTestService(database, "127.0.0.1:0")
+	s := NewTestService(t, database, "127.0.0.1:0")
 	s.WritePointsFn = func(tsdb.WriteContext, string, string, models.ConsistencyLevel, []models.Point) error {
 		return nil
 	}
@@ -145,7 +151,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 func TestService_Telnet(t *testing.T) {
 	t.Parallel()
 
-	s := NewTestService("db0", "127.0.0.1:0")
+	s := NewTestService(t, "db0", "127.0.0.1:0")
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +214,7 @@ func TestService_Telnet(t *testing.T) {
 func TestService_HTTP(t *testing.T) {
 	t.Parallel()
 
-	s := NewTestService("db0", "127.0.0.1:0")
+	s := NewTestService(t, "db0", "127.0.0.1:0")
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -255,26 +261,32 @@ func TestService_HTTP(t *testing.T) {
 }
 
 type TestService struct {
+	t             *testing.T
 	Service       *Service
 	MetaClient    *internal.MetaClientMock
 	WritePointsFn func(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+	certMonitor   *tlsconfig.TLSCertMonitor
 }
 
 // NewTestService returns a new instance of Service.
-func NewTestService(database string, bind string) *TestService {
+func NewTestService(t *testing.T, database string, bind string) *TestService {
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	// The monitor has to outlive this helper, so close it when the test ends
+	// rather than when the helper returns.
+	t.Cleanup(th.CheckedClose(t, certMonitor))
+
 	s, err := NewService(Config{
 		BindAddress:      bind,
 		Database:         database,
 		ConsistencyLevel: "one",
-	})
-
-	if err != nil {
-		panic(err)
-	}
+	}, certMonitor)
+	require.NoError(t, err)
 
 	service := &TestService{
-		Service:    s,
-		MetaClient: &internal.MetaClientMock{},
+		Service:     s,
+		MetaClient:  &internal.MetaClientMock{},
+		certMonitor: certMonitor,
 	}
 
 	service.MetaClient.CreateDatabaseFn = func(db string) (*meta.DatabaseInfo, error) {
@@ -291,6 +303,19 @@ func NewTestService(database string, bind string) *TestService {
 	service.Service.MetaClient = service.MetaClient
 	service.Service.PointsWriter = service
 	return service
+}
+
+func (s *TestService) Close() error {
+	var allErrs []error
+
+	if err := s.certMonitor.Close(); err != nil {
+		allErrs = append(allErrs, fmt.Errorf("error closing cert monitor: %w", err))
+	}
+	if err := s.Service.Close(); err != nil {
+		allErrs = append(allErrs, fmt.Errorf("error closing opentsdb service: %w", err))
+	}
+
+	return errors.Join(allErrs...)
 }
 
 func (s *TestService) WritePointsPrivileged(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
@@ -316,6 +341,10 @@ func TestService_ClientCertAuth(t *testing.T) {
 	serverSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("localhost"))
 	clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("client", "Client CA"))
 
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)()
+
 	authType := toml.TlsClientAuthType(tls.RequireAndVerifyClientCert)
 	s, err := NewService(Config{
 		BindAddress:      "127.0.0.1:0",
@@ -327,7 +356,7 @@ func TestService_ClientCertAuth(t *testing.T) {
 		ClientAuthType:   &authType,
 		ClientCA:         &tlsconfig.CAConfig{Paths: []string{clientSS.CACertPath}},
 		TLS:              new(tls.Config),
-	})
+	}, certMonitor)
 	require.NoError(t, err)
 
 	// Wire the minimal dependencies so /api/put succeeds once the handshake passes.
@@ -376,5 +405,86 @@ func TestService_ClientCertAuth(t *testing.T) {
 			resp.Body.Close()
 		}
 		require.Error(t, err, "server should reject a client with an untrusted certificate")
+	})
+}
+
+// TestService_TLSUsage covers the service naming itself to the certificate
+// monitor. A server can run several OpenTSDB services at once, so the usage
+// carries the bind address; otherwise the monitor, which groups its warnings by
+// usage, could not tell two of them apart.
+func TestService_TLSUsage(t *testing.T) {
+	serverSS := selfsigned.NewSelfSignedCert(t)
+
+	core, logs := observer.New(zapcore.InfoLevel)
+	certMonitor := tlsconfig.NewTLSCertMonitor(tlsconfig.WithMonitorLogger(zap.New(core)))
+	require.NoError(t, certMonitor.Open())
+	t.Cleanup(th.CheckedClose(t, certMonitor))
+
+	const bind = "127.0.0.1:0"
+	s, err := NewService(Config{
+		BindAddress:      bind,
+		Database:         "db0",
+		ConsistencyLevel: "one",
+		TLSEnabled:       true,
+		Certificate:      serverSS.CertPath,
+		PrivateKey:       serverSS.KeyPath,
+		TLS:              new(tls.Config),
+	}, certMonitor)
+	require.NoError(t, err)
+
+	s.MetaClient = &internal.MetaClientMock{
+		CreateDatabaseFn: func(string) (*meta.DatabaseInfo, error) { return nil, nil },
+	}
+	require.NoError(t, s.Open())
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+
+	entries := logs.FilterMessage("Registered certificate loader").TakeAll()
+	require.Len(t, entries, 1)
+	require.Equal(t, "opentsdb("+bind+").server", entries[0].ContextMap()["usage"])
+}
+
+// TestConfig_IgnoreCertSanityChecks covers the config option reaching the
+// TLS manager. A certificate issued only for client authentication fails the
+// server sanity checks, so it opens only when the option is set.
+func TestConfig_IgnoreCertSanityChecks(t *testing.T) {
+	clientOnlySS := selfsigned.NewSelfSignedCert(t,
+		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+	openService := func(t *testing.T, ignore bool) error {
+		t.Helper()
+
+		certMonitor := tlsconfig.NewTLSCertMonitor()
+		require.NoError(t, certMonitor.Open())
+		t.Cleanup(th.CheckedClose(t, certMonitor))
+
+		s, err := NewService(Config{
+			BindAddress:            "127.0.0.1:0",
+			Database:               "db0",
+			ConsistencyLevel:       "one",
+			TLSEnabled:             true,
+			Certificate:            clientOnlySS.CertPath,
+			PrivateKey:             clientOnlySS.KeyPath,
+			IgnoreCertSanityChecks: ignore,
+			TLS:                    new(tls.Config),
+		}, certMonitor)
+		require.NoError(t, err)
+
+		s.MetaClient = &internal.MetaClientMock{
+			CreateDatabaseFn: func(string) (*meta.DatabaseInfo, error) { return nil, nil },
+		}
+
+		openErr := s.Open()
+		if openErr == nil {
+			t.Cleanup(func() { require.NoError(t, s.Close()) })
+		}
+		return openErr
+	}
+
+	t.Run("enforced by default", func(t *testing.T) {
+		require.ErrorContains(t, openService(t, false), tlsconfig.ErrCertificateNotServerAuth.Error())
+	})
+
+	t.Run("ignored when configured", func(t *testing.T) {
+		require.NoError(t, openService(t, true))
 	})
 }

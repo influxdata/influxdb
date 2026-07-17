@@ -3,7 +3,6 @@ package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -61,6 +60,13 @@ type Service struct {
 	// Fields above mu are not protected by mu and should be read-only after being
 	// set in NewService.
 
+	certMonitor *tlsconfig.TLSCertMonitor
+
+	// conf is the configuration the service was created with. It is the single
+	// source of the TLS manager options, shared with PrepareReloadConfig so the
+	// open and reload paths cannot drift apart.
+	conf Config
+
 	addr         string
 	httpsEnabled bool
 
@@ -69,28 +75,8 @@ type Service struct {
 	unixSocketGroup int
 	bindSocket      string
 
-	// httpsCertificate is the initial TLS certificate to load if httpsEnabled is true. This should not be
-	// exposed to client code because a different certificate might be loaded on a config reload.
-	httpsCertificate string
-
-	// httpsPrivateKey is the initial TLS private key to load if httpsEnabled is true. This should not be
-	// exposed to client code because a different private key might be loaded on a config reload.
-	httpsPrivateKey string
-
-	// httpsInsecureCertificate is true if certificate file permissions should be ignored.
-	httpsInsecureCertificate bool
-
-	// httpsClientAuthType defines the type of client authentication required (aka
-	// mTLS). A nil value leaves the base TLS config's ClientAuth in place.
-	httpsClientAuthType *tls.ClientAuthType
-
-	// httpsClientCA configures the CA pool used to verify client certificates
-	// (aka mTLS). A nil value leaves the base TLS config's client pool in place.
-	httpsClientCA *tlsconfig.CAConfig
-
-	limit     int
-	tlsConfig *tls.Config
-	err       chan error
+	limit int
+	err   chan error
 
 	closeFunc func() error
 
@@ -122,41 +108,26 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config) *Service {
+func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) *Service {
 	handler := NewHandler(c)
 
-	// Convert the optional client-auth type to a *tls.ClientAuthType so a nil
-	// (unset) config leaves the base TLS config's ClientAuth in place.
-	var clientAuthType *tls.ClientAuthType
-	if c.HTTPSClientAuthType != nil {
-		auth := tls.ClientAuthType(*c.HTTPSClientAuthType)
-		clientAuthType = &auth
-	}
-
 	s := &Service{
-		addr:                     c.BindAddress,
-		httpsEnabled:             c.HTTPSEnabled,
-		httpsCertificate:         c.HTTPSCertificate,
-		httpsPrivateKey:          c.HTTPSPrivateKey,
-		httpsInsecureCertificate: c.HTTPSInsecureCertificate,
-		httpsClientAuthType:      clientAuthType,
-		httpsClientCA:            c.HTTPSClientCA,
-		limit:                    c.MaxConnectionLimit,
-		tlsConfig:                c.TLS,
-		err:                      make(chan error, 2), // There could be two serve calls that fail.
-		unixSocket:               c.UnixSocketEnabled,
-		unixSocketPerm:           uint32(c.UnixSocketPermissions),
-		bindSocket:               c.BindSocket,
-		Handler:                  handler,
+		certMonitor:    certMonitor,
+		conf:           c,
+		addr:           c.BindAddress,
+		httpsEnabled:   c.HTTPSEnabled,
+		limit:          c.MaxConnectionLimit,
+		err:            make(chan error, 2), // There could be two serve calls that fail.
+		unixSocket:     c.UnixSocketEnabled,
+		unixSocketPerm: uint32(c.UnixSocketPermissions),
+		bindSocket:     c.BindSocket,
+		Handler:        handler,
 		httpServer: http.Server{
 			Handler: handler,
 		},
 		Logger: zap.NewNop(),
 	}
 	s.closeFunc = sync.OnceValue(s.doClose)
-	if s.tlsConfig == nil {
-		s.tlsConfig = new(tls.Config)
-	}
 	if c.UnixSocketGroup != nil {
 		s.unixSocketGroup = int(*c.UnixSocketGroup)
 	}
@@ -178,11 +149,11 @@ func (s *Service) Open() error {
 	s.Handler.Open()
 
 	// Open listener.
-	tm, err := tlsconfig.NewTLSConfigManager(s.httpsEnabled, s.tlsConfig, s.httpsCertificate, s.httpsPrivateKey, false,
-		tlsconfig.WithIgnoreFilePermissions(s.httpsInsecureCertificate),
-		tlsconfig.WithClientAuthPtr(s.httpsClientAuthType),
-		tlsconfig.WithClientCA(s.httpsClientCA),
-		tlsconfig.WithLogger(s.Logger))
+	tm, err := tlsconfig.NewServerTLSConfigManager(
+		s.certMonitor,
+		append(
+			s.conf.TLSManagerOpts(),
+			tlsconfig.WithLogger(s.Logger))...)
 	if err != nil {
 		return fmt.Errorf("httpd: error creating TLS manager: %w", err)
 	}
@@ -320,7 +291,7 @@ func (s *Service) PrepareReloadConfig(c Config) (func() error, error) {
 
 	// Let the user know that changing the https-enabled setting doesn't work.
 	if s.httpsEnabled != c.HTTPSEnabled {
-		return nil, fmt.Errorf("httpd: can not change https-enabled on a running server")
+		return nil, fmt.Errorf("httpd: cannot change https-enabled on a running server")
 	}
 
 	if s.httpsEnabled {
@@ -331,11 +302,14 @@ func (s *Service) PrepareReloadConfig(c Config) (func() error, error) {
 			return nil, errors.New("httpd: no TLS manager available")
 		}
 
-		// Make sure the specified certificate will load correctly and return an apply function.
-		if apply, err := s.tlsManager.PrepareCertificateLoad(c.HTTPSCertificate, c.HTTPSPrivateKey); err == nil {
+		// Reconfigure from the whole of c, not just the certificate: the
+		// listener resolves its configuration per connection, so every TLS
+		// setting reloads. https-enabled is rejected above, so the useTLS in
+		// these options always matches what the listener was bound with.
+		if apply, err := s.tlsManager.PrepareReconfigure(c.TLSManagerOpts()...); err == nil {
 			return apply, nil
 		} else {
-			return nil, fmt.Errorf("httpd: error loading certificate at (%q, %q): %w", c.HTTPSCertificate, c.HTTPSPrivateKey, err)
+			return nil, fmt.Errorf("httpd: error reloading TLS configuration (certificate %q, key %q): %w", c.HTTPSCertificate, c.HTTPSPrivateKey, err)
 		}
 	}
 

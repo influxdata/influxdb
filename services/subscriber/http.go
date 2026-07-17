@@ -3,7 +3,7 @@ package subscriber
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
+	"net"
 	"time"
 
 	"github.com/influxdata/influxdb/client/v2"
@@ -21,16 +21,22 @@ func NewHTTP(addr string, timeout time.Duration) (*HTTP, error) {
 }
 
 // NewHTTPS returns a new HTTPS points writer with default options and HTTPS
-// configured. tlsConfig is the fully-resolved client TLS configuration (root
-// CAs, any client certificate, and InsecureSkipVerify) built by the service via
-// tlsconfig.TLSConfigManager; it may be nil to use Go's defaults. When it
-// carries a manager-backed GetClientCertificate, rotated client certificates
-// are picked up automatically on new connections.
-func NewHTTPS(addr string, timeout time.Duration, tlsConfig *tls.Config) (*HTTP, error) {
+// configured.
+//
+// dialTLSContext dials the writer's TLS connections and is the only source of
+// its TLS configuration. It is normally tlsconfig.TLSConfigManager.DialContext,
+// which resolves the configuration on each connection. That is what allows a
+// reloaded configuration to reach a writer that already exists: the writer keeps
+// dialing through the manager rather than through a configuration captured when
+// it was built. It may be nil to use Go's defaults, as NewHTTP does.
+//
+// timeout bounds the whole request, including the connection and TLS handshake,
+// so no separate handshake timeout is needed.
+func NewHTTPS(addr string, timeout time.Duration, dialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)) (*HTTP, error) {
 	conf := client.HTTPConfig{
-		Addr:      addr,
-		Timeout:   timeout,
-		TLSConfig: tlsConfig,
+		Addr:           addr,
+		Timeout:        timeout,
+		DialTLSContext: dialTLSContext,
 	}
 
 	c, err := client.NewHTTPClient(conf)
