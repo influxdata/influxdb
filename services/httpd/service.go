@@ -48,6 +48,7 @@ const (
 	statFluxQueryRequestDuration         = "fluxQueryReqDurationNs" // Number of (wall-time) nanoseconds spent executing Flux query requests.
 	statFluxQueryRequestBytesTransmitted = "fluxQueryRespBytes"     // Sum of all bytes returned in Flux query responses.
 	statUserQueryRespBytes               = "userQueryRespBytes"     // Value field for per-user query response bytes.
+	statUserWriteReqBytes                = "userWriteReqBytes"      // Value field for per-user write request bytes.
 
 	// StatUserTagKey is the tag key used to identify users in per-user statistics.
 	StatUserTagKey = "user"

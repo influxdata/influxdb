@@ -439,6 +439,16 @@
   # Setting this to 0 or setting max-concurrent-write-limit to 0 disables the limit.
   # enqueued-write-timeout = 0
 
+  # Determines whether query response bytes are tracked per user, reported in
+  # the userquerybytes statistic tagged with the user name. Unauthenticated
+  # queries are attributed to the user "(anonymous)".
+  # user-query-bytes-enabled = false
+
+  # Determines whether write request bytes are tracked per user, reported in
+  # the userwritebytes statistic tagged with the user name. Unauthenticated
+  # writes are attributed to the user "(anonymous)".
+  # user-write-bytes-enabled = false
+
 	# User supplied HTTP response headers
 	#
 	# [http.headers]
