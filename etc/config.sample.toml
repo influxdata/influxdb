@@ -14,6 +14,11 @@
 # Bind address to use for the RPC service for backup and restore.
 # bind-address = "127.0.0.1:8088"
 
+# Enable hardening options. When enabled, flux HTTP requests are restricted to
+# non-private (public) addresses to mitigate SSRF (Server Side Request Forgery)
+# attacks. Disabled by default to preserve existing behavior.
+# hardening-enabled = false
+
 ###
 ### [meta]
 ###
