@@ -174,6 +174,7 @@ type InfluxdOpts struct {
 	ProfilingDisabled     bool
 	MetricsDisabled       bool
 	UserQueryBytesEnabled bool
+	UserWriteBytesEnabled bool
 	UIDisabled            bool
 
 	NatsPort            int
@@ -240,6 +241,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		ProfilingDisabled:     false,
 		MetricsDisabled:       false,
 		UserQueryBytesEnabled: false,
+		UserWriteBytesEnabled: false,
 		UIDisabled:            false,
 
 		StoreType:   DiskStore,
@@ -683,6 +685,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "http-user-query-bytes-enabled",
 			Desc:    "Expose per-user query response byte counts at /metrics (http_query_user_response_bytes). Adds one series per user and endpoint",
 			Default: o.UserQueryBytesEnabled,
+		},
+		{
+			DestP:   &o.UserWriteBytesEnabled,
+			Flag:    "http-user-write-bytes-enabled",
+			Desc:    "Expose per-user write request byte counts at /metrics (http_write_user_request_bytes). Adds one series per user and endpoint",
+			Default: o.UserWriteBytesEnabled,
 		},
 		// UI Config
 		{

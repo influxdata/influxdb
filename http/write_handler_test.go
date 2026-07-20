@@ -420,6 +420,56 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 	}
 }
 
+func TestWriteHandler_handleWrite_RecordsEvent(t *testing.T) {
+	const (
+		org    = "043e0780ee2b1000"
+		bucket = "04504b356e23b000"
+	)
+	orgs := mock.NewOrganizationService()
+	orgs.FindOrganizationF = func(context.Context, influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+		return testOrg(org), nil
+	}
+	buckets := mock.NewBucketService()
+	buckets.FindBucketFn = func(context.Context, influxdb.BucketFilter) (*influxdb.Bucket, error) {
+		return testBucket(org, bucket), nil
+	}
+	rec := &captureEventRecorder{}
+	b := &APIBackend{
+		HTTPErrorHandler:    kithttp.NewErrorHandler(zaptest.NewLogger(t)),
+		Logger:              zaptest.NewLogger(t),
+		OrganizationService: orgs,
+		BucketService:       buckets,
+		PointsWriter:        &mock.PointsWriter{},
+		WriteEventRecorder:  rec,
+	}
+	auth := bucketWritePermission(org, bucket)
+	auth.UserID = 42
+	handler := httpmock.NewAuthMiddlewareHandler(NewWriteHandler(zaptest.NewLogger(t), NewWriteBackend(zaptest.NewLogger(t), b)), auth)
+
+	// The event carries decompressed body bytes, so a gzip body is counted
+	// by its line protocol size rather than its wire size.
+	const body = "m1,t1=v1 f1=1"
+	var gz strings.Builder
+	zw := gzip.NewWriter(&gz)
+	_, err := zw.Write([]byte(body))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+
+	r := httptest.NewRequest("POST", "http://localhost:8086/api/v2/write?org="+org+"&bucket="+bucket, strings.NewReader(gz.String()))
+	r.Header.Set("Content-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	require.Equal(t, http.StatusNoContent, w.Code)
+
+	require.Equal(t, []metric.Event{{
+		OrgID:        influxtesting.MustIDBase16(org),
+		UserID:       42,
+		Endpoint:     "/api/v2/write",
+		RequestBytes: len(body),
+		Status:       http.StatusNoContent,
+	}}, rec.events)
+}
+
 func bucketWritePermission(org, bucket string) *influxdb.Authorization {
 	oid := influxtesting.MustIDBase16(org)
 	bid := influxtesting.MustIDBase16(bucket)

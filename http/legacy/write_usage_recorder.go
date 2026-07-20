@@ -20,9 +20,10 @@ type writeUsageRecorder struct {
 	EventRecorder metric.EventRecorder
 }
 
-func (w *writeUsageRecorder) Record(ctx context.Context, requestBytes int, orgID platform.ID, endpoint string) {
+func (w *writeUsageRecorder) Record(ctx context.Context, requestBytes int, orgID, userID platform.ID, endpoint string) {
 	w.EventRecorder.Record(ctx, metric.Event{
 		OrgID:         orgID,
+		UserID:        userID,
 		Endpoint:      endpoint,
 		RequestBytes:  requestBytes,
 		ResponseBytes: w.Writer.ResponseBytes(),

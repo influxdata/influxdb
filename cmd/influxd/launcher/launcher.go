@@ -799,6 +799,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if opts.UserQueryBytesEnabled {
 		queryRecorderOpts = append(queryRecorderOpts, infprom.WithUserResponseBytes())
 	}
+	var writeRecorderOpts []infprom.EventRecorderOption
+	if opts.UserWriteBytesEnabled {
+		writeRecorderOpts = append(writeRecorderOpts, infprom.WithUserRequestBytes())
+	}
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           opts.AssetsPath,
 		UIDisabled:           opts.UIDisabled,
@@ -857,7 +861,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		LookupService:                   resourceResolver,
 		DocumentService:                 m.kvService,
 		OrgLookupService:                resourceResolver,
-		WriteEventRecorder:              infprom.NewEventRecorder("write"),
+		WriteEventRecorder:              infprom.NewEventRecorder("write", writeRecorderOpts...),
 		QueryEventRecorder:              infprom.NewEventRecorder("query", queryRecorderOpts...),
 		Flagger:                         m.flagger,
 		FlagsHandler:                    feature.NewFlagsHandler(errorHandler, feature.ByKey),

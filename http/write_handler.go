@@ -164,7 +164,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	var requestBytes int
 	defer func() {
 		// Close around the requestBytes variable to placate the linter.
-		recorder.Record(ctx, requestBytes, org.ID, r.URL.Path)
+		recorder.Record(ctx, requestBytes, org.ID, auth.GetUserID(), r.URL.Path)
 	}()
 
 	bucket, err := h.findBucket(ctx, org.ID, req.Bucket)
