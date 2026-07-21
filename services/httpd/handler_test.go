@@ -2072,10 +2072,11 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 	}
 
 	createRp := func(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error) {
-		// Mirror the real meta.Client, which now validates names.
-		if _, ok := meta.ValidName(spec.Name); !ok {
+		trimmed, ok := meta.ValidName(spec.Name)
+		if !ok {
 			return nil, meta.ErrInvalidName
 		}
+		spec.Name = trimmed
 		return &meta.RetentionPolicyInfo{
 			Name:               spec.Name,
 			ReplicaN:           *spec.ReplicaN,
