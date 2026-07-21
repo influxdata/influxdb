@@ -259,11 +259,11 @@ fn var_col_max_bytes() -> usize {
 
 #[cfg(test)]
 #[derive(Debug)]
-struct VarColMaxGuard(usize);
+pub(crate) struct VarColMaxGuard(usize);
 
 #[cfg(test)]
 impl VarColMaxGuard {
-    fn new(cap: usize) -> Self {
+    pub(crate) fn new(cap: usize) -> Self {
         let prev = TEST_VAR_COL_MAX_BYTES.with(|c| {
             let prev = c.get();
             c.set(cap);

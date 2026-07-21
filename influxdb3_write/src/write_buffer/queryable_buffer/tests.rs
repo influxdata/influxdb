@@ -336,3 +336,155 @@ async fn snapshot_skips_deleted_table() {
         "Soft deleted table should not have persisted files"
     );
 }
+
+#[tokio::test]
+async fn split_chunks_persist_to_distinct_paths() {
+    // EAR6985 regression: when a chunk_time splits into multiple buffer chunks (a
+    // string/tag column crossing the Arrow varchar limit), each chunk must persist to
+    // its own parquet path. With a shared path the concurrent persist jobs overwrite
+    // one object while every job's size is recorded, leaving stale size records that
+    // fail reads with "Invalid Parquet file. Corrupt footer".
+    use crate::write_buffer::table_buffer::VarColMaxGuard;
+
+    // 50-byte strings with a 99-byte limit: the second write forces a second chunk
+    // for the same chunk_time.
+    let _guard = VarColMaxGuard::new(99);
+
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let metrics = Arc::new(metric::Registry::default());
+    let parquet_store =
+        ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+    let exec = Arc::new(Executor::new_with_config_and_executor(
+        ExecutorConfig {
+            target_query_partitions: NonZeroUsize::new(1).unwrap(),
+            object_stores: [&parquet_store]
+                .into_iter()
+                .map(|store| (store.id(), Arc::clone(store.object_store())))
+                .collect(),
+            metric_registry: Arc::clone(&metrics),
+            mem_pool_size: 1024 * 1024 * 1024,
+            per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+            heap_memory_limit: None,
+        },
+        DedicatedExecutor::new_testing(),
+    ));
+    let runtime_env = exec.new_context().inner().runtime_env();
+    register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+    register_current_runtime_for_io();
+
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let catalog = Arc::new(
+        Catalog::new(
+            "hosta",
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
+    let persister = Arc::new(Persister::new(
+        Arc::clone(&object_store),
+        "hosta",
+        Arc::clone(&time_provider) as _,
+        None,
+    ));
+    let time_provider: Arc<dyn TimeProvider> = time_provider;
+
+    let queryable_buffer = QueryableBuffer::new(QueryableBufferArgs {
+        executor: Arc::clone(&exec),
+        catalog: Arc::clone(&catalog),
+        persister: Arc::clone(&persister),
+        last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap(),
+        distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap(),
+        persisted_files: Arc::new(PersistedFiles::new(None)),
+        parquet_cache: None,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
+    });
+
+    let db = DatabaseName::new("testdb").unwrap();
+
+    // Two writes into the SAME gen1 block, each with a 50-byte string: the second
+    // buffer_chunk call crosses the 99-byte limit and starts a second chunk for the
+    // same chunk_time. Two ops => two buffer_chunk calls.
+    let mut ops = vec![];
+    for (tag, ts) in [("a", 1_i64), ("b", 2_i64)] {
+        let lp = format!("foo,t1={tag} f1=\"{}\" {ts}", "x".repeat(50));
+        let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog)).unwrap();
+        let lines = val
+            .v1_parse_lines_and_catalog_updates(
+                &lp,
+                false,
+                time_provider.now(),
+                Precision::Nanosecond,
+            )
+            .unwrap()
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success()
+            .convert_lines_to_buffer(Gen1Duration::new_1m());
+        let batch: WriteBatch = lines.into();
+        ops.push(WalOp::Write(batch));
+    }
+    let wal_contents = WalContents {
+        persist_timestamp_ms: 0,
+        min_timestamp_ns: 1,
+        max_timestamp_ns: 2,
+        wal_file_number: WalFileSequenceNumber::new(1),
+        ops,
+        snapshot: None,
+    };
+    let end_time =
+        wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
+
+    let snapshot_details = SnapshotDetails {
+        snapshot_sequence_number: SnapshotSequenceNumber::new(1),
+        end_time_marker: end_time,
+        first_wal_sequence_number: WalFileSequenceNumber::new(1),
+        last_wal_sequence_number: WalFileSequenceNumber::new(1),
+        forced: false,
+    };
+    let details = queryable_buffer
+        .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
+        .await;
+    let _details = details.await.unwrap();
+
+    let db_schema = catalog.db_schema("testdb").unwrap();
+    let table = db_schema.table_definition("foo").unwrap();
+    let files = queryable_buffer
+        .persisted_files
+        .get_files(db_schema.id, table.table_id);
+
+    // Both split chunks must be persisted...
+    assert_eq!(
+        files.len(),
+        2,
+        "expected two persisted files, got {files:?}"
+    );
+    // ...at DISTINCT paths...
+    assert_ne!(
+        files[0].path, files[1].path,
+        "split chunks persisted to the same parquet path"
+    );
+    // ...and every record's size must match the object it points at (the invariant
+    // the shared path violated).
+    for f in &files {
+        let head = object_store
+            .head(&object_store::path::Path::from(f.path.as_str()))
+            .await
+            .expect("persisted object exists");
+        assert_eq!(
+            head.size as u64, f.size_bytes,
+            "recorded size differs from object size for {}",
+            f.path
+        );
+    }
+}
