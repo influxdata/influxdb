@@ -200,7 +200,17 @@ impl QueryableBuffer {
                     let snapshot_chunks =
                         table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
 
+                    // A chunk_time can yield multiple buffer chunks when a string/tag
+                    // column crossed the Arrow varchar limit and the chunk split
+                    // (table_buffer::buffer_chunk). Each chunk needs a distinct path:
+                    // with a shared path the persist jobs race, the last PUT wins the
+                    // object, and every job's size is recorded — stale records that
+                    // fail reads with "Corrupt footer".
+                    let mut chunk_ordinals: HashMap<i64, u32> = HashMap::new();
                     for chunk in snapshot_chunks {
+                        let ordinal_ref = chunk_ordinals.entry(chunk.chunk_time).or_insert(0);
+                        let chunk_ordinal = *ordinal_ref;
+                        *ordinal_ref += 1;
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
                         let persist_job = PersistJob {
@@ -208,12 +218,13 @@ impl QueryableBuffer {
                             table_id: *table_id,
                             table_name: Arc::clone(&table_name),
                             chunk_time: chunk.chunk_time,
-                            path: ParquetFilePath::new(
+                            path: ParquetFilePath::new_with_chunk_ordinal(
                                 self.persister.node_identifier_prefix(),
                                 database_id.get(),
                                 table_id.get(),
                                 chunk.chunk_time,
                                 snapshot_details.last_wal_sequence_number,
+                                chunk_ordinal,
                             ),
                             batch: chunk.record_batch,
                             schema: chunk.schema,
