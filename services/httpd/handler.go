@@ -1226,12 +1226,8 @@ func (h *Handler) servePostCreateBucketV2(w http.ResponseWriter, r *http.Request
 		h.httpError(w, fmt.Sprintf("buckets - two retention policies specified: %q differs from %q", rp, brd.Rp), http.StatusBadRequest)
 		return
 	}
-	// We only need to validate non-empty
-	// retention policy names
-	if rp != "" && !meta.ValidName(rp) {
-		h.httpError(w, fmt.Sprintf("buckets - retention policy %q: %s", rp, meta.ErrInvalidName.Error()), http.StatusBadRequest)
-		return
-	}
+	// The retention policy name is validated by the meta client's create
+	// methods called below.
 
 	var dur, sgDur time.Duration
 	if len(brd.RetentionRules) > 0 {
