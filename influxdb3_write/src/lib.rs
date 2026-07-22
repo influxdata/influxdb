@@ -28,7 +28,9 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
-use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
+use influxdb3_catalog::catalog::{
+    Catalog, CatalogSequenceNumber, DatabaseSchema, INTERNAL_DB_NAME, TableDefinition,
+};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_types::DatabaseName;
 pub use influxdb3_types::write::Precision;
@@ -77,6 +79,26 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         precision: Precision,
         no_sync: bool,
     ) -> write_buffer::Result<BufferedWriteRequest>;
+
+    /// Validates and writes system-owned line protocol into an internal database.
+    async fn write_internal_lp(
+        &self,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+        no_sync: bool,
+    ) -> write_buffer::Result<BufferedWriteRequest> {
+        self.write_lp(
+            DatabaseName::new(INTERNAL_DB_NAME).expect("internal database name is valid"),
+            lp,
+            ingest_time,
+            accept_partial,
+            precision,
+            no_sync,
+        )
+        .await
+    }
 
     /// Returns the database schema provider
     fn catalog(&self) -> Arc<Catalog>;

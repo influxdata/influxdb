@@ -15,6 +15,7 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::DisabledManager;
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
+use influxdb3_processing_engine::query::InProcessQueryEndpoint;
 use influxdb3_processing_engine::write::InProcessWriteEndpoint;
 use influxdb3_query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
 use influxdb3_shutdown::ShutdownManager;
@@ -134,7 +135,7 @@ async fn write_and_query() {
 
     assert_eq!(
         batches[0]["host"].to_data().child_data()[0].buffers()[1],
-        Buffer::from([b'a'])
+        Buffer::from(*b"a")
     );
 
     assert_eq!(
@@ -1419,9 +1420,8 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
         Arc::new(InProcessWriteEndpoint::new(
             Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>
         )),
-        Arc::clone(&query_executor) as _,
+        Arc::new(InProcessQueryEndpoint::new(Arc::clone(&query_executor) as _)),
         Arc::clone(&time_provider) as _,
-        sys_events_store,
     )
     .await
     .unwrap();

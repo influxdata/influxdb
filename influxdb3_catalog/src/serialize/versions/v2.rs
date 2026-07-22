@@ -232,3 +232,6 @@ pub fn serialize_catalog_file<T: Serialize + VersionedFileType>(file: &T) -> Res
 
     Ok(versions::hash_and_freeze(buf, data))
 }
+
+#[cfg(test)]
+mod tests;

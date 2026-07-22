@@ -258,6 +258,8 @@ fn best_effort_remove_records_with(
 ///
 /// This function is best-effort; if it encounters an error, it will return that error, but not
 /// before it finishes iterating through records to try to find ones relevant to these identifiers.
+///
+/// [`SetNextId`]: crate::format::records::SetNextId
 pub(crate) fn hard_delete_records_for(
     records: &mut Vec<Record>,
     db_ids: &std::collections::BTreeSet<influxdb3_id::DbId>,

@@ -185,6 +185,45 @@ $ /here/influxdb3 install package bar                            # client
 $ /here/influxdb3 test schedule_plugin -d foo testme.py          # client
 ```
 
+### Disabling package management
+
+The examples above rely on the server to manage the Processing Engine's Python
+environment: it creates `<plugin-dir>/.venv` (or `--virtual-env-location`) with
+`python -m venv`, activates it for the server process (setting `VIRTUAL_ENV`,
+`PATH`, etc.), initializes embedded Python so `sys.path` includes the venv's
+site-packages, and services `influxdb3 install package ...` by running
+`python -m pip install ...`.
+
+With `--disable-package-management` (or
+`INFLUXDB3_DISABLE_PACKAGE_MANAGEMENT=true`), all of that becomes your
+responsibility: the server never creates, activates or otherwise touches a
+virtual environment and `influxdb3 install package ...` is rejected. Create the
+venv and export `VIRTUAL_ENV` before starting the server:
+
+```sh
+# create the venv with the bundled python and point VIRTUAL_ENV at it
+$ /here/python/bin/python3 -m venv /path/to/plugins/.venv
+$ export VIRTUAL_ENV=/path/to/plugins/.venv
+
+# start the server; VIRTUAL_ENV must be set in its environment
+$ /here/influxdb3 serve --plugin-dir /path/to/plugins --disable-package-management
+
+# install packages externally; no restart needed and 'influxdb3 install package' is rejected
+$ /path/to/plugins/.venv/bin/python -m pip install -r /path/to/requirements.txt
+... <plugins can now 'import' whatever is in /path/to/plugins/.venv> ...
+```
+
+Notes:
+
+ * Create the venv with the `python3` bundled with `influxdb3` (as above), not
+   the system python, so the venv's Python version matches the embedded
+   interpreter.
+ * `VIRTUAL_ENV` must be exported in the server's environment before
+   `influxdb3 serve` starts; `--virtual-env-location` is not consulted when
+   package management is disabled.
+ * Packages can be installed into the venv while the server is running; no
+   restart is required.
+
 ### Local development with python-build-standalone
 
 Local development with python-build-standalone currently consists of:

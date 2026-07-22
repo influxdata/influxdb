@@ -240,15 +240,15 @@ pub(crate) async fn preload_restore_for_records(
 /// Returned as a boxed future to break the mutual recursion with
 /// [`ObjectStoreCatalog::load_catalog_from_paths`], which calls back into
 /// this preload path when replaying restored log files.
-pub(crate) fn preload_restore_for_file<'a>(
-    file: &'a CatalogFile,
+pub(crate) fn preload_restore_for_file_records<'a>(
+    file_records: &'a [Record],
     store: &'a ObjectStoreCatalog,
     committed_feature_level: super::FeatureLevel,
 ) -> std::pin::Pin<
     Box<dyn std::future::Future<Output = Result<RestorePreload, FormatError>> + Send + 'a>,
 > {
     Box::pin(async move {
-        preload_restore_for_records(&file.records, store, committed_feature_level).await
+        preload_restore_for_records(file_records, store, committed_feature_level).await
     })
 }
 
@@ -333,14 +333,14 @@ records fail to decode, but that error is not bubbled up out of this function - 
 logged. This is because a failure out of this function would imply that record application
 failed, when a failure out of the removal function doesn't mean the same thing.
 
-[`hard_delete_records_for`]: crate::format::records::hard_delete_records_for
+[`hard_delete_records_for`]: crate::format::record::hard_delete_records_for
 "
 )]
 pub fn apply_records(
     records: &[Record],
     catalog: &mut InnerCatalog,
     sequence: CatalogSequenceNumber,
-    preload: &mut RestorePreload,
+    mut preload: RestorePreload,
 ) -> Result<Vec<CatalogEvent>, FormatError> {
     let mut events = Vec::with_capacity(records.len());
     let mut table_ids_to_clear = BTreeSet::<TableId>::new();
@@ -427,7 +427,7 @@ pub fn apply_records(
 pub fn apply_catalog_file(
     file: &CatalogFile,
     catalog: &mut InnerCatalog,
-    preload: &mut RestorePreload,
+    preload: RestorePreload,
 ) -> Result<Vec<CatalogEvent>, FormatError> {
     let sequence = CatalogSequenceNumber::new(file.sequence_number());
     apply_records(&file.records, catalog, sequence, preload)

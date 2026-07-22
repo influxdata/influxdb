@@ -1,17 +1,23 @@
-use std::sync::Arc;
+use std::{assert_matches, sync::Arc};
 
 use bytes::Bytes;
 use object_store::memory::InMemory;
 use object_store::path::Path as ObjPath;
+use pretty_assertions::assert_eq;
 use uuid::Uuid;
 
-use crate::catalog::CatalogSequenceNumber;
-use crate::catalog::versions::v3::schema::storage::StorageMode;
 use crate::format::apply::{serialize_log_file, serialize_snapshot_file};
 use crate::format::records::RegisterNode;
 use crate::format::records::types::NodeMode;
 use crate::format::{FeatureLevel, MakeRecord, Record, file_flags};
 use crate::object_store::{CatalogFilePath, PersistCatalogResult};
+use crate::{
+    catalog::versions::v3::schema::storage::StorageMode, object_store::versions::v3::FastForwardErr,
+};
+use crate::{
+    catalog::{CatalogSequenceNumber, versions::v3::inner::InnerCatalog},
+    format::{self, CatalogFile, Header},
+};
 
 use super::ObjectStoreCatalog;
 
@@ -248,3 +254,131 @@ fn catalog_file_path_restore_staging_dir_returns_staging_dir() {
         ObjPath::from("cats/catalog/restores/restore-1")
     );
 }
+
+fn cat_file(
+    header_template: &Header,
+    num_records: u32,
+    cat_sequence: u64,
+    rec_sequence_start: u64,
+) -> CatalogFile {
+    let mut header = *header_template;
+    header.record_count = num_records;
+    header.sequence_number = cat_sequence;
+
+    CatalogFile {
+        header,
+        records: (0..num_records)
+            .into_iter()
+            .map(|rec| sample_record(rec_sequence_start + u64::from(rec)))
+            .collect(),
+    }
+}
+
+fn create_header() -> Header {
+    let mut header_bytes = [0u8; Header::SIZE];
+    header_bytes[..4].copy_from_slice(&format::MAGIC);
+    header_bytes[4..8].copy_from_slice(&Header::CURRENT_VERSION.to_le_bytes());
+    // pre-calculated crc
+    header_bytes[8..12].copy_from_slice(&3425374128u32.to_le_bytes());
+
+    let mut cursor = std::io::Cursor::new(&header_bytes);
+    Header::read_from(&mut cursor).unwrap()
+}
+
+#[tokio::test]
+async fn snapshot_fast_forwarding_works_in_basic_case() {
+    let store = test_store();
+
+    let mut catalog = InnerCatalog::new(Arc::from("catalog"), Uuid::new_v4());
+    let header = create_header();
+
+    let first_file = cat_file(&header, 3, 0, 0);
+    store
+        .fast_forward_inner_with_snapshot(first_file.clone(), &mut catalog)
+        .await
+        .unwrap();
+
+    let second_file = cat_file(&header, 4, 1, 3);
+    store
+        .fast_forward_inner_with_snapshot(second_file.clone(), &mut catalog)
+        .await
+        .unwrap();
+
+    let mut expected_records = first_file
+        .records
+        .iter()
+        .chain(&second_file.records)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    // first, make sure that applying one file and then the second applies both sets of records
+    // without issue.
+    assert_eq!(&*catalog.ordered_records, &*expected_records);
+
+    // apply them again, out-of-order. Shouldn't do anything and should be silently ignored
+    store
+        .fast_forward_inner_with_snapshot(second_file.clone(), &mut catalog)
+        .await
+        .unwrap();
+    store
+        .fast_forward_inner_with_snapshot(first_file.clone(), &mut catalog)
+        .await
+        .unwrap();
+
+    assert_eq!(&*catalog.ordered_records, &*expected_records);
+
+    // for this next part, we want to make a catalog file, then modify it to include some records
+    // that were already applied.
+    let mut third_file = cat_file(&header, 3, 2, 7);
+    let orig_third_files = third_file.records.clone();
+    third_file.records = catalog.ordered_records[5..]
+        .iter()
+        .cloned()
+        .chain(third_file.records)
+        .collect();
+    third_file.header.record_count += 3;
+    // we're not going to adjust the header sequence count since it shouldn't matter
+
+    // we apply it, including the files we already had. It should take the records we haven't
+    // applied yet
+    store
+        .fast_forward_inner_with_snapshot(third_file, &mut catalog)
+        .await
+        .unwrap();
+
+    expected_records.extend(orig_third_files);
+    assert_eq!(&*catalog.ordered_records, &*expected_records);
+
+    // then we want to make a set of records that have a gap between the currently-applied records -
+    // the catalog shouldn't apply them since doing so would skip over and fail to apply some records
+    let disconnected_records = cat_file(&header, 3, 6, 20);
+    let err = store
+        .fast_forward_inner_with_snapshot(disconnected_records, &mut catalog)
+        .await
+        .unwrap_err();
+
+    assert_matches!(err, FastForwardErr::WouldCreateGap);
+}
+
+#[tokio::test]
+async fn snapshots_reject_non_monotonically_increasing_records() {
+    let store = test_store();
+
+    let mut catalog = InnerCatalog::new(Arc::from("catalog"), Uuid::new_v4());
+    let header = create_header();
+
+    // and now we try to insert something that's not ordered from lowest sequence to highest. It
+    // should also fail
+    let mut unordered_records = cat_file(&header, 10, 3, 9);
+    unordered_records.records[0].header.sequence = 100;
+
+    let err = store
+        .fast_forward_inner_with_snapshot(unordered_records, &mut catalog)
+        .await
+        .unwrap_err();
+
+    assert_matches!(err, FastForwardErr::NotMonotonicallyIncreasing);
+}
+
+// TODO(june): fast-forwarding should correctly remove hard-deleted records when it encounters a
+// hard-deletion record (once we figure out the exact semantics for that)

@@ -97,6 +97,7 @@ pub struct TestConfig {
     plugin_dir: Option<String>,
     virtual_env_dir: Option<String>,
     package_manager: Option<String>,
+    disable_package_management: bool,
     restrict_plugin_triggers_to: Vec<String>,
     // If None, use memory object store.
     object_store_dir: Option<String>,
@@ -170,6 +171,12 @@ impl TestConfig {
 
     pub fn with_package_manager<S: Into<String>>(mut self, package_manager: S) -> Self {
         self.package_manager = Some(package_manager.into());
+        self
+    }
+
+    /// Start this [`TestServer`] with `--disable-package-management`.
+    pub fn with_disable_package_management(mut self) -> Self {
+        self.disable_package_management = true;
         self
     }
 
@@ -293,6 +300,9 @@ impl ConfigProvider for TestConfig {
                 "--package-manager".to_string(),
                 package_manager.to_owned(),
             ]);
+        }
+        if self.disable_package_management {
+            args.push("--disable-package-management".to_string());
         }
         if !self.restrict_plugin_triggers_to.is_empty() {
             args.push("--restrict-plugin-triggers-to".to_string());

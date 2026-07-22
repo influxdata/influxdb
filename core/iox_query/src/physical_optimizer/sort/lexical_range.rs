@@ -453,18 +453,24 @@ mod tests {
                 TestSortOption::DescNullsLast,
             ].into_iter().for_each(|sort_ordering| {
                 if let Some(nonoverlapping) = NonOverlappingOrderedLexicalRanges::try_new(&sort_ordering.sort_options(self.num_sort_keys), lexical_ranges.clone()).expect("should not error") {
-                    assert!(self.expect_disjoint,
-                            "ERROR {} for {:?}: expected ranges to overlap, instead found disjoint ranges",
-                            self.name, &sort_ordering);
+                    assert!(
+                        self.expect_disjoint,
+                        "ERROR {} for {sort_ordering:?}: expected ranges to overlap, instead found disjoint ranges",
+                        self.name
+                    );
 
                     let expected_ordered_indices = self.find_expected_indices(&sort_ordering);
-                    assert_eq!(expected_ordered_indices, nonoverlapping.indices(),
-                               "ERROR {} for {:?}: expected to find indices ordered {:?}, instead found ordering {:?}",
-                               self.name, &sort_ordering, expected_ordered_indices, nonoverlapping.indices());
+                    assert_eq!(
+                        expected_ordered_indices, nonoverlapping.indices(),
+                        "ERROR {} for {sort_ordering:?}: expected to find indices ordered {expected_ordered_indices:?}, instead found ordering {:?}",
+                        self.name, nonoverlapping.indices()
+                    );
                 } else {
-                    assert!(!self.expect_disjoint,
-                            "ERROR {} for {:?}: expected to find disjoint ranges, instead could either not detect ranges or found overlapping ranges",
-                            self.name, &sort_ordering);
+                    assert!(
+                        !self.expect_disjoint,
+                        "ERROR {} for {sort_ordering:?}: expected to find disjoint ranges, instead could either not detect ranges or found overlapping ranges",
+                        self.name
+                    );
                 };
             });
         }

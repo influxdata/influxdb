@@ -120,7 +120,7 @@ fn apply_records_to_catalog() {
         &records,
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -140,7 +140,7 @@ fn apply_catalog_file_end_to_end() {
     let mut cursor = Cursor::new(bytes.as_ref());
     let file = CatalogFile::read_from(&mut cursor).expect("should parse");
 
-    let events = apply_catalog_file(&file, &mut catalog, &mut RestorePreload::empty()).unwrap();
+    let events = apply_catalog_file(&file, &mut catalog, RestorePreload::empty()).unwrap();
 
     assert_eq!(events.len(), 1);
     assert_eq!(catalog.sequence_number(), CatalogSequenceNumber::new(5));
@@ -165,7 +165,7 @@ fn apply_records_skips_unknown_upgrade_safe_record() {
         &records,
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -186,7 +186,7 @@ fn apply_records_errors_on_unknown_non_upgrade_safe_record() {
         &records,
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     );
     assert!(result.is_err());
 }
@@ -206,7 +206,7 @@ fn apply_records_appends_to_ordered_records() {
         &[r1.clone(), r2.clone()],
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -231,7 +231,7 @@ fn apply_records_retains_unknown_upgrade_safe_records_for_snapshotting() {
         &[unknown.clone(), known.clone()],
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -299,7 +299,7 @@ fn create_snapshot_byte_layout_compat_entry_then_flat_records() {
         &input,
         &mut catalog,
         CatalogSequenceNumber::new(5),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -362,7 +362,7 @@ fn snapshot_round_trip_preserves_application_order_and_sequences() {
         &input,
         &mut catalog,
         CatalogSequenceNumber::new(6),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -395,7 +395,7 @@ fn snapshot_round_trip_replays_into_fresh_catalog() {
         &records,
         &mut source,
         CatalogSequenceNumber::new(5),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -404,7 +404,7 @@ fn snapshot_round_trip_replays_into_fresh_catalog() {
     let file = CatalogFile::read_from(&mut cursor).expect("parse snapshot");
 
     let mut replay = test_catalog();
-    let events = apply_catalog_file(&file, &mut replay, &mut RestorePreload::empty()).unwrap();
+    let events = apply_catalog_file(&file, &mut replay, RestorePreload::empty()).unwrap();
     assert_eq!(events.len(), records.len());
     assert_eq!(replay.sequence_number(), source.sequence_number());
     assert_eq!(replay.ordered_records.len(), source.ordered_records.len());
@@ -436,7 +436,7 @@ fn apply_records_failure_retains_pre_failure_records() {
         &[r1.clone(), r2_conflicting, r3],
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     );
     assert!(result.is_err());
 
@@ -492,7 +492,7 @@ fn apply_records_removes_hard_deleted_data() {
         &records,
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 

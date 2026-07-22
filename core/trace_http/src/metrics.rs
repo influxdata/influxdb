@@ -299,6 +299,14 @@ impl Drop for MetricsRecorder {
                     .server_error
                     .record(self.response_body_size);
             }
+            Some(Classification::ResourceExhausted) => {
+                metrics.request_count.resource_exhausted.inc(1);
+                metrics.request_duration.resource_exhausted.record(duration);
+                metrics
+                    .response_body_size
+                    .resource_exhausted
+                    .record(self.response_body_size);
+            }
             Some(Classification::UnexpectedResponse) => {
                 metrics.request_count.unexpected_response.inc(1);
                 metrics

@@ -74,6 +74,7 @@ impl AuthProvider for TokenAuthenticatorAndAuthorizer {
     ) -> Result<(), ResourceAuthorizationError> {
         let subject = subject.ok_or(ResourceAuthorizationError::Unauthorized)?;
         match subject {
+            Subject::Internode => Ok(()),
             Subject::Token(token_id) => {
                 trace!(?token_id, ?access_request, "checking token access");
                 if let AccessRequest::MaybeDatabase(Some(db_id), _database_actions) = access_request

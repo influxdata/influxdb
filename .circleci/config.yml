@@ -467,7 +467,7 @@ jobs:
           command: |
             target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
-          no_output_timeout: 30m
+          no_output_timeout: 60m
       - when:
           condition:
             or:

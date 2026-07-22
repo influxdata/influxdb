@@ -5,8 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[features]
-
 [dependencies]
 anyhow.workspace = true
 arrow-array.workspace = true
@@ -14,16 +12,11 @@ arrow-schema.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true
-futures.workspace = true
 hashbrown.workspace = true
 humantime.workspace = true
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_id = { path = "../influxdb3_id" }
-influxdb3_internal_api = { path = "../influxdb3_internal_api" }
-influxdb3_sys_events.workspace = true
 influxdb3_types = { path = "../influxdb3_types" }
-influxdb3_wal = { path = "../influxdb3_wal" }
-iox_query_params.workspace = true
 iox_time.workspace = true
 observability_deps.workspace = true
 parking_lot.workspace = true
@@ -31,6 +24,7 @@ parking_lot.workspace = true
 pyo3 = { workspace = true, features = ["lock_api"] }
 thiserror.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 
 [lints]
 workspace = true

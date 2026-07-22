@@ -448,7 +448,7 @@ fn migrated_soft_deleted_database_apply_reproduces_renamed_name() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -796,7 +796,7 @@ fn migrated_table_without_timestamp_gets_usable_v3_table() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -882,7 +882,7 @@ fn migrated_soft_deleted_table_apply_reproduces_renamed_name() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -919,7 +919,7 @@ fn migrated_table_apply_reproduces_series_key_order() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1111,7 +1111,7 @@ fn migrated_caches_apply_to_table() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1342,7 +1342,7 @@ fn migrated_admin_token_apply_records() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1561,7 +1561,7 @@ fn migrated_set_next_id_apply_restores_counters() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1842,7 +1842,7 @@ mod runner {
         let file = CatalogFile::read_from(&mut cursor).unwrap();
 
         let mut v3_inner = V3InnerCatalog::new(Arc::clone(&prefix), uuid);
-        apply_catalog_file(&file, &mut v3_inner, &mut RestorePreload::empty()).unwrap();
+        apply_catalog_file(&file, &mut v3_inner, RestorePreload::empty()).unwrap();
 
         assert_eq!(v3_inner.sequence_number(), CatalogSequenceNumber::new(5));
         assert_eq!(v3_inner.catalog_uuid, uuid);

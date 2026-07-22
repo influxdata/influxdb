@@ -19,6 +19,14 @@ pub struct ProcessingEngineConfig {
         default_value = "discover"
     )]
     pub package_manager: PackageManager,
+    /// Disable Processing Engine package management: the server never creates or
+    /// touches a virtual environment or invokes `pip`, and package-install API calls
+    /// are rejected. Takes precedence over `--package-manager`.
+    #[clap(
+        long = "disable-package-management",
+        env = "INFLUXDB3_DISABLE_PACKAGE_MANAGEMENT"
+    )]
+    pub disable_package_management: bool,
     #[clap(long = "plugin-repo", env = "INFLUXDB3_PLUGIN_REPO")]
     pub plugin_repo: Option<String>,
     /// Restrict plugin triggers to the provided trigger type(s).
@@ -48,3 +56,6 @@ pub enum PackageManager {
     UV,
     Disabled,
 }
+
+#[cfg(test)]
+mod tests;

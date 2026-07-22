@@ -15,18 +15,18 @@ use object_store_utils::RetryableObjectStore;
 use observability_deps::tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::catalog::CatalogSequenceNumber;
 use crate::catalog::versions::v3::backup::{CatalogCheckpointForBackup, CatalogLogFileForBackup};
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::storage::StorageMode;
 use crate::format::apply::{
-    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file,
+    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file_records,
 };
 use crate::format::records::SetStorageMode;
 use crate::format::{CatalogFile, MakeRecord};
 use crate::object_store::{
     CATALOG_LOG_FILE_EXTENSION, ObjectStoreCatalogError, PersistCatalogResult, Result,
 };
+use crate::{catalog::CatalogSequenceNumber, format::FormatError};
 
 const CATALOG_VERSION_PATH: &str = "catalog/v3";
 
@@ -151,7 +151,7 @@ impl ObjectStoreCatalog {
         else {
             return Ok(None);
         };
-        let snapshot_sequence = snapshot.sequence_number();
+
         // Exactly one group is the current writer's form, which every
         // reader vintage accepts. Anything else gets rewritten at startup:
         // the legacy multi-group layout (group_count > 1), and the indexless
@@ -160,21 +160,31 @@ impl ObjectStoreCatalog {
         let snapshot_needs_rewrite = snapshot.header.group_count != 1;
         let catalog_uuid = Uuid::from_u128(snapshot.header.catalog_uuid);
         let mut inner = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
-        // Snapshots normally do not contain restore records, but pre-load
-        // defensively in case one slipped in.
-        let mut preload =
-            preload_restore_for_file(&snapshot, self, inner.committed_feature_level).await?;
-        apply_catalog_file(&snapshot, &mut inner, &mut preload)
-            .inspect_err(|_| {
-                self.catalog_snapshot_observer
-                    .on_catalog_snapshot_error("catalog_snapshot_failed");
-            })
-            .map_err(|e| {
-                ObjectStoreCatalogError::unexpected(format!(
-                    "failed to apply snapshot for catalog {catalog_uuid} (prefix {}): {e}",
-                    self.prefix,
-                ))
-            })?;
+        let snapshot_sequence = snapshot.header.sequence_number;
+
+        if let Err(e) = self
+            .fast_forward_inner_with_snapshot(snapshot, &mut inner)
+            .await
+        {
+            match e {
+                FastForwardErr::WouldCreateGap => {
+                    unreachable!("Applying records to an empty catalog should never create a gap")
+                }
+                FastForwardErr::NotMonotonicallyIncreasing => {
+                    return Err(ObjectStoreCatalogError::Unexpected(anyhow::anyhow!(
+                        "Records pulled from snapshot with sequence {snapshot_sequence} are not monotonically increasing; can't apply"
+                    )));
+                }
+                FastForwardErr::DuringPreload(f) => return Err(ObjectStoreCatalogError::Format(f)),
+                FastForwardErr::RecordFailedValidation(e) => {
+                    return Err(ObjectStoreCatalogError::unexpected(format!(
+                        "failed to apply snapshot for catalog {catalog_uuid} (prefix {}): {e}",
+                        self.prefix
+                    )));
+                }
+            }
+        }
+
         // SLL: emit on every successful snapshot load — this is the most
         // common observation moment (per-boot, after the snapshot file
         // already exists). The `_persisted` paths in `initialize_snapshot`
@@ -187,11 +197,11 @@ impl ObjectStoreCatalog {
         // filenames make lexicographic order match sequence order.
         let offset = CatalogFilePath::log(&self.prefix, inner.sequence_number()).into();
         let logs_dir = CatalogFilePath::logs_dir(&self.prefix);
-        let mut log_metas = Vec::new();
-        let mut list_stream = self.store.list_with_offset(Some(&logs_dir), &offset);
-        while let Some(item) = list_stream.next().await {
-            log_metas.push(item?);
-        }
+        let mut log_metas: Vec<_> = self
+            .store
+            .list_with_offset(Some(&logs_dir), &offset)
+            .try_collect()
+            .await?;
         log_metas.sort_unstable_by(|a, b| a.location.cmp(&b.location));
 
         let store = Arc::clone(&self.store);
@@ -238,9 +248,13 @@ impl ObjectStoreCatalog {
                     self.prefix,
                 )));
             }
-            let mut preload =
-                preload_restore_for_file(&file, self, inner.committed_feature_level).await?;
-            apply_catalog_file(&file, &mut inner, &mut preload).map_err(|e| {
+            let preload = preload_restore_for_file_records(
+                &file.records,
+                self,
+                inner.committed_feature_level,
+            )
+            .await?;
+            apply_catalog_file(&file, &mut inner, preload).map_err(|e| {
                 ObjectStoreCatalogError::unexpected(format!(
                     "failed to apply log at sequence {} for catalog {catalog_uuid} \
                      (prefix {}): {e}",
@@ -280,7 +294,7 @@ impl ObjectStoreCatalog {
             &[initial_record],
             &mut inner,
             CatalogSequenceNumber::new(0),
-            &mut RestorePreload::empty(),
+            RestorePreload::empty(),
         )
         .map_err(|e| {
             ObjectStoreCatalogError::unexpected(format!(
@@ -472,9 +486,13 @@ impl ObjectStoreCatalog {
         };
         let catalog_uuid = Uuid::from_u128(snapshot.header.catalog_uuid);
         let mut inner = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
-        let mut preload =
-            preload_restore_for_file(&snapshot, self, inner.committed_feature_level).await?;
-        apply_catalog_file(&snapshot, &mut inner, &mut preload).map_err(|e| {
+        let preload = preload_restore_for_file_records(
+            &snapshot.records,
+            self,
+            inner.committed_feature_level,
+        )
+        .await?;
+        apply_catalog_file(&snapshot, &mut inner, preload).map_err(|e| {
             ObjectStoreCatalogError::unexpected(format!(
                 "failed to apply restore checkpoint at {checkpoint_path} for catalog \
                  {catalog_uuid}: {e}",
@@ -506,9 +524,10 @@ impl ObjectStoreCatalog {
                      {actual_uuid}",
                 )));
             }
-            let mut preload =
-                preload_restore_for_file(&log, self, inner.committed_feature_level).await?;
-            apply_catalog_file(&log, &mut inner, &mut preload).map_err(|e| {
+            let preload =
+                preload_restore_for_file_records(&log.records, self, inner.committed_feature_level)
+                    .await?;
+            apply_catalog_file(&log, &mut inner, preload).map_err(|e| {
                 ObjectStoreCatalogError::unexpected(format!(
                     "failed to apply restore log at {path} for catalog {catalog_uuid}: {e}",
                 ))
@@ -561,6 +580,85 @@ impl ObjectStoreCatalog {
                 Err(other.into())
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum FastForwardErr {
+    NotMonotonicallyIncreasing,
+    WouldCreateGap,
+    RecordFailedValidation(FormatError),
+    DuringPreload(FormatError),
+}
+
+impl ObjectStoreCatalog {
+    /// This function takes a catalog file (a snapshot) and applies it to `inner`. This takes only
+    /// the subset of records which are not yet applied to `inner` and applies those.
+    ///
+    /// This function trusts that `records` is sorted (lowest sequence number first) and contains no
+    /// gaps in its sequence numbers.
+    /// It also trust that applying the records in this snapshot will not create a gap in our list
+    /// of ordered records (i.e. by applying a list of records where the lowest sequence `N+2` where
+    /// the current greatest sequence applied is `N`)
+    ///
+    /// # Errors
+    ///
+    /// This will return an error if:
+    /// 1. The records' sequence numbers are not monotonically increasing (they don't have to be
+    ///    *strictly* increasing, just increasing)
+    /// 2. The lowest sequence number within the records is not next-in-line to be applied to `inner`,
+    ///    based on the last record applied to `inner`
+    /// 3. One of the records failed validation
+    pub(crate) async fn fast_forward_inner_with_snapshot(
+        &self,
+        CatalogFile {
+            header,
+            mut records,
+        }: CatalogFile,
+        inner: &mut InnerCatalog,
+    ) -> Result<(), FastForwardErr> {
+        // If there's no first record, there's nothing to apply. No biggie.
+        let Some(first_rec) = records.first() else {
+            return Ok(());
+        };
+
+        if !records.is_sorted_by_key(|r| r.sequence()) {
+            return Err(FastForwardErr::NotMonotonicallyIncreasing);
+        }
+
+        let loaded_records_up_to = inner.ordered_records.last().map(|rec| rec.header.sequence);
+        let snapshot_sequence = CatalogSequenceNumber::new(header.sequence_number);
+
+        if let Some(loaded_up_to) = loaded_records_up_to {
+            if first_rec.sequence() > loaded_up_to + 1 {
+                return Err(FastForwardErr::WouldCreateGap);
+            }
+
+            records.retain(|rec| rec.sequence() > loaded_up_to);
+
+            if records.is_empty() {
+                return Ok(());
+            }
+        }
+
+        // Snapshots normally do not contain restore records, but pre-load
+        // defensively in case one slipped in.
+        let preload =
+            preload_restore_for_file_records(&records, self, inner.committed_feature_level)
+                .await
+                .map_err(FastForwardErr::DuringPreload)?;
+        apply_records(&records, inner, snapshot_sequence, preload).map_err(|e| {
+            self.catalog_snapshot_observer
+                .on_catalog_snapshot_error("catalog_snapshot_failed");
+            FastForwardErr::RecordFailedValidation(e)
+        })?;
+
+        // TODO(june): We should broadcast the snapshot load here, in a way that would allow the
+        // compactor to listen to it and record that these files need to be deleted. But we should
+        // only broadcast if this is not an initialization OR we know that the very first log file
+        // still exists in object store.
+
+        Ok(())
     }
 }
 

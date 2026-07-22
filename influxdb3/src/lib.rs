@@ -57,7 +57,7 @@ struct DeprecatedServeOption {
 
 const PACKAGE_MANAGER_ARG_ID: &str = "package_manager";
 const PACKAGE_MANAGER_DEPRECATED_MESSAGE: &str = "--package-manager is deprecated and will be removed in a future release. Python and pip are bundled with InfluxDB; remove this option because pip is always used.";
-const PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE: &str = "--package-manager disabled is deprecated and will be removed in a future release. Python and pip are bundled with InfluxDB and pip is always used for environment setup; disabled only blocks plugin package install API calls for compatibility.";
+const PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE: &str = "--package-manager disabled is deprecated and will be removed in a future release. Use --disable-package-management instead. Python and pip are bundled with InfluxDB and pip is always used for environment setup; disabled only blocks plugin package install API calls for compatibility.";
 
 const DEPRECATED_SERVE_OPTIONS: &[DeprecatedServeOption] = &[DeprecatedServeOption {
     arg_id: PACKAGE_MANAGER_ARG_ID,

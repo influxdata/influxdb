@@ -994,6 +994,49 @@ async fn next_id_is_correct_number() {
     assert_eq!(ParquetFileId::next_id().as_u64(), expected_next_id);
 }
 
+#[test_log::test(tokio::test)]
+async fn cannot_write_to_internal_db() {
+    let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let wal_config = WalConfig {
+        gen1_duration: influxdb3_wal::Gen1Duration::new_1m(),
+        max_write_buffer_size: 100,
+        flush_interval: Duration::from_millis(10),
+        snapshot_size: 1,
+        ..Default::default()
+    };
+    let (wbuf, _, _time_provider) = setup(
+        Time::from_timestamp_nanos(0),
+        Arc::clone(&obj_store),
+        wal_config,
+    )
+    .await;
+
+    let err = wbuf
+        .write_lp(
+            DatabaseName::new("_internal").unwrap(),
+            "coffee,name=espresso price=2.50",
+            Time::from_timestamp_nanos(1_000_000_000),
+            false,
+            Precision::Nanosecond,
+            false,
+        )
+        .await
+        .expect_err("writing to _internal db fails");
+    assert!(matches!(err, Error::InternalDbWriteNotAllowed));
+
+    let result = wbuf
+        .write_internal_lp(
+            "processing_engine_logs database_name=\"db\",trigger_name=\"trigger\",plugin_filename=\"plugin.py\",log_level=\"INFO\",log_text=\"hello\",run_id=\"run\",node_id=\"node\",error_details=\"\" 1000000000",
+            Time::from_timestamp_nanos(1_000_000_000),
+            false,
+            Precision::Nanosecond,
+            false,
+        )
+        .await
+        .expect("system-owned writes to _internal db succeed");
+    assert_eq!(result.line_count, 1);
+}
+
 /// This is the reproducer for [#25277][see]
 ///
 /// [see]: https://github.com/influxdata/influxdb/issues/25277

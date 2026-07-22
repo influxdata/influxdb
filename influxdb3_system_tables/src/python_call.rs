@@ -1,13 +1,26 @@
+use std::{any::Any, sync::Arc};
+
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
-use datafusion::common::Result;
-use datafusion::logical_expr::Expr;
-use influxdb3_catalog::catalog::TriggerDefinition;
-use influxdb3_py_api::logging::ProcessingEngineLog;
-use influxdb3_sys_events::{SysEventStore, ToRecordBatch};
+use datafusion::{
+    catalog::Session,
+    common::{Column, Result},
+    datasource::{TableProvider, TableType, ViewTable, provider_as_source},
+    error::DataFusionError,
+    logical_expr::{
+        BinaryExpr, Expr, LogicalPlanBuilder, Operator, TableProviderFilterPushDown, col,
+    },
+    physical_plan::{ExecutionPlan, empty::EmptyExec},
+    scalar::ScalarValue,
+};
+use influxdb3_catalog::catalog::{
+    DatabaseSchema, INTERNAL_DB_NAME, TIME_COLUMN_NAME, TableDefinition, TriggerDefinition,
+};
+use influxdb3_py_api::logging::{PROCESSING_ENGINE_LOGS_TABLE_NAME, processing_engine_logs_schema};
+use influxdb3_write::{ChunkFilter, WriteBuffer};
+use iox_query::provider::ProviderBuilder;
 use iox_system_tables::IoxSystemTable;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub(super) struct ProcessingEngineTriggerTable {
@@ -90,37 +103,161 @@ impl IoxSystemTable for ProcessingEngineTriggerTable {
     }
 }
 
+/// Name of the virtual column exposed by the `processing_engine_logs` view
+/// that mirrors the `time` column, for compatibility with clients that
+/// queried `event_time` before the column was renamed.
+const EVENT_TIME_COLUMN_NAME: &str = "event_time";
+
+/// Wrap the `processing_engine_logs` table in a view equivalent to
+/// `SELECT *, time AS event_time FROM processing_engine_logs`, so DataFusion's
+/// optimizer rewrites projections and filters on `event_time` to the
+/// underlying `time` column.
+pub(super) fn processing_engine_logs_view(
+    table: Arc<dyn TableProvider>,
+) -> Result<Arc<dyn TableProvider>> {
+    let schema = table.schema();
+    // A schema that already has a physical event_time column serves it
+    // directly; aliasing time on top would create a duplicate field name.
+    if schema.fields().find(EVENT_TIME_COLUMN_NAME).is_some() {
+        return Ok(table);
+    }
+    let mut exprs = schema
+        .fields()
+        .iter()
+        .map(|field| Expr::Column(Column::new_unqualified(field.name())))
+        .collect::<Vec<_>>();
+    exprs.push(
+        Expr::Column(Column::new_unqualified(TIME_COLUMN_NAME)).alias(EVENT_TIME_COLUMN_NAME),
+    );
+    let plan = LogicalPlanBuilder::scan(
+        PROCESSING_ENGINE_LOGS_TABLE_NAME,
+        provider_as_source(table),
+        None,
+    )?
+    .project(exprs)?
+    .build()?;
+    Ok(Arc::new(ViewTable::new(plan, None)))
+}
+
 #[derive(Debug)]
 pub(super) struct ProcessingEngineLogsTable {
-    sys_event_store: Arc<SysEventStore>,
+    db_schema: Arc<DatabaseSchema>,
+    buffer: Arc<dyn WriteBuffer>,
 }
 
 impl ProcessingEngineLogsTable {
-    pub(super) fn new(sys_event_store: Arc<SysEventStore>) -> Self {
-        Self { sys_event_store }
+    pub(super) fn new(db_schema: Arc<DatabaseSchema>, buffer: Arc<dyn WriteBuffer>) -> Self {
+        Self { db_schema, buffer }
+    }
+
+    fn storage_table(&self) -> Option<(Arc<DatabaseSchema>, Arc<TableDefinition>)> {
+        let internal_db_schema = self.buffer.catalog().db_schema(INTERNAL_DB_NAME)?;
+        let table_def = internal_db_schema.table_definition(PROCESSING_ENGINE_LOGS_TABLE_NAME)?;
+        Some((internal_db_schema, table_def))
+    }
+
+    fn empty_schema() -> SchemaRef {
+        Arc::new(processing_engine_logs_schema())
+    }
+
+    fn scoped_filters(&self, filters: &[Expr]) -> Vec<Expr> {
+        let mut filters = filters.to_vec();
+        if self.db_schema.name.as_ref() != INTERNAL_DB_NAME {
+            filters.push(Expr::BinaryExpr(BinaryExpr {
+                left: Box::new(col("database_name")),
+                op: Operator::Eq,
+                right: Box::new(Expr::Literal(
+                    ScalarValue::Utf8(Some(self.db_schema.name.as_ref().to_owned())),
+                    None,
+                )),
+            }));
+        }
+        filters
+    }
+
+    fn chunks(
+        &self,
+        internal_db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        ctx: &dyn Session,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+    ) -> Result<Vec<Arc<dyn iox_query::QueryChunk>>> {
+        let mut filter = ChunkFilter::new(&table_def, filters)
+            .map_err(|error| DataFusionError::External(Box::new(error)))?;
+
+        let catalog = self.buffer.catalog();
+        if let Some(retention_cutoff) = internal_db_schema.get_retention_period_cutoff_ts_nanos(
+            catalog.time_provider().now(),
+            &table_def.table_id,
+        ) {
+            filter.time_lower_bound_ns = filter
+                .time_lower_bound_ns
+                .map(|lb| lb.max(retention_cutoff.timestamp_nanos()))
+                .or(Some(retention_cutoff.timestamp_nanos()));
+        }
+
+        self.buffer
+            .get_table_chunks(internal_db_schema, table_def, &filter, projection, ctx)
     }
 }
 
 #[async_trait]
-impl IoxSystemTable for ProcessingEngineLogsTable {
+impl TableProvider for ProcessingEngineLogsTable {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn schema(&self) -> SchemaRef {
-        Arc::new(ProcessingEngineLog::schema())
+        self.storage_table()
+            .map(|(_, table_def)| table_def.schema.as_arrow())
+            .unwrap_or_else(Self::empty_schema)
     }
 
     async fn scan(
         &self,
-        _filters: Option<Vec<Expr>>,
-        _limit: Option<usize>,
-    ) -> Result<RecordBatch> {
-        let Some(result) = self
-            .sys_event_store
-            .as_record_batch::<ProcessingEngineLog>()
-        else {
-            return Ok(RecordBatch::new_empty(Arc::new(
-                ProcessingEngineLog::schema(),
-            )));
+        ctx: &dyn Session,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let Some((internal_db_schema, table_def)) = self.storage_table() else {
+            let schema = self.schema();
+            let schema = match projection {
+                Some(projection) => Arc::new(schema.project(projection)?),
+                None => schema,
+            };
+            return Ok(Arc::new(EmptyExec::new(schema)));
         };
-        Ok(result?)
+
+        let filters = self.scoped_filters(filters);
+        let mut builder =
+            ProviderBuilder::new(Arc::clone(&table_def.table_name), table_def.schema.clone());
+        for chunk in self.chunks(
+            Arc::clone(&internal_db_schema),
+            Arc::clone(&table_def),
+            ctx,
+            projection,
+            &filters,
+        )? {
+            builder = builder.add_chunk(chunk);
+        }
+        let provider = builder
+            .build()
+            .map_err(|e| DataFusionError::Internal(format!("unexpected error: {e:?}")))?;
+
+        provider.scan(ctx, projection, &filters, limit).await
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::View
+    }
+
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> Result<Vec<TableProviderFilterPushDown>> {
+        Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
     }
 }
 

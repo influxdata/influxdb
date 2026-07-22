@@ -28,7 +28,8 @@ use influxdb3_processing_engine::environment::{
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::{
-    ProcessingEngineManagerImpl, ProcessingEngineManagerOptions, write::InProcessWriteEndpoint,
+    ProcessingEngineManagerImpl, ProcessingEngineManagerOptions, query::InProcessQueryEndpoint,
+    write::InProcessWriteEndpoint,
 };
 use influxdb3_processing_engine_telemetry::{
     setup_plugin_trigger_invocation_registry, setup_plugin_trigger_invocation_telemetry,
@@ -104,6 +105,8 @@ pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.co
 const MIN_SNAPSHOTS_TO_LOAD_ON_START: u64 = 100;
 
 mod cli_params;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -1197,9 +1200,9 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::new(InProcessWriteEndpoint::new(
             Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>
         )),
-        Arc::clone(&query_executor) as _,
+        Arc::new(InProcessQueryEndpoint::new(Arc::clone(&query_executor) as _)),
         Arc::clone(&time_provider) as _,
-        ProcessingEngineManagerOptions::new(sys_events_store)
+        ProcessingEngineManagerOptions::new()
             .with_plugin_trigger_invocation_registry(Some(plugin_trigger_invocation_registry)),
     )
     .await
@@ -1440,21 +1443,27 @@ pub(crate) fn setup_processing_engine_env_manager(
         environment::venv_path_for(plugin_dir, config.virtual_env_location.as_ref())
     });
 
-    let package_manager: Arc<dyn PythonEnvironmentManager> = match config.package_manager {
-        PackageManager::Pip => Arc::new(PipManager),
-        // Keep accepting the historical config value, but do not use uv.
-        PackageManager::UV => Arc::new(PipManager),
-        PackageManager::Disabled => Arc::new(DisabledPackageManager),
-        // Discovery builds the one-per-process venv in the background and probes
-        // pip inside it. `ready()` blocks until the build finishes; a venv that
-        // cannot be built (or no plugin dir to build one in) means no pip.
-        PackageManager::Discover => match venv_path {
-            Some(path) => environment::get_or_init_venv(path)
-                .ready()
-                .map(|venv| venv.determine_package_manager())
-                .unwrap_or_else(|_| Arc::new(DisabledManager)),
-            None => Arc::new(DisabledManager),
-        },
+    let package_manager: Arc<dyn PythonEnvironmentManager> = if config.disable_package_management {
+        // Never build/probe a venv or shell out to pip, regardless of
+        // --package-manager; the user manages the venv themselves.
+        Arc::new(DisabledPackageManager)
+    } else {
+        match config.package_manager {
+            PackageManager::Pip => Arc::new(PipManager),
+            // Keep accepting the historical config value, but do not use uv.
+            PackageManager::UV => Arc::new(PipManager),
+            PackageManager::Disabled => Arc::new(DisabledPackageManager),
+            // Discovery builds the one-per-process venv in the background and probes
+            // pip inside it. `ready()` blocks until the build finishes; a venv that
+            // cannot be built (or no plugin dir to build one in) means no pip.
+            PackageManager::Discover => match venv_path {
+                Some(path) => environment::get_or_init_venv(path)
+                    .ready()
+                    .map(|venv| venv.determine_package_manager())
+                    .unwrap_or_else(|_| Arc::new(DisabledManager)),
+                None => Arc::new(DisabledManager),
+            },
+        }
     };
 
     ProcessingEngineEnvironmentManager {

@@ -271,7 +271,7 @@ impl DistinctCacheProvider {
                 if table_caches.is_empty() {
                     continue;
                 }
-                for (_, cache) in table_caches.iter_mut() {
+                for cache in table_caches.values_mut() {
                     for chunk in table_chunks.chunk_time_to_chunk.values() {
                         for row in &chunk.rows {
                             cache.push(row);

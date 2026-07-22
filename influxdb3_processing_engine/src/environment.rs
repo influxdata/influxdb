@@ -50,10 +50,9 @@ pub struct PipManager;
 pub struct DisabledManager;
 
 fn is_valid_venv(venv_path: &Path) -> bool {
-    if cfg!(windows) {
-        venv_path.join("Scripts").join("activate.bat").exists()
-    } else {
-        venv_path.join("bin").join("activate").exists()
+    cfg_select! {
+        windows => venv_path.join("Scripts").join("activate.bat").exists(),
+        _ => venv_path.join("bin").join("activate").exists()
     }
 }
 
@@ -351,10 +350,9 @@ impl ReadyVenv {
     pub fn determine_package_manager(&self) -> Arc<dyn PythonEnvironmentManager> {
         // A venv always contains `bin/python`; `python3` is only a symlink that
         // may be absent.
-        let venv_python = if cfg!(windows) {
-            self.path.join("Scripts").join("python.exe")
-        } else {
-            self.path.join("bin").join("python")
+        let venv_python = cfg_select! {
+            windows => self.path.join("Scripts").join("python.exe"),
+            _ => self.path.join("bin").join("python")
         };
         debug!("Running: {} -m pip --version", venv_python.display());
         let pip_available = Command::new(&venv_python)

@@ -319,7 +319,7 @@ impl DatabaseCatalogTransaction {
             batch.as_slice(),
             inner,
             sequence,
-            &mut crate::format::apply::RestorePreload::empty(),
+            crate::format::apply::RestorePreload::empty(),
         )
         .map_err(|e| CatalogError::Internal {
             details: format!("apply_to_inner: {e}"),

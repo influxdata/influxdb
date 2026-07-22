@@ -1213,7 +1213,7 @@ impl FieldChecker {
     fn check_date_part_function(&mut self, c: &Call) -> Result<()> {
         let name = c.name.as_str();
         check_exp_args!(name, 2, c.args);
-        lit_string!(name, c.args, 0);
+        _ = lit_string!(name, c.args, 0);
         if !matches!(
             &c.args[1],
             Expr::VarRef(VarRef {
@@ -1294,7 +1294,7 @@ impl FieldChecker {
         ) {
             return error::query(format!(
                 "expected number for percentile(), got {:?}",
-                &args[1]
+                args[1]
             ));
         }
         self.check_symbol("percentile", &args[0])

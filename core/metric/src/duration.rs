@@ -282,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "cannot fit duration into u64: TryFromIntError(())")]
+    #[should_panic(expected = "cannot fit duration into u64: TryFromIntError(PosOverflow)")]
     fn test_record_overflow() {
         let histogram = DurationHistogram::create(&Default::default());
         histogram.record(Duration::MAX);

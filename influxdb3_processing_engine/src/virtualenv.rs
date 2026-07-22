@@ -3,7 +3,6 @@ use pyo3::Python;
 use std::env;
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Once;
 use thiserror::Error;
 
@@ -58,10 +57,9 @@ fn find_python_install() -> Option<PathBuf> {
 }
 
 pub fn find_python() -> PathBuf {
-    let python_exe_bn = if cfg!(windows) {
-        "python.exe"
-    } else {
-        "python3"
+    let python_exe_bn = cfg_select! {
+        windows => "python.exe",
+        _ => "python3"
     };
 
     let python_inst = find_python_install();
@@ -69,20 +67,19 @@ pub fn find_python() -> PathBuf {
         // After initialize_venv(), VIRTUAL_ENV is set, so honor it (thus
         // allowing package installs to be installed in the venv)
         let mut path = PathBuf::from(v);
-        if cfg!(windows) {
-            path.push("Scripts");
-        } else {
-            path.push("bin");
-        }
+        cfg_select! {
+            windows => path.push("Scripts"),
+            _ => path.push("bin"),
+        };
         path.push(python_exe_bn);
         path
     } else if let Some(mut path) = python_inst {
         // Prior to initialize_venv(), VIRTUAL_ENV is not set so we'll want to
         // look for where the python installation is, which allows
         // 'python -m venv' to work correctly
-        if !cfg!(windows) {
-            path.push("bin");
-        }
+        #[cfg(not(windows))]
+        path.push("bin");
+
         path.push(python_exe_bn);
         path
     } else {
@@ -91,23 +88,6 @@ pub fn find_python() -> PathBuf {
     };
     debug!("Found python executable: {}", python_exe.display());
     python_exe
-}
-
-fn get_python_version() -> Result<(u8, u8), std::io::Error> {
-    let python_exe = find_python();
-    let output = Command::new(python_exe)
-        .args([
-            "-c",
-            "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
-        ])
-        .output()?;
-
-    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let mut parts = version.split('.');
-    let major: u8 = parts.next().unwrap().parse().unwrap();
-    let minor: u8 = parts.next().unwrap().parse().unwrap();
-
-    Ok((major, minor))
 }
 
 pub fn init_pyo3() {
@@ -180,31 +160,33 @@ pub fn init_pyo3() {
                 // venv results in the venv's site-packages being appended to
                 // the end of sys.path, so do that here. We could instead set
                 // the PYTHONPATH env var, but that prepends to sys.path.
-                if let Ok((major, minor)) = get_python_version() {
-                    let venv_dir = Path::new(&v);
-                    let site_packages = if cfg!(target_os = "windows") {
-                        venv_dir.join("Lib").join("site-packages")
-                    } else {
-                        venv_dir
-                            .join("lib")
-                            .join(format!("python{major}.{minor}"))
-                            .join("site-packages")
-                    };
+                //
+                // The embedded interpreter matches the venv's Python version (the
+                // venv is built from it), so read the version in-process rather than
+                // shelling out to the venv's python.
+                let version = py.version_info();
+                let venv_dir = Path::new(&v);
+                let site_packages = cfg_select! {
+                    windows => venv_dir.join("Lib").join("site-packages"),
+                    _ => venv_dir
+                        .join("lib")
+                        .join(format!("python{}.{}", version.major, version.minor))
+                        .join("site-packages")
+                };
 
-                    debug!("Updating sys.path to append: {}", site_packages.display());
-                    // Note: need to use python raw strings (r'') for Windows paths
-                    py.run(
-                        &CString::new(format!(
-                            "import sys; sys.path.append(r'{}') if r'{}' not in sys.path else None",
-                            site_packages.display(),
-                            site_packages.display(),
-                        ))
-                        .unwrap(),
-                        None,
-                        None,
-                    )
-                    .expect("should be able append to sys.path");
-                }
+                debug!("Updating sys.path to append: {}", site_packages.display());
+                // Note: need to use python raw strings (r'') for Windows paths
+                py.run(
+                    &CString::new(format!(
+                        "import sys; sys.path.append(r'{}') if r'{}' not in sys.path else None",
+                        site_packages.display(),
+                        site_packages.display(),
+                    ))
+                    .unwrap(),
+                    None,
+                    None,
+                )
+                .expect("should be able append to sys.path");
             }
         });
     });
@@ -231,10 +213,9 @@ pub fn init_pyo3() {
 pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     use std::process::Command;
 
-    let activate_script = if cfg!(target_os = "windows") {
-        venv_path.join("Scripts").join("activate.bat")
-    } else {
-        venv_path.join("bin").join("activate")
+    let activate_script = cfg_select! {
+        windows => venv_path.join("Scripts").join("activate.bat"),
+        _ => venv_path.join("bin").join("activate")
     };
 
     if !activate_script.exists() {
@@ -247,13 +228,12 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     // source/call the script, print the resulting environment, capture its output and
     // set all env vars found. This should future-proof us against changes to activate script
     // specifics.
-    let output = if cfg!(target_os = "windows") {
-        Command::new("cmd")
+    let output = cfg_select! {
+        windows => Command::new("cmd")
             .arg("/C")
             .arg(format!("{} && set", activate_script.to_str().unwrap()))
-            .output()?
-    } else {
-        Command::new("bash")
+            .output()?,
+        _ => Command::new("bash")
             .arg("-c")
             .arg(format!(
                 "source {} && env",

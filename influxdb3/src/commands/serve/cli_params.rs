@@ -117,6 +117,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "plugin-dir",
     "virtual-env-location",
     "package-manager",
+    "disable-package-management",
     "plugin-repo",
     "restrict-plugin-triggers-to",
     // Other parameters

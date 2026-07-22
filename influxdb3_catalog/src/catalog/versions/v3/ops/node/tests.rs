@@ -369,16 +369,33 @@ fn request_stop_transitions_running_to_stopping() {
 }
 
 #[test]
-fn request_stop_rejected_when_not_running() {
+fn request_stop_idempotent_when_not_running() {
     let mut catalog = test_catalog();
     register_then_request_stop(&mut catalog, "node-a");
 
+    // Stopping: a second stop request is a no-op, not a conflict.
     let mut batch = RecordBatch::new(3);
     let result = RequestStopNodeOp::prepare(&request_stop_args("node-a"), &catalog, &mut batch);
-    assert!(matches!(
-        result,
-        Err(CatalogError::NodeAlreadyStopped { .. })
-    ));
+    assert!(matches!(result, Err(CatalogError::IdempotentNoOp)));
+    assert_eq!(batch.len(), 0);
+
+    // Stopped: after the ack lands, retrying the stop is still a no-op.
+    let mut batch = RecordBatch::new(3);
+    AckStopNodeOp::prepare(&ack_args("node-a", Some(7)), &catalog, &mut batch).unwrap();
+    apply_batch(&batch, &mut catalog);
+    let mut batch = RecordBatch::new(4);
+    let result = RequestStopNodeOp::prepare(&request_stop_args("node-a"), &catalog, &mut batch);
+    assert!(matches!(result, Err(CatalogError::IdempotentNoOp)));
+    assert_eq!(batch.len(), 0);
+
+    // Removing: the stop already completed; still a no-op.
+    let mut batch = RecordBatch::new(4);
+    RemoveNodeOp::prepare(&remove_args("node-a"), &catalog, &mut batch).unwrap();
+    apply_batch(&batch, &mut catalog);
+    let mut batch = RecordBatch::new(5);
+    let result = RequestStopNodeOp::prepare(&request_stop_args("node-a"), &catalog, &mut batch);
+    assert!(matches!(result, Err(CatalogError::IdempotentNoOp)));
+    assert_eq!(batch.len(), 0);
 }
 
 #[test]

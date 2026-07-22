@@ -6,32 +6,27 @@ use crate::cache::PyCache;
 use crate::error::ExecutePluginError;
 use crate::line_builder::setup_line_builder;
 use crate::logging::{LogLevel, LogLine, PluginLogger};
-use crate::py_conversion::{ToPythonTableBatches, args_to_py_object, map_to_py_object};
-use crate::write::{WriteAccumulator, WriteEndpoint};
+use crate::py_conversion::{args_to_py_object, map_to_py_object, record_batches_to_py_rows};
+use crate::query::QueryEndpoint;
+use crate::wal::{WalFlushElement, wal_flush_to_py};
+use crate::write::{WriteAccumulator, WriteEndpoint, WriteTarget};
 use anyhow::{anyhow, bail};
-use arrow_array::types::Int32Type;
-use arrow_array::{
-    Array, BooleanArray, DictionaryArray, Float64Array, Int64Array, RecordBatch, StringArray,
-    TimestampNanosecondArray, UInt64Array,
-};
-use arrow_schema::DataType;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::TryStreamExt;
 use hashbrown::HashMap;
 use humantime::format_duration;
-use influxdb3_catalog::catalog::DatabaseSchema;
+use influxdb3_catalog::catalog::{DatabaseSchema, INTERNAL_DB_NAME};
 use influxdb3_id::TableId;
-use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_types::DatabaseName;
-use iox_query_params::StatementParams;
 use iox_time::Time;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
-use pyo3::exceptions::{PyAttributeError, PyException, PyModuleNotFoundError, PyValueError};
+use pyo3::exceptions::{
+    PyAttributeError, PyException, PyKeyboardInterrupt, PyModuleNotFoundError, PyValueError,
+};
 use pyo3::prelude::{PyAnyMethods, PyModule};
 use pyo3::sync::MutexExt;
-use pyo3::types::{PyBytes, PyDateTime, PyDict, PyList, PyString, PyTuple};
+use pyo3::types::{PyBytes, PyDateTime, PyDict, PyList, PyTuple};
 use pyo3::{
     Bound, IntoPyObject, Py, PyAny, PyErr, PyResult, Python, create_exception, pyclass, pymethods,
     pymodule,
@@ -40,6 +35,7 @@ use std::ffi::CString;
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
 use std::time::{Instant, SystemTime};
+use tokio_util::sync::CancellationToken;
 
 create_exception!(influxdb3_py_api, QueryError, PyException);
 
@@ -52,11 +48,15 @@ create_exception!(influxdb3_py_api, QueryError, PyException);
 #[derive(Debug)]
 struct PyPluginCallApi {
     db_schema: Arc<DatabaseSchema>,
-    query_executor: Arc<dyn QueryExecutor>,
+    query_endpoint: Arc<dyn QueryEndpoint>,
     write_endpoint: Arc<dyn WriteEndpoint>,
     write_accumulator: Arc<WriteAccumulator>,
     logger: Arc<PluginLogger>,
     py_cache: PyCache,
+    /// Cancelled when the server begins shutting down. Host calls below observe it
+    /// and raise `KeyboardInterrupt` into the plugin so a long-running loop cannot
+    /// block graceful shutdown (see influxdb_pro#2444).
+    cancel: CancellationToken,
 }
 
 /// Accumulated state returned from plugin execution.
@@ -71,10 +71,20 @@ pub struct PluginReturnState {
     pub write_db_lines: HashMap<String, Vec<String>>,
 }
 
+fn reject_internal_db_write(db_name: &str) -> PyResult<()> {
+    if db_name == INTERNAL_DB_NAME {
+        return Err(PyException::new_err(
+            "Python plugins cannot write to the _internal database",
+        ));
+    }
+    Ok(())
+}
+
 #[pymethods]
 impl PyPluginCallApi {
     #[pyo3(signature = (*args))]
     fn info(&self, py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        self.check_cancelled()?;
         let line = self.log_args_to_string(args)?;
         let logger = Arc::clone(&self.logger);
         py.detach(|| {
@@ -86,6 +96,7 @@ impl PyPluginCallApi {
 
     #[pyo3(signature = (*args))]
     fn warn(&self, py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        self.check_cancelled()?;
         let line = self.log_args_to_string(args)?;
         let logger = Arc::clone(&self.logger);
         py.detach(|| {
@@ -97,6 +108,7 @@ impl PyPluginCallApi {
 
     #[pyo3(signature = (*args))]
     fn error(&self, py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        self.check_cancelled()?;
         let line = self.log_args_to_string(args)?;
         let logger = Arc::clone(&self.logger);
         py.detach(|| {
@@ -117,6 +129,8 @@ impl PyPluginCallApi {
     ///
     /// Legacy api that batches writes and writes them at the end of plugin execution.
     fn write_to_db(&self, db_name: &str, line_builder: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.check_cancelled()?;
+        reject_internal_db_write(db_name)?;
         let line = line_builder.getattr("build")?.call0()?;
         let line_str = line.extract::<String>()?;
 
@@ -151,6 +165,8 @@ impl PyPluginCallApi {
         line_builder: &Bound<'_, PyAny>,
         no_sync: bool,
     ) -> PyResult<()> {
+        self.check_cancelled()?;
+        reject_internal_db_write(db_name)?;
         let line = line_builder.getattr("build")?.call0()?;
         let line_str = line.extract::<String>()?;
 
@@ -170,7 +186,7 @@ impl PyPluginCallApi {
 
                 tokio::runtime::Handle::current()
                     .block_on(write_endpoint.write_lp(
-                        db_name_validated,
+                        WriteTarget::User(db_name_validated),
                         &line_str,
                         ingest_time,
                         no_sync,
@@ -189,128 +205,30 @@ impl PyPluginCallApi {
         args: Option<std::collections::HashMap<String, String>>,
         database: Option<String>,
     ) -> PyResult<Py<PyList>> {
-        let query_executor = Arc::clone(&self.query_executor);
+        self.check_cancelled()?;
+        let query_endpoint = Arc::clone(&self.query_endpoint);
         let db_name = database.unwrap_or_else(|| self.db_schema.name.as_ref().to_string());
-
         let db_name_validated = DatabaseName::new(db_name.clone())
             .map_err(|e| QueryError::new_err(format!("invalid database name provided: {e}")))?;
-
-        let params = args.map(|args| {
-            let mut params = StatementParams::new();
-            for (key, value) in args {
-                params.insert(key, value);
-            }
-            params
-        });
 
         let batches = py.detach(|| {
             tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async {
-                    let _permit = query_executor.acquire_execution_semaphore(None).await;
-                    let res = query_executor
-                        .query_sql(db_name_validated.as_str(), &query, params, None, None)
+                    query_endpoint
+                        .query(
+                            db_name_validated.as_str(),
+                            &query,
+                            &args.unwrap_or_default(),
+                        )
                         .await
-                        .map_err(|e| format!("error: {e} executing query on {db_name}: {query}"))?;
-
-                    res.try_collect::<Vec<RecordBatch>>()
-                        .await
-                        .map_err(|e| format!("error: {e} executing query on {db_name}: {query}"))
+                        .map_err(|e| QueryError::new_err(format!("{e} (database: {db_name})")))
                 })
             })
-        });
+        })?;
 
-        let batches = batches.map_err(QueryError::new_err)?;
-
-        // Pre-create Python strings for field/tag names once for all batches;
-        // schema must be the same across batches.
-        let Some(first_batch) = batches.first() else {
-            return Ok(PyList::empty(py).unbind());
-        };
-        let field_names: Vec<Bound<'_, PyString>> = first_batch
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| PyString::new(py, f.name().as_str()))
-            .collect();
-
-        let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-        let mut rows: Vec<Py<PyAny>> = Vec::with_capacity(total_rows);
-
-        for batch in &batches {
-            debug_assert_eq!(
-                // datafusion should ensure all batches have the same schema; check it in debug builds
-                batch.num_columns(),
-                field_names.len(),
-                "unexpected batch schema mismatch: expected {} columns, got {}",
-                field_names.len(),
-                batch.num_columns()
-            );
-            let num_rows = batch.num_rows();
-            for row_idx in 0..num_rows {
-                let row = PyDict::new(py);
-                for (col_idx, field_name) in field_names.iter().enumerate() {
-                    let array = batch.column(col_idx);
-
-                    if array.is_null(row_idx) {
-                        row.set_item(field_name, py.None())?;
-                        continue;
-                    }
-
-                    match array.data_type() {
-                        DataType::Int64 => {
-                            let array = array.as_any().downcast_ref::<Int64Array>().unwrap();
-                            row.set_item(field_name, array.value(row_idx))?;
-                        }
-                        DataType::UInt64 => {
-                            let array = array.as_any().downcast_ref::<UInt64Array>().unwrap();
-                            row.set_item(field_name, array.value(row_idx))?;
-                        }
-                        DataType::Float64 => {
-                            let array = array.as_any().downcast_ref::<Float64Array>().unwrap();
-                            row.set_item(field_name, array.value(row_idx))?;
-                        }
-                        DataType::Utf8 => {
-                            let array = array.as_any().downcast_ref::<StringArray>().unwrap();
-                            row.set_item(field_name, array.value(row_idx))?;
-                        }
-                        DataType::Boolean => {
-                            let array = array.as_any().downcast_ref::<BooleanArray>().unwrap();
-                            row.set_item(field_name, array.value(row_idx))?;
-                        }
-                        DataType::Timestamp(_, _) => {
-                            let array = array
-                                .as_any()
-                                .downcast_ref::<TimestampNanosecondArray>()
-                                .unwrap();
-                            row.set_item(field_name, array.value(row_idx))?;
-                        }
-                        DataType::Dictionary(_, _) => {
-                            let col = array
-                                .as_any()
-                                .downcast_ref::<DictionaryArray<Int32Type>>()
-                                .expect("unexpected datatype");
-                            let values = col.values();
-                            let values = values
-                                .as_any()
-                                .downcast_ref::<StringArray>()
-                                .expect("unexpected datatype");
-                            let key_idx = col.keys().value(row_idx) as usize;
-                            let val = values.value(key_idx).to_string();
-                            row.set_item(field_name, val)?;
-                        }
-                        _ => {
-                            return Err(PyValueError::new_err(format!(
-                                "Unsupported data type: {:?}",
-                                array.data_type()
-                            )));
-                        }
-                    }
-                }
-                rows.push(row.into());
-            }
-        }
-
-        let list = PyList::new(py, rows)?.unbind();
+        let list = record_batches_to_py_rows(py, &batches)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?
+            .unbind();
         Ok(list)
     }
 
@@ -324,6 +242,20 @@ impl PyPluginCallApi {
 
 // no #[pymethods] here so these methods are available to rust code but not python code.
 impl PyPluginCallApi {
+    /// Returns an error if the server is shutting down. The error is a
+    /// `KeyboardInterrupt`, which subclasses `BaseException` rather than `Exception`,
+    /// so a plugin's `except Exception` handler cannot swallow it and the plugin loop
+    /// unwinds promptly (see influxdb_pro#2444).
+    fn check_cancelled(&self) -> PyResult<()> {
+        if self.cancel.is_cancelled() {
+            Err(PyKeyboardInterrupt::new_err(
+                "influxdb3 is shutting down; aborting plugin execution",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     fn log_args_to_string(&self, args: &Bound<'_, PyTuple>) -> PyResult<String> {
         let line = args
             .try_iter()?
@@ -462,22 +394,20 @@ fn load_function_from_module<'py>(
     })
 }
 
-/// Execute a WAL flush trigger plugin with data that implements `ToPythonTableBatches`.
-///
-/// This unified function handles both parquet-based (`WriteBatch`) and Pacha-based
-/// (`Vec<WalFlushTableData>`) WAL flush triggers.
+/// Execute a WAL flush trigger plugin.
 #[allow(clippy::too_many_arguments)]
-pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
+pub fn execute_wal_flush_trigger(
     code: &str,
-    wal_data: &T,
+    wal_data: &[WalFlushElement],
     schema: Arc<DatabaseSchema>,
-    query_executor: Arc<dyn QueryExecutor>,
+    query_endpoint: Arc<dyn QueryEndpoint>,
     write_endpoint: Arc<dyn WriteEndpoint>,
     logger: PluginLogger,
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
     plugin_root: Option<&Path>,
+    cancel: CancellationToken,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     logger.log(
         LogLevel::Info,
@@ -490,14 +420,15 @@ pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
 
     Python::attach(|py| {
         setup_line_builder(py)?;
-        let py_batches = wal_data.to_python_table_batches(py, &schema, table_filter)?;
+        let py_batches = wal_flush_to_py(wal_data, py, table_filter)?;
         let local_api = PyPluginCallApi {
             db_schema: schema,
-            query_executor,
+            query_endpoint,
             write_endpoint,
             write_accumulator: Arc::clone(&write_accumulator),
             logger: Arc::clone(&logger),
             py_cache,
+            cancel,
         }
         .into_pyobject(py)
         .map_err(anyhow::Error::from)?;
@@ -538,12 +469,13 @@ pub fn execute_schedule_trigger(
     code: &str,
     schedule_time: DateTime<Utc>,
     schema: Arc<DatabaseSchema>,
-    query_executor: Arc<dyn QueryExecutor>,
+    query_endpoint: Arc<dyn QueryEndpoint>,
     write_endpoint: Arc<dyn WriteEndpoint>,
     logger: PluginLogger,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
     plugin_root: Option<&Path>,
+    cancel: CancellationToken,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     logger.log(
         LogLevel::Info,
@@ -558,11 +490,12 @@ pub fn execute_schedule_trigger(
         setup_line_builder(py)?;
         let local_api = PyPluginCallApi {
             db_schema: schema,
-            query_executor,
+            query_endpoint,
             write_endpoint,
             write_accumulator: Arc::clone(&write_accumulator),
             logger: Arc::clone(&logger),
             py_cache,
+            cancel,
         }
         .into_pyobject(py)
         .map_err(anyhow::Error::from)?;
@@ -611,7 +544,7 @@ pub fn execute_schedule_trigger(
 pub fn execute_request_trigger(
     code: &str,
     db_schema: Arc<DatabaseSchema>,
-    query_executor: Arc<dyn QueryExecutor>,
+    query_endpoint: Arc<dyn QueryEndpoint>,
     write_endpoint: Arc<dyn WriteEndpoint>,
     logger: PluginLogger,
     args: &Option<HashMap<String, String>>,
@@ -620,6 +553,7 @@ pub fn execute_request_trigger(
     request_body: Bytes,
     py_cache: PyCache,
     plugin_root: Option<&Path>,
+    cancel: CancellationToken,
 ) -> Result<(u16, HashMap<String, String>, String, PluginReturnState), ExecutePluginError> {
     logger.log(
         LogLevel::Info,
@@ -634,11 +568,12 @@ pub fn execute_request_trigger(
         setup_line_builder(py)?;
         let local_api = PyPluginCallApi {
             db_schema,
-            query_executor,
+            query_endpoint,
             write_endpoint,
             write_accumulator: Arc::clone(&write_accumulator),
             logger: Arc::clone(&logger),
             py_cache,
+            cancel,
         }
         .into_pyobject(py)
         .map_err(anyhow::Error::from)?;

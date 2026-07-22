@@ -149,6 +149,12 @@ Examples:
   --package-manager <MANAGER>                  Deprecated. Python and pip are bundled with InfluxDB; this option does not need to be set
                                                  [possible values: discover, pip, uv, disabled] [default: discover]
                                                  [env: INFLUXDB3_PACKAGE_MANAGER=]
+  --disable-package-management                 Disable all Processing Engine package management. The server never
+                                                 creates or modifies a virtual environment, never invokes pip, and
+                                                 the plugin package-install API endpoints are rejected. Takes
+                                                 precedence over --package-manager. Manage the virtual environment
+                                                 yourself and point the server at it via VIRTUAL_ENV.
+                                                 [env: INFLUXDB3_DISABLE_PACKAGE_MANAGEMENT=]
   --plugin-repo <URL>                          URL of plugin repository
                                                  [env: INFLUXDB3_PLUGIN_REPO=]
   --restrict-plugin-triggers-to <TYPE>...      Restrict plugin triggers to the provided trigger type(s)

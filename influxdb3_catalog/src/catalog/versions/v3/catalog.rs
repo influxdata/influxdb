@@ -123,7 +123,7 @@ use crate::format::FeatureLevel;
 use crate::format::Record;
 use crate::format::RecordBatch;
 use crate::format::apply::{
-    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file,
+    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file_records,
     preload_restore_for_records, serialize_log_file, serialize_snapshot_file,
 };
 use crate::format::derive_feature_level;
@@ -1326,6 +1326,24 @@ impl Catalog {
             .collect()
     }
 
+    /// Return the query group that `node_id` is a member of, if any.
+    ///
+    /// A running query node uses this to discover its own placement group. The
+    /// distributed-query model assumes a node belongs to at most one group.
+    /// That invariant is not yet enforced when groups are created or edited, so
+    /// if a node is placed in several groups this resolves to the
+    /// earliest-created one. Returns `None` when no group includes the node —
+    /// such nodes keep the default behavior of loading all data (follow every
+    /// ingester, read every shard).
+    pub fn query_group_for_node(&self, node_id: NodeId) -> Option<Arc<QueryGroupDefinition>> {
+        self.inner
+            .read()
+            .query_groups
+            .resource_iter()
+            .find(|group| group.members().contains(&node_id))
+            .cloned()
+    }
+
     /// Update a query group's durable catalog definition.
     ///
     /// Only the fields set in `update` are changed. Any field left as `None`
@@ -1831,6 +1849,11 @@ impl Catalog {
     /// Request a graceful stop for a node, driving its state from `Running`
     /// to `Stopping`. The target node finishes its in-flight work and then
     /// writes an `AckStopNode` record to settle into the terminal `Stopped` state.
+    ///
+    /// Returns [`CatalogError::IdempotentNoOp`] when the node is already
+    /// `Stopping`, `Stopped`, or `Removing`; HTTP handlers translate that to
+    /// 200 OK so controllers can retry a stop without treating it as a
+    /// conflict.
     pub async fn request_stop_node(
         &self,
         node_id: &str,
@@ -2818,7 +2841,7 @@ impl Catalog {
             // Pre-load any RestoreCatalog backup state before taking the
             // sync write lock — the load is async I/O against object store
             // and the lock cannot be held across `.await`.
-            let mut preload =
+            let preload =
                 preload_restore_for_records(batch.as_slice(), &self.store, committed).await?;
 
             match self.store.persist_log(next_seq, bytes).await? {
@@ -2832,11 +2855,11 @@ impl Catalog {
                     // See: https://github.com/influxdata/influxdb_pro/issues/3405
                     let (output, events, time_ns) = {
                         let mut cat = self.inner.write();
-                        let events =
-                            apply_records(batch.as_slice(), &mut cat, next_seq, &mut preload)
-                                .map_err(|e| CatalogError::Internal {
-                                    details: format!("apply_records after persist: {e}"),
-                                })?;
+                        let events = apply_records(batch.as_slice(), &mut cat, next_seq, preload)
+                            .map_err(|e| CatalogError::Internal {
+                            details: format!("apply_records after persist: {e}"),
+                        })?;
+
                         let time_ns = self.time_provider.now().timestamp_nanos();
                         (op.output(&cat), events, time_ns)
                     };
@@ -2988,7 +3011,7 @@ impl Catalog {
                         records.as_slice(),
                         &mut cat,
                         next_seq,
-                        &mut RestorePreload::empty(),
+                        RestorePreload::empty(),
                     )
                     .map_err(|e| CatalogError::Internal {
                         details: format!("apply_records after commit persist: {e}"),
@@ -3074,10 +3097,11 @@ impl Catalog {
         while let Some(file) = self.store.load_log(seq).await? {
             // Pre-load restore state (if any) outside the sync write lock.
             let committed = self.inner.read().committed_feature_level;
-            let mut preload = preload_restore_for_file(&file, &self.store, committed).await?;
+            let preload =
+                preload_restore_for_file_records(&file.records, &self.store, committed).await?;
             let events = {
                 let mut cat = self.inner.write();
-                apply_catalog_file(&file, &mut cat, &mut preload).map_err(|e| {
+                apply_catalog_file(&file, &mut cat, preload).map_err(|e| {
                     CatalogError::Internal {
                         details: format!(
                             "apply_catalog_file during catch-up at {}: {e}",
@@ -3129,10 +3153,11 @@ impl Catalog {
             };
             // Pre-load restore state (if any) outside the sync write lock.
             let committed = self.inner.read().committed_feature_level;
-            let mut preload = preload_restore_for_file(&file, &self.store, committed).await?;
+            let preload =
+                preload_restore_for_file_records(&file.records, &self.store, committed).await?;
             let events = {
                 let mut cat = self.inner.write();
-                apply_catalog_file(&file, &mut cat, &mut preload).map_err(|e| {
+                apply_catalog_file(&file, &mut cat, preload).map_err(|e| {
                     CatalogError::Internal {
                         details: format!(
                             "apply_catalog_file during bounded catch-up at {}: {e}",

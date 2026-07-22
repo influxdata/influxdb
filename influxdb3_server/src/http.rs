@@ -1808,10 +1808,7 @@ impl HttpApi {
     async fn test_processing_engine_wal_plugin(&self, req: Request) -> Result<Response> {
         let request: influxdb3_types::http::WalPluginTestRequest = self.read_body_json(req).await?;
 
-        let output = self
-            .processing_engine
-            .dry_run_wal_plugin(request, Arc::clone(&self.query_executor))
-            .await?;
+        let output = self.processing_engine.dry_run_wal_plugin(request).await?;
         let body = serde_json::to_string(&output)?;
 
         Ok(ResponseBuilder::new()
@@ -1824,10 +1821,7 @@ impl HttpApi {
         let request: influxdb3_types::http::SchedulePluginTestRequest =
             self.read_body_json(req).await?;
 
-        let output = self
-            .processing_engine
-            .test_schedule_plugin(request, Arc::clone(&self.query_executor))
-            .await?;
+        let output = self.processing_engine.test_schedule_plugin(request).await?;
         let body = serde_json::to_string(&output)?;
 
         Ok(ResponseBuilder::new()

@@ -110,7 +110,7 @@ pub(crate) async fn check_and_migrate_v2_to_v3(
         batch.as_slice(),
         &mut v3_inner,
         catalog_sequence,
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .map_err(|e| MigrationError::Unexpected(anyhow::anyhow!(e)))?;
     let v3_snapshot_bytes = v3_inner.create_snapshot();

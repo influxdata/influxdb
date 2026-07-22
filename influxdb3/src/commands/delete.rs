@@ -318,7 +318,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 client.api_v3_configure_db_delete(&database_name).await?;
             }
 
-            println!("Database {:?} deleted successfully", &database_name);
+            println!("Database {database_name:?} deleted successfully");
         }
         SubCommand::LastCache(LastCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
@@ -353,8 +353,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         }) => {
             confirm_delete(
                 &format!(
-                    "Are you sure you want to delete {:?}.{:?}? Enter 'yes' or 'y' to confirm",
-                    database_name, &table_name,
+                    "Are you sure you want to delete {database_name:?}.{table_name:?}? Enter 'yes' or 'y' to confirm"
                 ),
                 yes,
             )?;
@@ -375,10 +374,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     .await?;
             }
 
-            println!(
-                "Table {:?}.{:?} deleted successfully",
-                &database_name, &table_name
-            );
+            println!("Table {database_name:?}.{table_name:?} deleted successfully");
         }
         SubCommand::Trigger(TriggerConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
