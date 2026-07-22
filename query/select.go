@@ -39,6 +39,9 @@ type SelectOptions struct {
 
 	// Maximum number of buckets for a statement.
 	MaxBucketsN int
+
+	// Maximum time range a statement may cover. Zero disables the limit.
+	MaxTimeRange time.Duration
 }
 
 // ShardMapper retrieves and maps shards into an IteratorCreator that can later be

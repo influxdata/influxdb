@@ -257,6 +257,12 @@
   # number of buckets unlimited.
   # max-select-buckets = 0
 
+  # The maximum time range a single SELECT statement may cover.  A query whose time range exceeds this
+  # limit returns an error.  A query with no upper time bound is measured up to now(); a query with no
+  # lower time bound is treated as covering all time and will exceed any non-zero limit.  This can help
+  # prevent queries that scan an excessive time span.  A value of 0 disables the limit.
+  # max-time-range = "0s"
+
   # Whether to print a list of running queries when a data node receives a SIGTERM (sent when a process
   # exceeds a container memory limit, or by the kill command.
   # termination-query-log = false

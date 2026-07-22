@@ -248,6 +248,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		MaxSelectPointN:     c.Coordinator.MaxSelectPointN,
 		MaxSelectSeriesN:    c.Coordinator.MaxSelectSeriesN,
 		MaxSelectBucketsN:   c.Coordinator.MaxSelectBucketsN,
+		MaxTimeRange:        time.Duration(c.Coordinator.MaxTimeRange),
 	}
 	s.QueryExecutor.TaskManager.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
 	s.QueryExecutor.TaskManager.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)

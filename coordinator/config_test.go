@@ -6,19 +6,19 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c coordinator.Config
-	if _, err := toml.Decode(`
+	_, err := toml.Decode(`
 write-timeout = "20s"
-`, &c); err != nil {
-		t.Fatal(err)
-	}
+max-time-range = "72h"
+`, &c)
+	require.NoError(t, err)
 
 	// Validate configuration.
-	if time.Duration(c.WriteTimeout) != 20*time.Second {
-		t.Fatalf("unexpected write timeout s: %s", c.WriteTimeout)
-	}
+	require.Equal(t, 20*time.Second, time.Duration(c.WriteTimeout))
+	require.Equal(t, 72*time.Hour, time.Duration(c.MaxTimeRange))
 }

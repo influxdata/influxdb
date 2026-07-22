@@ -37,6 +37,7 @@ type Config struct {
 	MaxSelectPointN      int           `toml:"max-select-point"`
 	MaxSelectSeriesN     int           `toml:"max-select-series"`
 	MaxSelectBucketsN    int           `toml:"max-select-buckets"`
+	MaxTimeRange         toml.Duration `toml:"max-time-range"`
 	TerminationQueryLog  bool          `toml:"termination-query-log"`
 }
 
@@ -64,5 +65,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"max-select-point":       c.MaxSelectPointN,
 		"max-select-series":      c.MaxSelectSeriesN,
 		"max-select-buckets":     c.MaxSelectBucketsN,
+		"max-time-range":         c.MaxTimeRange,
 	}), nil
 }
