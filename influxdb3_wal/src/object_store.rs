@@ -221,14 +221,11 @@ impl WalObjectStore {
 
                 // add this to the snapshot tracker, so we know what to clear out later if the replay
                 // was a wal file that had a snapshot
-                self.flush_buffer
-                    .lock()
-                    .await
-                    .replay_wal_period(WalPeriod::new(
-                        wal_contents.wal_file_number,
-                        Timestamp::new(wal_contents.min_timestamp_ns),
-                        Timestamp::new(wal_contents.max_timestamp_ns),
-                    ));
+                self.flush_buffer.lock().await.replay_wal_period(
+                    wal_contents.wal_file_number,
+                    wal_contents.min_timestamp_ns,
+                    wal_contents.max_timestamp_ns,
+                );
 
                 match wal_contents.snapshot {
                     // This branch uses so much time
@@ -704,9 +701,29 @@ impl FlushBuffer {
         }
     }
 
-    fn replay_wal_period(&mut self, wal_period: WalPeriod) {
-        self.wal_buffer.wal_file_sequence_number = wal_period.wal_file_number.next();
-        self.snapshot_tracker.add_wal_period(wal_period);
+    fn replay_wal_period(
+        &mut self,
+        wal_file_number: WalFileSequenceNumber,
+        min_timestamp_ns: i64,
+        max_timestamp_ns: i64,
+    ) {
+        self.wal_buffer.wal_file_sequence_number = wal_file_number.next();
+
+        // Old, pre-existing WAL files written before empty WriteBatches were skipped can have
+        // min/max timestamps still at their i64::MAX/i64::MIN fold sentinels when the batch was
+        // empty. Constructing a WalPeriod from those would violate WalPeriod::new's
+        // `min_time <= max_time` invariant and panic, so just skip registering a period for it -
+        // there's no data in it for the snapshot tracker to track anyway.
+        if min_timestamp_ns == i64::MAX && max_timestamp_ns == i64::MIN {
+            warn!(%wal_file_number, "skipping empty WAL period during replay");
+            return;
+        }
+
+        self.snapshot_tracker.add_wal_period(WalPeriod::new(
+            wal_file_number,
+            Timestamp::new(min_timestamp_ns),
+            Timestamp::new(max_timestamp_ns),
+        ));
     }
 
     /// Converts the wal_buffer into contents and resets it. Returns the channels waiting for
