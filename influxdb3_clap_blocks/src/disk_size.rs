@@ -4,24 +4,26 @@ use std::str::FromStr;
 
 use crate::size_units::{parse_unit_suffix, unit_suffixes};
 
-/// Disk size with *required* unit suffix, floored to a multiple of `BLOCK_SIZE`.
+/// Disk size with optional unit suffix, floored to a multiple of `BLOCK_SIZE`.
 ///
 /// The default `BLOCK_SIZE` of 4096 is a multiple of the logical block sizes
 /// in common use (512 and 4096).
 ///
 /// # Parsing
-/// This can be parsed from strings with a unit suffix (case-insensitive):
+/// This can be parsed from strings in one of the following formats:
 ///
-/// - `b` for bytes, e.g. `1048576b`
-/// - `kb` for kilobytes, e.g. `1024kb`
-/// - `mb` for megabytes, e.g. `100mb`
-/// - `gb` for gigabytes, e.g. `2gb`
-/// - `tb` for terabytes, e.g. `1tb`
+/// - **absolute (default bytes):** a plain non-negative number specifies the size in bytes,
+///   e.g. `1048576`
+/// - **with unit suffix** (case-insensitive):
+///   - `b` for bytes, e.g. `1048576b`
+///   - `kb` for kilobytes, e.g. `1024kb`
+///   - `mb` for megabytes, e.g. `100mb`
+///   - `gb` for gigabytes, e.g. `2gb`
+///   - `tb` for terabytes, e.g. `1tb`
 ///
 /// Whitespace before the suffix is allowed, e.g. `5 gb`.
 ///
-/// Bare numbers and percentages are rejected. A value smaller than
-/// `BLOCK_SIZE` is an error.
+/// Percentages are rejected. A value smaller than `BLOCK_SIZE` is an error.
 #[derive(Debug, Clone, Copy)]
 pub struct DiskSize<const BLOCK_SIZE: usize = 4096>(usize);
 
@@ -59,15 +61,21 @@ impl<const BLOCK_SIZE: usize> FromStr for DiskSize<BLOCK_SIZE> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
-        parse_unit_suffix(&s)
-            .unwrap_or_else(|| {
-                Err(format!(
-                    "'{}' requires a unit suffix ({})",
-                    s,
-                    unit_suffixes()
-                ))
-            })
-            .and_then(Self::from_bytes)
+        if s.ends_with('%') {
+            return Err(format!(
+                "'{}' must be an absolute size: a number of bytes or a value \
+                 with a unit suffix ({})",
+                s,
+                unit_suffixes()
+            ));
+        }
+        match parse_unit_suffix(&s) {
+            Some(result) => result.and_then(Self::from_bytes),
+            // Bare number = bytes
+            None => usize::from_str(&s)
+                .map_err(|e| format!("failed to parse '{}' as a disk size in bytes: {}", s, e))
+                .and_then(Self::from_bytes),
+        }
     }
 }
 

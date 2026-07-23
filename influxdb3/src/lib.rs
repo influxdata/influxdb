@@ -57,12 +57,19 @@ struct DeprecatedServeOption {
 
 const PACKAGE_MANAGER_ARG_ID: &str = "package_manager";
 const PACKAGE_MANAGER_DEPRECATED_MESSAGE: &str = "--package-manager is deprecated and will be removed in a future release. Python and pip are bundled with InfluxDB; remove this option because pip is always used.";
-const PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE: &str = "--package-manager disabled is deprecated and will be removed in a future release. Python and pip are bundled with InfluxDB and pip is always used for environment setup; disabled only blocks plugin package install API calls for compatibility.";
+const PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE: &str = "--package-manager disabled is deprecated and will be removed in a future release. Use --disable-package-management instead. Python and pip are bundled with InfluxDB and pip is always used for environment setup; disabled only blocks plugin package install API calls for compatibility.";
 
 const DEPRECATED_SERVE_OPTIONS: &[DeprecatedServeOption] = &[DeprecatedServeOption {
     arg_id: PACKAGE_MANAGER_ARG_ID,
     message: PACKAGE_MANAGER_DEPRECATED_MESSAGE,
 }];
+
+const ASYNC_TRIGGER_CONCURRENCY_LIMIT_ARG_ID: &str = "async_trigger_concurrency_limit";
+/// The default `--async-trigger-concurrency-limit` planned for a future release.
+const FUTURE_DEFAULT_ASYNC_TRIGGER_CONCURRENCY_LIMIT: usize = 8;
+const ASYNC_TRIGGER_CONCURRENCY_DEFAULT_CHANGE_MESSAGE: &str = "async triggers (run_asynchronous) currently default to unlimited concurrency; in a future release the default --async-trigger-concurrency-limit will change to 8. Set --async-trigger-concurrency-limit explicitly to keep the concurrency you want across upgrades.";
+const ASYNC_TRIGGER_CONCURRENCY_ABOVE_FUTURE_DEFAULT_MESSAGE: &str = "--async-trigger-concurrency-limit is set above 8; in a future release the default will change to 8. Explicitly configured values are preserved across that change.";
+const ASYNC_TRIGGER_CONCURRENCY_SATURATES_QUEUE_MESSAGE: &str = "--async-trigger-concurrency-limit is at or above the per-trigger queue capacity (60). The capacity rises to the configured limit, so every outstanding invocation slot can be executing with no queued headroom; trigger producers block on admission while all slots are busy.";
 
 #[derive(Debug, clap::Parser)]
 #[clap(
@@ -176,13 +183,6 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     // Copy deprecated environment variable aliases for backwards compatibility.
     // Must be called BEFORE clap parsing so that old env var names still work.
     env_compat::copy_env_aliases(ENV_ALIASES);
-    env_compat::copy_env_aliases(&[
-        // This one fixes a LISTINER -> LISTENER typo
-        (
-            "INFLUXDB3_TCP_LISTENER_FILE_PATH",
-            "INFLUXDB3_TCP_LISTINER_FILE_PATH",
-        ),
-    ]);
 
     // Handle printing help messages for each command so that we can have a custom
     // output with both a help and help-all message. We have to disable the help
@@ -332,7 +332,7 @@ fn serve_main(
     matches: &clap::ArgMatches,
     runtime_config: TokioIoConfig,
 ) -> Result<(), std::io::Error> {
-    warn_deprecated_serve_options(&serve_config, matches);
+    warn_serve_option_notices(&serve_config, matches);
 
     // Extract user-provided parameters only for serve command
     let user_params = extract_user_params(matches);
@@ -362,10 +362,7 @@ fn serve_main(
     Ok(())
 }
 
-fn warn_deprecated_serve_options(
-    serve_config: &commands::serve::Config,
-    matches: &clap::ArgMatches,
-) {
+fn warn_serve_option_notices(serve_config: &commands::serve::Config, matches: &clap::ArgMatches) {
     let Some(("serve", serve_matches)) = matches.subcommand() else {
         return;
     };
@@ -380,6 +377,57 @@ fn warn_deprecated_serve_options(
     ) {
         influxdb3_startup::early_logging::warn("influxdb3", warning);
     }
+
+    if let Some(warning) = async_trigger_concurrency_default_change_warning(
+        serve_config
+            .processing_engine_config
+            .async_trigger_concurrency_limit,
+        serve_matches.value_source(ASYNC_TRIGGER_CONCURRENCY_LIMIT_ARG_ID),
+    ) {
+        influxdb3_startup::early_logging::warn("influxdb3", warning);
+    }
+
+    if let Some(warning) = async_trigger_concurrency_saturates_queue_warning(
+        serve_config
+            .processing_engine_config
+            .async_trigger_concurrency_limit,
+    ) {
+        influxdb3_startup::early_logging::warn("influxdb3", warning);
+    }
+}
+
+/// Warn while the async trigger concurrency limit defaults to unlimited: a
+/// future release changes the default to
+/// [`FUTURE_DEFAULT_ASYNC_TRIGGER_CONCURRENCY_LIMIT`]. Warns when the server
+/// runs with a limit above that upcoming default — either the unlimited
+/// default (the behavior that will change) or an explicitly configured value
+/// (preserved, but worth advertising the change for).
+fn async_trigger_concurrency_default_change_warning(
+    limit: std::num::NonZeroUsize,
+    source: Option<ValueSource>,
+) -> Option<&'static str> {
+    if limit.get() <= FUTURE_DEFAULT_ASYNC_TRIGGER_CONCURRENCY_LIMIT {
+        return None;
+    }
+    if user_provided_value_source(source) {
+        Some(ASYNC_TRIGGER_CONCURRENCY_ABOVE_FUTURE_DEFAULT_MESSAGE)
+    } else {
+        Some(ASYNC_TRIGGER_CONCURRENCY_DEFAULT_CHANGE_MESSAGE)
+    }
+}
+
+/// Warn when a configured async trigger concurrency limit is at or above the
+/// per-trigger outstanding-invocations capacity
+/// ([`influxdb3_processing_engine::TRIGGER_QUEUE_SIZE`]): the capacity rises to
+/// the limit, leaving no queued headroom. The unlimited default
+/// (`NonZeroUsize::MAX`) is excluded — its capacity is unreachable in practice,
+/// so admission never blocks, and it is covered by the default-change warning.
+fn async_trigger_concurrency_saturates_queue_warning(
+    limit: std::num::NonZeroUsize,
+) -> Option<&'static str> {
+    (limit != std::num::NonZeroUsize::MAX
+        && limit.get() >= influxdb3_processing_engine::TRIGGER_QUEUE_SIZE)
+        .then_some(ASYNC_TRIGGER_CONCURRENCY_SATURATES_QUEUE_MESSAGE)
 }
 
 fn deprecated_serve_option_warnings<'a>(

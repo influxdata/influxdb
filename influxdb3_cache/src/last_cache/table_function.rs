@@ -76,10 +76,7 @@ impl TableProvider for LastCacheFunctionProvider {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         let table_def = legacy::TableDefinition::new(Arc::clone(&self.table_def));
-        let mut recorder = self
-            .provider
-            .metrics
-            .query_duration_recorder(self.db_schema.name.to_string());
+        let mut recorder = self.provider.metrics.query_duration_recorder();
         let read = self.provider.cache_map.read();
         let (predicates, batches) = if let Some(cache) = read
             .get(&self.db_schema.id)

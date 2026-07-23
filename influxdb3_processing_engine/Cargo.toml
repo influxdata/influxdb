@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+arrow-array.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true
@@ -20,12 +21,14 @@ influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_processing_engine_telemetry = { path = "../influxdb3_processing_engine_telemetry" }
 influxdb3_py_api = { path = "../influxdb3_py_api" }
-influxdb3_sys_events.workspace = true
+influxdb3_shutdown.workspace = true
 influxdb3_types = { path = "../influxdb3_types" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
+influxdb-line-protocol = { path = "../core/influxdb_line_protocol" }
 iox_http_util.workspace = true
 iox_time.workspace = true
+iox_query_params.workspace = true
 observability_deps.workspace = true
 parking_lot.workspace = true
 pyo3.workspace = true
@@ -34,13 +37,13 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+uuid.workspace = true
 walkdir.workspace = true
 
 [dev-dependencies]
 datafusion_util.workspace = true
 influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_write = { path = "../influxdb3_write", features = [ "test_helpers" ] }
-influxdb3_shutdown.workspace = true
 iox_query.workspace = true
 metric.workspace = true
 object_store.workspace = true

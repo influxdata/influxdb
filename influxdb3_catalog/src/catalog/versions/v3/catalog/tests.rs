@@ -4841,6 +4841,55 @@ mod query_group_persistence {
         );
     }
 
+    // A node that belongs to a query group resolves to that group. This is how
+    // a running query node discovers its own placement group.
+    #[tokio::test]
+    async fn query_group_for_node_returns_group_for_member() {
+        let cat = TestCatalog::new().reload().await;
+        let nodes = cat.register_query_nodes(3).await;
+        let created = cat
+            .create_query_group("analytics", vec![nodes[0], nodes[1]], rf(1))
+            .await
+            .unwrap();
+
+        for member in [nodes[0], nodes[1]] {
+            assert_query_group(
+                &created,
+                &cat.query_group_for_node(member)
+                    .expect("member must resolve to its group"),
+            );
+        }
+    }
+
+    // A node that is not a member of any group resolves to None, so such nodes
+    // keep the default behavior of loading all data.
+    #[tokio::test]
+    async fn query_group_for_node_returns_none_for_non_member() {
+        let cat = TestCatalog::new().reload().await;
+        let nodes = cat.register_query_nodes(3).await;
+        cat.create_query_group("analytics", vec![nodes[0], nodes[1]], rf(1))
+            .await
+            .unwrap();
+
+        assert!(
+            cat.query_group_for_node(nodes[2]).is_none(),
+            "a node outside every group must resolve to None"
+        );
+    }
+
+    // When no query groups exist, every node resolves to None. This is the
+    // common case for clusters that never configured distributed query groups.
+    #[tokio::test]
+    async fn query_group_for_node_returns_none_when_no_groups() {
+        let cat = TestCatalog::new().reload().await;
+        let nodes = cat.register_query_nodes(1).await;
+
+        assert!(
+            cat.query_group_for_node(nodes[0]).is_none(),
+            "with no query groups, every node must resolve to None"
+        );
+    }
+
     #[tokio::test]
     async fn query_group_by_id_returns_none_for_unknown_id() {
         let cat = TestCatalog::new().reload().await;

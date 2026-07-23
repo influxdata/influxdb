@@ -30,6 +30,7 @@ fn init_rustls() {
     });
 }
 
+mod async_concurrency;
 mod auth;
 mod client;
 mod configure;
@@ -97,7 +98,9 @@ pub struct TestConfig {
     plugin_dir: Option<String>,
     virtual_env_dir: Option<String>,
     package_manager: Option<String>,
+    disable_package_management: bool,
     restrict_plugin_triggers_to: Vec<String>,
+    async_trigger_concurrency_limit: Option<std::num::NonZeroUsize>,
     // If None, use memory object store.
     object_store_dir: Option<String>,
     disable_authz: Vec<String>,
@@ -170,6 +173,18 @@ impl TestConfig {
 
     pub fn with_package_manager<S: Into<String>>(mut self, package_manager: S) -> Self {
         self.package_manager = Some(package_manager.into());
+        self
+    }
+
+    /// Start this [`TestServer`] with `--disable-package-management`.
+    pub fn with_disable_package_management(mut self) -> Self {
+        self.disable_package_management = true;
+        self
+    }
+
+    /// Set `--async-trigger-concurrency-limit` for this [`TestServer`]
+    pub fn with_async_trigger_concurrency_limit(mut self, limit: std::num::NonZeroUsize) -> Self {
+        self.async_trigger_concurrency_limit = Some(limit);
         self
     }
 
@@ -294,11 +309,20 @@ impl ConfigProvider for TestConfig {
                 package_manager.to_owned(),
             ]);
         }
+        if self.disable_package_management {
+            args.push("--disable-package-management".to_string());
+        }
         if !self.restrict_plugin_triggers_to.is_empty() {
             args.push("--restrict-plugin-triggers-to".to_string());
             for t in &self.restrict_plugin_triggers_to {
                 args.push(t.to_owned());
             }
+        }
+        if let Some(limit) = self.async_trigger_concurrency_limit {
+            args.extend([
+                "--async-trigger-concurrency-limit".to_string(),
+                limit.to_string(),
+            ]);
         }
         args.push("--node-id".to_string());
         if let Some(host) = &self.node_id {
@@ -353,7 +377,7 @@ impl ConfigProvider for TestConfig {
         }
 
         args.append(&mut vec![
-            "--wal-snapshot-size".to_string(),
+            "--wal-files-per-snapshot".to_string(),
             "1".to_string(),
         ]);
 

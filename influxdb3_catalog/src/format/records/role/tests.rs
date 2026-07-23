@@ -8,7 +8,14 @@ use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
 use crate::format::records::types::{
     RoleDatabaseAction, RoleDatabasePermission, RoleDatabaseResource, RolePermissionGrant,
-    RoleSystemAction, RoleSystemPermission, RoleSystemResource,
+    RoleSystemAction, RoleSystemPermission, RoleSystemResource, RoleTokenAction,
+    RoleTokenPermission, RoleUserAction, RoleUserPermission,
+};
+use influxdb3_authz::role::role_permissions::{
+    DatabasePermission, TokenPermission, UserPermission,
+};
+use influxdb3_authz::role::{
+    DatabaseAction, Permission, ResourceIdentifier, TokenAction, UserAction,
 };
 
 use super::*;
@@ -137,7 +144,7 @@ fn permission_system_authz_wire_roundtrip() {
 
     for original in cases {
         let wire: RolePermissionGrant = RolePermissionGrant::from(&original);
-        let back = Permission::from(&wire);
+        let back = Option::<Permission>::from(&wire).expect("system grant should convert");
         assert_eq!(original, back, "system permission wire roundtrip");
     }
 }
@@ -252,5 +259,64 @@ fn apply_role_lifecycle() {
             .roles
             .get_by_id(&influxdb3_id::RoleId::new(1))
             .is_none()
+    );
+}
+
+#[test]
+fn apply_create_role_drops_removed_grant_usage() {
+    // A catalog written by an older version can carry GrantUsage grants (e.g. the
+    // seeded Member role, which had database and token GrantUsage). GrantUsage is
+    // dropped independently for the database, token, and user actions, so exercise
+    // all three: they must decode and then be dropped on replay, leaving the
+    // surrounding permissions intact.
+    let mut catalog = test_catalog();
+    CreateRole {
+        role_id: 1,
+        name: "member".to_string(),
+        description: None,
+        permissions: vec![
+            RolePermissionGrant::Database(RoleDatabasePermission {
+                action: RoleDatabaseAction::Read,
+                resource: RoleDatabaseResource::All,
+            }),
+            RolePermissionGrant::Database(RoleDatabasePermission {
+                action: RoleDatabaseAction::GrantUsage,
+                resource: RoleDatabaseResource::All,
+            }),
+            RolePermissionGrant::Token(RoleTokenPermission {
+                action: RoleTokenAction::Read,
+            }),
+            RolePermissionGrant::Token(RoleTokenPermission {
+                action: RoleTokenAction::GrantUsage,
+            }),
+            RolePermissionGrant::User(RoleUserPermission {
+                action: RoleUserAction::Read,
+            }),
+            RolePermissionGrant::User(RoleUserPermission {
+                action: RoleUserAction::GrantUsage,
+            }),
+        ],
+        is_required_role: false,
+        created_at: 1000,
+    }
+    .apply(&mut catalog)
+    .unwrap();
+
+    let role = catalog
+        .roles
+        .get_by_id(&influxdb3_id::RoleId::new(1))
+        .expect("role should exist");
+
+    assert_eq!(
+        role.permissions,
+        vec![
+            Permission::Database(DatabasePermission::new(
+                DatabaseAction::Read,
+                ResourceIdentifier::All,
+            )),
+            Permission::Token(TokenPermission::new(TokenAction::Read)),
+            Permission::User(UserPermission::new(UserAction::Read)),
+        ],
+        "database, token, and user GrantUsage grants should be dropped; Read grants retained"
     );
 }

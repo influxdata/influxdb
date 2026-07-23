@@ -483,7 +483,6 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&db_schema),
                 Arc::clone(&self.query_log),
                 Arc::clone(&self.write_buffer),
-                Arc::clone(&self.sys_events_store),
                 Arc::clone(&self.write_buffer.catalog()),
                 self.started_with_auth,
                 self.processing_engine.get().cloned(),

@@ -1113,7 +1113,7 @@ impl InstallPackageQuery<'_> {
         args.push("../testing-certs/rootCA.pem");
 
         // Run the command
-        self.server.run(vec!["package", "install"], &args)
+        self.server.run(vec!["install", "package"], &args)
     }
 }
 // Builder for the 'write' command

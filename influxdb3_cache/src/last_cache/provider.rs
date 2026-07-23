@@ -310,7 +310,7 @@ impl LastCacheProvider {
                                 else {
                                     continue;
                                 };
-                                for (_, last_cache) in table_cache.iter_mut() {
+                                for last_cache in table_cache.values_mut() {
                                     for chunk in table_chunks.chunk_time_to_chunk.values() {
                                         for row in &chunk.rows {
                                             last_cache.push(row, Arc::clone(&table_def));

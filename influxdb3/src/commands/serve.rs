@@ -15,8 +15,11 @@ use influxdb3_catalog::{
 };
 use influxdb3_clap_blocks::plugins::{PackageManager, PluginTriggerType, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
-    datafusion::IoxQueryDatafusionConfig, memory_size::MemorySizeMb,
-    object_store::ObjectStoreConfig, socket_addr::SocketAddr, tokio::TokioDatafusionConfig,
+    datafusion::IoxQueryDatafusionConfig,
+    memory_size::{ByteSize, MemorySizeMb},
+    object_store::ObjectStoreConfig,
+    socket_addr::SocketAddr,
+    tokio::TokioDatafusionConfig,
 };
 use influxdb3_process::{
     INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR, ProcessUuidGetter,
@@ -28,7 +31,8 @@ use influxdb3_processing_engine::environment::{
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::{
-    ProcessingEngineManagerImpl, ProcessingEngineManagerOptions, write::InProcessWriteEndpoint,
+    ProcessingEngineManagerImpl, ProcessingEngineManagerOptions, query::InProcessQueryEndpoint,
+    write::InProcessWriteEndpoint,
 };
 use influxdb3_processing_engine_telemetry::{
     setup_plugin_trigger_invocation_registry, setup_plugin_trigger_invocation_telemetry,
@@ -104,6 +108,8 @@ pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.co
 const MIN_SNAPSHOTS_TO_LOAD_ON_START: u64 = 100;
 
 mod cli_params;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -161,7 +167,8 @@ pub enum Error {
     ),
 
     #[error(
-        "Must set INFLUXDB3_NODE_IDENTIFIER_PREFIX={0} to a valid env var value for the node id"
+        "environment variable {0} (named by --node-id-from-env / INFLUXDB3_NODE_ID_FROM_ENV) \
+        must be set to a valid node id"
     )]
     NodeIdEnvVarMissing(String),
 
@@ -178,7 +185,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 // variable name and migration message tuples
 const DEPRECATED_ENV_VARS: &[(&str, &str)] = &[(
     "INFLUXDB3_PARQUET_MEM_CACHE_SIZE_MB",
-    "use INFLUXDB3_PARQUET_MEM_CACHE_SIZE instead, it is in MB or %",
+    "use INFLUXDB3_FILE_CACHE_SIZE instead, with a unit suffix (e.g. 500mb) or a percentage",
 )];
 
 const MIN_REPLAY_PRELOAD_CONCURRENCY: usize = 10; // the min number of files that will be held in memory
@@ -233,13 +240,16 @@ pub struct Config {
     pub(crate) iox_query_datafusion_config: IoxQueryDatafusionConfig,
 
     /// Maximum size of HTTP requests.
+    ///
+    /// A bare number is a size in bytes; unit suffixes (`b`, `kb`, `mb`, `gb`, `tb`)
+    /// are also accepted, e.g. `10mb`.
     #[clap(
         long = "max-http-request-size",
         env = "INFLUXDB3_MAX_HTTP_REQUEST_SIZE",
         default_value = "10485760", // 10 MiB
         action,
     )]
-    pub max_http_request_size: usize,
+    pub max_http_request_size: ByteSize,
 
     /// The address on which InfluxDB will serve HTTP API requests
     #[clap(
@@ -249,6 +259,18 @@ pub struct Config {
         action,
     )]
     pub http_bind_address: SocketAddr,
+
+    /// Maximum time to wait for active connections to drain during shutdown.
+    ///
+    /// When the timeout expires, remaining connections are forcibly closed. A value of `0s`
+    /// skips the graceful drain and closes connections immediately.
+    #[clap(
+        long = "shutdown-timeout",
+        env = "INFLUXDB3_SHUTDOWN_TIMEOUT",
+        default_value = "30s",
+        action
+    )]
+    pub shutdown_timeout: humantime::Duration,
 
     /// Enable admin token recovery endpoint on the specified address.
     /// Use flag alone for default address (127.0.0.1:8182) or provide a custom address.
@@ -263,19 +285,23 @@ pub struct Config {
     )]
     pub admin_token_recovery_bind_address: Option<SocketAddr>,
 
-    /// Size of memory pool used during query exec, in megabytes.
+    /// Size of memory pool used during query exec.
     ///
-    /// Can be given as absolute value or in percentage of the total available memory (e.g. `10%`).
+    /// Specify either a percentage of the total available memory (e.g. `20%`)
+    /// or an absolute size with an explicit unit suffix (e.g. `8gb`). Bare
+    /// numbers are rejected: they previously meant megabytes and will mean
+    /// bytes in a future release.
     #[clap(
-        long = "exec-mem-pool-bytes",
-        env = "INFLUXDB3_EXEC_MEM_POOL_BYTES",
+        long = "exec-mem-pool-size",
+        visible_alias = "exec-mem-pool-bytes",
+        env = "INFLUXDB3_EXEC_MEM_POOL_SIZE",
         default_value = "20%",
         action
     )]
-    pub exec_mem_pool_bytes: MemorySizeMb,
+    pub exec_mem_pool_size: MemorySizeMb,
 
     /// Flag to indicate that server should start without auth
-    #[clap(long = "without-auth", env = "INFLUXDB3_START_WITHOUT_AUTH", action)]
+    #[clap(long = "without-auth", env = "INFLUXDB3_WITHOUT_AUTH", action)]
     pub without_auth: bool,
 
     /// Disable authz for certain resources, allowed values are health,ping,metrics,ready,pprof
@@ -334,22 +360,24 @@ pub struct Config {
     /// The number of WAL files to attempt to remove in a snapshot. This times the interval will
     /// determine how often snapshot is taken.
     #[clap(
-        long = "wal-snapshot-size",
-        env = "INFLUXDB3_WAL_SNAPSHOT_SIZE",
+        long = "wal-files-per-snapshot",
+        visible_alias = "wal-snapshot-size",
+        env = "INFLUXDB3_WAL_FILES_PER_SNAPSHOT",
         default_value = "600",
         action
     )]
-    pub wal_snapshot_size: usize,
+    pub wal_files_per_snapshot: usize,
 
     /// The maximum number of writes requests that can be buffered before a flush must be run
     /// and succeed.
     #[clap(
-        long = "wal-max-write-buffer-size",
-        env = "INFLUXDB3_WAL_MAX_WRITE_BUFFER_SIZE",
+        long = "wal-max-buffered-writes",
+        visible_alias = "wal-max-write-buffer-size",
+        env = "INFLUXDB3_WAL_MAX_BUFFERED_WRITES",
         default_value = "100000",
         action
     )]
-    pub wal_max_write_buffer_size: usize,
+    pub wal_max_buffered_writes: usize,
 
     /// Fail on error when replaying corrupt WAL files.
     ///
@@ -368,7 +396,7 @@ pub struct Config {
     /// count exceeds this size
     #[clap(
         long = "snapshotted-wal-files-to-keep",
-        env = "INFLUXDB3_NUM_WAL_FILES_TO_KEEP",
+        env = "INFLUXDB3_SNAPSHOTTED_WAL_FILES_TO_KEEP",
         default_value = "300",
         action
     )]
@@ -389,12 +417,13 @@ pub struct Config {
     /// The size of the query log. Up to this many queries will remain in the log before
     /// old queries are evicted to make room for new ones.
     #[clap(
-        long = "query-log-size",
-        env = "INFLUXDB3_QUERY_LOG_SIZE",
+        long = "query-log-max-entries",
+        visible_alias = "query-log-size",
+        env = "INFLUXDB3_QUERY_LOG_MAX_ENTRIES",
         default_value = "1000",
         action
     )]
-    pub query_log_size: usize,
+    pub query_log_max_entries: usize,
 
     /// Maximum number of concurrent queries that can execute simultaneously.
     ///
@@ -447,15 +476,21 @@ pub struct Config {
     )]
     pub retention_check_interval: humantime::Duration,
 
-    /// The size of the in-memory Parquet cache in megabytes or percentage of total available mem.
+    /// The size of the in-memory data file (Parquet) cache.
+    ///
+    /// Specify either a percentage of the total available memory (e.g. `20%`)
+    /// or an absolute size with an explicit unit suffix (e.g. `4gb`). Bare
+    /// numbers are rejected: they previously meant megabytes and will mean
+    /// bytes in a future release.
     /// breaking: removed parquet-mem-cache-size-mb and env var INFLUXDB3_PARQUET_MEM_CACHE_SIZE_MB
     #[clap(
-        long = "parquet-mem-cache-size",
-        env = "INFLUXDB3_PARQUET_MEM_CACHE_SIZE",
+        long = "file-cache-size",
+        visible_alias = "parquet-mem-cache-size",
+        env = "INFLUXDB3_FILE_CACHE_SIZE",
         default_value = "20%",
         action
     )]
-    pub parquet_mem_cache_size: MemorySizeMb,
+    pub file_cache_size: MemorySizeMb,
 
     /// The percentage of entries to prune during a prune operation on the in-memory Parquet cache.
     ///
@@ -479,24 +514,27 @@ pub struct Config {
     )]
     pub parquet_mem_cache_prune_interval: humantime::Duration,
 
-    /// Disable the in-memory Parquet cache. By default, the cache is enabled.
+    /// Disable the in-memory data file (Parquet) cache. By default, the cache is enabled.
     #[clap(
-        long = "disable-parquet-mem-cache",
-        env = "INFLUXDB3_DISABLE_PARQUET_MEM_CACHE",
+        long = "disable-file-cache",
+        visible_alias = "disable-parquet-mem-cache",
+        alias = "disable-data-file-cache",
+        env = "INFLUXDB3_DISABLE_FILE_CACHE",
         default_value_t = false,
         action
     )]
-    pub disable_parquet_mem_cache: bool,
+    pub disable_file_cache: bool,
 
-    /// The duration from `now` to check if parquet files pulled in query path requires caching
+    /// The duration from `now` within which data files pulled in the query path are cached
     /// Enter as a human-readable time, e.g., "5h", "3d"
     #[clap(
-        long = "parquet-mem-cache-query-path-duration",
-        env = "INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION",
+        long = "file-cache-recency",
+        visible_alias = "parquet-mem-cache-query-path-duration",
+        env = "INFLUXDB3_FILE_CACHE_RECENCY",
         default_value = "5h",
         action
     )]
-    pub parquet_mem_cache_query_path_duration: humantime::Duration,
+    pub file_cache_recency: humantime::Duration,
 
     /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
     /// human-readable time, e.g., "20s", "1m", "1h".
@@ -522,8 +560,12 @@ pub struct Config {
     #[clap(flatten)]
     pub processing_engine_config: ProcessingEngineConfig,
 
-    /// Threshold for internal buffer, can be either percentage or absolute value in MB.
-    /// eg: 70% or 1000 MB
+    /// Threshold for internal buffer.
+    ///
+    /// Specify either a percentage of the total available memory (e.g. `70%`)
+    /// or an absolute size with an explicit unit suffix (e.g. `1000mb`). Bare
+    /// numbers are rejected: they previously meant megabytes and will mean
+    /// bytes in a future release.
     #[clap(
         long = "force-snapshot-mem-threshold",
         env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
@@ -535,7 +577,7 @@ pub struct Config {
     /// Disable sending telemetry data to telemetry.v3.influxdata.com.
     #[clap(
         long = "disable-telemetry-upload",
-        env = "INFLUXDB3_TELEMETRY_DISABLE_UPLOAD",
+        env = "INFLUXDB3_DISABLE_TELEMETRY_UPLOAD",
         default_value_t = false,
         hide = true,
         action
@@ -665,7 +707,7 @@ pub struct NodeId {
         long = "node-id",
         // TODO: deprecate this alias in future version
         alias = "host-id",
-        env = "INFLUXDB3_NODE_IDENTIFIER_PREFIX",
+        env = "INFLUXDB3_NODE_ID",
         group = "node_id",
         action
     )]
@@ -676,7 +718,7 @@ pub struct NodeId {
     /// in environments like Docker Compose or Kubernetes.
     #[clap(
         long = "node-id-from-env",
-        env = "INFLUXDB3_NODE_IDENTIFIER_FROM_ENV",
+        env = "INFLUXDB3_NODE_ID_FROM_ENV",
         group = "node_id",
         action
     )]
@@ -840,14 +882,14 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     ));
 
     // setup cached object store:
-    let (object_store, parquet_cache) = if !config.disable_parquet_mem_cache {
+    let (object_store, parquet_cache) = if !config.disable_file_cache {
         info!("initialising parquet cache");
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
             object_store,
             Arc::clone(&time_provider) as _,
             Arc::clone(&metrics),
-            config.parquet_mem_cache_size.as_num_bytes(),
-            config.parquet_mem_cache_query_path_duration.into(),
+            config.file_cache_size.as_num_bytes(),
+            config.file_cache_recency.into(),
             config.parquet_mem_cache_prune_percentage.into(),
             config.parquet_mem_cache_prune_interval.into(),
         );
@@ -879,7 +921,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
                 .map(|store| (store.id(), Arc::clone(store.object_store())))
                 .collect(),
             metric_registry: Arc::clone(&metrics),
-            mem_pool_size: config.exec_mem_pool_bytes.as_num_bytes(),
+            mem_pool_size: config.exec_mem_pool_size.as_num_bytes(),
             // TODO: need to make these configurable?
             per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
             heap_memory_limit: None,
@@ -1074,9 +1116,9 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     let wal_config = WalConfig {
         gen1_duration,
-        max_write_buffer_size: config.wal_max_write_buffer_size,
+        max_write_buffer_size: config.wal_max_buffered_writes,
         flush_interval: config.wal_flush_interval.into(),
-        snapshot_size: config.wal_snapshot_size,
+        snapshot_size: config.wal_files_per_snapshot,
         wal_replay_fail_on_error: config.wal_replay_fail_on_error,
     };
 
@@ -1168,7 +1210,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         exec: Arc::clone(&exec),
         metrics: Arc::clone(&metrics),
         datafusion_config: Arc::new(config.iox_query_datafusion_config.build()),
-        query_log_size: config.query_log_size,
+        query_log_size: config.query_log_max_entries,
         telemetry_store: Arc::clone(&telemetry_store),
         sys_events_store: Arc::clone(&sys_events_store),
         // convert to positive here so that we can avoid double negatives downstream
@@ -1197,10 +1239,15 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::new(InProcessWriteEndpoint::new(
             Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>
         )),
-        Arc::clone(&query_executor) as _,
+        Arc::new(InProcessQueryEndpoint::new(Arc::clone(&query_executor) as _)),
         Arc::clone(&time_provider) as _,
-        ProcessingEngineManagerOptions::new(sys_events_store)
-            .with_plugin_trigger_invocation_registry(Some(plugin_trigger_invocation_registry)),
+        ProcessingEngineManagerOptions::new()
+            .with_plugin_trigger_invocation_registry(Some(plugin_trigger_invocation_registry))
+            .with_async_trigger_concurrency_limit(
+                config
+                    .processing_engine_config
+                    .async_trigger_concurrency_limit,
+            ),
     )
     .await
     .map_err(Error::PythonEnvironmentInitialization)?;
@@ -1235,7 +1282,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
             Arc::clone(&query_executor) as _,
             Arc::clone(&processing_engine),
             restricted_plugin_trigger_types(&config.processing_engine_config),
-            config.max_http_request_size,
+            config.max_http_request_size.as_num_bytes(),
             Arc::clone(&authorizer),
             true,
         )
@@ -1247,7 +1294,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
             Arc::clone(&query_executor) as _,
             Arc::clone(&processing_engine),
             restricted_plugin_trigger_types(&config.processing_engine_config),
-            config.max_http_request_size,
+            config.max_http_request_size.as_num_bytes(),
             Arc::clone(&authorizer),
         )
     });
@@ -1262,6 +1309,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
             cert_file: cert_file.clone(),
             key_file: key_file.clone(),
             tls_minimum_version: (&config.tls_minimum_version).into(),
+            shutdown_timeout: *config.shutdown_timeout,
         })
     });
 
@@ -1273,6 +1321,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         cert_file,
         key_file,
         tls_minimum_version: (&config.tls_minimum_version).into(),
+        shutdown_timeout: *config.shutdown_timeout,
     });
 
     // There are two different select! macros - tokio::select and futures::select
@@ -1440,21 +1489,27 @@ pub(crate) fn setup_processing_engine_env_manager(
         environment::venv_path_for(plugin_dir, config.virtual_env_location.as_ref())
     });
 
-    let package_manager: Arc<dyn PythonEnvironmentManager> = match config.package_manager {
-        PackageManager::Pip => Arc::new(PipManager),
-        // Keep accepting the historical config value, but do not use uv.
-        PackageManager::UV => Arc::new(PipManager),
-        PackageManager::Disabled => Arc::new(DisabledPackageManager),
-        // Discovery builds the one-per-process venv in the background and probes
-        // pip inside it. `ready()` blocks until the build finishes; a venv that
-        // cannot be built (or no plugin dir to build one in) means no pip.
-        PackageManager::Discover => match venv_path {
-            Some(path) => environment::get_or_init_venv(path)
-                .ready()
-                .map(|venv| venv.determine_package_manager())
-                .unwrap_or_else(|_| Arc::new(DisabledManager)),
-            None => Arc::new(DisabledManager),
-        },
+    let package_manager: Arc<dyn PythonEnvironmentManager> = if config.disable_package_management {
+        // Never build/probe a venv or shell out to pip, regardless of
+        // --package-manager; the user manages the venv themselves.
+        Arc::new(DisabledPackageManager)
+    } else {
+        match config.package_manager {
+            PackageManager::Pip => Arc::new(PipManager),
+            // Keep accepting the historical config value, but do not use uv.
+            PackageManager::UV => Arc::new(PipManager),
+            PackageManager::Disabled => Arc::new(DisabledPackageManager),
+            // Discovery builds the one-per-process venv in the background and probes
+            // pip inside it. `ready()` blocks until the build finishes; a venv that
+            // cannot be built (or no plugin dir to build one in) means no pip.
+            PackageManager::Discover => match venv_path {
+                Some(path) => environment::get_or_init_venv(path)
+                    .ready()
+                    .map(|venv| venv.determine_package_manager())
+                    .unwrap_or_else(|_| Arc::new(DisabledManager)),
+                None => Arc::new(DisabledManager),
+            },
+        }
     };
 
     ProcessingEngineEnvironmentManager {

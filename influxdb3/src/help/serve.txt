@@ -17,7 +17,7 @@ Examples
 
 {}
   --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
-                                    [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
+                                    [env: INFLUXDB3_NODE_ID=]
   --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to file.
                                     [env: INFLUXDB3_OBJECT_STORE=]
                                     [possible values: memory, memory-throttled, file, s3, google, azure]
@@ -25,6 +25,11 @@ Examples
 {}
   --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
                                     [env: INFLUXDB3_HTTP_BIND_ADDR=]
+  --shutdown-timeout <DURATION>    Maximum time to wait for active connections to drain during
+                                   shutdown. Remaining connections are forcibly closed when the
+                                   timeout expires. Set to 0s to close connections immediately.
+                                    [default: 30s]
+                                    [env: INFLUXDB3_SHUTDOWN_TIMEOUT=]
   --log-filter <FILTER>            Logs: filter directive.
                                    When the filter starts with "debug" or "trace", noise-reduction
                                    directives are automatically appended (e.g. reqwest=info,
@@ -48,7 +53,7 @@ Examples
                                     [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
 
 {}
-  --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DB_DIR=]
+  --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DATA_DIR=]
   --bucket <BUCKET>                Bucket name for cloud object storage [env: INFLUXDB3_BUCKET=]
 
 {}
@@ -73,10 +78,22 @@ Examples
   --package-manager <MANAGER>      Deprecated. Python and pip are bundled with InfluxDB; this option does not need to be set
                                     [possible values: discover, pip, uv, disabled] [default: discover]
                                     [env: INFLUXDB3_PACKAGE_MANAGER=]
+  --disable-package-management     Disable all Processing Engine package management. The server never
+                                    creates or modifies a virtual environment, never invokes pip, and the
+                                    plugin package-install API endpoints are rejected. Takes precedence over
+                                    --package-manager. Manage the virtual environment yourself and point the
+                                    server at it via VIRTUAL_ENV.
+                                    [env: INFLUXDB3_DISABLE_PACKAGE_MANAGEMENT=]
   --restrict-plugin-triggers-to <TYPE>...
                                     Restrict plugin triggers to the provided trigger type(s)
                                     [possible values: wal, schedule, request]
                                     [env: INFLUXDB3_RESTRICT_PLUGIN_TRIGGERS_TO=]
+  --async-trigger-concurrency-limit <N>
+                                    Maximum number of concurrent invocations per asynchronous trigger
+                                    (run_asynchronous). Synchronous triggers always run one invocation
+                                    at a time. Must be greater than zero. [default: unlimited]
+                                    The default will change from unlimited to 8 in a future release.
+                                    [env: INFLUXDB3_ASYNC_TRIGGER_CONCURRENCY_LIMIT=]
 
 {}
   -h, --help                       Print help information

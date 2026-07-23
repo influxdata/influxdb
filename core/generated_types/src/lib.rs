@@ -8,6 +8,7 @@
     clippy::use_self,
     clippy::allow_attributes,
     clippy::uninlined_format_args,
+    clippy::useless_borrows_in_formatting,
     // I can't figure out what rustdoc lint triggers in this. It's not any of the individual ones,
     // only rustdoc::all fixes it afaict
     rustdoc::all,

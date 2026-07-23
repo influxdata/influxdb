@@ -265,11 +265,8 @@ fn statistics_min_max(
             // as `Inexact` is not guaranteed to cover the actual min and max values
             // https://github.com/apache/arrow-datafusion/issues/8078
             (Precision::Inexact(min), Precision::Inexact(max)) => {
-                if let Some(_deduplicate_exec) = input.as_any().downcast_ref::<DeduplicateExec>() {
-                    min_max_ranges.push((min, max));
-                } else {
-                    return None;
-                };
+                let _deduplicate_exec = input.as_any().downcast_ref::<DeduplicateExec>()?;
+                min_max_ranges.push((min, max));
             }
             // the statistics  values are absent
             _ => return None,

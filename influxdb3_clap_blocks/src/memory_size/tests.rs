@@ -37,14 +37,18 @@ fn test_parse_memory_size() {
     assert_ok(" 5 mb", 5 * 1024 * 1024);
     assert_ok("5 MB", 5 * 1024 * 1024);
 
-    // Bare numbers are rejected
-    assert_err("0", "requires a unit suffix");
-    assert_err("100", "requires a unit suffix");
-    assert_err("5", "requires a unit suffix");
+    // Bare numbers are bytes
+    assert_ok("0", 0);
+    assert_ok("100", 100);
+    assert_ok("1048576", 1048576);
+    assert_ok(" 42 ", 42);
+
+    // Bare-number overflow is an error, not a wrap
+    assert_err("99999999999999999999999999", "number too large");
 
     // Other error cases
     assert_err("-1mb", "invalid digit found in string");
-    assert_err("foo", "requires a unit suffix");
+    assert_err("foo", "invalid digit found in string");
     assert_err("-1%", "invalid digit found in string");
     assert_err(
         "101%",
@@ -54,11 +58,11 @@ fn test_parse_memory_size() {
 
 #[test]
 fn test_parse_memory_size_mb() {
-    // Plain number = megabytes
-    assert_mb_ok("0", 0);
-    assert_mb_ok("1", 1024 * 1024);
-    assert_mb_ok("5", 5 * 1024 * 1024);
-    assert_mb_ok("100", 100 * 1024 * 1024);
+    // Bare numbers are rejected with a transitional error: they used to
+    // mean megabytes and will mean bytes in a future release.
+    assert_mb_err("0", "previously meant megabytes");
+    assert_mb_err("1", "previously meant megabytes");
+    assert_mb_err("100", "specify an explicit unit suffix");
 
     // With 'mb' suffix (case insensitive)
     assert_mb_ok("5mb", 5 * 1024 * 1024);
@@ -88,8 +92,8 @@ fn test_parse_memory_size_mb() {
     assert_mb_ok("5 MB", 5 * 1024 * 1024);
 
     // Error cases
-    assert_mb_err("-1", "invalid digit found in string");
-    assert_mb_err("foo", "invalid digit found in string");
+    assert_mb_err("-1", "failed to parse");
+    assert_mb_err("foo", "failed to parse");
     assert_mb_err("-1%", "invalid digit found in string");
     assert_mb_err(
         "101%",
@@ -149,6 +153,28 @@ fn assert_mb_err(s: &'static str, expected_substring: &'static str) {
 fn test_byte_size_rejects_percentage() {
     let err = ByteSize::from_str("50%").unwrap_err();
     assert!(err.contains("requires a unit suffix"));
+}
+
+#[test]
+fn test_byte_size_parsing() {
+    #[track_caller]
+    fn assert_bytes_ok(s: &str, expected: usize) {
+        let parsed: ByteSize = s.parse().unwrap();
+        assert_eq!(parsed.as_num_bytes(), expected, "parsing '{}'", s);
+    }
+    // Bare numbers are bytes
+    assert_bytes_ok("0", 0);
+    assert_bytes_ok("2048", 2048);
+    assert_bytes_ok(" 42 ", 42);
+    // Unit suffixes convert
+    assert_bytes_ok("1kb", 1024);
+    assert_bytes_ok("5 MB", 5 * 1024 * 1024);
+    // Overflow is an error, not a wrap
+    assert!(ByteSize::from_str("99999999999tb").is_err());
+    assert!(ByteSize::from_str("99999999999999999999999999").is_err());
+    // Malformed input is an error
+    assert!(ByteSize::from_str("foo").is_err());
+    assert!(ByteSize::from_str("-1").is_err());
 }
 
 #[test]

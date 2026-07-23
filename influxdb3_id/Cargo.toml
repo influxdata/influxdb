@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 indexmap.workspace = true
 rustc-hash.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = [ "rc" ] }
 thiserror.workspace = true
 
 [dev-dependencies]

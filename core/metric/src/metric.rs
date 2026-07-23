@@ -265,6 +265,11 @@ pub struct ResultMetric<T> {
     pub ok: T,
     pub client_error: T,
     pub server_error: T,
+    /// Requests rejected because the service lacked the resources to serve them
+    /// (e.g. a query exceeding the memory budget). This is neither a client nor a
+    /// server error: the service is working as designed by protecting itself, so
+    /// these are tracked separately to keep them out of the server-error SLO.
+    pub resource_exhausted: T,
     pub unexpected_response: T,
 }
 
@@ -282,6 +287,9 @@ where
         attributes.insert("status", "server_error");
         let server_error = metric.recorder(attributes.clone());
 
+        attributes.insert("status", "resource_exhausted");
+        let resource_exhausted = metric.recorder(attributes.clone());
+
         attributes.insert("status", "unexpected_response");
         let unexpected_response = metric.recorder(attributes);
 
@@ -289,6 +297,7 @@ where
             ok,
             client_error,
             server_error,
+            resource_exhausted,
             unexpected_response,
         }
     }

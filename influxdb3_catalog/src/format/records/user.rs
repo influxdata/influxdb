@@ -33,11 +33,7 @@ impl CatalogRecord for CreateUser {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
-        let user = UserInfo::new(
-            user_id,
-            self.display_name.as_ref().map(|s| Arc::from(s.as_str())),
-            self.created_at,
-        );
+        let user = UserInfo::new(user_id, self.display_name.clone(), self.created_at);
         catalog.users.add_user(user).map_err(|e| {
             ApplyError(format!(
                 "{}: add user (user_id={}): {e}",
@@ -80,7 +76,7 @@ impl CatalogRecord for UpdateUserDisplayName {
             ApplyError(format!("{}: user {} not found", Self::NAME, self.user_id))
         })?;
         let user_mut = Arc::make_mut(&mut user);
-        user_mut.display_name = self.display_name.as_ref().map(|s| Arc::from(s.as_str()));
+        user_mut.display_name = self.display_name.clone();
         user_mut.updated_at = self.updated_at;
         catalog.users.update_user((*user).clone()).map_err(|e| {
             ApplyError(format!(
@@ -152,7 +148,7 @@ pub struct RestoreUser {
     /// User ID.
     pub user_id: u64,
     /// Optional new display name.
-    pub display_name: Option<Arc<str>>,
+    pub display_name: Option<String>,
     /// Restore timestamp in milliseconds.
     pub restored_at: i64,
 }
@@ -166,11 +162,7 @@ impl CatalogRecord for RestoreUser {
         let user_id = UserId::new(self.user_id);
         catalog
             .users
-            .restore_user(
-                user_id,
-                self.display_name.as_ref().map(Arc::clone),
-                self.restored_at,
-            )
+            .restore_user(user_id, self.display_name.clone(), self.restored_at)
             .map_err(|e| {
                 ApplyError(format!(
                     "{}: restore user (user_id={}): {e}",

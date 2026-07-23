@@ -14,26 +14,26 @@ fn test_query_duration_recorder() {
     // open a recorder, but do not set it to `Success` state, which does not record a
     // measurement for the metric:
     {
-        let _recorder = metrics.query_duration_recorder("test_db");
+        let _recorder = metrics.query_duration_recorder();
         time.inc(Duration::from_secs(1));
     }
     assert_duration_histogram_hits(
         &registry,
         LAST_VALUES_CACHE_QUERY_DURATION_METRIC_NAME,
-        [("db", "test_db")],
+        [],
         0,
     );
 
     // open a recorder and set it to `Success` state, so that a measurement is recorded:
     {
-        let mut recorder = metrics.query_duration_recorder("test_db");
+        let mut recorder = metrics.query_duration_recorder();
         time.inc(Duration::from_secs(1));
         recorder.set_success();
     }
     assert_duration_histogram_hits(
         &registry,
         LAST_VALUES_CACHE_QUERY_DURATION_METRIC_NAME,
-        [("db", "test_db")],
+        [],
         1,
     );
 }

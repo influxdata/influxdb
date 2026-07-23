@@ -425,7 +425,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "data-dir"),
                     long = gen_name!($prefix, "data-dir"),
-                    env = gen_env!($prefix, "INFLUXDB3_DB_DIR"),
+                    env = gen_env!($prefix, "INFLUXDB3_DATA_DIR"),
                     action
                 )]
                 // default_value_if makes the default value conditional on the object-store type being "file"
@@ -1033,7 +1033,7 @@ macro_rules! object_store_config_inner {
                     if let Some(data_dir) = &self.database_directory {
                         if !matches!(&self.object_store, ObjectStoreType::File) {
                             warn!(?data_dir, object_store_type=?self.object_store,
-                                  "--data-dir / `INFLUXDB3_DB_DIR` ignored. It only affects 'file' object stores");
+                                  "--data-dir / `INFLUXDB3_DATA_DIR` ignored. It only affects 'file' object stores");
                         }
                     }
 

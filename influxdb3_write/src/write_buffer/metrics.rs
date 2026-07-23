@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use metric::{Metric, Registry, U64Counter};
 
 #[derive(Debug)]
@@ -17,15 +15,15 @@ impl WriteMetrics {
     pub(super) fn new(metric_registry: &Registry) -> Self {
         let write_lines_total = metric_registry.register_metric::<U64Counter>(
             WRITE_LINES_METRIC_NAME,
-            "track total number of lines written to the database",
+            "track total number of lines written",
         );
         let write_lines_rejected_total = metric_registry.register_metric::<U64Counter>(
             WRITE_LINES_REJECTED_METRIC_NAME,
-            "track total number of lines written to the database that were rejected",
+            "track total number of lines that were rejected",
         );
         let write_bytes_total = metric_registry.register_metric::<U64Counter>(
             WRITE_BYTES_METRIC_NAME,
-            "track total number of bytes written to the database",
+            "track total number of bytes written",
         );
         Self {
             write_lines_total,
@@ -34,21 +32,16 @@ impl WriteMetrics {
         }
     }
 
-    pub(super) fn record_lines<D: Into<String>>(&self, db: D, lines: u64) {
-        let db: Cow<'static, str> = Cow::from(db.into());
-        self.write_lines_total.recorder([("db", db)]).inc(lines);
+    pub(super) fn record_lines(&self, lines: u64) {
+        self.write_lines_total.recorder([]).inc(lines);
     }
 
-    pub(super) fn record_lines_rejected<D: Into<String>>(&self, db: D, lines: u64) {
-        let db: Cow<'static, str> = Cow::from(db.into());
-        self.write_lines_rejected_total
-            .recorder([("db", db)])
-            .inc(lines);
+    pub(super) fn record_lines_rejected(&self, lines: u64) {
+        self.write_lines_rejected_total.recorder([]).inc(lines);
     }
 
-    pub(super) fn record_bytes<D: Into<String>>(&self, db: D, bytes: u64) {
-        let db: Cow<'static, str> = Cow::from(db.into());
-        self.write_bytes_total.recorder([("db", db)]).inc(bytes);
+    pub(super) fn record_bytes(&self, bytes: u64) {
+        self.write_bytes_total.recorder([]).inc(bytes);
     }
 }
 

@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 // Specifies the behavior of the Processing Engine.
@@ -19,6 +20,14 @@ pub struct ProcessingEngineConfig {
         default_value = "discover"
     )]
     pub package_manager: PackageManager,
+    /// Disable Processing Engine package management: the server never creates or
+    /// touches a virtual environment or invokes `pip`, and package-install API calls
+    /// are rejected. Takes precedence over `--package-manager`.
+    #[clap(
+        long = "disable-package-management",
+        env = "INFLUXDB3_DISABLE_PACKAGE_MANAGEMENT"
+    )]
+    pub disable_package_management: bool,
     #[clap(long = "plugin-repo", env = "INFLUXDB3_PLUGIN_REPO")]
     pub plugin_repo: Option<String>,
     /// Restrict plugin triggers to the provided trigger type(s).
@@ -30,6 +39,15 @@ pub struct ProcessingEngineConfig {
         num_args = 1..
     )]
     pub restrict_plugin_triggers_to: Vec<PluginTriggerType>,
+    /// Maximum number of concurrent invocations per asynchronous trigger
+    /// (`run_asynchronous`). Defaults to unlimited. Synchronous triggers always
+    /// run one invocation at a time. Must be greater than zero.
+    #[clap(
+        long = "async-trigger-concurrency-limit",
+        env = "INFLUXDB3_ASYNC_TRIGGER_CONCURRENCY_LIMIT",
+        default_value_t = NonZeroUsize::MAX
+    )]
+    pub async_trigger_concurrency_limit: NonZeroUsize,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, clap::ValueEnum)]
@@ -48,3 +66,6 @@ pub enum PackageManager {
     UV,
     Disabled,
 }
+
+#[cfg(test)]
+mod tests;

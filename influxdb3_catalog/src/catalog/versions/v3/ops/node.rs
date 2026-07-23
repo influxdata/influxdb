@@ -174,10 +174,12 @@ impl CatalogOp for RequestStopNodeOp {
             .get_by_name(&args.node_id)
             .ok_or_else(|| CatalogError::NotFound(format!("node '{}'", args.node_id)))?;
 
+        // Stopping, Stopped, and Removing all mean a stop is already in
+        // effect: report IdempotentNoOp (HTTP 200) like RemoveNodeOp does for
+        // Removing, so controllers can retry a stop without treating it as a
+        // conflict.
         if !node.state().is_running() {
-            return Err(CatalogError::NodeAlreadyStopped {
-                node_id: Arc::clone(&args.node_id),
-            });
+            return Err(CatalogError::IdempotentNoOp);
         }
 
         records.push(&RequestStopNode {

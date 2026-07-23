@@ -4,7 +4,7 @@ pub mod checkpoint;
 mod metrics;
 pub mod persisted_files;
 pub mod queryable_buffer;
-mod table_buffer;
+pub mod table_buffer;
 use influxdb3_shutdown::ShutdownToken;
 use tokio::sync::{oneshot, watch::Receiver};
 use trace::span::{MetaValue, SpanRecorder};
@@ -36,7 +36,7 @@ use influxdb3_cache::{
 };
 use influxdb3_catalog::{
     CatalogError,
-    catalog::{Catalog, DatabaseSchema, Prompt, TableDefinition},
+    catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME, Prompt, TableDefinition},
 };
 use influxdb3_id::{DbId, TableId};
 use influxdb3_types::{DatabaseName, DatabaseNameError};
@@ -142,6 +142,9 @@ pub enum Error {
 
     #[error("error: {0}")]
     AnyhowError(#[from] anyhow::Error),
+
+    #[error("write not allowed on internal database")]
+    InternalDbWriteNotAllowed,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -151,6 +154,16 @@ pub struct WriteRequest<'a> {
     pub db_name: DatabaseName,
     pub line_protocol: &'a str,
     pub default_time: u64,
+}
+
+struct WriteLpInner<'a> {
+    db_name: DatabaseName,
+    lp: &'a str,
+    ingest_time: Time,
+    accept_partial: bool,
+    precision: Precision,
+    no_sync: bool,
+    allow_internal_db: bool,
 }
 
 #[derive(Debug)]
@@ -456,10 +469,57 @@ impl WriteBufferImpl {
         precision: Precision,
         no_sync: bool,
     ) -> Result<BufferedWriteRequest> {
+        self.write_lp_inner(WriteLpInner {
+            db_name,
+            lp,
+            ingest_time,
+            accept_partial,
+            precision,
+            no_sync,
+            allow_internal_db: false,
+        })
+        .await
+    }
+
+    async fn write_internal_lp(
+        &self,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+        no_sync: bool,
+    ) -> Result<BufferedWriteRequest> {
+        self.write_lp_inner(WriteLpInner {
+            db_name: DatabaseName::new(INTERNAL_DB_NAME).expect("internal database name is valid"),
+            lp,
+            ingest_time,
+            accept_partial,
+            precision,
+            no_sync,
+            allow_internal_db: true,
+        })
+        .await
+    }
+
+    async fn write_lp_inner(&self, request: WriteLpInner<'_>) -> Result<BufferedWriteRequest> {
+        let WriteLpInner {
+            db_name,
+            lp,
+            ingest_time,
+            accept_partial,
+            precision,
+            no_sync,
+            allow_internal_db,
+        } = request;
+
         debug!("write_lp to {} in writebuffer", db_name);
 
         // NOTE(trevor/catalog-refactor): should there be some retry limit or timeout?
         loop {
+            if !allow_internal_db && db_name.as_str() == INTERNAL_DB_NAME {
+                return Err(Error::InternalDbWriteNotAllowed);
+            }
+
             // validated lines will update the in-memory catalog, ensuring that all write operations
             // past this point will be infallible
             let result = match WriteValidator::initialize(db_name.clone(), self.catalog())?
@@ -496,12 +556,10 @@ impl WriteBufferImpl {
             }
 
             // record metrics for lines written, rejected, and bytes written
+            self.metrics.record_lines(result.line_count as u64);
             self.metrics
-                .record_lines(&db_name, result.line_count as u64);
-            self.metrics
-                .record_lines_rejected(&db_name, result.errors.len() as u64);
-            self.metrics
-                .record_bytes(&db_name, result.valid_bytes_count);
+                .record_lines_rejected(result.errors.len() as u64);
+            self.metrics.record_bytes(result.valid_bytes_count);
 
             break Ok(BufferedWriteRequest {
                 db_name,
@@ -706,6 +764,25 @@ impl Bufferer for WriteBufferImpl {
     ) -> Result<BufferedWriteRequest> {
         self.write_lp(
             database,
+            lp,
+            ingest_time,
+            accept_partial,
+            precision,
+            no_sync,
+        )
+        .await
+    }
+
+    async fn write_internal_lp(
+        &self,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+        no_sync: bool,
+    ) -> Result<BufferedWriteRequest> {
+        WriteBufferImpl::write_internal_lp(
+            self,
             lp,
             ingest_time,
             accept_partial,

@@ -1083,3 +1083,226 @@ fn test_deserialize_catalog_checkpoint_file_from_v1() {
     println!("{result:?}");
     result.expect("deserialize from v1");
 }
+
+/// Compatibility tests for v2- and v3-format catalog files written by InfluxDB 3 Core
+/// before the catalog codebases were unified.
+///
+/// Core's structs lacked several fields that exist in the unified definitions, and its
+/// trigger definitions carried a `node_id` string instead of a `node_spec`. See
+/// <https://github.com/influxdata/influxdb/issues/27554>.
+mod core_file_compat {
+    use serde_json::json;
+
+    use crate::serialize::versions::test_util::from_core_shape;
+
+    mod snapshot_v2 {
+        use super::*;
+        use crate::log::versions::v2::{
+            MaxAge, MaxCardinality, NodeSpec, TriggerSettings, TriggerSpecificationDefinition,
+        };
+        use crate::snapshot::versions::v2::{
+            DistinctCacheSnapshot, LastCacheSnapshot, ProcessingEngineTriggerSnapshot,
+        };
+        use influxdb3_id::{DistinctCacheId, LastCacheId, TableId, TriggerId};
+
+        #[test]
+        fn core_last_cache_has_no_node_spec() {
+            let cache = LastCacheSnapshot {
+                table_id: TableId::new(0),
+                table: "cpu".into(),
+                node_spec: NodeSpec::All,
+                id: LastCacheId::new(0),
+                name: "cpu_lvc".into(),
+                keys: vec![],
+                vals: None,
+                n: 1,
+                ttl: 14400,
+            };
+            let deserialized = from_core_shape(&cache, &["node_spec"], &[])
+                .expect("last cache snapshot written by core must deserialize");
+            assert_eq!(NodeSpec::All, deserialized.node_spec);
+        }
+
+        #[test]
+        fn core_distinct_cache_has_no_node_spec() {
+            let cache = DistinctCacheSnapshot {
+                table_id: TableId::new(0),
+                table: "cpu".into(),
+                node_spec: NodeSpec::All,
+                id: DistinctCacheId::new(0),
+                name: "cpu_dvc".into(),
+                cols: vec![],
+                max_cardinality: MaxCardinality::default(),
+                max_age_seconds: MaxAge::default(),
+            };
+            let deserialized = from_core_shape(&cache, &["node_spec"], &[])
+                .expect("distinct cache snapshot written by core must deserialize");
+            assert_eq!(NodeSpec::All, deserialized.node_spec);
+        }
+
+        #[test]
+        fn core_trigger_carries_node_id_not_node_spec() {
+            let trigger = ProcessingEngineTriggerSnapshot {
+                trigger_id: TriggerId::new(0),
+                trigger_name: "tr1".into(),
+                node_spec: NodeSpec::All,
+                plugin_filename: "plugin.py".to_string(),
+                database_name: "mydb".into(),
+                trigger_specification: TriggerSpecificationDefinition::AllTablesWalWrite,
+                trigger_settings: TriggerSettings::default(),
+                trigger_arguments: None,
+                disabled: false,
+            };
+            let deserialized =
+                from_core_shape(&trigger, &["node_spec"], &[("node_id", json!("node0"))])
+                    .expect("trigger snapshot written by core must deserialize");
+            assert_eq!(NodeSpec::All, deserialized.node_spec);
+        }
+    }
+
+    mod snapshot_v3 {
+        use super::*;
+        use crate::log::versions::v3::{
+            MaxAge, MaxCardinality, NodeSpec, TriggerSettings, TriggerSpecificationDefinition,
+        };
+        use crate::snapshot::versions::v3::{
+            DistinctCacheSnapshot, LastCacheSnapshot, ProcessingEngineTriggerSnapshot,
+            RepositorySnapshot, TableSnapshot,
+        };
+        use influxdb3_id::{
+            ColumnId, DistinctCacheId, LastCacheId, SerdeVecMap, TableId, TriggerId,
+        };
+
+        #[test]
+        fn core_table_has_no_retention_period_and_omits_hard_delete_time() {
+            let table = TableSnapshot {
+                table_id: TableId::new(0),
+                table_name: "cpu".into(),
+                key: vec![],
+                columns: RepositorySnapshot {
+                    repo: SerdeVecMap::default(),
+                    next_id: ColumnId::new(0),
+                },
+                retention_period: None,
+                last_caches: RepositorySnapshot {
+                    repo: SerdeVecMap::default(),
+                    next_id: LastCacheId::new(0),
+                },
+                distinct_caches: RepositorySnapshot {
+                    repo: SerdeVecMap::default(),
+                    next_id: DistinctCacheId::new(0),
+                },
+                deleted: false,
+                hard_delete_time: None,
+            };
+            let deserialized =
+                from_core_shape(&table, &["retention_period", "hard_delete_time"], &[])
+                    .expect("table snapshot written by core must deserialize");
+            assert!(deserialized.retention_period.is_none());
+            assert!(deserialized.hard_delete_time.is_none());
+        }
+
+        #[test]
+        fn core_last_cache_has_no_node_spec() {
+            let cache = LastCacheSnapshot {
+                table_id: TableId::new(0),
+                table: "cpu".into(),
+                node_spec: NodeSpec::All,
+                id: LastCacheId::new(0),
+                name: "cpu_lvc".into(),
+                keys: vec![],
+                vals: None,
+                n: 1,
+                ttl: 14400,
+            };
+            let deserialized = from_core_shape(&cache, &["node_spec"], &[])
+                .expect("last cache snapshot written by core must deserialize");
+            assert_eq!(NodeSpec::All, deserialized.node_spec);
+        }
+
+        #[test]
+        fn core_distinct_cache_has_no_node_spec() {
+            let cache = DistinctCacheSnapshot {
+                table_id: TableId::new(0),
+                table: "cpu".into(),
+                node_spec: NodeSpec::All,
+                id: DistinctCacheId::new(0),
+                name: "cpu_dvc".into(),
+                cols: vec![],
+                max_cardinality: MaxCardinality::default(),
+                max_age_seconds: MaxAge::default(),
+            };
+            let deserialized = from_core_shape(&cache, &["node_spec"], &[])
+                .expect("distinct cache snapshot written by core must deserialize");
+            assert_eq!(NodeSpec::All, deserialized.node_spec);
+        }
+
+        #[test]
+        fn core_trigger_carries_node_id_not_node_spec() {
+            let trigger = ProcessingEngineTriggerSnapshot {
+                trigger_id: TriggerId::new(0),
+                trigger_name: "tr1".into(),
+                node_spec: NodeSpec::All,
+                plugin_filename: "plugin.py".to_string(),
+                database_name: "mydb".into(),
+                trigger_specification: TriggerSpecificationDefinition::AllTablesWalWrite,
+                trigger_settings: TriggerSettings::default(),
+                trigger_arguments: None,
+                disabled: false,
+            };
+            let deserialized =
+                from_core_shape(&trigger, &["node_spec"], &[("node_id", json!("node0"))])
+                    .expect("trigger snapshot written by core must deserialize");
+            assert_eq!(NodeSpec::All, deserialized.node_spec);
+        }
+    }
+
+    mod log_v3 {
+        use super::*;
+        use crate::log::versions::v3::{
+            ClearRetentionPeriodLog, CreateTableLog, RetentionPeriod, SetRetentionPeriodLog,
+        };
+        use influxdb3_id::{DbId, TableId};
+
+        #[test]
+        fn core_create_table_log_has_no_retention_period() {
+            let log = CreateTableLog {
+                database_id: DbId::new(0),
+                database_name: "mydb".into(),
+                table_name: "cpu".into(),
+                table_id: TableId::new(0),
+                field_definitions: vec![],
+                key: vec![],
+                retention_period: None,
+            };
+            let deserialized = from_core_shape(&log, &["retention_period"], &[])
+                .expect("create table log written by core must deserialize");
+            assert!(deserialized.retention_period.is_none());
+        }
+
+        #[test]
+        fn core_set_retention_period_log_has_no_table() {
+            let log = SetRetentionPeriodLog {
+                database_name: "mydb".into(),
+                database_id: DbId::new(0),
+                table: None,
+                retention_period: RetentionPeriod::Indefinite,
+            };
+            let deserialized = from_core_shape(&log, &["table"], &[])
+                .expect("set retention period log written by core must deserialize");
+            assert!(deserialized.table.is_none());
+        }
+
+        #[test]
+        fn core_clear_retention_period_log_has_no_table() {
+            let log = ClearRetentionPeriodLog {
+                database_name: "mydb".into(),
+                database_id: DbId::new(0),
+                table: None,
+            };
+            let deserialized = from_core_shape(&log, &["table"], &[])
+                .expect("clear retention period log written by core must deserialize");
+            assert!(deserialized.table.is_none());
+        }
+    }
+}

@@ -57,11 +57,11 @@ pub struct CommonArgs {
     pub catalog_prefix: Option<String>,
 
     /// Cluster-id prefix (Enterprise). Lets you reuse a running server's environment.
-    #[clap(long = "cluster-id", env = "INFLUXDB3_ENTERPRISE_CLUSTER_ID")]
+    #[clap(long = "cluster-id", env = "INFLUXDB3_CLUSTER_ID")]
     pub cluster_id: Option<String>,
 
     /// Node-id prefix (Core).
-    #[clap(long = "node-id", env = "INFLUXDB3_NODE_IDENTIFIER_PREFIX")]
+    #[clap(long = "node-id", env = "INFLUXDB3_NODE_ID")]
     pub node_id: Option<String>,
 
     /// Output format.
@@ -89,8 +89,8 @@ impl CommonArgs {
             .or(self.node_id.as_deref())
             .ok_or_else(|| {
                 "a catalog prefix is required: pass --catalog-prefix, --cluster-id, or --node-id \
-                 (or set INFLUXDB3_CATALOG_PREFIX / INFLUXDB3_ENTERPRISE_CLUSTER_ID / \
-                 INFLUXDB3_NODE_IDENTIFIER_PREFIX)"
+                 (or set INFLUXDB3_CATALOG_PREFIX / INFLUXDB3_CLUSTER_ID / \
+                 INFLUXDB3_NODE_ID)"
                     .into()
             })
     }

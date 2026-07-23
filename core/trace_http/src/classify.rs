@@ -23,6 +23,15 @@ pub(crate) enum Classification {
     /// The request was unsuccessful (4XX) but it was not the fault of the service
     ClientErr,
 
+    /// The request was rejected because the service lacked the resources to serve
+    /// it (e.g. a query exceeding the memory budget).
+    ///
+    /// This is neither a client nor a server error: the service is working as
+    /// designed by protecting itself against an over-large request. It is tracked
+    /// separately so it does not drain the server-error SLO while remaining
+    /// alertable for genuine cluster-wide capacity exhaustion.
+    ResourceExhausted,
+
     /// The request was unsuccessful (5XX) and it was the fault of the service
     ServerErr,
 
@@ -99,7 +108,10 @@ pub(crate) fn classify_headers(
                 5 => ("not found".into(), Classification::ClientErr),
                 6 => ("already exists".into(), Classification::ClientErr),
                 7 => ("permission denied".into(), Classification::ClientErr),
-                8 => ("resource exhausted".into(), Classification::ServerErr),
+                8 => (
+                    "resource exhausted".into(),
+                    Classification::ResourceExhausted,
+                ),
                 9 => ("failed precondition".into(), Classification::ClientErr),
                 10 => ("aborted".into(), Classification::ClientErr),
                 11 => ("out of range".into(), Classification::ClientErr),
@@ -117,5 +129,43 @@ pub(crate) fn classify_headers(
             }
         }
         None => ("ok".into(), Classification::Ok),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn classify_grpc_status(code: i32) -> Classification {
+        let mut headers = http::header::HeaderMap::new();
+        headers.insert("grpc-status", code.to_string().parse().unwrap());
+        classify_headers(Some(&headers)).1
+    }
+
+    #[test]
+    fn resource_exhausted_is_its_own_classification() {
+        // A resource-exhausted query (gRPC 8) is the service protecting itself
+        // against an over-large request. It must not count as a server error and
+        // drain the server-error SLO, but it is also not a client error.
+        assert_eq!(classify_grpc_status(8), Classification::ResourceExhausted);
+    }
+
+    #[test]
+    fn grpc_status_classification() {
+        assert_eq!(classify_grpc_status(0), Classification::Ok);
+        assert_eq!(classify_grpc_status(3), Classification::ClientErr);
+        assert_eq!(classify_grpc_status(8), Classification::ResourceExhausted);
+        assert_eq!(classify_grpc_status(13), Classification::ServerErr);
+        assert_eq!(classify_grpc_status(12), Classification::PathNotFound);
+        assert_eq!(classify_grpc_status(16), Classification::ClientErr);
+    }
+
+    #[test]
+    fn resource_exhausted_does_not_override_server_error() {
+        // The variant ordering decides which classification wins when a request
+        // hits more than one: a genuine server error must still dominate so it
+        // remains alertable.
+        assert!(Classification::ServerErr > Classification::ResourceExhausted);
+        assert!(Classification::ResourceExhausted > Classification::ClientErr);
     }
 }

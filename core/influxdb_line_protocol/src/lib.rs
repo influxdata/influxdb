@@ -2342,7 +2342,7 @@ her"#,
         assert_eq!(vals.len(), 2);
         assert!(vals[0].is_err());
         assert_eq!(
-            format!("{:?}", &vals[0]),
+            format!("{:?}", vals[0]),
             "Err(CannotParseEntireLine { trailing_content: \".22,jkl=4\" })"
         );
 

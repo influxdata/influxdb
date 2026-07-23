@@ -51,9 +51,45 @@ impl ParquetFilePath {
         chunk_time: i64,
         wal_file_sequence_number: WalFileSequenceNumber,
     ) -> Self {
+        Self::new_with_chunk_ordinal(
+            host_prefix,
+            db_id,
+            table_id,
+            chunk_time,
+            wal_file_sequence_number,
+            0,
+        )
+    }
+
+    /// Like [`Self::new`], but for the `chunk_ordinal`-th buffer chunk persisted for the same
+    /// `(table, chunk_time)` in one snapshot.
+    ///
+    /// A gen1 chunk splits into multiple buffer chunks when a string/tag column would exceed
+    /// the Arrow varchar limit (~2 GiB, see `table_buffer::var_col_max_bytes`). Each split
+    /// chunk must persist to a distinct object path: with a shared path, the persist jobs
+    /// race, the last PUT silently overwrites the others, and the snapshot records every
+    /// job's size for one object — leaving stale size records that fail reads with
+    /// "Invalid Parquet file. Corrupt footer".
+    ///
+    /// Ordinal 0 produces the historical filename exactly, so single-chunk persists (the
+    /// overwhelmingly common case) and all files written before this change are unaffected.
+    /// Ordinal n >= 1 appends `-{n}` before the extension.
+    pub fn new_with_chunk_ordinal(
+        host_prefix: &str,
+        db_id: u32,
+        table_id: u32,
+        chunk_time: i64,
+        wal_file_sequence_number: WalFileSequenceNumber,
+        chunk_ordinal: u32,
+    ) -> Self {
         let date_time = DateTime::<Utc>::from_timestamp_nanos(chunk_time);
+        let ordinal_suffix = if chunk_ordinal == 0 {
+            String::new()
+        } else {
+            format!("-{chunk_ordinal}")
+        };
         let path = ObjPath::from(format!(
-            "{host_prefix}/dbs/{db_id}/{table_id}/{date_string}/{wal_seq:010}.{ext}",
+            "{host_prefix}/dbs/{db_id}/{table_id}/{date_string}/{wal_seq:010}{ordinal_suffix}.{ext}",
             date_string = date_time.format("%Y-%m-%d/%H-%M"),
             wal_seq = wal_file_sequence_number.as_u64(),
             ext = PARQUET_FILE_EXTENSION
@@ -544,6 +580,41 @@ fn parquet_file_path_new() {
             WalFileSequenceNumber::new(1337),
         ),
         ObjPath::from("my_host/dbs/0/0/2038-01-19/03-14/0000001337.parquet")
+    );
+}
+
+#[test]
+fn parquet_file_path_with_chunk_ordinal() {
+    let ts = Utc
+        .with_ymd_and_hms(2038, 1, 19, 3, 14, 7)
+        .unwrap()
+        .timestamp_nanos_opt()
+        .unwrap();
+    // Ordinal 0 must produce the historical filename exactly — files written before
+    // this change and the common single-chunk case keep their names.
+    assert_eq!(
+        ParquetFilePath::new_with_chunk_ordinal(
+            "my_host",
+            0,
+            0,
+            ts,
+            WalFileSequenceNumber::new(1337),
+            0
+        ),
+        ParquetFilePath::new("my_host", 0, 0, ts, WalFileSequenceNumber::new(1337)),
+    );
+    // Ordinal n >= 1 appends "-{n}" before the extension, keeping the wal sequence
+    // number as the sortable filename prefix.
+    assert_eq!(
+        *ParquetFilePath::new_with_chunk_ordinal(
+            "my_host",
+            0,
+            0,
+            ts,
+            WalFileSequenceNumber::new(1337),
+            2
+        ),
+        ObjPath::from("my_host/dbs/0/0/2038-01-19/03-14/0000001337-2.parquet")
     );
 }
 

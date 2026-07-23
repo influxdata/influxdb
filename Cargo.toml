@@ -209,7 +209,7 @@ prost = "0.14"
 prost-build = "0.14"
 prost-types = "0.14"
 proptest = { version = "1", default-features = false, features = ["std"] }
-pyo3 = { version = "0.28", features = ["experimental-async"]}
+pyo3 = { version = "0.29", features = ["experimental-async"]}
 rand = "0.8.5"
 rcgen = "0.13.2"
 regex = "1.11.1"
@@ -231,7 +231,7 @@ snap = "1.0.0"
 sqlparser = "0.48.0"
 # NOTE(tjh): explicitly add sqlite feature as the `data_types` crate relies on it
 sqlx = { version = "0.8.6", features = ["sqlite"] }
-sysinfo = "0.39.5"
+sysinfo = { version = "0.39.5", default-features = false, features = ["system", "disk"] }
 tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
@@ -325,6 +325,10 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+[profile.check-fast]
+inherits = "dev"
+debug = false
 
 # Patching Datafusion
 [patch.crates-io]

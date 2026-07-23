@@ -1,22 +1,21 @@
-use crate::ProcessingEngineManagerImpl;
 use crate::TriggerSpecificationDefinition;
-use crate::WalEvent;
 use crate::environment::TestManager;
 use crate::plugins::ProcessingEngineEnvironmentManager;
+use crate::query::UnimplementedQueryEndpoint;
 use crate::virtualenv::init_pyo3;
 use crate::write::InProcessWriteEndpoint;
+use crate::{ProcessingEngineManagerImpl, ProcessingEngineManagerOptions};
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{
-    ApiNodeSpec, Catalog, DeletionScope, HardDeletionTime, TriggerSettings,
+    ApiNodeSpec, Catalog, DeletionScope, ErrorBehavior, HardDeletionTime, TriggerSettings,
 };
 use influxdb3_id::{DbId, TriggerId};
-use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
 use influxdb3_py_api::cache::{CacheStore, PyCache};
+use influxdb3_py_api::write::{WriteEndpoint, WriteTarget};
 use influxdb3_shutdown::ShutdownManager;
-use influxdb3_sys_events::SysEventStore;
 use influxdb3_types::DatabaseName;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::persister::Persister;
@@ -51,7 +50,7 @@ async fn test_trigger_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
         snapshot_size: 1,
         ..Default::default()
     };
-    let (pem, file) = setup(start_time, test_store, wal_config).await;
+    let (pem, write_endpoint, file) = setup(start_time, test_store, wal_config).await;
     let file_name = file
         .path()
         .file_name()
@@ -61,9 +60,9 @@ async fn test_trigger_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
         .to_string();
 
     // Create the DB by inserting a line.
-    pem.write_endpoint
+    write_endpoint
         .write_lp(
-            DatabaseName::new("foo").unwrap(),
+            WriteTarget::User(DatabaseName::new("foo").unwrap()),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -129,6 +128,127 @@ async fn test_trigger_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
+async fn test_scheduler_error_behavior_disable_persists_and_cleans_registry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+    let test_store = Arc::new(InMemory::new());
+    let wal_config = WalConfig {
+        gen1_duration: Gen1Duration::new_1m(),
+        max_write_buffer_size: 100,
+        flush_interval: Duration::from_millis(10),
+        snapshot_size: 1,
+        ..Default::default()
+    };
+    let (pem, write_endpoint, file) = setup(start_time, test_store, wal_config).await;
+    let file_name = file
+        .path()
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+
+    write_endpoint
+        .write_lp(
+            WriteTarget::User(DatabaseName::new("foo").unwrap()),
+            "cpu,warehouse=us-east reading=37\n",
+            start_time,
+            false,
+        )
+        .await?;
+
+    let file_name = pem.validate_plugin_filename(&file_name).await.unwrap();
+    pem.catalog
+        .create_processing_engine_trigger(
+            "foo",
+            "test_trigger",
+            file_name,
+            ApiNodeSpec::All,
+            "all_tables",
+            TriggerSettings {
+                run_async: false,
+                error_behavior: ErrorBehavior::Disable,
+            },
+            &None,
+            false,
+        )
+        .await?;
+
+    let db_id = pem.catalog.db_schema("foo").unwrap().id;
+    let trigger = pem
+        .catalog
+        .db_schema("foo")
+        .unwrap()
+        .processing_engine_triggers
+        .get_by_name("test_trigger")
+        .unwrap();
+    let trigger_id = trigger.trigger_id;
+    assert!(!trigger.disabled);
+
+    let cancel = CancellationToken::new();
+    let manager = Arc::clone(&pem);
+    let trigger_for_disable = Arc::clone(&trigger);
+    let scheduler = crate::scheduler::Scheduler::new(Arc::<str>::from("scheduler"), |completion| {
+        vec![Arc::new(AlwaysFailTriggerWorker { completion })]
+    });
+    let key = crate::scheduler::TriggerKey { db_id, trigger_id };
+    scheduler
+        .register_trigger(crate::scheduler::TriggerRegistration {
+            key,
+            trigger_definition: Arc::clone(&trigger),
+            cancel,
+            config: crate::scheduler::SchedulerConfig::new(16, false, std::num::NonZeroUsize::MAX),
+            auto_disable: Arc::new(move || {
+                let manager = Arc::clone(&manager);
+                let trigger_for_disable = Arc::clone(&trigger_for_disable);
+                Box::pin(async move {
+                    manager
+                        .disable_trigger_from_scheduler(trigger_for_disable)
+                        .await
+                }) as crate::scheduler::AutoDisableFuture
+            }) as crate::scheduler::AutoDisable,
+        })
+        .await;
+    pem.trigger_registry.write().await.add_wal_trigger(
+        key,
+        Arc::clone(&trigger.database_name),
+        crate::WalRouteFilter::AllTables,
+    );
+
+    scheduler
+        .enqueue(crate::scheduler::TriggerInvocation::new(
+            key,
+            crate::scheduler::TriggerPayload::Schedule {
+                scheduled_at: chrono::Utc::now(),
+            },
+        ))
+        .await
+        .unwrap();
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let disabled = pem
+                .catalog
+                .db_schema("foo")
+                .unwrap()
+                .processing_engine_triggers
+                .get_by_name("test_trigger")
+                .unwrap()
+                .disabled;
+            let still_routed = pem.trigger_registry.read().await.routes.contains_key(&key);
+            if disabled && !still_routed {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("error-behavior=disable should persist and clean route");
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_create_disabled_trigger() -> Result<(), Box<dyn std::error::Error>> {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let test_store = Arc::new(InMemory::new());
@@ -139,7 +259,7 @@ async fn test_create_disabled_trigger() -> Result<(), Box<dyn std::error::Error>
         snapshot_size: 1,
         ..Default::default()
     };
-    let (pem, file) = setup(start_time, test_store, wal_config).await;
+    let (pem, write_endpoint, file) = setup(start_time, test_store, wal_config).await;
     let file_name = file
         .path()
         .file_name()
@@ -149,9 +269,9 @@ async fn test_create_disabled_trigger() -> Result<(), Box<dyn std::error::Error>
         .to_string();
 
     // Create the DB by inserting a line.
-    pem.write_endpoint
+    write_endpoint
         .write_lp(
-            DatabaseName::new("foo").unwrap(),
+            WriteTarget::User(DatabaseName::new("foo").unwrap()),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -198,12 +318,12 @@ async fn test_enable_nonexistent_trigger() -> Result<(), Box<dyn std::error::Err
         snapshot_size: 1,
         ..Default::default()
     };
-    let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
+    let (pem, write_endpoint, _file_name) = setup(start_time, test_store, wal_config).await;
 
     // Create the DB by inserting a line.
-    pem.write_endpoint
+    write_endpoint
         .write_lp(
-            DatabaseName::new("foo").unwrap(),
+            WriteTarget::User(DatabaseName::new("foo").unwrap()),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -225,12 +345,16 @@ async fn setup(
     start: Time,
     object_store: Arc<dyn ObjectStore>,
     wal_config: WalConfig,
-) -> (Arc<ProcessingEngineManagerImpl>, NamedTempFile) {
+) -> (
+    Arc<ProcessingEngineManagerImpl>,
+    Arc<dyn WriteEndpoint>,
+    NamedTempFile,
+) {
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
     let metric_registry = Arc::new(Registry::new());
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        "test_host".to_string(),
+        "test_host",
         Arc::clone(&time_provider),
         None,
     ));
@@ -273,8 +397,6 @@ async fn setup(
     let runtime_env = ctx.inner().runtime_env();
     register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
 
-    let qe = Arc::new(UnimplementedQueryExecutor);
-
     let mut file = NamedTempFile::new().unwrap();
     let code = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
@@ -289,22 +411,20 @@ def process_writes(influxdb3_local, table_batches, args=None):
         plugin_repo: None,
     };
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-
-    (
-        ProcessingEngineManagerImpl::new(
-            environment_manager,
-            catalog,
-            "test_node",
-            Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
-            time_provider,
-            sys_event_store,
-        )
-        .await
-        .unwrap(),
-        file,
+    let write_endpoint: Arc<dyn WriteEndpoint> = Arc::new(InProcessWriteEndpoint::new(wbuf));
+    let pem = ProcessingEngineManagerImpl::new_with_options(
+        environment_manager,
+        catalog,
+        "test_node",
+        Arc::clone(&write_endpoint),
+        Arc::new(UnimplementedQueryEndpoint),
+        time_provider,
+        ProcessingEngineManagerOptions::new(),
     )
+    .await
+    .unwrap();
+
+    (pem, write_endpoint, file)
 }
 
 pub(crate) fn make_exec() -> Arc<Executor> {
@@ -405,17 +525,17 @@ def helper_function():
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -457,14 +577,14 @@ def helper_function():
     .await
     .unwrap();
 
-    let pem = ProcessingEngineManagerImpl::new(
+    let pem = ProcessingEngineManagerImpl::new_with_options(
         environment_manager,
         Arc::clone(&catalog),
         "test_node",
         Arc::new(InProcessWriteEndpoint::new(wbuf)),
-        qe,
+        Arc::new(UnimplementedQueryEndpoint),
         time_provider,
-        sys_event_store,
+        ProcessingEngineManagerOptions::new(),
     )
     .await
     .unwrap();
@@ -501,17 +621,17 @@ async fn test_missing_init_py() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -553,14 +673,14 @@ async fn test_missing_init_py() {
     .await
     .unwrap();
 
-    let pem = ProcessingEngineManagerImpl::new(
+    let pem = ProcessingEngineManagerImpl::new_with_options(
         environment_manager,
         Arc::clone(&catalog),
         "test_node",
         Arc::new(InProcessWriteEndpoint::new(wbuf)),
-        qe,
+        Arc::new(UnimplementedQueryEndpoint),
         time_provider,
-        sys_event_store,
+        ProcessingEngineManagerOptions::new(),
     )
     .await
     .unwrap();
@@ -665,17 +785,17 @@ async fn test_atomic_directory_replacement() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -717,24 +837,23 @@ async fn test_atomic_directory_replacement() {
     .await
     .unwrap();
 
-    let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
-            environment_manager,
-            Arc::clone(&catalog),
-            "test_node",
-            Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
-            time_provider,
-            sys_event_store,
-        )
-        .await
-        .unwrap(),
-    );
+    let write_endpoint: Arc<dyn WriteEndpoint> = Arc::new(InProcessWriteEndpoint::new(wbuf));
+    let pem = ProcessingEngineManagerImpl::new_with_options(
+        environment_manager,
+        Arc::clone(&catalog),
+        "test_node",
+        Arc::clone(&write_endpoint),
+        Arc::new(UnimplementedQueryEndpoint),
+        time_provider,
+        ProcessingEngineManagerOptions::new(),
+    )
+    .await
+    .unwrap();
 
     // Create the DB and trigger first
-    pem.write_endpoint
+    write_endpoint
         .write_lp(
-            DatabaseName::new("foo").unwrap(),
+            WriteTarget::User(DatabaseName::new("foo").unwrap()),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -851,17 +970,17 @@ async fn test_create_plugin_file_path_traversal_parent_dir() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -904,14 +1023,14 @@ async fn test_create_plugin_file_path_traversal_parent_dir() {
     .unwrap();
 
     let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
+        ProcessingEngineManagerImpl::new_with_options(
             environment_manager,
             Arc::clone(&catalog),
             "test_node",
             Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
+            Arc::new(UnimplementedQueryEndpoint),
             time_provider,
-            sys_event_store,
+            ProcessingEngineManagerOptions::new(),
         )
         .await
         .unwrap(),
@@ -940,17 +1059,17 @@ async fn test_create_plugin_file_path_traversal_absolute() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -993,14 +1112,14 @@ async fn test_create_plugin_file_path_traversal_absolute() {
     .unwrap();
 
     let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
+        ProcessingEngineManagerImpl::new_with_options(
             environment_manager,
             Arc::clone(&catalog),
             "test_node",
             Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
+            Arc::new(UnimplementedQueryEndpoint),
             time_provider,
-            sys_event_store,
+            ProcessingEngineManagerOptions::new(),
         )
         .await
         .unwrap(),
@@ -1028,17 +1147,17 @@ async fn test_create_plugin_file_path_traversal_nested() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -1081,14 +1200,14 @@ async fn test_create_plugin_file_path_traversal_nested() {
     .unwrap();
 
     let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
+        ProcessingEngineManagerImpl::new_with_options(
             environment_manager,
             Arc::clone(&catalog),
             "test_node",
             Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
+            Arc::new(UnimplementedQueryEndpoint),
             time_provider,
-            sys_event_store,
+            ProcessingEngineManagerOptions::new(),
         )
         .await
         .unwrap(),
@@ -1116,17 +1235,17 @@ async fn test_create_plugin_file_valid_nested_path() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -1169,14 +1288,14 @@ async fn test_create_plugin_file_valid_nested_path() {
     .unwrap();
 
     let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
+        ProcessingEngineManagerImpl::new_with_options(
             environment_manager,
             Arc::clone(&catalog),
             "test_node",
             Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
+            Arc::new(UnimplementedQueryEndpoint),
             time_provider,
-            sys_event_store,
+            ProcessingEngineManagerOptions::new(),
         )
         .await
         .unwrap(),
@@ -1213,17 +1332,17 @@ async fn test_replace_plugin_directory_path_traversal_in_files() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -1265,24 +1384,23 @@ async fn test_replace_plugin_directory_path_traversal_in_files() {
     .await
     .unwrap();
 
-    let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
-            environment_manager,
-            Arc::clone(&catalog),
-            "test_node",
-            Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
-            time_provider,
-            sys_event_store,
-        )
-        .await
-        .unwrap(),
-    );
+    let write_endpoint: Arc<dyn WriteEndpoint> = Arc::new(InProcessWriteEndpoint::new(wbuf));
+    let pem = ProcessingEngineManagerImpl::new_with_options(
+        environment_manager,
+        Arc::clone(&catalog),
+        "test_node",
+        Arc::clone(&write_endpoint),
+        Arc::new(UnimplementedQueryEndpoint),
+        time_provider,
+        ProcessingEngineManagerOptions::new(),
+    )
+    .await
+    .unwrap();
 
     // Create the DB and trigger first
-    pem.write_endpoint
+    write_endpoint
         .write_lp(
-            DatabaseName::new("foo").unwrap(),
+            WriteTarget::User(DatabaseName::new("foo").unwrap()),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -1347,17 +1465,17 @@ async fn test_create_plugin_file_symlink_escape() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -1400,14 +1518,14 @@ async fn test_create_plugin_file_symlink_escape() {
     .unwrap();
 
     let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
+        ProcessingEngineManagerImpl::new_with_options(
             environment_manager,
             Arc::clone(&catalog),
             "test_node",
             Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
+            Arc::new(UnimplementedQueryEndpoint),
             time_provider,
-            sys_event_store,
+            ProcessingEngineManagerOptions::new(),
         )
         .await
         .unwrap(),
@@ -1446,17 +1564,17 @@ async fn test_update_plugin_file_validates_path() {
     let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
     let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
     let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let catalog = Catalog::new(
-        "test_host",
-        Arc::clone(&test_store),
-        Arc::clone(&time_provider),
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "test_host",
+            Arc::clone(&test_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
 
-    let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let qe = Arc::new(UnimplementedQueryExecutor);
     let persister = Arc::new(Persister::new(
         Arc::clone(&test_store),
         "test_host".to_string(),
@@ -1498,24 +1616,23 @@ async fn test_update_plugin_file_validates_path() {
     .await
     .unwrap();
 
-    let pem = Arc::new(
-        ProcessingEngineManagerImpl::new(
-            environment_manager,
-            Arc::clone(&catalog),
-            "test_node",
-            Arc::new(InProcessWriteEndpoint::new(wbuf)),
-            qe,
-            time_provider,
-            sys_event_store,
-        )
-        .await
-        .unwrap(),
-    );
+    let write_endpoint: Arc<dyn WriteEndpoint> = Arc::new(InProcessWriteEndpoint::new(wbuf));
+    let pem = ProcessingEngineManagerImpl::new_with_options(
+        environment_manager,
+        Arc::clone(&catalog),
+        "test_node",
+        Arc::clone(&write_endpoint),
+        Arc::new(UnimplementedQueryEndpoint),
+        time_provider,
+        ProcessingEngineManagerOptions::new(),
+    )
+    .await
+    .unwrap();
 
     // Create the DB and trigger
-    pem.write_endpoint
+    write_endpoint
         .write_lp(
-            DatabaseName::new("foo").unwrap(),
+            WriteTarget::User(DatabaseName::new("foo").unwrap()),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -1553,11 +1670,126 @@ async fn test_update_plugin_file_validates_path() {
     assert_eq!(content, "def process_v2(): pass");
 }
 
-/// Sets up a database with a trigger and its channel for deletion tests.
+struct NoopTriggerWorker {
+    completion: Arc<dyn crate::scheduler_worker_protocol::TriggerScheduler>,
+}
+
+impl crate::scheduler_worker_protocol::TriggerWorker for NoopTriggerWorker {
+    fn node_id(&self) -> Arc<str> {
+        Arc::<str>::from("worker")
+    }
+
+    fn submit_work(
+        self: Arc<Self>,
+        _scheduler_node_id: Arc<str>,
+        work: crate::scheduler_worker_protocol::TriggerWork,
+    ) {
+        let work_id = work.id;
+        let result = match work.payload {
+            crate::scheduler_worker_protocol::TriggerWorkPayload::Request(_) => Ok(
+                crate::scheduler_worker_protocol::TriggerWorkOutput::RequestResponse(
+                    crate::scheduler_worker_protocol::TriggerResponse {
+                        status_code: hyper::StatusCode::OK.as_u16(),
+                        headers: Default::default(),
+                        body: "ok".to_string(),
+                    },
+                ),
+            ),
+            crate::scheduler_worker_protocol::TriggerWorkPayload::Wal { .. }
+            | crate::scheduler_worker_protocol::TriggerWorkPayload::Schedule { .. } => {
+                Ok(crate::scheduler_worker_protocol::TriggerWorkOutput::Complete)
+            }
+        };
+        self.completion
+            .work_progressed(Arc::<str>::from("worker"), work_id);
+        self.completion.work_finished(
+            Arc::<str>::from("worker"),
+            crate::scheduler_worker_protocol::TriggerWorkResult { work_id, result },
+        );
+    }
+
+    fn cancel_work(
+        self: Arc<Self>,
+        _scheduler_node_id: Arc<str>,
+        _work_id: crate::scheduler_worker_protocol::TriggerWorkId,
+    ) {
+    }
+}
+
+struct AlwaysFailTriggerWorker {
+    completion: Arc<dyn crate::scheduler_worker_protocol::TriggerScheduler>,
+}
+
+impl crate::scheduler_worker_protocol::TriggerWorker for AlwaysFailTriggerWorker {
+    fn node_id(&self) -> Arc<str> {
+        Arc::<str>::from("worker")
+    }
+
+    fn submit_work(
+        self: Arc<Self>,
+        _scheduler_node_id: Arc<str>,
+        work: crate::scheduler_worker_protocol::TriggerWork,
+    ) {
+        let completion = Arc::clone(&self.completion);
+        tokio::spawn(async move {
+            completion.work_progressed(Arc::<str>::from("worker"), work.id);
+            completion.work_finished(
+                Arc::<str>::from("worker"),
+                crate::scheduler_worker_protocol::TriggerWorkResult {
+                    work_id: work.id,
+                    result: Err(
+                        crate::scheduler_worker_protocol::TriggerExecutionError::new("boom"),
+                    ),
+                },
+            );
+        });
+    }
+
+    fn cancel_work(
+        self: Arc<Self>,
+        _scheduler_node_id: Arc<str>,
+        _work_id: crate::scheduler_worker_protocol::TriggerWorkId,
+    ) {
+    }
+}
+
+fn trigger_key(db_id: DbId, trigger_id: TriggerId) -> crate::scheduler::TriggerKey {
+    crate::scheduler::TriggerKey { db_id, trigger_id }
+}
+
+fn successful_auto_disable() -> crate::scheduler::AutoDisable {
+    Arc::new(|| Box::pin(async { true }) as crate::scheduler::AutoDisableFuture)
+}
+
+const REQUEST_TRIGGER_PATH: &str = "/api/v3/engine/test_db/test_endpoint";
+
+fn trigger_name_for_kind(trigger_kind: &str) -> &'static str {
+    match trigger_kind {
+        "wal" => "wal_trigger",
+        "schedule" => "schedule_trigger",
+        "request" => "request_trigger",
+        other => panic!("unknown trigger kind: {other}"),
+    }
+}
+
+fn trigger_spec_for_kind(trigger_kind: &str) -> &'static str {
+    match trigger_kind {
+        "wal" => "all_tables",
+        "schedule" => "every:1s",
+        "request" => "request:/api/v3/engine/test_db/test_endpoint",
+        other => panic!("unknown trigger kind: {other}"),
+    }
+}
+
+fn request_path_for_kind(trigger_kind: &str) -> Option<&'static str> {
+    (trigger_kind == "request").then_some(REQUEST_TRIGGER_PATH)
+}
+
+/// Sets up a database with a trigger and its registry for deletion tests.
 ///
 /// Creates a "test_db" database, registers a trigger of the given kind in the
-/// catalog, and inserts the corresponding channel into PluginChannels. Returns
-/// the processing engine manager and the database ID (needed for hard delete).
+/// catalog, and starts a scheduler runtime for it. WAL and request triggers also
+/// get routing metadata. Returns the token so tests can assert shutdown.
 ///
 /// The `_file` return keeps the NamedTempFile alive so the plugin path remains valid.
 async fn setup_db_with_trigger(
@@ -1567,6 +1799,7 @@ async fn setup_db_with_trigger(
         Arc<ProcessingEngineManagerImpl>,
         DbId,
         TriggerId,
+        CancellationToken,
         NamedTempFile,
     ),
     Box<dyn std::error::Error>,
@@ -1580,7 +1813,7 @@ async fn setup_db_with_trigger(
         snapshot_size: 1,
         ..Default::default()
     };
-    let (pem, file) = setup(start_time, test_store, wal_config).await;
+    let (pem, write_endpoint, file) = setup(start_time, test_store, wal_config).await;
     let file_name = file
         .path()
         .file_name()
@@ -1590,9 +1823,9 @@ async fn setup_db_with_trigger(
         .to_string();
 
     // Create the DB
-    pem.write_endpoint
+    write_endpoint
         .write_lp(
-            DatabaseName::new("test_db").unwrap(),
+            WriteTarget::User(DatabaseName::new("test_db").unwrap()),
             "cpu,host=a val=1\n",
             start_time,
             false,
@@ -1601,15 +1834,8 @@ async fn setup_db_with_trigger(
 
     let db_id = pem.catalog.db_schema("test_db").unwrap().id;
 
-    let (trigger_name, trigger_spec) = match trigger_kind {
-        "wal" => ("wal_trigger", "all_tables"),
-        "schedule" => ("schedule_trigger", "every:1s"),
-        "request" => (
-            "request_trigger",
-            "request:/api/v3/engine/test_db/test_endpoint",
-        ),
-        other => panic!("unknown trigger kind: {other}"),
-    };
+    let trigger_name = trigger_name_for_kind(trigger_kind);
+    let trigger_spec = trigger_spec_for_kind(trigger_kind);
 
     let validated = pem.validate_plugin_filename(&file_name).await.unwrap();
     pem.catalog
@@ -1625,83 +1851,104 @@ async fn setup_db_with_trigger(
         )
         .await?;
 
-    let trigger_id = pem
+    let trigger = pem
         .catalog
         .db_schema("test_db")
         .unwrap()
         .processing_engine_triggers
         .get_by_name(trigger_name)
-        .unwrap()
-        .trigger_id;
+        .unwrap();
+    let trigger_id = trigger.trigger_id;
 
-    // Insert the channel to simulate a running trigger. run_trigger requires
-    // enterprise node registration, so we populate the channel map directly.
+    // Simulate a running trigger without going through run_trigger, which requires
+    // enterprise node registration.
+    let key = trigger_key(db_id, trigger_id);
+    let cancel = CancellationToken::new();
+    pem.scheduler
+        .register_trigger(crate::scheduler::TriggerRegistration {
+            key,
+            trigger_definition: Arc::clone(&trigger),
+            cancel: cancel.clone(),
+            config: crate::scheduler::SchedulerConfig::new(
+                16,
+                trigger.trigger_settings.run_async,
+                std::num::NonZeroUsize::MAX,
+            ),
+            auto_disable: successful_auto_disable(),
+        })
+        .await;
+
+    // Insert only the routing metadata needed for externally delivered events.
+    // Schedule triggers are driven by their event-source task and do not need a route.
     {
-        let mut channels = pem.plugin_event_tx.write().await;
+        let mut registry = pem.trigger_registry.write().await;
         match trigger_kind {
             "wal" => {
-                channels.add_wal_trigger(db_id, trigger_id);
-            }
-            "schedule" => {
-                channels.add_schedule_trigger(db_id, trigger_id, CancellationToken::new());
-            }
-            "request" => {
-                channels.add_request_trigger(
-                    db_id,
-                    trigger_id,
-                    "/api/v3/engine/test_db/test_endpoint".to_string(),
+                registry.add_wal_trigger(
+                    key,
+                    Arc::clone(&trigger.database_name),
+                    crate::WalRouteFilter::AllTables,
                 );
+            }
+            "schedule" => {}
+            "request" => {
+                registry.add_request_trigger(key, REQUEST_TRIGGER_PATH.to_string());
             }
             _ => unreachable!(),
         }
     }
 
-    Ok((pem, db_id, trigger_id, file))
+    Ok((pem, db_id, trigger_id, cancel, file))
+}
+
+async fn assert_external_route(
+    pem: &ProcessingEngineManagerImpl,
+    key: crate::scheduler::TriggerKey,
+    request_path: Option<&str>,
+    expected: bool,
+) {
+    let registry = pem.trigger_registry.read().await;
+    assert_eq!(registry.routes.contains_key(&key), expected);
+    if let Some(path) = request_path {
+        assert_eq!(registry.request_paths.contains_key(path), expected);
+    }
+}
+
+fn assert_trigger_disabled(pem: &ProcessingEngineManagerImpl, db_id: DbId, trigger_kind: &str) {
+    let db = pem.catalog.db_schema_by_id(&db_id).unwrap();
+    let trigger = db
+        .processing_engine_triggers
+        .get_by_name(trigger_name_for_kind(trigger_kind))
+        .unwrap();
+    assert!(
+        trigger.disabled,
+        "{trigger_kind} trigger should be disabled in the catalog after soft delete"
+    );
 }
 
 #[test_log::test(tokio::test)]
-async fn test_soft_delete_stops_wal_triggers() -> Result<(), Box<dyn std::error::Error>> {
-    let (pem, db_id, trigger_id, _file) = setup_db_with_trigger("wal").await?;
+async fn test_soft_delete_stops_external_triggers() -> Result<(), Box<dyn std::error::Error>> {
+    for trigger_kind in ["wal", "request"] {
+        let (pem, db_id, trigger_id, _cancel, _file) = setup_db_with_trigger(trigger_kind).await?;
+        let key = trigger_key(db_id, trigger_id);
+        let request_path = request_path_for_kind(trigger_kind);
 
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id))
-        );
-    }
+        assert_external_route(&pem, key, request_path, true).await;
 
-    // HardDeletionTime::Never means no hard delete follows, so soft delete
-    // performs full cleanup (shutdown + remove + cache drop) immediately.
-    pem.catalog
-        .soft_delete_database("test_db", HardDeletionTime::Never, DeletionScope::default())
-        .await?;
+        // HardDeletionTime::Never means no hard delete follows, so soft delete
+        // performs full cleanup (shutdown + remove + cache drop) immediately.
+        pem.catalog
+            .soft_delete_database(
+                "test_db",
+                HardDeletionTime::Never,
+                DeletionScope::DataAndCatalog,
+            )
+            .await?;
 
-    // Catalog subscriptions are synchronous (ACK-on-drop), so by the time
-    // soft_delete_database returns, the background handler has processed it.
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            !channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "WAL triggers should be fully removed after soft delete with HardDeletionTime::Never"
-        );
-    }
-    // Triggers should be marked disabled in the catalog
-    {
-        let db = pem.catalog.db_schema_by_id(&db_id).unwrap();
-        let trigger = db
-            .processing_engine_triggers
-            .get_by_name("wal_trigger")
-            .unwrap();
-        assert!(
-            trigger.disabled,
-            "WAL trigger should be disabled in the catalog after soft delete"
-        );
+        // Catalog subscriptions are synchronous (ACK-on-drop), so by the time
+        // soft_delete_database returns, the background handler has processed it.
+        assert_external_route(&pem, key, request_path, false).await;
+        assert_trigger_disabled(&pem, db_id, trigger_kind);
     }
     Ok(())
 }
@@ -1718,7 +1965,7 @@ fn seed_trigger_cache(cache: &Arc<Mutex<CacheStore>>, db_id: DbId, trigger_id: T
 
 #[test_log::test(tokio::test)]
 async fn test_soft_delete_drops_trigger_cache() -> Result<(), Box<dyn std::error::Error>> {
-    let (pem, db_id, trigger_id, _file) = setup_db_with_trigger("wal").await?;
+    let (pem, db_id, trigger_id, _cancel, _file) = setup_db_with_trigger("wal").await?;
     init_pyo3();
 
     seed_trigger_cache(&pem.cache, db_id, trigger_id);
@@ -1732,7 +1979,11 @@ async fn test_soft_delete_drops_trigger_cache() -> Result<(), Box<dyn std::error
     // immediately. Catalog subscriptions are synchronous, so the handler has
     // run by the time this returns.
     pem.catalog
-        .soft_delete_database("test_db", HardDeletionTime::Never, DeletionScope::default())
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Never,
+            DeletionScope::DataAndCatalog,
+        )
         .await?;
 
     assert!(
@@ -1748,39 +1999,14 @@ async fn test_soft_delete_drops_trigger_cache() -> Result<(), Box<dyn std::error
 
 #[test_log::test(tokio::test)]
 async fn test_stop_trigger_drops_trigger_cache() -> Result<(), Box<dyn std::error::Error>> {
-    // Reuse the helper only to obtain a ready `pem`; we register our own trigger
-    // ids below. stop_trigger does not consult the catalog, so the catalog state
-    // is irrelevant to it.
-    let (pem, _db_id, _trigger_id, _file) = setup_db_with_trigger("wal").await?;
+    let (pem, db_id, trigger_id, _cancel, _file) = setup_db_with_trigger("wal").await?;
     init_pyo3();
-
-    // Fresh ids, distinct from the helper's.
-    let db_id = DbId::new(7);
-    let trigger_id = TriggerId::new(7);
-
-    // Register a WAL trigger and keep the receiver alive so send_shutdown
-    // succeeds.
-    let rx = pem
-        .plugin_event_tx
-        .write()
-        .await
-        .add_wal_trigger(db_id, trigger_id);
-
-    // Complete the shutdown handshake so stop_trigger's shutdown_rx.await
-    // resolves Ok and the trigger is removed.
-    let responder = tokio::spawn(async move {
-        let mut rx = rx;
-        if let Some(WalEvent::Shutdown(tx)) = rx.recv().await {
-            let _ = tx.send(());
-        }
-    });
 
     seed_trigger_cache(&pem.cache, db_id, trigger_id);
     // Control entry; must survive, proving the drop is id-scoped.
     seed_trigger_cache(&pem.cache, DbId::new(8), TriggerId::new(8));
 
     pem.stop_trigger(db_id, trigger_id).await.unwrap();
-    responder.await.unwrap();
 
     assert!(
         !pem.cache.lock().drop_trigger_cache(db_id, trigger_id),
@@ -1797,389 +2023,383 @@ async fn test_stop_trigger_drops_trigger_cache() -> Result<(), Box<dyn std::erro
 
 #[test_log::test(tokio::test)]
 async fn test_soft_delete_stops_schedule_triggers() -> Result<(), Box<dyn std::error::Error>> {
-    let (pem, db_id, trigger_id, _file) = setup_db_with_trigger("schedule").await?;
-
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id))
-        );
-    }
+    let (pem, db_id, _trigger_id, cancel, _file) = setup_db_with_trigger("schedule").await?;
+    assert!(!cancel.is_cancelled());
 
     pem.catalog
-        .soft_delete_database("test_db", HardDeletionTime::Never, DeletionScope::default())
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Never,
+            DeletionScope::DataAndCatalog,
+        )
         .await?;
 
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            !channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "Schedule triggers should be fully removed after soft delete with HardDeletionTime::Never"
-        );
-    }
-    // Triggers should be marked disabled in the catalog
-    {
-        let db = pem.catalog.db_schema_by_id(&db_id).unwrap();
-        let trigger = db
-            .processing_engine_triggers
-            .get_by_name("schedule_trigger")
-            .unwrap();
-        assert!(
-            trigger.disabled,
-            "Schedule trigger should be disabled in the catalog after soft delete"
-        );
-    }
+    assert!(
+        cancel.is_cancelled(),
+        "Schedule trigger runtime should stop after soft delete with HardDeletionTime::Never"
+    );
+    assert_trigger_disabled(&pem, db_id, "schedule");
     Ok(())
 }
 
 #[test_log::test(tokio::test)]
-async fn test_soft_delete_stops_request_triggers() -> Result<(), Box<dyn std::error::Error>> {
-    let (pem, db_id, trigger_id, _file) = setup_db_with_trigger("request").await?;
+async fn test_hard_delete_removes_external_triggers() -> Result<(), Box<dyn std::error::Error>> {
+    for trigger_kind in ["wal", "request"] {
+        let (pem, db_id, trigger_id, _cancel, _file) = setup_db_with_trigger(trigger_kind).await?;
+        let key = trigger_key(db_id, trigger_id);
+        let request_path = request_path_for_kind(trigger_kind);
 
-    let path = "/api/v3/engine/test_db/test_endpoint";
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id))
-        );
-        assert!(channels.request_paths.contains_key(path));
-    }
+        // Use HardDeletionTime::Now so soft delete leaves the trigger in the
+        // routing table for the hard delete handler instead of cleaning up immediately.
+        pem.catalog
+            .soft_delete_database(
+                "test_db",
+                HardDeletionTime::Now,
+                DeletionScope::DataAndCatalog,
+            )
+            .await?;
 
-    pem.catalog
-        .soft_delete_database("test_db", HardDeletionTime::Never, DeletionScope::default())
-        .await?;
+        assert_external_route(&pem, key, request_path, true).await;
 
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            !channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "Request triggers should be fully removed after soft delete with HardDeletionTime::Never"
-        );
-        assert!(
-            !channels.request_paths.contains_key(path),
-            "Request path index should be cleared after soft delete with HardDeletionTime::Never"
-        );
-    }
-    // Triggers should be marked disabled in the catalog
-    {
-        let db = pem.catalog.db_schema_by_id(&db_id).unwrap();
-        let trigger = db
-            .processing_engine_triggers
-            .get_by_name("request_trigger")
-            .unwrap();
-        assert!(
-            trigger.disabled,
-            "Request trigger should be disabled in the catalog after soft delete"
-        );
-    }
-    Ok(())
-}
+        pem.catalog.hard_delete_database(&db_id).await?;
 
-#[test_log::test(tokio::test)]
-async fn test_hard_delete_removes_wal_triggers() -> Result<(), Box<dyn std::error::Error>> {
-    let (pem, db_id, trigger_id, _file) = setup_db_with_trigger("wal").await?;
-
-    // Use HardDeletionTime::Now so soft delete leaves the trigger in the
-    // registry for the hard delete handler instead of cleaning up immediately.
-    pem.catalog
-        .soft_delete_database("test_db", HardDeletionTime::Now, DeletionScope::default())
-        .await?;
-
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "WAL triggers should still be in the map after soft delete (pending hard delete)"
-        );
-    }
-
-    pem.catalog.hard_delete_database(&db_id).await?;
-
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            !channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "WAL triggers should be fully removed after hard delete"
-        );
+        assert_external_route(&pem, key, request_path, false).await;
     }
     Ok(())
 }
 
 #[test_log::test(tokio::test)]
 async fn test_hard_delete_removes_schedule_triggers() -> Result<(), Box<dyn std::error::Error>> {
-    let (pem, db_id, trigger_id, _file) = setup_db_with_trigger("schedule").await?;
+    let (pem, db_id, _trigger_id, cancel, _file) = setup_db_with_trigger("schedule").await?;
+    assert!(!cancel.is_cancelled());
 
     pem.catalog
-        .soft_delete_database("test_db", HardDeletionTime::Now, DeletionScope::default())
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Now,
+            DeletionScope::DataAndCatalog,
+        )
         .await?;
 
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "Schedule triggers should still be in the map after soft delete (pending hard delete)"
-        );
-    }
+    assert!(
+        cancel.is_cancelled(),
+        "Schedule trigger runtime should stop on soft delete even when hard delete is pending"
+    );
 
     pem.catalog.hard_delete_database(&db_id).await?;
-
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            !channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "Schedule triggers should be fully removed after hard delete"
-        );
-    }
     Ok(())
 }
 
-#[test_log::test(tokio::test)]
-async fn test_hard_delete_removes_request_triggers() -> Result<(), Box<dyn std::error::Error>> {
-    let (pem, db_id, trigger_id, _file) = setup_db_with_trigger("request").await?;
-
-    let path = "/api/v3/engine/test_db/test_endpoint";
-
-    pem.catalog
-        .soft_delete_database("test_db", HardDeletionTime::Now, DeletionScope::default())
-        .await?;
-
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "Request triggers should still be in the map after soft delete (pending hard delete)"
-        );
-        assert!(
-            channels.request_paths.contains_key(path),
-            "Request path index should still be present after soft delete (pending hard delete)"
-        );
-    }
-
-    pem.catalog.hard_delete_database(&db_id).await?;
-
-    {
-        let channels = pem.plugin_event_tx.read().await;
-        assert!(
-            !channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "Request triggers should be fully removed after hard delete"
-        );
-        assert!(
-            !channels.request_paths.contains_key(path),
-            "Request path index should be cleared after hard delete"
-        );
-    }
-    Ok(())
-}
-
-/// Unit tests for the id-keyed running-trigger registry. These exercise
-/// `PluginChannels` directly, without a catalog, to prove shutdown and request
-/// routing are driven entirely by `(DbId, TriggerId)`.
+/// Unit tests for the id-keyed trigger routing table. These exercise
+/// `TriggerRegistry` directly, without a catalog, to prove WAL and request
+/// routing are driven by `TriggerKey`.
 #[cfg(test)]
-mod plugin_channels_tests {
-    use crate::{PluginChannels, Request, RequestEvent, WalEvent};
+mod trigger_registry_tests {
+    use crate::{TriggerRegistry, WalRouteFilter};
     use bytes::Bytes;
     use hashbrown::HashMap;
-    use influxdb3_id::{DbId, TriggerId};
+    use influxdb3_catalog::catalog::{
+        NodeSpec, TriggerDefinition, TriggerSettings, TriggerSpecificationDefinition,
+    };
+    use influxdb3_id::{DbId, TableId, TriggerId};
+    use influxdb3_py_api::wal::WalFlushElement;
     use iox_http_util::Response;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
     use tokio::sync::oneshot;
     use tokio_util::sync::CancellationToken;
 
-    #[tokio::test]
-    async fn add_wal_trigger_is_keyed_by_id() {
-        let mut channels = PluginChannels::default();
-        let db_id = DbId::new(1);
-        let trigger_id = TriggerId::new(2);
-        let _rx = channels.add_wal_trigger(db_id, trigger_id);
-        assert!(
-            channels
-                .triggers
-                .get(&db_id)
-                .unwrap()
-                .contains_key(&trigger_id)
-        );
+    fn trigger(db_id: DbId, trigger_id: TriggerId) -> Arc<TriggerDefinition> {
+        let _ = db_id;
+        Arc::new(TriggerDefinition {
+            trigger_id,
+            trigger_name: Arc::from("trig"),
+            plugin_filename: "plugin.py".to_string(),
+            database_name: Arc::from("db"),
+            node_spec: NodeSpec::All,
+            trigger: TriggerSpecificationDefinition::AllTablesWalWrite,
+            trigger_settings: TriggerSettings::default(),
+            trigger_arguments: None,
+            disabled: false,
+        })
+    }
+
+    fn key(db_id: DbId, trigger_id: TriggerId) -> crate::scheduler::TriggerKey {
+        crate::scheduler::TriggerKey { db_id, trigger_id }
+    }
+
+    async fn register_trigger(
+        scheduler: &crate::scheduler::Scheduler,
+        db_id: DbId,
+        trigger_id: TriggerId,
+        token: CancellationToken,
+    ) {
+        scheduler
+            .register_trigger(crate::scheduler::TriggerRegistration {
+                key: key(db_id, trigger_id),
+                trigger_definition: trigger(db_id, trigger_id),
+                cancel: token,
+                config: crate::scheduler::SchedulerConfig::new(
+                    16,
+                    false,
+                    std::num::NonZeroUsize::MAX,
+                ),
+                auto_disable: super::successful_auto_disable(),
+            })
+            .await;
+    }
+
+    struct CountingWorker {
+        attempts: Arc<AtomicUsize>,
+        completion: Arc<dyn crate::scheduler_worker_protocol::TriggerScheduler>,
+    }
+
+    impl crate::scheduler_worker_protocol::TriggerWorker for CountingWorker {
+        fn node_id(&self) -> Arc<str> {
+            Arc::<str>::from("worker")
+        }
+
+        fn submit_work(
+            self: Arc<Self>,
+            _scheduler_node_id: Arc<str>,
+            work: crate::scheduler_worker_protocol::TriggerWork,
+        ) {
+            let completion = Arc::clone(&self.completion);
+            tokio::spawn(async move {
+                self.attempts.fetch_add(1, Ordering::SeqCst);
+                completion.work_progressed(Arc::<str>::from("worker"), work.id);
+                completion.work_finished(
+                    Arc::<str>::from("worker"),
+                    crate::scheduler_worker_protocol::TriggerWorkResult {
+                        work_id: work.id,
+                        result: Ok(crate::scheduler_worker_protocol::TriggerWorkOutput::Complete),
+                    },
+                );
+            });
+        }
+
+        fn cancel_work(
+            self: Arc<Self>,
+            _scheduler_node_id: Arc<str>,
+            _work_id: crate::scheduler_worker_protocol::TriggerWorkId,
+        ) {
+        }
+    }
+
+    async fn counting_wal_scheduler(
+        db_id: DbId,
+        trigger_id: TriggerId,
+        attempts: Arc<AtomicUsize>,
+    ) -> crate::scheduler::Scheduler {
+        let scheduler =
+            crate::scheduler::Scheduler::new(Arc::<str>::from("scheduler"), |completion| {
+                vec![Arc::new(CountingWorker {
+                    attempts,
+                    completion,
+                })]
+            });
+        register_trigger(&scheduler, db_id, trigger_id, CancellationToken::new()).await;
+        scheduler
     }
 
     #[tokio::test]
-    async fn shutdown_by_id_without_catalog_spec() {
-        let mut channels = PluginChannels::default();
+    async fn add_wal_trigger_is_keyed_by_id() {
+        let mut registry = TriggerRegistry::default();
         let db_id = DbId::new(1);
         let trigger_id = TriggerId::new(2);
-        let mut event_rx = channels.add_wal_trigger(db_id, trigger_id);
+        let key = key(db_id, trigger_id);
 
-        let rx = channels
-            .send_shutdown(db_id, trigger_id)
-            .await
-            .expect("send_shutdown should not error")
-            .expect("a receiver should be returned for a running trigger");
+        registry.add_wal_trigger(key, Arc::from("db"), WalRouteFilter::AllTables);
 
-        // The trigger should have received a Shutdown event.
-        assert!(
-            matches!(event_rx.recv().await, Some(WalEvent::Shutdown(_))),
-            "expected WalEvent::Shutdown"
+        assert!(registry.routes.contains_key(&key));
+    }
+
+    #[tokio::test]
+    async fn single_table_wal_routing_skips_unrelated_flushes() {
+        let mut registry = TriggerRegistry::default();
+        let db_id = DbId::new(1);
+        let trigger_id = TriggerId::new(2);
+        let key = key(db_id, trigger_id);
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let scheduler = counting_wal_scheduler(db_id, trigger_id, Arc::clone(&attempts)).await;
+        registry.add_wal_trigger(
+            key,
+            Arc::from("db"),
+            WalRouteFilter::SingleTable("home".to_string()),
         );
 
-        // send_shutdown for an unknown trigger yields Ok(None).
-        assert!(
-            channels
-                .send_shutdown(db_id, TriggerId::new(99))
-                .await
-                .unwrap()
-                .is_none()
-        );
+        let unrelated: Arc<[WalFlushElement]> = Arc::from(vec![WalFlushElement {
+            table_id: TableId::new(1),
+            table_name: Arc::from("sensors"),
+            data: vec![],
+        }]);
+        crate::ProcessingEngineManagerImpl::enqueue_wal_invocations(
+            &scheduler,
+            registry.wal_invocations(Arc::from("db"), unrelated),
+        )
+        .await;
+        tokio::task::yield_now().await;
+        assert_eq!(attempts.load(Ordering::SeqCst), 0);
 
-        drop(rx);
+        let related: Arc<[WalFlushElement]> = Arc::from(vec![WalFlushElement {
+            table_id: TableId::new(2),
+            table_name: Arc::from("home"),
+            data: vec![],
+        }]);
+        crate::ProcessingEngineManagerImpl::enqueue_wal_invocations(
+            &scheduler,
+            registry.wal_invocations(Arc::from("db"), related),
+        )
+        .await;
+        while attempts.load(Ordering::SeqCst) < 1 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+        scheduler.shutdown_trigger(key).await;
+    }
+
+    #[tokio::test]
+    async fn remove_all_for_db_removes_matching_routes_only() {
+        let mut registry = TriggerRegistry::default();
+        let db_id = DbId::new(1);
+        let trigger_id = TriggerId::new(2);
+        let trigger_key = key(db_id, trigger_id);
+        let other_key = key(DbId::new(2), TriggerId::new(3));
+        registry.add_wal_trigger(trigger_key, Arc::from("db"), WalRouteFilter::AllTables);
+        registry.add_wal_trigger(other_key, Arc::from("other"), WalRouteFilter::AllTables);
+
+        registry.remove_all_for_db(db_id);
+
+        assert!(!registry.routes.contains_key(&trigger_key));
+        assert!(registry.routes.contains_key(&other_key));
     }
 
     #[tokio::test]
     async fn remove_request_trigger_clears_path_index() {
-        let mut channels = PluginChannels::default();
+        let mut registry = TriggerRegistry::default();
         let db_id = DbId::new(1);
         let trigger_id = TriggerId::new(2);
-        let _rx = channels.add_request_trigger(db_id, trigger_id, "/p".to_string());
-        assert!(channels.request_paths.contains_key("/p"));
+        let key = key(db_id, trigger_id);
+        registry.add_request_trigger(key, "/p".to_string());
+        assert!(registry.request_paths.contains_key("/p"));
 
-        channels.remove_trigger(db_id, trigger_id);
+        registry.remove_trigger(key);
 
         assert!(
-            !channels.request_paths.contains_key("/p"),
+            !registry.request_paths.contains_key("/p"),
             "removing a request trigger must clear its path index"
         );
         assert!(
-            !channels
-                .triggers
-                .get(&db_id)
-                .is_some_and(|m| m.contains_key(&trigger_id)),
-            "removing a request trigger must drop it from the registry"
+            !registry.routes.contains_key(&key),
+            "removing a request trigger must drop it from the routes"
         );
     }
 
     #[tokio::test]
     async fn send_request_routes_by_path() {
-        let mut channels = PluginChannels::default();
+        let mut registry = TriggerRegistry::default();
         let db_id = DbId::new(1);
         let trigger_id = TriggerId::new(2);
-        let mut event_rx = channels.add_request_trigger(db_id, trigger_id, "/p".to_string());
+        let key = key(db_id, trigger_id);
+        let scheduler =
+            crate::scheduler::Scheduler::new(Arc::<str>::from("scheduler"), |completion| {
+                vec![Arc::new(super::NoopTriggerWorker { completion })]
+            });
+        register_trigger(&scheduler, db_id, trigger_id, CancellationToken::new()).await;
+        registry.add_request_trigger(key, "/p".to_string());
 
-        let (response_tx, _response_rx) = oneshot::channel::<Response>();
-        let request = Request {
-            query_params: HashMap::new(),
-            headers: HashMap::new(),
-            body: Bytes::new(),
+        let (response_tx, response_rx) = oneshot::channel::<Response>();
+        let payload = crate::scheduler::RequestPayload::new(
+            HashMap::new(),
+            HashMap::new(),
+            Bytes::new(),
             response_tx,
-        };
-        channels
-            .send_request("/p", request)
-            .await
-            .expect("send_request should route by path");
-
-        assert!(
-            matches!(event_rx.recv().await, Some(RequestEvent::Request(_))),
-            "expected RequestEvent::Request"
         );
+        let invocation = registry
+            .request_invocation("/p", payload)
+            .expect("request_invocation should route by path");
+        scheduler
+            .enqueue(invocation)
+            .await
+            .expect("enqueue request");
+        let response = response_rx
+            .await
+            .expect("request should receive a response");
+        assert_eq!(response.status(), hyper::StatusCode::OK);
 
         // An unknown path is reported as not found.
         let (response_tx, _response_rx) = oneshot::channel::<Response>();
-        let request = Request {
-            query_params: HashMap::new(),
-            headers: HashMap::new(),
-            body: Bytes::new(),
+        let payload = crate::scheduler::RequestPayload::new(
+            HashMap::new(),
+            HashMap::new(),
+            Bytes::new(),
             response_tx,
-        };
-        assert!(channels.send_request("/missing", request).await.is_err());
+        );
+        assert!(registry.request_invocation("/missing", payload).is_err());
+        scheduler.shutdown_trigger(key).await;
     }
 
     #[tokio::test]
-    async fn shutdown_all_for_db_by_id() {
-        let mut channels = PluginChannels::default();
+    async fn registering_schedule_trigger_replaces_and_cancels_old_runtime() {
+        let scheduler =
+            crate::scheduler::Scheduler::new(Arc::<str>::from("scheduler"), |completion| {
+                vec![Arc::new(super::NoopTriggerWorker { completion })]
+            });
+        let db_id = DbId::new(1);
+        let trigger_id = TriggerId::new(2);
+        let old_token = CancellationToken::new();
+        let new_token = CancellationToken::new();
+
+        register_trigger(&scheduler, db_id, trigger_id, old_token.clone()).await;
+        register_trigger(&scheduler, db_id, trigger_id, new_token.clone()).await;
+
+        assert!(old_token.is_cancelled());
+        assert!(!new_token.is_cancelled());
+        scheduler.shutdown_trigger(key(db_id, trigger_id)).await;
+        assert!(new_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn remove_all_for_db_clears_request_path_index() {
+        let mut registry = TriggerRegistry::default();
         let db_id = DbId::new(1);
         let wal_trigger = TriggerId::new(2);
         let req_trigger = TriggerId::new(3);
-        let mut wal_rx = channels.add_wal_trigger(db_id, wal_trigger);
-        let _req_rx = channels.add_request_trigger(db_id, req_trigger, "/p".to_string());
+        let wal_key = key(db_id, wal_trigger);
+        let req_key = key(db_id, req_trigger);
+        registry.add_wal_trigger(wal_key, Arc::from("db"), WalRouteFilter::AllTables);
+        registry.add_request_trigger(req_key, "/p".to_string());
 
-        let receivers = channels.shutdown_all_for_db(db_id).await;
-        assert_eq!(
-            receivers.len(),
-            2,
-            "shutdown_all_for_db should return one receiver per running trigger"
-        );
+        registry.remove_all_for_db(db_id);
 
-        // The WAL trigger should have received a Shutdown event.
+        assert!(!registry.routes.contains_key(&wal_key));
+        assert!(!registry.routes.contains_key(&req_key));
         assert!(
-            matches!(wal_rx.recv().await, Some(WalEvent::Shutdown(_))),
-            "expected WalEvent::Shutdown"
+            !registry.request_paths.contains_key("/p"),
+            "removing request routes for a DB must clear the path index"
         );
     }
 
-    /// Stopping a scheduled trigger must cancel its per-trigger token, so an
-    /// in-flight run_async=false run is interrupted (the schedule loop races this
-    /// token in run_at_time). Without it the disable/`delete --force` hang recurs.
+    /// Stopping a trigger must cancel its per-trigger token so an in-flight
+    /// plugin run is interrupted (the run loop races this token).
     #[tokio::test]
-    async fn send_shutdown_cancels_schedule_trigger_token() {
-        let mut channels = PluginChannels::default();
-        let (db_id, trigger_id) = (DbId::new(1), TriggerId::new(1));
+    async fn scheduler_shutdown_trigger_cancels_trigger_token() {
         let token = CancellationToken::new();
-        let _rx = channels.add_schedule_trigger(db_id, trigger_id, token.clone());
+        let scheduler =
+            crate::scheduler::Scheduler::new(Arc::<str>::from("scheduler"), |completion| {
+                vec![Arc::new(super::NoopTriggerWorker { completion })]
+            });
+        let db_id = DbId::new(1);
+        let trigger_id = TriggerId::new(1);
+        register_trigger(&scheduler, db_id, trigger_id, token.clone()).await;
         assert!(!token.is_cancelled());
 
-        let shutdown_rx = channels.send_shutdown(db_id, trigger_id).await.unwrap();
-        assert!(shutdown_rx.is_some(), "expected a shutdown receiver");
+        scheduler.shutdown_trigger(key(db_id, trigger_id)).await;
         assert!(
             token.is_cancelled(),
-            "stopping a scheduled trigger must cancel its per-trigger token"
-        );
-    }
-
-    /// Deleting a database must also cancel its scheduled triggers' tokens — a
-    /// blocking run_async=false run would otherwise hang the database deletion the
-    /// same way it hangs a single-trigger disable/delete.
-    #[tokio::test]
-    async fn shutdown_all_for_db_cancels_schedule_trigger_token() {
-        let mut channels = PluginChannels::default();
-        let (db_id, trigger_id) = (DbId::new(1), TriggerId::new(1));
-        let token = CancellationToken::new();
-        let _rx = channels.add_schedule_trigger(db_id, trigger_id, token.clone());
-        assert!(!token.is_cancelled());
-
-        let receivers = channels.shutdown_all_for_db(db_id).await;
-        assert_eq!(
-            receivers.len(),
-            1,
-            "expected one shutdown receiver for the schedule trigger"
-        );
-        assert!(
-            token.is_cancelled(),
-            "deleting a database must cancel its schedule triggers' tokens"
+            "stopping a trigger must cancel its per-trigger token"
         );
     }
 }

@@ -1,18 +1,33 @@
-use arrow_array::builder::{StringBuilder, TimestampNanosecondBuilder};
-use arrow_array::{ArrayRef, RecordBatch};
-use arrow_schema::{ArrowError, DataType, Field, Schema, TimeUnit};
-use influxdb3_sys_events::{Event, RingBuffer, SysEventStore, ToRecordBatch};
-use iox_time::Time;
+use arrow_schema::{DataType, Field, Schema, TimeUnit};
+use async_trait::async_trait;
+use influxdb3_types::DatabaseName;
+use iox_time::{Time, TimeProvider};
+use observability_deps::tracing::warn;
 use parking_lot::Mutex;
-use std::fmt::Display;
-use std::sync::Arc;
+use std::fmt::{Debug, Display};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+use thiserror::Error;
+use tokio::sync::mpsc;
 
-#[derive(Debug)]
+pub const PROCESSING_ENGINE_LOGS_TABLE_NAME: &str = "processing_engine_logs";
+
+const LOG_QUEUE_CAPACITY: usize = 1_024;
+static RUN_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug, Clone)]
 pub struct ProcessingEngineLog {
     event_time: Time,
-    log_level: LogLevel,
+    database: DatabaseName,
     trigger_name: Arc<str>,
-    log_line: String,
+    plugin_filename: Arc<str>,
+    log_level: LogLevel,
+    log_text: String,
+    run_id: Arc<str>,
+    node_id: Arc<str>,
+    error_details: Arc<str>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -33,95 +48,256 @@ impl Display for LogLevel {
 }
 
 impl ProcessingEngineLog {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         event_time: Time,
-        log_level: LogLevel,
+        database: DatabaseName,
         trigger_name: Arc<str>,
-        log_line: String,
+        plugin_filename: Arc<str>,
+        log_level: LogLevel,
+        log_text: String,
+        run_id: Arc<str>,
+        node_id: Arc<str>,
+        error_details: Arc<str>,
     ) -> Self {
         Self {
             event_time,
-            log_level,
+            database,
             trigger_name,
-            log_line,
+            plugin_filename,
+            log_level,
+            log_text,
+            run_id,
+            node_id,
+            error_details,
         }
+    }
+
+    pub fn schema() -> Schema {
+        processing_engine_logs_schema()
+    }
+
+    pub fn event_time(&self) -> Time {
+        self.event_time
+    }
+
+    pub fn database(&self) -> &DatabaseName {
+        &self.database
+    }
+
+    pub fn trigger_name(&self) -> &str {
+        self.trigger_name.as_ref()
+    }
+
+    pub fn plugin_filename(&self) -> &str {
+        self.plugin_filename.as_ref()
+    }
+
+    pub fn log_level(&self) -> LogLevel {
+        self.log_level
+    }
+
+    pub fn log_text(&self) -> &str {
+        &self.log_text
+    }
+
+    pub fn run_id(&self) -> &str {
+        self.run_id.as_ref()
+    }
+
+    pub fn node_id(&self) -> &str {
+        self.node_id.as_ref()
+    }
+
+    pub fn error_details(&self) -> &str {
+        self.error_details.as_ref()
     }
 }
 
-impl ToRecordBatch<ProcessingEngineLog> for ProcessingEngineLog {
-    fn schema() -> Schema {
-        let fields = vec![
-            Field::new(
-                "event_time",
-                DataType::Timestamp(TimeUnit::Nanosecond, None),
-                false,
-            ),
-            Field::new("trigger_name", DataType::Utf8, false),
-            Field::new("log_level", DataType::Utf8, false),
-            Field::new("log_text", DataType::Utf8, false),
-        ];
-        Schema::new(fields)
-    }
+pub fn processing_engine_logs_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("database_name", DataType::Utf8, true),
+        Field::new("error_details", DataType::Utf8, true),
+        Field::new("log_level", DataType::Utf8, true),
+        Field::new("log_text", DataType::Utf8, true),
+        Field::new("node_id", DataType::Utf8, true),
+        Field::new("plugin_filename", DataType::Utf8, true),
+        Field::new("run_id", DataType::Utf8, true),
+        Field::new(
+            "time",
+            DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+            false,
+        ),
+        Field::new("trigger_name", DataType::Utf8, true),
+    ])
+}
 
-    fn to_record_batch(
-        items: Option<&RingBuffer<Event<ProcessingEngineLog>>>,
-    ) -> Option<Result<RecordBatch, ArrowError>> {
-        let items = items?;
-        let capacity = items.len();
-        let mut event_time_builder = TimestampNanosecondBuilder::with_capacity(capacity);
-        let mut trigger_name_builder = StringBuilder::new();
-        let mut log_level_builder = StringBuilder::new();
-        let mut log_text_builder = StringBuilder::new();
-        for item in items.in_order() {
-            let event = &item.data;
-            event_time_builder.append_value(event.event_time.timestamp_nanos());
-            trigger_name_builder.append_value(&event.trigger_name);
-            log_level_builder.append_value(event.log_level.to_string());
-            log_text_builder.append_value(event.log_line.as_str());
-        }
-        let columns: Vec<ArrayRef> = vec![
-            Arc::new(event_time_builder.finish()),
-            Arc::new(trigger_name_builder.finish()),
-            Arc::new(log_level_builder.finish()),
-            Arc::new(log_text_builder.finish()),
-        ];
+#[derive(Debug, Error)]
+pub enum LogError {
+    #[error("Cannot log: {0}")]
+    Fail(Box<dyn std::error::Error + Send + Sync>),
+}
 
-        Some(RecordBatch::try_new(Arc::new(Self::schema()), columns))
-    }
+#[async_trait]
+pub trait LogEndpoint: Debug + Send + Sync + 'static {
+    async fn log(&self, log: ProcessingEngineLog) -> Result<(), LogError>;
 }
 
 #[derive(Debug, Clone)]
 pub struct ProcessingEngineLogger {
-    sys_event_store: Arc<SysEventStore>,
+    database: DatabaseName,
     trigger_name: Arc<str>,
+    plugin_filename: Arc<str>,
+    run_id: Arc<str>,
+    node_id: Arc<str>,
+    time_provider: Arc<dyn TimeProvider>,
+    sender: mpsc::Sender<ProcessingEngineLog>,
+    dropped_logs: Arc<AtomicU64>,
 }
 
 impl ProcessingEngineLogger {
-    pub fn new(sys_event_store: Arc<SysEventStore>, trigger_name: impl Into<Arc<str>>) -> Self {
+    pub fn new(
+        database: DatabaseName,
+        trigger_name: impl Into<Arc<str>>,
+        plugin_filename: impl Into<Arc<str>>,
+        node_id: impl Into<Arc<str>>,
+        time_provider: Arc<dyn TimeProvider>,
+        log_endpoint: Arc<dyn LogEndpoint>,
+    ) -> Self {
+        Self::new_with_capacity(
+            database,
+            trigger_name,
+            plugin_filename,
+            node_id,
+            time_provider,
+            log_endpoint,
+            LOG_QUEUE_CAPACITY,
+        )
+    }
+
+    fn new_with_capacity(
+        database: DatabaseName,
+        trigger_name: impl Into<Arc<str>>,
+        plugin_filename: impl Into<Arc<str>>,
+        node_id: impl Into<Arc<str>>,
+        time_provider: Arc<dyn TimeProvider>,
+        log_endpoint: Arc<dyn LogEndpoint>,
+        capacity: usize,
+    ) -> Self {
+        let trigger_name = trigger_name.into();
+        let plugin_filename = plugin_filename.into();
+        let node_id = node_id.into();
+        let (sender, receiver) = mpsc::channel(capacity);
+        tokio::spawn(persist_logs(receiver, log_endpoint));
+        let run_id = next_run_id(time_provider.now());
         Self {
-            sys_event_store,
-            trigger_name: trigger_name.into(),
+            database,
+            trigger_name,
+            plugin_filename,
+            run_id,
+            node_id,
+            time_provider,
+            sender,
+            dropped_logs: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    pub fn for_run(&self) -> Self {
+        Self {
+            database: self.database.clone(),
+            trigger_name: Arc::clone(&self.trigger_name),
+            plugin_filename: Arc::clone(&self.plugin_filename),
+            run_id: next_run_id(self.time_provider.now()),
+            node_id: Arc::clone(&self.node_id),
+            time_provider: Arc::clone(&self.time_provider),
+            sender: self.sender.clone(),
+            dropped_logs: Arc::clone(&self.dropped_logs),
         }
     }
 
     pub fn log(&self, log_level: LogLevel, log_line: impl Into<String>) {
-        self.sys_event_store.record(ProcessingEngineLog::new(
-            self.sys_event_store.time_provider().now(),
-            log_level,
+        let log_line = log_line.into();
+        let error_details = match log_level {
+            LogLevel::Error => Arc::from(log_line.as_str()),
+            LogLevel::Info | LogLevel::Warn => Arc::from(""),
+        };
+        let log = ProcessingEngineLog::new(
+            self.time_provider.now(),
+            self.database.clone(),
             Arc::clone(&self.trigger_name),
-            log_line.into(),
-        ))
+            Arc::clone(&self.plugin_filename),
+            log_level,
+            log_line,
+            Arc::clone(&self.run_id),
+            Arc::clone(&self.node_id),
+            error_details,
+        );
+
+        match self.sender.try_send(log) {
+            Ok(()) => {}
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                let dropped = self.dropped_logs.fetch_add(1, Ordering::Relaxed) + 1;
+                if dropped == 1 || dropped.is_power_of_two() {
+                    warn!(
+                        database = %self.database,
+                        trigger_name = %self.trigger_name,
+                        plugin_filename = %self.plugin_filename,
+                        node_id = %self.node_id,
+                        dropped,
+                        "dropping processing engine logs because the persistence queue is full"
+                    );
+                }
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                let dropped = self.dropped_logs.fetch_add(1, Ordering::Relaxed) + 1;
+                warn!(
+                    database = %self.database,
+                    trigger_name = %self.trigger_name,
+                    plugin_filename = %self.plugin_filename,
+                    node_id = %self.node_id,
+                    dropped,
+                    "dropping processing engine log because the persistence queue is closed"
+                );
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn dropped_logs(&self) -> u64 {
+        self.dropped_logs.load(Ordering::Relaxed)
+    }
+}
+
+fn next_run_id(time: Time) -> Arc<str> {
+    let counter = RUN_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{}-{counter}", time.timestamp_nanos()).into()
+}
+
+async fn persist_logs(
+    mut receiver: mpsc::Receiver<ProcessingEngineLog>,
+    log_endpoint: Arc<dyn LogEndpoint>,
+) {
+    while let Some(log) = receiver.recv().await {
+        let source_database = log.database.clone();
+        if let Err(error) = log_endpoint.log(log).await {
+            warn!(
+                %error,
+                database = %source_database,
+                table = PROCESSING_ENGINE_LOGS_TABLE_NAME,
+                "failed to persist processing engine log"
+            );
+        }
     }
 }
 
 /// Logger abstraction for plugin execution.
 ///
-/// In production mode, logs are written to the sys_event_store only.
-/// In dry run mode, logs are accumulated for the response (no sys_event_store writes).
+/// In production mode, logs are persisted through the ingest path.
+/// In dry run mode, logs are accumulated for the response (no persisted writes).
 /// Tracing macros (info!, warn!, error!) are called in PyPluginCallApi methods for both modes.
 #[derive(Debug)]
 pub enum PluginLogger {
-    /// Production mode: logs to sys_event_store only
+    /// Production mode: logs through the processing engine log endpoint.
     Production(ProcessingEngineLogger),
     /// Dry run mode: accumulates log_lines only.
     /// Note: Mutex is required for Send+Sync bounds (PyO3's #[macro@pyo3::pyclass] requires Send),
@@ -131,7 +307,7 @@ pub enum PluginLogger {
 }
 
 impl PluginLogger {
-    /// Create a production logger that writes to sys_event_store.
+    /// Create a production logger that persists log lines.
     pub fn production(logger: ProcessingEngineLogger) -> Self {
         Self::Production(logger)
     }
@@ -145,7 +321,7 @@ impl PluginLogger {
 
     /// Log a message at the specified level.
     ///
-    /// In production mode, writes to the sys_event_store for persistence.
+    /// In production mode, enqueues a log line for persistence.
     /// In dry run mode, accumulates the log line for later retrieval via `take_log_lines()`.
     pub fn log(&self, level: LogLevel, line: String) {
         match self {
@@ -196,3 +372,6 @@ impl std::fmt::Debug for LogLine {
         std::fmt::Display::fmt(self, f)
     }
 }
+
+#[cfg(test)]
+mod tests;

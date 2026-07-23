@@ -164,7 +164,7 @@ impl<S> SeriesChunkStream<S> {
     ) -> datafusion::common::Result<Vec<Range<usize>>> {
         let mut tag_keys_columns = Vec::with_capacity(self.tag_columns.len() + 1);
         tag_keys_columns.push(Arc::clone(batch.column(self.measurement)));
-        for (_, idx) in self.tag_columns.iter() {
+        for idx in self.tag_columns.values() {
             tag_keys_columns.push(Arc::clone(batch.column(*idx)));
         }
         Ok(partition(tag_keys_columns.as_slice())?.ranges())

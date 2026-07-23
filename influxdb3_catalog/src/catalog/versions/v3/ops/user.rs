@@ -42,7 +42,7 @@ impl CatalogOp for CreateUserOp {
         let user_id = catalog.users.repo().next_id();
         records.push(&CreateUser {
             user_id: user_id.get(),
-            display_name: args.display_name.clone(),
+            display_name: args.display_name.as_ref().map(|d| d.as_str().to_string()),
             created_at: args.created_at,
         });
 
@@ -95,7 +95,7 @@ impl CatalogOp for UpdateUserDisplayNameOp {
 
         records.push(&UpdateUserDisplayName {
             user_id: args.user_id.get(),
-            display_name: args.display_name.clone(),
+            display_name: args.display_name.as_ref().map(|d| d.as_str().to_string()),
             updated_at: args.updated_at,
         });
         Ok(Self {
@@ -171,7 +171,7 @@ impl CatalogOp for DeleteUserOp {
 #[derive(Debug)]
 pub(crate) struct RestoreUserArgs {
     pub user_id: UserId,
-    pub display_name: Option<Arc<str>>,
+    pub display_name: Option<String>,
     pub restored_at: i64,
 }
 
@@ -219,7 +219,7 @@ impl CatalogOp for RestoreUserOp {
 
         records.push(&RestoreUser {
             user_id: args.user_id.get(),
-            display_name: args.display_name.clone(),
+            display_name: args.display_name.as_ref().map(|d| d.as_str().to_string()),
             restored_at: args.restored_at,
         });
 

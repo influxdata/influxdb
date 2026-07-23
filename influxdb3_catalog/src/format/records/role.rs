@@ -54,13 +54,14 @@ impl CatalogRecord for CreateRole {
                 self.name
             ))
         })?;
-        let description = self
-            .description
-            .as_ref()
-            .map(|d| RoleDescription::new(d))
-            .transpose()
-            .map_err(|e| ApplyError(format!("{}: invalid role description: {e}", Self::NAME)))?;
-        let permissions: Vec<Permission> = self.permissions.iter().map(Into::into).collect();
+
+        let description = match self.description {
+            Some(ref d) => RoleDescription::new(d).map_err(|e| {
+                ApplyError(format!("{}: invalid role description: {e}", Self::NAME))
+            })?,
+            None => RoleDescription::new_unchecked(String::new()),
+        };
+        let permissions: Vec<Permission> = self.permissions.iter().filter_map(Into::into).collect();
 
         let role = Role::new(
             role_id,
@@ -109,7 +110,7 @@ impl CatalogRecord for UpdateRolePermissions {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let role_id = RoleId::new(self.role_id);
-        let permissions: Vec<Permission> = self.permissions.iter().map(Into::into).collect();
+        let permissions: Vec<Permission> = self.permissions.iter().filter_map(Into::into).collect();
 
         let mut role = catalog.roles.get_by_id(&role_id).ok_or_else(|| {
             ApplyError(format!("{}: role {} not found", Self::NAME, self.role_id))
@@ -172,9 +173,9 @@ impl CatalogRecord for UpdateRole {
             })?;
         }
         if let Some(ref new_desc) = self.description {
-            role_mut.description = Some(RoleDescription::new(new_desc).map_err(|e| {
+            role_mut.description = RoleDescription::new(new_desc).map_err(|e| {
                 ApplyError(format!("{}: invalid role description: {e}", Self::NAME))
-            })?);
+            })?;
         }
         role_mut.updated_at = self.updated_at;
 
@@ -291,18 +292,25 @@ impl From<&Permission> for RolePermissionGrant {
     }
 }
 
-impl From<&RolePermissionGrant> for Permission {
+/// Convert a persisted grant into its runtime [`Permission`].
+///
+/// Returns `None` for grants and actions which have been deprecated.
+impl From<&RolePermissionGrant> for Option<Permission> {
     fn from(g: &RolePermissionGrant) -> Self {
-        match g {
+        Some(match g {
             RolePermissionGrant::AccountAdminAll => Permission::AccountAdminAll,
-            RolePermissionGrant::Database(db) => Permission::Database(DatabasePermission::new(
-                db.action.into(),
-                db.resource.into(),
-            )),
-            RolePermissionGrant::Token(t) => {
-                Permission::Token(TokenPermission::new(t.action.into()))
+            RolePermissionGrant::Database(db) => {
+                let action: Option<DatabaseAction> = db.action.into();
+                Permission::Database(DatabasePermission::new(action?, db.resource.into()))
             }
-            RolePermissionGrant::User(u) => Permission::User(UserPermission::new(u.action.into())),
+            RolePermissionGrant::Token(t) => {
+                let action: Option<TokenAction> = t.action.into();
+                Permission::Token(TokenPermission::new(action?))
+            }
+            RolePermissionGrant::User(u) => {
+                let action: Option<UserAction> = u.action.into();
+                Permission::User(UserPermission::new(action?))
+            }
             RolePermissionGrant::Role(r) => {
                 Permission::Role(RoleResourcePermission::new(r.action.into()))
             }
@@ -312,7 +320,7 @@ impl From<&RolePermissionGrant> for Permission {
             RolePermissionGrant::System(s) => {
                 Permission::System(SystemPermission::new(s.action.into(), s.resource.into()))
             }
-        }
+        })
     }
 }
 
@@ -324,20 +332,19 @@ impl From<DatabaseAction> for RoleDatabaseAction {
             DatabaseAction::Write => RoleDatabaseAction::Write,
             DatabaseAction::Create => RoleDatabaseAction::Create,
             DatabaseAction::Delete => RoleDatabaseAction::Delete,
-            DatabaseAction::GrantUsage => RoleDatabaseAction::GrantUsage,
         }
     }
 }
 
-impl From<RoleDatabaseAction> for DatabaseAction {
+impl From<RoleDatabaseAction> for Option<DatabaseAction> {
     fn from(a: RoleDatabaseAction) -> Self {
         match a {
-            RoleDatabaseAction::Describe => DatabaseAction::Describe,
-            RoleDatabaseAction::Read => DatabaseAction::Read,
-            RoleDatabaseAction::Write => DatabaseAction::Write,
-            RoleDatabaseAction::Create => DatabaseAction::Create,
-            RoleDatabaseAction::Delete => DatabaseAction::Delete,
-            RoleDatabaseAction::GrantUsage => DatabaseAction::GrantUsage,
+            RoleDatabaseAction::Describe => Some(DatabaseAction::Describe),
+            RoleDatabaseAction::Read => Some(DatabaseAction::Read),
+            RoleDatabaseAction::Write => Some(DatabaseAction::Write),
+            RoleDatabaseAction::Create => Some(DatabaseAction::Create),
+            RoleDatabaseAction::Delete => Some(DatabaseAction::Delete),
+            RoleDatabaseAction::GrantUsage => None,
         }
     }
 }
@@ -366,18 +373,17 @@ impl From<TokenAction> for RoleTokenAction {
             TokenAction::Read => RoleTokenAction::Read,
             TokenAction::Create => RoleTokenAction::Create,
             TokenAction::Delete => RoleTokenAction::Delete,
-            TokenAction::GrantUsage => RoleTokenAction::GrantUsage,
         }
     }
 }
 
-impl From<RoleTokenAction> for TokenAction {
+impl From<RoleTokenAction> for Option<TokenAction> {
     fn from(a: RoleTokenAction) -> Self {
         match a {
-            RoleTokenAction::Read => TokenAction::Read,
-            RoleTokenAction::Create => TokenAction::Create,
-            RoleTokenAction::Delete => TokenAction::Delete,
-            RoleTokenAction::GrantUsage => TokenAction::GrantUsage,
+            RoleTokenAction::Read => Some(TokenAction::Read),
+            RoleTokenAction::Create => Some(TokenAction::Create),
+            RoleTokenAction::Delete => Some(TokenAction::Delete),
+            RoleTokenAction::GrantUsage => None,
         }
     }
 }
@@ -389,19 +395,18 @@ impl From<UserAction> for RoleUserAction {
             UserAction::Create => RoleUserAction::Create,
             UserAction::Update => RoleUserAction::Update,
             UserAction::Delete => RoleUserAction::Delete,
-            UserAction::GrantUsage => RoleUserAction::GrantUsage,
         }
     }
 }
 
-impl From<RoleUserAction> for UserAction {
+impl From<RoleUserAction> for Option<UserAction> {
     fn from(a: RoleUserAction) -> Self {
         match a {
-            RoleUserAction::Read => UserAction::Read,
-            RoleUserAction::Create => UserAction::Create,
-            RoleUserAction::Update => UserAction::Update,
-            RoleUserAction::Delete => UserAction::Delete,
-            RoleUserAction::GrantUsage => UserAction::GrantUsage,
+            RoleUserAction::Read => Some(UserAction::Read),
+            RoleUserAction::Create => Some(UserAction::Create),
+            RoleUserAction::Update => Some(UserAction::Update),
+            RoleUserAction::Delete => Some(UserAction::Delete),
+            RoleUserAction::GrantUsage => None,
         }
     }
 }

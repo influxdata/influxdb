@@ -97,7 +97,7 @@ impl Client {
         properties: Option<HashMap<String, String>>,
         label_id: &str,
     ) -> Result<LabelResponse, RequestError> {
-        let update_label_url = format!("{}/api/v2/labels/{}", &self.url, label_id);
+        let update_label_url = format!("{}/api/v2/labels/{label_id}", self.url);
         let body = LabelUpdate { name, properties };
         let response = self
             .request(Method::PATCH, &update_label_url)
@@ -120,7 +120,7 @@ impl Client {
 
     /// Delete a Label
     pub async fn delete_label(&self, label_id: &str) -> Result<(), RequestError> {
-        let delete_label_url = format!("{}/api/v2/labels/{}", &self.url, label_id);
+        let delete_label_url = format!("{}/api/v2/labels/{label_id}", self.url);
         let response = self
             .request(Method::DELETE, &delete_label_url)
             .send()

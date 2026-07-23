@@ -15,7 +15,7 @@ type BiHashMap<L, R> = bimap::BiHashMap<L, R, AHashBuilder, AHashBuilder>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserInfo {
     pub id: UserId,
-    pub display_name: Option<Arc<str>>,
+    pub display_name: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
@@ -26,7 +26,7 @@ pub struct UserInfo {
 }
 
 impl UserInfo {
-    pub fn new(id: UserId, display_name: Option<Arc<str>>, created_at: i64) -> Self {
+    pub fn new(id: UserId, display_name: Option<String>, created_at: i64) -> Self {
         Self {
             id,
             display_name,
@@ -172,7 +172,7 @@ impl UserRepository {
     pub fn restore_user(
         &mut self,
         user_id: UserId,
-        display_name: Option<Arc<str>>,
+        display_name: Option<String>,
         restored_at: i64,
     ) -> Result<()> {
         let mut user = self

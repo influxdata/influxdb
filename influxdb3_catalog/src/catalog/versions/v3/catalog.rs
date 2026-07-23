@@ -1326,6 +1326,24 @@ impl Catalog {
             .collect()
     }
 
+    /// Return the query group that `node_id` is a member of, if any.
+    ///
+    /// A running query node uses this to discover its own placement group. The
+    /// distributed-query model assumes a node belongs to at most one group.
+    /// That invariant is not yet enforced when groups are created or edited, so
+    /// if a node is placed in several groups this resolves to the
+    /// earliest-created one. Returns `None` when no group includes the node —
+    /// such nodes keep the default behavior of loading all data (follow every
+    /// ingester, read every shard).
+    pub fn query_group_for_node(&self, node_id: NodeId) -> Option<Arc<QueryGroupDefinition>> {
+        self.inner
+            .read()
+            .query_groups
+            .resource_iter()
+            .find(|group| group.members().contains(&node_id))
+            .cloned()
+    }
+
     /// Update a query group's durable catalog definition.
     ///
     /// Only the fields set in `update` are changed. Any field left as `None`
@@ -1831,6 +1849,11 @@ impl Catalog {
     /// Request a graceful stop for a node, driving its state from `Running`
     /// to `Stopping`. The target node finishes its in-flight work and then
     /// writes an `AckStopNode` record to settle into the terminal `Stopped` state.
+    ///
+    /// Returns [`CatalogError::IdempotentNoOp`] when the node is already
+    /// `Stopping`, `Stopped`, or `Removing`; HTTP handlers translate that to
+    /// 200 OK so controllers can retry a stop without treating it as a
+    /// conflict.
     pub async fn request_stop_node(
         &self,
         node_id: &str,
@@ -3384,10 +3407,10 @@ impl Catalog {
             .filter(|u| !u.is_deleted())
     }
 
-    pub async fn create_user(&self, display_name: Option<Arc<str>>) -> Result<Arc<UserInfo>> {
+    pub async fn create_user(&self, display_name: Option<&str>) -> Result<Arc<UserInfo>> {
         info!("create user");
         self.update::<CreateUserOp>(CreateUserArgs {
-            display_name: display_name.map(|d| d.to_string()),
+            display_name: display_name.map(|s| s.to_string()),
             created_at: self.time_provider.now().timestamp_millis(),
         })
         .await
@@ -3396,12 +3419,12 @@ impl Catalog {
     pub async fn restore_user(
         &self,
         user_id: UserId,
-        display_name: Option<Arc<str>>,
+        display_name: Option<&str>,
     ) -> Result<Arc<UserInfo>> {
         info!(%user_id, "restore user");
         self.update::<RestoreUserOp>(RestoreUserArgs {
             user_id,
-            display_name,
+            display_name: display_name.map(|s| s.to_string()),
             restored_at: self.time_provider.now().timestamp_millis(),
         })
         .await
@@ -3456,12 +3479,12 @@ impl Catalog {
     pub async fn update_user_display_name(
         &self,
         user_id: UserId,
-        display_name: Option<Arc<str>>,
+        display_name: Option<&str>,
     ) -> Result<Arc<UserInfo>> {
         info!(%user_id, "update user display name");
         self.update::<UpdateUserDisplayNameOp>(UpdateUserDisplayNameArgs {
             user_id,
-            display_name: display_name.map(|d| d.to_string()),
+            display_name: display_name.map(|s| s.to_string()),
             updated_at: self.time_provider.now().timestamp_millis(),
         })
         .await
@@ -3552,14 +3575,14 @@ impl Catalog {
     pub async fn create_role(
         &self,
         name: influxdb3_authz::role::RoleName,
-        description: Option<influxdb3_authz::role::RoleDescription>,
+        description: influxdb3_authz::role::RoleDescription,
         permissions: Vec<influxdb3_authz::role::Permission>,
         is_required_role: bool,
     ) -> Result<Arc<Role>> {
         info!(name = %name, "create role");
         self.update::<CreateRoleOp>(CreateRoleArgs {
             name: name.to_string(),
-            description: description.map(|d| d.as_str().to_string()),
+            description: Some(description.as_str().to_string()),
             permissions,
             is_required_role,
             created_at: self.time_provider.now().timestamp_millis(),

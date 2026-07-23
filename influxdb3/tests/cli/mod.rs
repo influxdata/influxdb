@@ -1299,6 +1299,63 @@ async fn test_create_trigger_and_run() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_processing_engine_logs_event_time_mirrors_time() {
+    let plugin_code = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("event time test")
+"#;
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let db_name = "event_time_db";
+    let trigger_name = "event_time_trigger";
+
+    server.create_database(db_name).run().unwrap();
+    server
+        .create_trigger(db_name, trigger_name, plugin_filename, "all_tables")
+        .run()
+        .unwrap();
+
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a usage=0.9",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // The log row lands asynchronously; poll until a filter on the virtual
+    // event_time column returns it.
+    let sql = "SELECT log_text, time, event_time \
+               FROM system.processing_engine_logs \
+               WHERE log_text = 'event time test' \
+               AND event_time > now() - INTERVAL '1 hour'";
+    let mut check_count = 0;
+    let rows = loop {
+        match server.query_sql(db_name).with_sql(sql).run() {
+            Ok(Value::Array(rows)) if !rows.is_empty() => break rows,
+            result => {
+                check_count += 1;
+                if check_count > 100 {
+                    panic!("processing_engine_logs never returned the log row: {result:?}");
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    };
+    for row in &rows {
+        assert_eq!(row["event_time"], row["time"], "{rows:#?}");
+    }
+}
+
+#[test_log::test(tokio::test)]
 async fn test_triggers_are_started() {
     // Create a plugin and trigger and write data in, verifying that the trigger is enabled
     // and sent data
@@ -2663,7 +2720,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.query("SELECT foo FROM not_here")
 "#,
-            expected_error: "error executing plugin: QueryError: error: error while planning query: Error during planning: table 'public.iox.not_here' not found executing query on foo: SELECT foo FROM not_here",
+            expected_error: "error executing plugin: QueryError: Cannot query: error while planning query: Error during planning: table 'public.iox.not_here' not found (query: SELECT foo FROM not_here) (database: foo)",
         },
     ];
 
@@ -2880,6 +2937,106 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
     assert_eq!(body, json!({"status": "updated"}));
 }
+
+#[test_log::test(tokio::test)]
+async fn test_request_trigger_auto_disable_on_error() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    raise Exception("boom")
+"#;
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let db_name = "request_auto_disable";
+    let trigger_name = "request_auto_disable_trigger";
+    let trigger_path = "request_auto_disable_path";
+
+    server.create_database(db_name).run().unwrap();
+
+    let result = server
+        .create_trigger(
+            db_name,
+            trigger_name,
+            plugin_filename,
+            format!("request:{trigger_path}"),
+        )
+        .error_behavior("disable")
+        .run()
+        .unwrap();
+    assert_contains!(
+        &result,
+        "Trigger request_auto_disable_trigger created successfully"
+    );
+
+    let client = server.http_client();
+    let response = client
+        .post(format!(
+            "{}/api/v3/engine/{trigger_path}",
+            server.client_addr()
+        ))
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::INTERNAL_SERVER_ERROR
+    );
+
+    let mut saw_disabled = false;
+    let mut last_triggers = Value::Null;
+    for _ in 0..100 {
+        let trigger_info = server
+            .show_system(db_name)
+            .with_format("json")
+            .table("processing_engine_triggers")
+            .run()
+            .unwrap();
+        last_triggers = serde_json::from_str::<Value>(&trigger_info).unwrap();
+
+        if last_triggers
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|trigger| trigger["trigger_name"] == trigger_name && trigger["disabled"] == true)
+        {
+            saw_disabled = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(
+        saw_disabled,
+        "request trigger should be disabled after first failed request; last system table output: {last_triggers:#}"
+    );
+
+    let mut last_status = None;
+    for _ in 0..100 {
+        let response = client
+            .post(format!(
+                "{}/api/v3/engine/{trigger_path}",
+                server.client_addr()
+            ))
+            .body("{}")
+            .send()
+            .await
+            .unwrap();
+        last_status = Some(response.status());
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(last_status, Some(reqwest::StatusCode::NOT_FOUND));
+}
+
 #[test_log::test(tokio::test)]
 async fn test_flask_string_response() {
     let plugin_code = r#"

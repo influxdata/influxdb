@@ -363,6 +363,7 @@ pub enum RoleDatabaseAction {
     Write,
     Create,
     Delete,
+    // Retained so older catalogs still decode. Do not remove.
     GrantUsage,
 }
 
@@ -372,6 +373,7 @@ pub enum RoleTokenAction {
     Read,
     Create,
     Delete,
+    // Retained so older catalogs still decode. Do not remove.
     GrantUsage,
 }
 
@@ -382,6 +384,7 @@ pub enum RoleUserAction {
     Create,
     Update,
     Delete,
+    // Retained so older catalogs still decode. Do not remove.
     GrantUsage,
 }
 

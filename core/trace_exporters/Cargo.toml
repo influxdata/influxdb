@@ -17,7 +17,7 @@ iox_time = { path = "../iox_time" }
 tracing = { workspace = true }
 snafu = "0.9"
 socket2 = "0.6.3"
-thrift = { version = "0.17.0" }
+thrift = { version = "0.23.0" }
 tokio = { version = "1.52", features = ["macros", "parking_lot", "rt", "sync"] }
 trace = { path = "../trace" }
 

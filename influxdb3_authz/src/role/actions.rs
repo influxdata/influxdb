@@ -29,7 +29,6 @@ pub enum DatabaseAction {
     Write,
     Create,
     Delete,
-    GrantUsage,
 }
 
 /// Actions that can be performed on token resources
@@ -38,7 +37,6 @@ pub enum TokenAction {
     Read,
     Create,
     Delete,
-    GrantUsage,
 }
 
 /// Actions that can be performed on user resources
@@ -48,7 +46,6 @@ pub enum UserAction {
     Create,
     Update,
     Delete,
-    GrantUsage,
 }
 
 /// Actions that can be performed on role resources

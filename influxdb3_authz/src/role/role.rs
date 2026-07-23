@@ -15,7 +15,7 @@ const ROLE_DESCRIPTION_ALLOWED_SPECIAL_CHARS: &[char] = &[
 pub struct Role {
     pub id: RoleId,
     pub name: RoleName,
-    pub description: Option<RoleDescription>,
+    pub description: RoleDescription,
     pub permissions: Vec<Permission>,
     pub is_required_role: bool,
     pub created_at: i64,
@@ -26,7 +26,7 @@ impl Role {
     pub fn new(
         id: RoleId,
         name: RoleName,
-        description: Option<RoleDescription>,
+        description: RoleDescription,
         permissions: Vec<Permission>,
         is_required_role: bool,
         created_at: i64,
@@ -124,6 +124,10 @@ impl RoleDescription {
 
     pub fn into_inner(self) -> String {
         self.0
+    }
+
+    pub fn new_unchecked(description: String) -> Self {
+        Self(description)
     }
 }
 

@@ -711,7 +711,8 @@ impl Catalog {
                     if !NodeModes::from(node.modes().clone()).is_processor() {
                         return Err(EnterpriseCatalogError::InvalidNodeMode {
                             expected: error::enterprise::NodeMode::Process,
-                        })?;
+                        }
+                        .into());
                     }
                 }
             }

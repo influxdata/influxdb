@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::Arc};
+use std::sync::Arc;
 
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, DurationHistogram, Metric};
@@ -8,12 +8,11 @@ const LAST_VALUES_CACHE_QUERY_DURATION_METRIC_NAME: &str =
 
 /// Record various metrics on the last values cache
 ///
-/// This holds `Metric<T>` instead of `T`, as we record metrics per database, and therefore
-/// fetch metric recorders dynamically.
+/// Metrics are recorded node-wide, without per-database labels.
 #[derive(Debug)]
 pub(super) struct CacheMetrics {
     /// Record the duration of successful queries made to the last value cache.
-    query_durations: Metric<DurationHistogram>,
+    query_durations: DurationHistogram,
     time_provider: Arc<dyn TimeProvider>,
 }
 
@@ -22,25 +21,19 @@ impl CacheMetrics {
         registry: Arc<metric::Registry>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
-        let query_durations = registry.register_metric(
+        let query_durations: Metric<DurationHistogram> = registry.register_metric(
             LAST_VALUES_CACHE_QUERY_DURATION_METRIC_NAME,
             "time to complete queries to the last values cache",
         );
         Self {
-            query_durations,
+            query_durations: query_durations.recorder(Attributes::from([])),
             time_provider,
         }
     }
 
-    pub(super) fn query_duration_recorder(
-        &self,
-        db: impl Into<Cow<'static, str>>,
-    ) -> QueryDurationRecorder {
-        let metric = self
-            .query_durations
-            .recorder(Attributes::from([("db", db.into())]));
+    pub(super) fn query_duration_recorder(&self) -> QueryDurationRecorder {
         QueryDurationRecorder {
-            metric,
+            metric: self.query_durations.clone(),
             start_time: self.time_provider.now(),
             time_provider: Arc::clone(&self.time_provider),
             state: QueryState::DidNotComplete,

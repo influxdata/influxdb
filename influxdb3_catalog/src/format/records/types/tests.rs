@@ -239,6 +239,7 @@ fn role_database_action_encodings() {
     assert_encoding_stable!(RoleDatabaseAction::Write, "02");
     assert_encoding_stable!(RoleDatabaseAction::Create, "03");
     assert_encoding_stable!(RoleDatabaseAction::Delete, "04");
+    // Retained so older catalogs still decode. Do not remove.
     assert_encoding_stable!(RoleDatabaseAction::GrantUsage, "05");
 }
 
@@ -247,6 +248,7 @@ fn role_token_action_encodings() {
     assert_encoding_stable!(RoleTokenAction::Read, "00");
     assert_encoding_stable!(RoleTokenAction::Create, "01");
     assert_encoding_stable!(RoleTokenAction::Delete, "02");
+    // Retained so older catalogs still decode. Do not remove.
     assert_encoding_stable!(RoleTokenAction::GrantUsage, "03");
 }
 
@@ -256,6 +258,7 @@ fn role_user_action_encodings() {
     assert_encoding_stable!(RoleUserAction::Create, "01");
     assert_encoding_stable!(RoleUserAction::Update, "02");
     assert_encoding_stable!(RoleUserAction::Delete, "03");
+    // Retained so older catalogs still decode. Do not remove.
     assert_encoding_stable!(RoleUserAction::GrantUsage, "04");
 }
 

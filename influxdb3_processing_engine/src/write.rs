@@ -1,6 +1,5 @@
 use async_trait::async_trait;
-use influxdb3_py_api::write::{WriteEndpoint, WriteError};
-use influxdb3_types::DatabaseName;
+use influxdb3_py_api::write::{WriteEndpoint, WriteError, WriteTarget};
 use influxdb3_write::{Bufferer, Precision};
 use iox_time::Time;
 use std::sync::Arc;
@@ -21,21 +20,32 @@ impl InProcessWriteEndpoint {
 impl WriteEndpoint for InProcessWriteEndpoint {
     async fn write_lp(
         &self,
-        database: DatabaseName,
+        target: WriteTarget,
         lp: &str,
         ingest_time: Time,
         no_sync: bool,
     ) -> Result<(), WriteError> {
-        self.buffer
-            .write_lp(
-                database,
-                lp,
-                ingest_time,
-                false,
-                Precision::Nanosecond,
-                no_sync,
-            )
-            .await
+        let result = match target {
+            WriteTarget::Internal => {
+                self.buffer
+                    .write_internal_lp(lp, ingest_time, false, Precision::Nanosecond, no_sync)
+                    .await
+            }
+            WriteTarget::User(database) => {
+                self.buffer
+                    .write_lp(
+                        database,
+                        lp,
+                        ingest_time,
+                        false,
+                        Precision::Nanosecond,
+                        no_sync,
+                    )
+                    .await
+            }
+        };
+
+        result
             .map(|_| ())
             .map_err(|e| WriteError::Fail(Box::new(e)))
     }

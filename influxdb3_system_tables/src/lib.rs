@@ -10,10 +10,10 @@ use datafusion::{
 use generations::GenerationDurationsTable;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
-use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
+use observability_deps::tracing::warn;
 use tonic::async_trait;
 
 mod databases;
@@ -34,6 +34,7 @@ use plugins::PluginsTable;
 mod python_call;
 use python_call::{
     ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable, ProcessingEngineTriggerTable,
+    processing_engine_logs_view,
 };
 mod queries;
 use queries::QueriesTable;
@@ -119,7 +120,6 @@ impl AllSystemSchemaTablesProvider {
         db_schema: Arc<DatabaseSchema>,
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
-        sys_events_store: Arc<SysEventStore>,
         catalog: Arc<Catalog>,
         started_with_auth: bool,
         processing_engine: Option<Arc<ProcessingEngineManagerImpl>>,
@@ -166,10 +166,21 @@ impl AllSystemSchemaTablesProvider {
             ))),
         );
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
-        let logs_table = Arc::new(SystemTableProvider::new(Arc::new(
-            ProcessingEngineLogsTable::new(sys_events_store),
-        )));
-        tables.insert(PROCESSING_ENGINE_LOGS_TABLE_NAME, logs_table);
+        let logs_table: Arc<dyn TableProvider> = Arc::new(ProcessingEngineLogsTable::new(
+            Arc::clone(&db_schema),
+            Arc::clone(&buffer),
+        ));
+        let logs_provider = match processing_engine_logs_view(Arc::clone(&logs_table)) {
+            Ok(view) => view,
+            Err(error) => {
+                warn!(
+                    %error,
+                    "failed to build processing_engine_logs view; serving table without event_time"
+                );
+                logs_table
+            }
+        };
+        tables.insert(PROCESSING_ENGINE_LOGS_TABLE_NAME, logs_provider);
         tables.insert(
             INFLUXDB_SCHEMA_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(

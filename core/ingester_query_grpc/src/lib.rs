@@ -1,7 +1,11 @@
 // This crate deliberately does not use the same linting rules as the other
 // crates because of all the generated code it contains that we don't have much
 // control over.
-#![expect(clippy::derive_partial_eq_without_eq, clippy::allow_attributes)]
+#![expect(
+    clippy::derive_partial_eq_without_eq,
+    clippy::allow_attributes,
+    clippy::useless_borrows_in_formatting
+)]
 
 use tonic_prost as _;
 

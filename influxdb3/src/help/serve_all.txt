@@ -24,13 +24,18 @@ Examples:
 
 {}
   --node-id <NODE_ID>                          Node identifier used as prefix in object store file paths
-                                                 [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
+                                                 [env: INFLUXDB3_NODE_ID=]
   --object-store <STORE>                       Object storage to use
                                                  [possible values: memory, memory-throttled, file, s3, google, azure]
 
 {}
   --http-bind <ADDR>                           Address for HTTP API requests [default: 0.0.0.0:8181]
                                                  [env: INFLUXDB3_HTTP_BIND_ADDR=]
+  --shutdown-timeout <DURATION>                Maximum time to wait for active connections to drain during
+                                               shutdown. Remaining connections are forcibly closed when the
+                                               timeout expires. Set to 0s to close connections immediately.
+                                                 [default: 30s]
+                                                 [env: INFLUXDB3_SHUTDOWN_TIMEOUT=]
   --log-filter <FILTER>                        Logs: filter directive. When the filter starts with "debug" or "trace",
                                                noise-reduction directives are automatically appended (e.g. reqwest=info,
                                                datafusion=info, object_store_metrics=info). Use --disable-log-filter-noise-reduction
@@ -38,7 +43,7 @@ Examples:
                                                  [default: info,iox_query::query_log=warn,influxdb3_query_executor::query_planner=warn]
                                                  [env: INFLUXDB3_LOG_FILTER=]
   --disable-log-filter-noise-reduction         When set, debug/trace log filters are not automatically
-                                                 expanded with noise-reduction directives.
+                                               expanded with noise-reduction directives.
                                                  [env: INFLUXDB3_DISABLE_LOG_FILTER_NOISE_REDUCTION=]
 
 {}
@@ -65,7 +70,7 @@ Examples:
 
 {}
   --data-dir <DIR>                             Location to store files locally
-                                                 [env: INFLUXDB3_DB_DIR=]
+                                                 [env: INFLUXDB3_DATA_DIR=]
   --bucket <BUCKET>                            Bucket name for cloud object storage
                                                  [env: INFLUXDB3_BUCKET=]
 
@@ -149,11 +154,22 @@ Examples:
   --package-manager <MANAGER>                  Deprecated. Python and pip are bundled with InfluxDB; this option does not need to be set
                                                  [possible values: discover, pip, uv, disabled] [default: discover]
                                                  [env: INFLUXDB3_PACKAGE_MANAGER=]
+  --disable-package-management                 Disable all Processing Engine package management. The server never
+                                                 creates or modifies a virtual environment, never invokes pip, and
+                                                 the plugin package-install API endpoints are rejected. Takes
+                                                 precedence over --package-manager. Manage the virtual environment
+                                                 yourself and point the server at it via VIRTUAL_ENV.
+                                                 [env: INFLUXDB3_DISABLE_PACKAGE_MANAGEMENT=]
   --plugin-repo <URL>                          URL of plugin repository
                                                  [env: INFLUXDB3_PLUGIN_REPO=]
   --restrict-plugin-triggers-to <TYPE>...      Restrict plugin triggers to the provided trigger type(s)
                                                  [possible values: wal, schedule, request]
                                                  [env: INFLUXDB3_RESTRICT_PLUGIN_TRIGGERS_TO=]
+  --async-trigger-concurrency-limit <N>        Maximum number of concurrent invocations per asynchronous trigger
+                                               (run_asynchronous). Synchronous triggers always run one invocation
+                                               at a time. Must be greater than zero. [default: unlimited]
+                                               The default will change from unlimited to 8 in a future release.
+                                                 [env: INFLUXDB3_ASYNC_TRIGGER_CONCURRENCY_LIMIT=]
 
 {}
   --gen1-duration <DURATION>                   Duration for Parquet file arrangement [default: 10m]
@@ -171,24 +187,27 @@ Examples:
 {}
   --wal-flush-interval <INTERVAL>                Interval to flush data to WAL file [default: 1s]
                                                    [env: INFLUXDB3_WAL_FLUSH_INTERVAL=]
-  --wal-snapshot-size <SIZE>                     Number of WAL files per snapshot [default: 600]
-                                                   [env: INFLUXDB3_WAL_SNAPSHOT_SIZE=]
-  --wal-max-write-buffer-size <SIZE>             Max write requests in buffer [default: 100000]
-                                                   [env: INFLUXDB3_WAL_MAX_WRITE_BUFFER_SIZE=]
+  --wal-files-per-snapshot <N>                   Number of WAL files per snapshot [default: 600]
+                                                   [aliases: wal-snapshot-size]
+                                                   [env: INFLUXDB3_WAL_FILES_PER_SNAPSHOT=]
+  --wal-max-buffered-writes <N>                  Max write requests in buffer [default: 100000]
+                                                   [aliases: wal-max-write-buffer-size]
+                                                   [env: INFLUXDB3_WAL_MAX_BUFFERED_WRITES=]
   --wal-replay-concurrency-limit <LIMIT>         Concurrency limit during WAL replay [default: max(num_cpus, 10)]
                                                  Setting this number too high can lead to OOM.
                                                  The default is dynamically determined.
                                                    [env: INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT=]
   --snapshotted-wal-files-to-keep <N>            Number of snapshotted WAL files to retain [default: 300]
-                                                   [env: INFLUXDB3_NUM_WAL_FILES_TO_KEEP=]
+                                                   [env: INFLUXDB3_SNAPSHOTTED_WAL_FILES_TO_KEEP=]
 
 {}
   --last-cache-eviction-interval <INTERVAL>      Last-N-Value cache eviction interval [default: 10s]
                                                    [env: INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL=]
   --distinct-cache-eviction-interval <INTERVAL>  Distinct Value cache eviction interval [default: 10s]
                                                    [env: INFLUXDB3_DISTINCT_CACHE_EVICTION_INTERVAL=]
-  --query-log-size <SIZE>                        Size of the query log [default: 1000]
-                                                   [env: INFLUXDB3_QUERY_LOG_SIZE=]
+  --query-log-max-entries <N>                    Maximum number of entries in the query log [default: 1000]
+                                                   [aliases: query-log-size]
+                                                   [env: INFLUXDB3_QUERY_LOG_MAX_ENTRIES=]
   --query-file-limit <LIMIT>                     Max parquet files allowed in a query
                                                    [env: INFLUXDB3_QUERY_FILE_LIMIT=]
 
@@ -197,21 +216,25 @@ Examples:
                                                    [env: INFLUXDB3_MAX_HTTP_REQUEST_SIZE=]
 
 {}
-  --exec-mem-pool-bytes <SIZE>                        Memory pool size for query execution [default: 20%]
-                                                        [env: INFLUXDB3_EXEC_MEM_POOL_BYTES=]
+  --exec-mem-pool-size <SIZE>                         Memory pool size for query execution [default: 20%]
+                                                        [aliases: exec-mem-pool-bytes]
+                                                        [env: INFLUXDB3_EXEC_MEM_POOL_SIZE=]
   --force-snapshot-mem-threshold <THRESH>             Internal buffer threshold [default: 50%]
                                                         [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD=]
-  --parquet-mem-cache-size <SIZE>                     In-memory Parquet cache size [default: 20%]
-                                                        [env: INFLUXDB3_PARQUET_MEM_CACHE_SIZE=]
+  --file-cache-size <SIZE>                            In-memory data file cache size [default: 20%]
+                                                        [aliases: parquet-mem-cache-size]
+                                                        [env: INFLUXDB3_FILE_CACHE_SIZE=]
   --parquet-mem-cache-prune-percentage <PCT>          Percentage to prune from cache [default: 0.1]
                                                         [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE=]
   --parquet-mem-cache-prune-interval <INTERVAL>
                                                       Cache prune check interval [default: 1s]
                                                         [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL=]
-  --parquet-mem-cache-query-path-duration <DURATION>  Duration to check for query path caching [default: 5h]
-                                                        [env: INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION=]
-  --disable-parquet-mem-cache                         Disable in-memory Parquet cache
-                                                        [env: INFLUXDB3_DISABLE_PARQUET_MEM_CACHE=]
+  --file-cache-recency <DURATION>                     Duration to check for query path caching [default: 5h]
+                                                        [aliases: parquet-mem-cache-query-path-duration]
+                                                        [env: INFLUXDB3_FILE_CACHE_RECENCY=]
+  --disable-file-cache                                Disable in-memory data file cache
+                                                        [aliases: disable-parquet-mem-cache]
+                                                        [env: INFLUXDB3_DISABLE_FILE_CACHE=]
   --table-index-cache-max-entries <N>                 Maximum number of table indices to cache in memory.
                                                       Set to 0 for unlimited cache size. [default: 100]
                                                         [env: INFLUXDB3_TABLE_INDEX_CACHE_MAX_ENTRIES=]
@@ -250,25 +273,25 @@ Examples:
 
 {}
   --log-destination <DEST>                                     Logs: destination [default: stdout]
-                                                                [env: INFLUXDB3_LOG_DESTINATION=]
+                                                                 [env: INFLUXDB3_LOG_DESTINATION=]
   --log-format <FORMAT>                                        Logs: message format [default: full]
-                                                                [env: INFLUXDB3_LOG_FORMAT=]
+                                                                 [env: INFLUXDB3_LOG_FORMAT=]
   --traces-exporter <TYPE>                                     Tracing: exporter type [default: none]
-                                                                [env: INFLUXDB3_TRACES_EXPORTER=]
+                                                                 [env: INFLUXDB3_TRACES_EXPORTER=]
   --traces-exporter-jaeger-agent-host <HOST>                   Jaeger agent hostname [default: 0.0.0.0]
-                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_HOST=]
+                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_HOST=]
   --traces-exporter-jaeger-agent-port <PORT>                   Jaeger agent port [default: 6831]
-                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_PORT=]
+                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_PORT=]
   --traces-exporter-jaeger-service-name <NAME>                 Jaeger service name [default: iox-conductor]
-                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
+                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
   --traces-exporter-jaeger-trace-context-header-name <NAME>    Header for trace context [default: uber-trace-id]
-                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
+                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
   --traces-jaeger-debug-name <NAME>                            Header for force sampling [default: jaeger-debug-id]
-                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
+                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
   --traces-jaeger-tags <TAGS>                                  Key-value pairs for tracing spans
-                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TAGS=]
+                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TAGS=]
   --traces-jaeger-max-msgs-per-second <N>                      Max messages per second [default: 1000]
-                                                                [env: INFLUXDB3_TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
+                                                                 [env: INFLUXDB3_TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
 
 
 {}

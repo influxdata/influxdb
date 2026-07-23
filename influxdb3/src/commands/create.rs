@@ -331,7 +331,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 .api_v3_configure_db_create(&database_name, retention_period.map(Into::into))
                 .await?;
 
-            println!("Database {:?} created successfully", &database_name);
+            println!("Database {database_name:?} created successfully");
         }
         SubCommand::LastCache(LastCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
@@ -420,10 +420,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
 
-            println!(
-                "Table {:?}.{:?} created successfully",
-                &database_name, &table_name
-            );
+            println!("Table {database_name:?}.{table_name:?} created successfully");
         }
         SubCommand::Token(token_creation_config) => {
             let output_format = token_creation_config

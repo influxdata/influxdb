@@ -19,3 +19,8 @@ mod test_object_store;
 pub use test_object_store::{
     ErrorConfig, ErrorType, OperationContext, OperationKind, TestObjectStore,
 };
+
+#[cfg(any(feature = "test-helpers", test))]
+mod cas_test_stores;
+#[cfg(any(feature = "test-helpers", test))]
+pub use cas_test_stores::{LostResponseStore, VersionKeyedStore};

@@ -4,118 +4,128 @@
 //! both parquet-based (`WriteBatch`) WAL
 //! flush data to Python table batches.
 
-use anyhow::Context;
+use anyhow::{Context, ensure};
+use arrow_array::types::Int32Type;
+use arrow_array::{Array, ArrayRef, DictionaryArray, RecordBatch};
+use arrow_schema::DataType;
 use hashbrown::HashMap;
-use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_id::TableId;
-use influxdb3_wal::{FieldData, WriteBatch};
 use pyo3::prelude::PyAnyMethods;
-use pyo3::types::{PyDict, PyList};
-use pyo3::{Bound, Py, PyAny, PyResult, Python};
+use pyo3::types::{PyDict, PyList, PyString};
+use pyo3::{Bound, IntoPyObject, Py, PyAny, PyResult, Python};
 
-/// Trait for converting WAL data to Python table batches.
+/// Convert Arrow arrays from [`RecordBatch`]es to Python list of dicts.
 ///
-/// This allows both parquet-based (`WriteBatch`).
-/// WAL flush data to be converted to the same Python format for plugin execution.
-pub trait ToPythonTableBatches {
-    /// Convert the data to Python table batches for the process_writes function.
-    ///
-    /// Returns a list of dicts, each with "table_name" and "rows" keys.
-    fn to_python_table_batches<'py>(
-        &self,
-        py: Python<'py>,
-        schema: &DatabaseSchema,
-        table_filter: Option<TableId>,
-    ) -> Result<Bound<'py, PyList>, anyhow::Error>;
+/// The record batches are required to have the same schema.
+pub(crate) fn record_batches_to_py_rows<'py>(
+    py: Python<'py>,
+    batches: &[RecordBatch],
+) -> Result<Bound<'py, PyList>, anyhow::Error> {
+    // Pre-create Python strings for field/tag names once for all batches;
+    // schema must be the same across batches.
+    let Some(first_batch) = batches.first() else {
+        return Ok(PyList::empty(py));
+    };
+    let field_names: Vec<Bound<'_, PyString>> = first_batch
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| PyString::new(py, f.name().as_str()))
+        .collect();
+
+    let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+    let mut rows: Vec<Py<PyAny>> = Vec::with_capacity(total_rows);
+
+    for batch in batches {
+        ensure!(
+            batch.num_columns() == field_names.len(),
+            "unexpected batch schema mismatch: expected {} columns, got {}",
+            field_names.len(),
+            batch.num_columns()
+        );
+        let num_rows = batch.num_rows();
+        for row_idx in 0..num_rows {
+            let row = PyDict::new(py);
+            for (col_idx, field_name) in field_names.iter().enumerate() {
+                let array = batch.column(col_idx);
+                let value = extract_arrow_value_to_py(py, array, row_idx)?;
+                row.set_item(field_name, value).context("set dict item")?;
+            }
+            rows.push(row.into());
+        }
+    }
+
+    let list = PyList::new(py, rows)?;
+    Ok(list)
 }
 
-impl ToPythonTableBatches for WriteBatch {
-    fn to_python_table_batches<'py>(
-        &self,
-        py: Python<'py>,
-        schema: &DatabaseSchema,
-        table_filter: Option<TableId>,
-    ) -> Result<Bound<'py, PyList>, anyhow::Error> {
-        let mut table_batches = Vec::with_capacity(self.table_chunks.len());
+/// Extract a value from an Arrow array at the given index and convert to Python.
+fn extract_arrow_value_to_py<'py>(
+    py: Python<'py>,
+    array: &ArrayRef,
+    index: usize,
+) -> Result<Py<PyAny>, anyhow::Error> {
+    use arrow_array::cast::AsArray;
 
-        for (table_id, table_chunks) in &self.table_chunks {
-            if let Some(filter) = table_filter
-                && table_id != &filter
-            {
-                continue;
-            }
-            let table_def = schema
-                .legacy_table_definition_by_id(table_id)
-                .context("table not found")?;
-
-            let dict = PyDict::new(py);
-            dict.set_item("table_name", table_def.table_name.as_ref())
-                .context("failed to set table_name")?;
-
-            let mut rows: Vec<Py<PyAny>> = Vec::new();
-            for chunk in table_chunks.chunk_time_to_chunk.values() {
-                for row in &chunk.rows {
-                    let py_row = PyDict::new(py);
-
-                    for field in &row.fields {
-                        let field_name = table_def
-                            .column_id_to_name(&field.id)
-                            .context("field not found")?;
-                        match &field.value {
-                            FieldData::String(s) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), s.as_str())
-                                    .context("failed to set string field")?;
-                            }
-                            FieldData::Integer(i) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), i)
-                                    .context("failed to set integer field")?;
-                            }
-                            FieldData::UInteger(u) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), u)
-                                    .context("failed to set unsigned integer field")?;
-                            }
-                            FieldData::Float(f) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), f)
-                                    .context("failed to set float field")?;
-                            }
-                            FieldData::Boolean(b) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), b)
-                                    .context("failed to set boolean field")?;
-                            }
-                            FieldData::Tag(t) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), t.as_str())
-                                    .context("failed to set tag field")?;
-                            }
-                            FieldData::Timestamp(t) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), t)
-                                    .context("failed to set timestamp")?;
-                            }
-                            FieldData::Key(_) => {
-                                unreachable!("key type should never be constructed")
-                            }
-                        };
-                    }
-
-                    rows.push(py_row.into());
-                }
-            }
-
-            let rows = PyList::new(py, rows).context("failed to create rows list")?;
-
-            dict.set_item("rows", rows.unbind())
-                .context("failed to set rows")?;
-            table_batches.push(dict);
-        }
-
-        PyList::new(py, table_batches).context("failed to create table_batches list")
+    // Handle null values
+    if array.is_null(index) {
+        return Ok(py.None());
     }
+
+    let data_type = array.data_type();
+    let value = match data_type {
+        DataType::Int64 => {
+            let arr = array.as_primitive::<arrow_array::types::Int64Type>();
+            arr.value(index).into_pyobject(py)?.into_any().unbind()
+        }
+        DataType::UInt64 => {
+            let arr = array.as_primitive::<arrow_array::types::UInt64Type>();
+            arr.value(index).into_pyobject(py)?.into_any().unbind()
+        }
+        DataType::Float64 => {
+            let arr = array.as_primitive::<arrow_array::types::Float64Type>();
+            arr.value(index).into_pyobject(py)?.into_any().unbind()
+        }
+        DataType::Boolean => {
+            let arr = array.as_boolean();
+            arr.value(index)
+                .into_pyobject(py)?
+                .to_owned()
+                .into_any()
+                .unbind()
+        }
+        DataType::Utf8 => {
+            let arr = array.as_string::<i32>();
+            arr.value(index).into_pyobject(py)?.into_any().unbind()
+        }
+        DataType::LargeUtf8 => {
+            let arr = array.as_string::<i64>();
+            arr.value(index).into_pyobject(py)?.into_any().unbind()
+        }
+        DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, _) => {
+            let arr = array.as_primitive::<arrow_array::types::TimestampNanosecondType>();
+            arr.value(index).into_pyobject(py)?.into_any().unbind()
+        }
+        DataType::Dictionary(_, value_type) if value_type.as_ref() == &DataType::Utf8 => {
+            // Dictionary-encoded strings (common for tags)
+            let dict_arr = array
+                .as_any()
+                .downcast_ref::<DictionaryArray<Int32Type>>()
+                .context("failed to downcast dictionary array")?;
+            let values = dict_arr.values().as_string::<i32>();
+            let key = dict_arr.keys().value(index) as usize;
+            values.value(key).into_pyobject(py)?.into_any().unbind()
+        }
+        _ => {
+            anyhow::bail!(
+                "unsupported Arrow type for Python conversion: {:?}. \
+                Supported types: Int64, UInt64, Float64, Boolean, Utf8, LargeUtf8, Timestamp\
+                (Nanosecond), Dictionary(Int32, Utf8).",
+                data_type
+            );
+        }
+    };
+
+    Ok(value)
 }
 
 pub(crate) fn args_to_py_object<'py>(

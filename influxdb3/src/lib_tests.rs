@@ -180,3 +180,138 @@ fn verbose_vv_expansion_disabled() {
     assert_eq!(config.log_verbose_count, 0);
     assert_eq!(config.log_filter.as_deref(), Some("debug"));
 }
+
+#[test]
+fn warning_messages_stay_in_sync_with_consts() {
+    use influxdb3_processing_engine::TRIGGER_QUEUE_SIZE;
+
+    // The warning texts hardcode numbers as prose; keep them tied to the
+    // constants the checks actually use.
+    assert!(
+        super::ASYNC_TRIGGER_CONCURRENCY_SATURATES_QUEUE_MESSAGE
+            .contains(&format!("({TRIGGER_QUEUE_SIZE})"))
+    );
+    assert!(
+        super::ASYNC_TRIGGER_CONCURRENCY_DEFAULT_CHANGE_MESSAGE.contains(&format!(
+            "change to {}",
+            super::FUTURE_DEFAULT_ASYNC_TRIGGER_CONCURRENCY_LIMIT
+        ))
+    );
+    assert!(
+        super::ASYNC_TRIGGER_CONCURRENCY_ABOVE_FUTURE_DEFAULT_MESSAGE.contains(&format!(
+            "above {}",
+            super::FUTURE_DEFAULT_ASYNC_TRIGGER_CONCURRENCY_LIMIT
+        ))
+    );
+}
+
+#[test]
+fn warning_arg_ids_exist_on_serve_command() {
+    use clap::CommandFactory;
+
+    // value_source lookups silently return None (misclassifying explicit
+    // values as defaults) if these ids drift from the clap field names.
+    let cmd = super::Config::command();
+    let serve = cmd
+        .find_subcommand("serve")
+        .expect("serve subcommand exists");
+    for id in [
+        super::PACKAGE_MANAGER_ARG_ID,
+        super::ASYNC_TRIGGER_CONCURRENCY_LIMIT_ARG_ID,
+    ] {
+        assert!(
+            serve.get_arguments().any(|arg| arg.get_id().as_str() == id),
+            "arg id `{id}` not found on the serve command"
+        );
+    }
+}
+
+#[test]
+fn async_trigger_concurrency_warning_fires_for_unlimited_default() {
+    use std::num::NonZeroUsize;
+
+    // Omitted option: clap reports the default value source and the limit is
+    // NonZeroUsize::MAX — the behavior that changes in a future release.
+    assert_eq!(
+        super::async_trigger_concurrency_default_change_warning(
+            NonZeroUsize::MAX,
+            Some(ValueSource::DefaultValue),
+        ),
+        Some(super::ASYNC_TRIGGER_CONCURRENCY_DEFAULT_CHANGE_MESSAGE)
+    );
+    assert_eq!(
+        super::async_trigger_concurrency_default_change_warning(NonZeroUsize::MAX, None),
+        Some(super::ASYNC_TRIGGER_CONCURRENCY_DEFAULT_CHANGE_MESSAGE)
+    );
+}
+
+#[test]
+fn async_trigger_concurrency_warning_fires_for_explicit_value_above_future_default() {
+    use std::num::NonZeroUsize;
+
+    assert_eq!(
+        super::async_trigger_concurrency_default_change_warning(
+            NonZeroUsize::new(9).unwrap(),
+            Some(ValueSource::CommandLine),
+        ),
+        Some(super::ASYNC_TRIGGER_CONCURRENCY_ABOVE_FUTURE_DEFAULT_MESSAGE)
+    );
+    assert_eq!(
+        super::async_trigger_concurrency_default_change_warning(
+            NonZeroUsize::new(100).unwrap(),
+            Some(ValueSource::EnvVariable),
+        ),
+        Some(super::ASYNC_TRIGGER_CONCURRENCY_ABOVE_FUTURE_DEFAULT_MESSAGE)
+    );
+}
+
+#[test]
+fn async_trigger_concurrency_saturation_warning_fires_at_or_above_queue_capacity() {
+    use influxdb3_processing_engine::TRIGGER_QUEUE_SIZE;
+    use std::num::NonZeroUsize;
+
+    assert_eq!(
+        super::async_trigger_concurrency_saturates_queue_warning(
+            NonZeroUsize::new(TRIGGER_QUEUE_SIZE).unwrap()
+        ),
+        Some(super::ASYNC_TRIGGER_CONCURRENCY_SATURATES_QUEUE_MESSAGE)
+    );
+    assert_eq!(
+        super::async_trigger_concurrency_saturates_queue_warning(
+            NonZeroUsize::new(TRIGGER_QUEUE_SIZE + 1).unwrap()
+        ),
+        Some(super::ASYNC_TRIGGER_CONCURRENCY_SATURATES_QUEUE_MESSAGE)
+    );
+    assert_eq!(
+        super::async_trigger_concurrency_saturates_queue_warning(
+            NonZeroUsize::new(TRIGGER_QUEUE_SIZE - 1).unwrap()
+        ),
+        None
+    );
+    // The unlimited default is excluded: its capacity is unreachable, and the
+    // default-change warning already covers it.
+    assert_eq!(
+        super::async_trigger_concurrency_saturates_queue_warning(NonZeroUsize::MAX),
+        None
+    );
+}
+
+#[test]
+fn async_trigger_concurrency_warning_silent_at_or_below_future_default() {
+    use std::num::NonZeroUsize;
+
+    assert_eq!(
+        super::async_trigger_concurrency_default_change_warning(
+            NonZeroUsize::new(super::FUTURE_DEFAULT_ASYNC_TRIGGER_CONCURRENCY_LIMIT).unwrap(),
+            Some(ValueSource::CommandLine),
+        ),
+        None
+    );
+    assert_eq!(
+        super::async_trigger_concurrency_default_change_warning(
+            NonZeroUsize::new(1).unwrap(),
+            Some(ValueSource::EnvVariable),
+        ),
+        None
+    );
+}

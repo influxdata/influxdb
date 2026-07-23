@@ -1,17 +1,15 @@
 use super::*;
-use crate::virtualenv::init_pyo3;
+use crate::{query::UnimplementedQueryEndpoint, virtualenv::init_pyo3};
 use chrono::TimeZone;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::DbId;
-use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
 use influxdb3_write::Precision;
 use influxdb3_write::write_buffer::validator::WriteValidator;
 use iox_time::{MockProvider, Time, TimeProvider};
 use object_store::memory::InMemory;
 use std::sync::Barrier;
 use std::time::Duration;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_wal_plugin() {
@@ -74,10 +72,15 @@ def process_writes(influxdb3_local, table_batches, args=None):
         )])),
     };
 
-    let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
-
-    let response =
-        run_dry_run_wal_plugin(now, catalog, executor, code.to_string(), cache, request).unwrap();
+    let response = run_dry_run_wal_plugin(
+        now,
+        catalog,
+        Arc::new(UnimplementedQueryEndpoint),
+        code.to_string(),
+        cache,
+        request,
+    )
+    .unwrap();
 
     let plugin_log_lines: Vec<_> = response
         .log_lines
@@ -126,14 +129,16 @@ async fn test_wal_plugin_invalid_lines() {
         Arc::clone(&time_provider),
         Duration::from_secs(10),
     )));
-    let catalog = Catalog::new(
-        "foo",
-        Arc::new(InMemory::new()),
-        time_provider,
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let catalog = Arc::new(
+        Catalog::new(
+            "foo",
+            Arc::new(InMemory::new()),
+            time_provider,
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
     let db = DatabaseName::new("foodb").unwrap();
     let validator = WriteValidator::initialize(db.clone(), Arc::clone(&catalog)).unwrap();
     let _data = validator
@@ -177,12 +182,10 @@ def process_writes(influxdb3_local, table_batches, args=None):
         input_arguments: None,
     };
 
-    let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
-
     let response = run_dry_run_wal_plugin(
         now,
         Arc::clone(&catalog),
-        executor,
+        Arc::new(UnimplementedQueryEndpoint),
         code.to_string(),
         cache,
         request,
@@ -236,17 +239,55 @@ def process_scheduled_call(influxdb3_local, call_time, args=None):
         code,
         Utc.timestamp_opt(0, 0).unwrap(),
         Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-        Arc::new(UnimplementedQueryExecutor),
+        Arc::new(UnimplementedQueryEndpoint),
         Arc::new(WriteAccumulator::default()),
         influxdb3_py_api::logging::PluginLogger::dry_run(),
         &None::<HashMap<String, String>>,
         PyCache::new_test_cache(cache, "_shared_test".to_string()),
         None,
+        tokio_util::sync::CancellationToken::new(),
     );
 
     assert!(
         result.is_ok(),
         "PyPluginCallApi exposes unexpected Python methods: {result:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_schedule_plugin_cancelled_token_interrupts_host_api() {
+    init_pyo3();
+
+    let code = r#"
+def process_scheduled_call(influxdb3_local, call_time, args=None):
+    influxdb3_local.info("must be interrupted")
+"#;
+
+    let cache = Arc::new(Mutex::new(CacheStore::new(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Duration::from_secs(10),
+    )));
+    let cancel = tokio_util::sync::CancellationToken::new();
+    cancel.cancel();
+
+    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
+        code,
+        Utc.timestamp_opt(0, 0).unwrap(),
+        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
+        Arc::new(UnimplementedQueryEndpoint),
+        Arc::new(WriteAccumulator::default()),
+        influxdb3_py_api::logging::PluginLogger::dry_run(),
+        &None::<HashMap<String, String>>,
+        PyCache::new_test_cache(cache, "_shared_test".to_string()),
+        None,
+        cancel,
+    );
+
+    let err = result.expect_err("a cancelled plugin host call should be interrupted");
+    assert!(
+        err.to_string()
+            .contains("influxdb3 is shutting down; aborting plugin execution"),
+        "expected cancellation error, got: {err}"
     );
 }
 
@@ -268,12 +309,13 @@ def process_scheduled_call(influxdb3_local, call_time, args=None):
         code,
         Utc.timestamp_opt(0, 0).unwrap(),
         Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-        Arc::new(UnimplementedQueryExecutor),
+        Arc::new(UnimplementedQueryEndpoint),
         Arc::new(WriteAccumulator::default()),
         influxdb3_py_api::logging::PluginLogger::dry_run(),
         &None::<HashMap<String, String>>,
         PyCache::new_test_cache(cache, "_shared_test".to_string()),
         None,
+        tokio_util::sync::CancellationToken::new(),
     );
 
     let err = result.expect_err("query with an invalid database name should fail");
@@ -289,6 +331,178 @@ def process_scheduled_call(influxdb3_local, call_time, args=None):
     assert!(
         msg.contains("contains invalid character"),
         "expected invalid character detail, got: {msg}"
+    );
+}
+
+/// A multi-file plugin whose import fails must surface the real Python error,
+/// not the generic "function is not present" message.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_schedule_plugin_multi_file_import_error_surfaced() {
+    init_pyo3();
+
+    let plugin_parent = tempfile::TempDir::new().unwrap();
+    let plugin_dir = plugin_parent.path().join("badimport");
+    std::fs::create_dir(&plugin_dir).unwrap();
+    std::fs::write(
+        plugin_dir.join("__init__.py"),
+        "import totally_missing_dep_xyz\n\n\
+         def process_scheduled_call(influxdb3_local, call_time, args=None):\n    pass\n",
+    )
+    .unwrap();
+
+    let cache = Arc::new(Mutex::new(CacheStore::new(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Duration::from_secs(10),
+    )));
+
+    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
+        "",
+        Utc.timestamp_opt(0, 0).unwrap(),
+        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
+        Arc::new(UnimplementedQueryEndpoint),
+        Arc::new(WriteAccumulator::default()),
+        influxdb3_py_api::logging::PluginLogger::dry_run(),
+        &None::<HashMap<String, String>>,
+        PyCache::new_test_cache(cache, "_shared_test".to_string()),
+        Some(plugin_dir.as_path()),
+        tokio_util::sync::CancellationToken::new(),
+    );
+
+    let err = result.expect_err("plugin with missing import dependency should fail to load");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("totally_missing_dep_xyz"),
+        "expected the real import error to be surfaced, got: {msg}"
+    );
+}
+
+/// An AttributeError raised while a multi-file plugin's module is importing must
+/// be surfaced as the real cause, not collapsed into the generic missing-function
+/// message (the import never reaches the entry-point lookup).
+#[tokio::test(flavor = "multi_thread")]
+async fn test_schedule_plugin_multi_file_import_time_attribute_error_surfaced() {
+    init_pyo3();
+
+    let plugin_parent = tempfile::TempDir::new().unwrap();
+    let plugin_dir = plugin_parent.path().join("attrimport");
+    std::fs::create_dir(&plugin_dir).unwrap();
+    std::fs::write(
+        plugin_dir.join("__init__.py"),
+        "import sys\nsys.this_attr_xyz_missing\n\n\
+         def process_scheduled_call(influxdb3_local, call_time, args=None):\n    pass\n",
+    )
+    .unwrap();
+
+    let cache = Arc::new(Mutex::new(CacheStore::new(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Duration::from_secs(10),
+    )));
+
+    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
+        "",
+        Utc.timestamp_opt(0, 0).unwrap(),
+        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
+        Arc::new(UnimplementedQueryEndpoint),
+        Arc::new(WriteAccumulator::default()),
+        influxdb3_py_api::logging::PluginLogger::dry_run(),
+        &None::<HashMap<String, String>>,
+        PyCache::new_test_cache(cache, "_shared_test".to_string()),
+        Some(plugin_dir.as_path()),
+        tokio_util::sync::CancellationToken::new(),
+    );
+
+    let err = result.expect_err("plugin raising AttributeError on import should fail to load");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("this_attr_xyz_missing"),
+        "expected the real import-time error to be surfaced, got: {msg}"
+    );
+}
+
+/// A multi-file plugin that imports cleanly but lacks the entry-point function
+/// must still report the generic "function is not present" message.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_schedule_plugin_multi_file_missing_function_reports_generic_error() {
+    init_pyo3();
+
+    let plugin_parent = tempfile::TempDir::new().unwrap();
+    let plugin_dir = plugin_parent.path().join("nofunc");
+    std::fs::create_dir(&plugin_dir).unwrap();
+    std::fs::write(
+        plugin_dir.join("__init__.py"),
+        "def some_other_function():\n    pass\n",
+    )
+    .unwrap();
+
+    let cache = Arc::new(Mutex::new(CacheStore::new(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Duration::from_secs(10),
+    )));
+
+    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
+        "",
+        Utc.timestamp_opt(0, 0).unwrap(),
+        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
+        Arc::new(UnimplementedQueryEndpoint),
+        Arc::new(WriteAccumulator::default()),
+        influxdb3_py_api::logging::PluginLogger::dry_run(),
+        &None::<HashMap<String, String>>,
+        PyCache::new_test_cache(cache, "_shared_test".to_string()),
+        Some(plugin_dir.as_path()),
+        tokio_util::sync::CancellationToken::new(),
+    );
+
+    let err = result.expect_err("plugin missing the entry-point function should fail to load");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("process_scheduled_call function is not present"),
+        "expected the generic missing-function error, got: {msg}"
+    );
+}
+
+/// A multi-file plugin whose `__init__.py` has a syntax error must surface the
+/// real `SyntaxError`, not be masked as a missing entry-point.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_schedule_plugin_multi_file_syntax_error_surfaced() {
+    init_pyo3();
+
+    let plugin_parent = tempfile::TempDir::new().unwrap();
+    let plugin_dir = plugin_parent.path().join("syntaxerr");
+    std::fs::create_dir(&plugin_dir).unwrap();
+    // Missing trailing colon -> SyntaxError at import time.
+    std::fs::write(
+        plugin_dir.join("__init__.py"),
+        "def process_scheduled_call(influxdb3_local, call_time, args=None)\n    pass\n",
+    )
+    .unwrap();
+
+    let cache = Arc::new(Mutex::new(CacheStore::new(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Duration::from_secs(10),
+    )));
+
+    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
+        "",
+        Utc.timestamp_opt(0, 0).unwrap(),
+        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
+        Arc::new(UnimplementedQueryEndpoint),
+        Arc::new(WriteAccumulator::default()),
+        influxdb3_py_api::logging::PluginLogger::dry_run(),
+        &None::<HashMap<String, String>>,
+        PyCache::new_test_cache(cache, "_shared_test".to_string()),
+        Some(plugin_dir.as_path()),
+        tokio_util::sync::CancellationToken::new(),
+    );
+
+    let err = result.expect_err("plugin with a syntax error should fail to load");
+    let msg = err.to_string();
+    assert!(
+        !msg.contains("is not present in the plugin"),
+        "syntax error was masked as a missing entry-point, got: {msg}"
+    );
+    assert!(
+        msg.contains("SyntaxError"),
+        "expected the real SyntaxError to be surfaced, got: {msg}"
     );
 }
 
@@ -338,7 +552,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info(f"helper_b_leaked: {helper_b_leaked}")
     influxdb3_local.info(f"plugin_b: helper_b() = {helper_b()}")"#;
 
-    let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
     let lp = "cpu,host=A usage=1i 100";
 
     // Run plugin A first
@@ -352,7 +565,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     let response_a = run_dry_run_wal_plugin(
         now,
         Arc::clone(&catalog),
-        Arc::clone(&executor),
+        Arc::new(UnimplementedQueryEndpoint),
         code_a.to_string(),
         Arc::clone(&cache),
         request_a,
@@ -374,9 +587,15 @@ def process_writes(influxdb3_local, table_batches, args=None):
         cache_name: None,
         input_arguments: None,
     };
-    let response_b =
-        run_dry_run_wal_plugin(now, catalog, executor, code_b.to_string(), cache, request_b)
-            .unwrap();
+    let response_b = run_dry_run_wal_plugin(
+        now,
+        catalog,
+        Arc::new(UnimplementedQueryEndpoint),
+        code_b.to_string(),
+        cache,
+        request_b,
+    )
+    .unwrap();
 
     // Verify plugin B executed and neither helper leaked into __main__
     assert!(
@@ -457,12 +676,13 @@ async fn test_concurrent_multifile_loads_with_distinct_parents_all_succeed() {
                 "",
                 Utc.timestamp_opt(0, 0).unwrap(),
                 Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-                Arc::new(UnimplementedQueryExecutor),
+                Arc::new(UnimplementedQueryEndpoint),
                 Arc::new(WriteAccumulator::default()),
                 influxdb3_py_api::logging::PluginLogger::dry_run(),
                 &None::<HashMap<String, String>>,
                 PyCache::new_test_cache(cache, format!("_shared_syspath_test_{i}")),
                 Some(plugin_root.as_path()),
+                tokio_util::sync::CancellationToken::new(),
             );
 
             match result {
@@ -540,12 +760,13 @@ async fn test_multifile_plugin_added_after_first_import_loads() {
             "",
             Utc.timestamp_opt(0, 0).unwrap(),
             Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-            Arc::new(UnimplementedQueryExecutor),
+            Arc::new(UnimplementedQueryEndpoint),
             Arc::new(WriteAccumulator::default()),
             influxdb3_py_api::logging::PluginLogger::dry_run(),
             &None::<HashMap<String, String>>,
             PyCache::new_test_cache(Arc::clone(&cache), "_shared_test".to_string()),
             Some(root),
+            tokio_util::sync::CancellationToken::new(),
         )
     };
 
@@ -602,12 +823,13 @@ async fn test_multifile_plugin_missing_dependency_does_not_rerun_top_level() {
         "",
         Utc.timestamp_opt(0, 0).unwrap(),
         Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-        Arc::new(UnimplementedQueryExecutor),
+        Arc::new(UnimplementedQueryEndpoint),
         Arc::new(WriteAccumulator::default()),
         influxdb3_py_api::logging::PluginLogger::dry_run(),
         &None::<HashMap<String, String>>,
         PyCache::new_test_cache(Arc::clone(&cache), "_shared_test".to_string()),
         Some(plugin.as_path()),
+        tokio_util::sync::CancellationToken::new(),
     );
 
     // The missing-dependency error must still surface, not be masked by the retry.
@@ -622,219 +844,5 @@ async fn test_multifile_plugin_missing_dependency_does_not_rerun_top_level() {
         1,
         "plugin top-level code ran {} time(s); the import retry must not re-run it",
         runs.len()
-    );
-}
-
-/// A multi-file plugin whose import fails must surface the real Python error,
-/// not the generic "function is not present" message.
-#[tokio::test(flavor = "multi_thread")]
-async fn test_schedule_plugin_multi_file_import_error_surfaced() {
-    init_pyo3();
-
-    let plugin_parent = tempfile::TempDir::new().unwrap();
-    let plugin_dir = plugin_parent.path().join("badimport");
-    std::fs::create_dir(&plugin_dir).unwrap();
-    std::fs::write(
-        plugin_dir.join("__init__.py"),
-        "import totally_missing_dep_xyz\n\n\
-         def process_scheduled_call(influxdb3_local, call_time, args=None):\n    pass\n",
-    )
-    .unwrap();
-
-    let cache = Arc::new(Mutex::new(CacheStore::new(
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-        Duration::from_secs(10),
-    )));
-
-    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
-        "",
-        Utc.timestamp_opt(0, 0).unwrap(),
-        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-        Arc::new(UnimplementedQueryExecutor),
-        Arc::new(WriteAccumulator::default()),
-        influxdb3_py_api::logging::PluginLogger::dry_run(),
-        &None::<HashMap<String, String>>,
-        PyCache::new_test_cache(cache, "_shared_test".to_string()),
-        Some(plugin_dir.as_path()),
-    );
-
-    let err = result.expect_err("plugin with missing import dependency should fail to load");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("totally_missing_dep_xyz"),
-        "expected the real import error to be surfaced, got: {msg}"
-    );
-}
-
-/// An AttributeError raised while a multi-file plugin's module is importing must
-/// be surfaced as the real cause, not collapsed into the generic missing-function
-/// message (the import never reaches the entry-point lookup).
-#[tokio::test(flavor = "multi_thread")]
-async fn test_schedule_plugin_multi_file_import_time_attribute_error_surfaced() {
-    init_pyo3();
-
-    let plugin_parent = tempfile::TempDir::new().unwrap();
-    let plugin_dir = plugin_parent.path().join("attrimport");
-    std::fs::create_dir(&plugin_dir).unwrap();
-    std::fs::write(
-        plugin_dir.join("__init__.py"),
-        "import sys\nsys.this_attr_xyz_missing\n\n\
-         def process_scheduled_call(influxdb3_local, call_time, args=None):\n    pass\n",
-    )
-    .unwrap();
-
-    let cache = Arc::new(Mutex::new(CacheStore::new(
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-        Duration::from_secs(10),
-    )));
-
-    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
-        "",
-        Utc.timestamp_opt(0, 0).unwrap(),
-        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-        Arc::new(UnimplementedQueryExecutor),
-        Arc::new(WriteAccumulator::default()),
-        influxdb3_py_api::logging::PluginLogger::dry_run(),
-        &None::<HashMap<String, String>>,
-        PyCache::new_test_cache(cache, "_shared_test".to_string()),
-        Some(plugin_dir.as_path()),
-    );
-
-    let err = result.expect_err("plugin raising AttributeError on import should fail to load");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("this_attr_xyz_missing"),
-        "expected the real import-time error to be surfaced, got: {msg}"
-    );
-}
-
-/// A multi-file plugin that imports cleanly but lacks the entry-point function
-/// must still report the generic "function is not present" message.
-#[tokio::test(flavor = "multi_thread")]
-async fn test_schedule_plugin_multi_file_missing_function_reports_generic_error() {
-    init_pyo3();
-
-    let plugin_parent = tempfile::TempDir::new().unwrap();
-    let plugin_dir = plugin_parent.path().join("nofunc");
-    std::fs::create_dir(&plugin_dir).unwrap();
-    std::fs::write(
-        plugin_dir.join("__init__.py"),
-        "def some_other_function():\n    pass\n",
-    )
-    .unwrap();
-
-    let cache = Arc::new(Mutex::new(CacheStore::new(
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-        Duration::from_secs(10),
-    )));
-
-    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
-        "",
-        Utc.timestamp_opt(0, 0).unwrap(),
-        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-        Arc::new(UnimplementedQueryExecutor),
-        Arc::new(WriteAccumulator::default()),
-        influxdb3_py_api::logging::PluginLogger::dry_run(),
-        &None::<HashMap<String, String>>,
-        PyCache::new_test_cache(cache, "_shared_test".to_string()),
-        Some(plugin_dir.as_path()),
-    );
-
-    let err = result.expect_err("plugin missing the entry-point function should fail to load");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("process_scheduled_call function is not present"),
-        "expected the generic missing-function error, got: {msg}"
-    );
-}
-
-/// A multi-file plugin whose `__init__.py` has a syntax error must surface the
-/// real `SyntaxError`, not be masked as a missing entry-point.
-#[tokio::test(flavor = "multi_thread")]
-async fn test_schedule_plugin_multi_file_syntax_error_surfaced() {
-    init_pyo3();
-
-    let plugin_parent = tempfile::TempDir::new().unwrap();
-    let plugin_dir = plugin_parent.path().join("syntaxerr");
-    std::fs::create_dir(&plugin_dir).unwrap();
-    // Missing trailing colon -> SyntaxError at import time.
-    std::fs::write(
-        plugin_dir.join("__init__.py"),
-        "def process_scheduled_call(influxdb3_local, call_time, args=None)\n    pass\n",
-    )
-    .unwrap();
-
-    let cache = Arc::new(Mutex::new(CacheStore::new(
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-        Duration::from_secs(10),
-    )));
-
-    let result = influxdb3_py_api::system_py::execute_schedule_trigger(
-        "",
-        Utc.timestamp_opt(0, 0).unwrap(),
-        Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
-        Arc::new(UnimplementedQueryExecutor),
-        Arc::new(WriteAccumulator::default()),
-        influxdb3_py_api::logging::PluginLogger::dry_run(),
-        &None::<HashMap<String, String>>,
-        PyCache::new_test_cache(cache, "_shared_test".to_string()),
-        Some(plugin_dir.as_path()),
-    );
-
-    let err = result.expect_err("plugin with a syntax error should fail to load");
-    let msg = err.to_string();
-    assert!(
-        !msg.contains("is not present in the plugin"),
-        "syntax error was masked as a missing entry-point, got: {msg}"
-    );
-    assert!(
-        msg.contains("SyntaxError"),
-        "expected the real SyntaxError to be surfaced, got: {msg}"
-    );
-}
-
-/// When the token is not cancelled, `run_until_cancelled` yields the run's
-/// result unchanged.
-#[tokio::test(flavor = "multi_thread")]
-async fn run_until_cancelled_returns_result_when_not_cancelled() {
-    let cancel = CancellationToken::new();
-    let join = tokio::task::spawn_blocking(|| 42);
-    let result = run_until_cancelled(join, &cancel).await;
-    assert!(matches!(result, Some(Ok(42))));
-}
-
-/// The core of the disable/delete-hang fix: when the per-trigger token is
-/// cancelled while a blocking run is in flight, `run_until_cancelled` returns
-/// promptly (abandoning the run) instead of waiting for it to finish. If the
-/// race were removed this would block on the 30s task and the elapsed-time
-/// assertion would fail.
-#[tokio::test(flavor = "multi_thread")]
-async fn run_until_cancelled_abandons_blocking_run_on_cancel() {
-    let cancel = CancellationToken::new();
-    // A long-running task standing in for an in-flight plugin run. `run_at_time`
-    // uses spawn_blocking; `run_until_cancelled` is generic over the JoinHandle,
-    // so an async task exercises the same race while leaving nothing to join at
-    // teardown.
-    let join = tokio::spawn(async {
-        tokio::time::sleep(Duration::from_secs(30)).await;
-        42
-    });
-
-    // Cancel shortly after the run starts.
-    let canceller = cancel.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        canceller.cancel();
-    });
-
-    let start = std::time::Instant::now();
-    let result = run_until_cancelled(join, &cancel).await;
-    assert!(
-        result.is_none(),
-        "a cancelled run must be abandoned, not awaited to completion"
-    );
-    assert!(
-        start.elapsed() < Duration::from_secs(5),
-        "must return promptly on cancel, not wait out the blocking run"
     );
 }
