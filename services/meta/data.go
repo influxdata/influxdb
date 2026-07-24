@@ -1863,15 +1863,19 @@ func UnmarshalTime(v int64) time.Time {
 	return time.Unix(0, v).UTC()
 }
 
-// ValidName checks to see if the given name can would be valid for DB/RP name
-func ValidName(name string) bool {
+// ValidName trims leading and trailing whitespace from name and reports whether
+// the trimmed result would be a valid DB/RP name. Callers must use the returned
+// (trimmed) name for existence checks and persistence so that, for example,
+// " foo " and "foo" refer to the same database or retention policy.
+func ValidName(name string) (string, bool) {
+	name = strings.TrimSpace(name)
 	for _, r := range name {
 		if !unicode.IsPrint(r) {
-			return false
+			return name, false
 		}
 	}
 
-	return name != "" &&
+	return name, name != "" &&
 		name != "." &&
 		name != ".." &&
 		!strings.ContainsAny(name, `/\`)

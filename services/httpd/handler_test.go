@@ -1993,7 +1993,7 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 				SchemaType: "implicit",
 			},
 			status: http.StatusBadRequest,
-			errMsg: `buckets - retention policy "/": invalid name`,
+			errMsg: `buckets - cannot create bucket "mydb//": invalid name`,
 		},
 		{
 			url:    "/api/v2/buckets/" + existingDb + "%2f" + goodRp,
@@ -2072,6 +2072,11 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 	}
 
 	createRp := func(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error) {
+		trimmed, ok := meta.ValidName(spec.Name)
+		if !ok {
+			return nil, meta.ErrInvalidName
+		}
+		spec.Name = trimmed
 		return &meta.RetentionPolicyInfo{
 			Name:               spec.Name,
 			ReplicaN:           *spec.ReplicaN,
@@ -2117,12 +2122,15 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 		CreateRetentionPolicyFn: createRp,
 		CreateDatabaseWithRetentionPolicyFn: func(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error) {
 			rpi, err := createRp(name, spec, true)
+			if err != nil {
+				return nil, err
+			}
 			return &meta.DatabaseInfo{
 				Name:                   name,
 				DefaultRetentionPolicy: spec.Name,
 				RetentionPolicies:      []meta.RetentionPolicyInfo{*rpi},
 				ContinuousQueries:      nil,
-			}, err
+			}, nil
 		},
 		DropRetentionPolicyFn:   dropDeleteRp,
 		UpdateRetentionPolicyFn: updateRp,

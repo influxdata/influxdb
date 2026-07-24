@@ -168,6 +168,11 @@ func (c *Client) Databases() []DatabaseInfo {
 
 // CreateDatabase creates a database or returns it if it already exists.
 func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
+	name, ok := ValidName(name)
+	if !ok {
+		return nil, ErrInvalidName
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -212,6 +217,20 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionPolicySpec) (*DatabaseInfo, error) {
 	if spec == nil {
 		return nil, errors.New("CreateDatabaseWithRetentionPolicy called with nil spec")
+	}
+
+	name, ok := ValidName(name)
+	if !ok {
+		return nil, ErrInvalidName
+	}
+	// An empty spec name defaults to DefaultRetentionPolicyName downstream, so
+	// only validate it when the caller supplied one.
+	if spec.Name != "" {
+		trimmed, ok := ValidName(spec.Name)
+		if !ok {
+			return nil, ErrInvalidName
+		}
+		spec.Name = trimmed
 	}
 
 	c.mu.Lock()
@@ -284,6 +303,20 @@ func (c *Client) DropDatabase(name string) error {
 
 // CreateRetentionPolicy creates a retention policy on the specified database.
 func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpec, makeDefault bool) (*RetentionPolicyInfo, error) {
+	database, ok := ValidName(database)
+	if !ok {
+		return nil, ErrInvalidName
+	}
+	// An empty spec name defaults to DefaultRetentionPolicyName downstream, so
+	// only validate it when the caller supplied one.
+	if spec.Name != "" {
+		trimmed, ok := ValidName(spec.Name)
+		if !ok {
+			return nil, ErrInvalidName
+		}
+		spec.Name = trimmed
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
