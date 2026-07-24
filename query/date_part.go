@@ -272,11 +272,13 @@ func validateDatePartTree(stmt *influxql.SelectStatement, subquery bool) error {
 	return nil
 }
 
-// datePartStreamCalls lists the stream-based transformation functions. Their
-// reducers process points in timestamp order keyed on tags only and never
-// consult the date_part grouper, so combining them with GROUP BY date_part
-// would silently flatten the groups into one series.
+// datePartStreamCalls lists the stream-based functions. Their reducers process
+// points in timestamp order keyed on tags only and never consult the date_part
+// grouper, so combining them with GROUP BY date_part would silently flatten
+// the groups into one series. count_hll qualifies too: its inner sum_hll stage
+// groups, but the outer stream stage merges the groups back together.
 var datePartStreamCalls = map[string]struct{}{
+	"count_hll":                         {},
 	"derivative":                        {},
 	"non_negative_derivative":           {},
 	"difference":                        {},
@@ -398,6 +400,17 @@ func validateDatePartFields(stmt *influxql.SelectStatement, fillOption influxql.
 		if _, ok := injected[f.Name()]; ok {
 			return fmt.Errorf("date_part: output column %q collides with the GROUP BY date_part('%s', time) dimension; alias the field to a different name", f.Name(), f.Name())
 		}
+		// top/bottom tag arguments become output columns named after the tag
+		// (see buildTopBottomIterator), so they collide the same way.
+		if call, ok := f.Expr.(*influxql.Call); ok && (call.Name == "top" || call.Name == "bottom") && len(call.Args) > 2 {
+			for _, arg := range call.Args[1 : len(call.Args)-1] {
+				if ref, ok := arg.(*influxql.VarRef); ok {
+					if _, ok := injected[ref.Val]; ok {
+						return fmt.Errorf("date_part: %s() tag argument %q collides with the GROUP BY date_part('%s', time) dimension", call.Name, ref.Val, ref.Val)
+					}
+				}
+			}
+		}
 	}
 
 	// A GROUP BY tag with the same name collides with the injected column too:
@@ -407,6 +420,39 @@ func validateDatePartFields(stmt *influxql.SelectStatement, fillOption influxql.
 		if ref, ok := d.Expr.(*influxql.VarRef); ok {
 			if _, ok := injected[ref.Val]; ok {
 				return fmt.Errorf("date_part: GROUP BY dimension %q collides with the GROUP BY date_part('%s', time) dimension", ref.Val, ref.Val)
+			}
+		}
+	}
+
+	// Over a subquery source, a reference to an injected part name resolves to
+	// the grouping driver (datePartMap) before the subquery's fields (see
+	// subqueryBuilder.mapAuxField), so a subquery column of the same name is
+	// silently shadowed by the extracted part value. Reject the reference when
+	// the subquery actually emits the colliding column; an unreferenced column
+	// is harmless and aliasing it in the subquery lifts the restriction.
+	referenced := make(map[string]struct{})
+	collectRefs := func(n influxql.Node) {
+		if ref, ok := n.(*influxql.VarRef); ok {
+			referenced[ref.Val] = struct{}{}
+		}
+	}
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, collectRefs)
+	}
+	if stmt.Condition != nil {
+		influxql.WalkFunc(stmt.Condition, collectRefs)
+	}
+	for _, src := range stmt.Sources {
+		sub, ok := src.(*influxql.SubQuery)
+		if !ok {
+			continue
+		}
+		for _, col := range sub.Statement.ColumnNames() {
+			if _, ok := injected[col]; !ok {
+				continue
+			}
+			if _, ok := referenced[col]; ok {
+				return fmt.Errorf("date_part: subquery column %q is shadowed by the GROUP BY date_part('%s', time) dimension; alias the column in the subquery to a different name", col, col)
 			}
 		}
 	}

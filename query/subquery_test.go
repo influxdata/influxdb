@@ -366,11 +366,13 @@ func TestSubquery(t *testing.T) {
 		},
 		{
 			// The aggregate argument "year" names an active GROUP BY date_part
-			// dimension, so it is driven by datePartMap (computed from the row
-			// timestamp) rather than the subquery's field of the same name.
+			// dimension and no subquery column (the stored field is aliased away),
+			// so it is driven by datePartMap (computed from the row timestamp).
 			// This must produce grouped counts, not a panic in NewIteratorMapper.
+			// An unaliased subquery column "year" is rejected at compile time as
+			// shadowed (see TestCompile_Failures).
 			Name:      "GroupByDatePart_AggregateArgNamedAfterDatePart",
-			Statement: `SELECT count(year) FROM (SELECT year FROM cpu) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1972-01-01T00:00:00Z' GROUP BY date_part('year', time)`,
+			Statement: `SELECT count(year) FROM (SELECT year AS yr FROM cpu) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1972-01-01T00:00:00Z' GROUP BY date_part('year', time)`,
 			Fields:    map[string]influxql.DataType{"year": influxql.Float},
 			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
 				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {

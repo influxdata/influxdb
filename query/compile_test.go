@@ -140,6 +140,11 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT value FROM (SELECT value FROM cpu) WHERE date_part('dow', time) = 0`,
 		`SELECT mean(value) FROM (SELECT value FROM cpu) WHERE date_part('dow', time) != 0 AND date_part('dow', time) != 6`,
 		`SELECT mean(value) FROM (SELECT value FROM cpu) WHERE date_part('hour', time) >= 9 GROUP BY date_part('dow', time)`,
+		// A subquery column sharing an injected date_part dimension name is fine
+		// as long as the outer statement never references it.
+		`SELECT mean(value) FROM (SELECT value, year FROM cpu) GROUP BY date_part('year', time)`,
+		// Aliasing the colliding subquery column resolves the ambiguity.
+		`SELECT mean(yr) FROM (SELECT year AS yr FROM cpu) GROUP BY date_part('year', time)`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
@@ -445,6 +450,18 @@ func TestCompile_Failures(t *testing.T) {
 		// A GROUP BY tag sharing the injected date_part column name would be
 		// clobbered in column-name-keyed handling (e.g. SELECT INTO), so reject it.
 		{s: `SELECT max(value) FROM cpu GROUP BY year, date_part('year', time) fill(none)`, err: `date_part: GROUP BY dimension "year" collides with the GROUP BY date_part('year', time) dimension`},
+		// count_hll's outer stage is a stream iterator keyed on tags only, so it
+		// flattens date_part groups just like the transformations above.
+		{s: `SELECT count_hll(sum_hll(value)) FROM cpu GROUP BY date_part('year', time) fill(none)`, err: `date_part: count_hll() is not supported with GROUP BY date_part`},
+		// top/bottom tag arguments become output columns named after the tag and
+		// collide with the injected date_part column.
+		{s: `SELECT top(value, year, 3) FROM cpu GROUP BY date_part('year', time) fill(none)`, err: `date_part: top() tag argument "year" collides with the GROUP BY date_part('year', time) dimension`},
+		{s: `SELECT bottom(value, month, 3) FROM cpu GROUP BY date_part('year', time), date_part('month', time) fill(none)`, err: `date_part: bottom() tag argument "month" collides with the GROUP BY date_part('month', time) dimension`},
+		// A reference to a subquery column named after an injected date_part
+		// dimension would resolve to the extracted part value, silently shadowing
+		// the stored column.
+		{s: `SELECT mean(year) FROM (SELECT year FROM cpu) GROUP BY date_part('year', time)`, err: `date_part: subquery column "year" is shadowed by the GROUP BY date_part('year', time) dimension; alias the column in the subquery to a different name`},
+		{s: `SELECT mean(value) FROM (SELECT value, year FROM cpu) WHERE year > 2000 GROUP BY date_part('year', time)`, err: `date_part: subquery column "year" is shadowed by the GROUP BY date_part('year', time) dimension; alias the column in the subquery to a different name`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)
