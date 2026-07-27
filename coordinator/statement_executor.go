@@ -58,6 +58,7 @@ type StatementExecutor struct {
 	MaxSelectPointN   int
 	MaxSelectSeriesN  int
 	MaxSelectBucketsN int
+	MaxTimeRange      time.Duration
 }
 
 // ExecuteStatement executes the given statement with the given execution context.
@@ -402,10 +403,11 @@ func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStateme
 
 func (e *StatementExecutor) executeExplainStatement(ctx *query.ExecutionContext, q *influxql.ExplainStatement) (models.Rows, error) {
 	opt := query.SelectOptions{
-		NodeID:      ctx.ExecutionOptions.NodeID,
-		MaxSeriesN:  e.MaxSelectSeriesN,
-		MaxBucketsN: e.MaxSelectBucketsN,
-		Authorizer:  ctx.Authorizer,
+		NodeID:       ctx.ExecutionOptions.NodeID,
+		MaxSeriesN:   e.MaxSelectSeriesN,
+		MaxBucketsN:  e.MaxSelectBucketsN,
+		MaxTimeRange: e.MaxTimeRange,
+		Authorizer:   ctx.Authorizer,
 	}
 
 	// Prepare the query for execution, but do not actually execute it.
@@ -619,11 +621,12 @@ func (e *StatementExecutor) executeSelectStatement(ctx *query.ExecutionContext, 
 
 func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.SelectStatement, opt query.ExecutionOptions) (query.Cursor, error) {
 	sopt := query.SelectOptions{
-		NodeID:      opt.NodeID,
-		MaxSeriesN:  e.MaxSelectSeriesN,
-		MaxPointN:   e.MaxSelectPointN,
-		MaxBucketsN: e.MaxSelectBucketsN,
-		Authorizer:  opt.Authorizer,
+		NodeID:       opt.NodeID,
+		MaxSeriesN:   e.MaxSelectSeriesN,
+		MaxPointN:    e.MaxSelectPointN,
+		MaxBucketsN:  e.MaxSelectBucketsN,
+		MaxTimeRange: e.MaxTimeRange,
+		Authorizer:   opt.Authorizer,
 	}
 
 	// Create a set of iterators from a selection.

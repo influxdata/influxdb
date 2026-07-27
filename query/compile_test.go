@@ -2,9 +2,11 @@ package query_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCompile_Success(t *testing.T) {
@@ -433,6 +435,128 @@ func TestPrepare_MapShardsTimeRange(t *testing.T) {
 
 			if _, err := c.Prepare(&shardMapper, query.SelectOptions{}); err != nil {
 				t.Fatalf("unexpected error: %s", err)
+			}
+		})
+	}
+}
+
+func TestPrepare_MaxTimeRange(t *testing.T) {
+	// Fixed reference time so that now()-relative queries are deterministic.
+	now := mustParseTime("2018-09-03T16:00:00Z")
+
+	for _, tt := range []struct {
+		name         string
+		s            string
+		maxTimeRange time.Duration
+		maxBucketsN  int
+		wantErr      bool
+	}{
+		{
+			name:         "explicit range wider than limit",
+			s:            `SELECT value FROM cpu WHERE time >= '2018-09-03T00:00:00Z' AND time <= '2018-09-05T00:00:00Z'`,
+			maxTimeRange: 24 * time.Hour,
+			wantErr:      true,
+		},
+		{
+			name:         "explicit range within limit",
+			s:            `SELECT value FROM cpu WHERE time >= '2018-09-03T00:00:00Z' AND time <= '2018-09-05T00:00:00Z'`,
+			maxTimeRange: 72 * time.Hour,
+			wantErr:      false,
+		},
+		{
+			// An inverted range (min after max) yields a negative span, which
+			// can never exceed a positive limit, so the check is a no-op. The
+			// query matches no data downstream regardless.
+			name:         "inverted range is not rejected",
+			s:            `SELECT value FROM cpu WHERE time >= '2018-09-05T00:00:00Z' AND time <= '2018-09-03T00:00:00Z'`,
+			maxTimeRange: 24 * time.Hour,
+			wantErr:      false,
+		},
+		{
+			name:         "limit disabled ignores wide range",
+			s:            `SELECT value FROM cpu`,
+			maxTimeRange: 0,
+			wantErr:      false,
+		},
+		{
+			name:         "open upper bound measured up to now",
+			s:            `SELECT value FROM cpu WHERE time > now() - 5m`,
+			maxTimeRange: time.Hour,
+			wantErr:      false,
+		},
+		{
+			name:         "explicit future upper bound is not capped",
+			s:            `SELECT value FROM cpu WHERE time > now() - 5m AND time < now() + 2h`,
+			maxTimeRange: time.Hour,
+			wantErr:      true,
+		},
+		{
+			name:         "unbounded query is rejected",
+			s:            `SELECT value FROM cpu`,
+			maxTimeRange: 24 * time.Hour,
+			wantErr:      true,
+		},
+		{
+			// Aggregate queries resolve an open upper bound to now() rather than
+			// to the maximum representable time, so exercise that path too.
+			name:         "aggregate explicit range wider than limit",
+			s:            `SELECT mean(value) FROM cpu WHERE time >= '2018-09-03T00:00:00Z' AND time <= '2018-09-05T00:00:00Z' GROUP BY time(10m)`,
+			maxTimeRange: 24 * time.Hour,
+			wantErr:      true,
+		},
+		{
+			name:         "aggregate explicit range within limit",
+			s:            `SELECT mean(value) FROM cpu WHERE time >= '2018-09-03T00:00:00Z' AND time <= '2018-09-05T00:00:00Z' GROUP BY time(10m)`,
+			maxTimeRange: 72 * time.Hour,
+			wantErr:      false,
+		},
+		{
+			name:         "aggregate open upper bound measured up to now",
+			s:            `SELECT mean(value) FROM cpu WHERE time > now() - 5m GROUP BY time(1m)`,
+			maxTimeRange: time.Hour,
+			wantErr:      false,
+		},
+		{
+			// With no lower bound but a bucket limit, the shard time range is
+			// constrained to a finite window, so the query stays within a small
+			// limit rather than being measured as spanning all of time.
+			name:         "aggregate no lower bound constrained by bucket limit",
+			s:            `SELECT mean(value) FROM cpu GROUP BY time(1m)`,
+			maxTimeRange: time.Hour,
+			maxBucketsN:  10,
+			wantErr:      false,
+		},
+		{
+			// Without a bucket limit to constrain the open lower bound, the same
+			// query spans all of time and is rejected.
+			name:         "aggregate no lower bound without bucket limit is rejected",
+			s:            `SELECT mean(value) FROM cpu GROUP BY time(1m)`,
+			maxTimeRange: time.Hour,
+			wantErr:      true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			stmt, err := influxql.ParseStatement(tt.s)
+			require.NoError(t, err)
+			s := stmt.(*influxql.SelectStatement)
+
+			c, err := query.Compile(s, query.CompileOptions{Now: now})
+			require.NoError(t, err)
+
+			shardMapper := ShardMapper{
+				MapShardsFn: func(_ influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+					return &ShardGroup{
+						Fields: map[string]influxql.DataType{"value": influxql.Float},
+					}
+				},
+			}
+
+			_, err = c.Prepare(&shardMapper, query.SelectOptions{MaxTimeRange: tt.maxTimeRange, MaxBucketsN: tt.maxBucketsN})
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "max-time-range limit exceeded")
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
