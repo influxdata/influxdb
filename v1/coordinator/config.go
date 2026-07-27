@@ -27,6 +27,7 @@ type Config struct {
 	MaxSelectPointN      int           `toml:"max-select-point"`
 	MaxSelectSeriesN     int           `toml:"max-select-series"`
 	MaxSelectBucketsN    int           `toml:"max-select-buckets"`
+	MaxTimeRange         toml.Duration `toml:"max-time-range"`
 }
 
 // NewConfig returns an instance of Config with defaults.

@@ -650,7 +650,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.log.Info("Configuring InfluxQL statement executor (zeros indicate unlimited).",
 		zap.Int("max_select_point", opts.CoordinatorConfig.MaxSelectPointN),
 		zap.Int("max_select_series", opts.CoordinatorConfig.MaxSelectSeriesN),
-		zap.Int("max_select_buckets", opts.CoordinatorConfig.MaxSelectBucketsN))
+		zap.Int("max_select_buckets", opts.CoordinatorConfig.MaxSelectBucketsN),
+		zap.Duration("max_time_range", time.Duration(opts.CoordinatorConfig.MaxTimeRange)))
 
 	qe := iqlquery.NewExecutor(m.log, cm)
 	influxqlProxy := iqlquery.NewProxyExecutor(m.log, qe)
@@ -663,6 +664,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		MaxSelectPointN:   opts.CoordinatorConfig.MaxSelectPointN,
 		MaxSelectSeriesN:  opts.CoordinatorConfig.MaxSelectSeriesN,
 		MaxSelectBucketsN: opts.CoordinatorConfig.MaxSelectBucketsN,
+		MaxTimeRange:      time.Duration(opts.CoordinatorConfig.MaxTimeRange),
 	}
 	qe.StatementExecutor = se
 	qe.StatementNormalizer = se
