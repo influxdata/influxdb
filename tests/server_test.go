@@ -9474,6 +9474,118 @@ func TestServer_Query_DatePart_Subquery_GroupBy(t *testing.T) {
 	}
 }
 
+// TestServer_Query_DatePart_DST_SubqueryMerge exercises the *subquery* GROUP BY
+// date_part code path (datePartMap in query/iterator_mapper.go / subquery.go)
+// across a fall-back transition. This is a distinct implementation from the TSM
+// iterator path covered by TestServer_Query_DatePart_DSTBoundaries: here the
+// grouping value is derived from the row timestamp at the subquery boundary
+// rather than appended by the measurement iterator. Both fall-back instants map
+// to local hour 1 and must merge into a single bucket.
+func TestServer_Query_DatePart_DST_SubqueryMerge(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		// NY fall-back 2023-11-05: 05:30Z is 01:30 EDT, 06:30Z is 01:30 EST.
+		// Both have local hour 1 and must collapse into one bucket, count 2.
+		fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T05:30:00Z").UnixNano()),
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T06:30:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries(
+		&Query{
+			// The subquery path derives the hour dimension from row.Time via
+			// datePartMap; the repeated fall-back hour must still merge to count 2.
+			name:    `subquery GROUP BY date_part hour merges the fall-back hour under tz()`,
+			command: `SELECT COUNT(value) FROM (SELECT value FROM db0.rp0.cpu) WHERE time >= '2023-11-05T00:00:00Z' AND time <= '2023-11-05T23:59:59Z' GROUP BY date_part('hour', time) tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[["2023-11-04T20:00:00-04:00",2,1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				require.NoError(t, test.init(s), "init error")
+				initialized = true
+			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
+		})
+	}
+}
+
+// TestServer_Query_DatePart_DST_Descending verifies that fall-back hour merging
+// is independent of scan direction. The emitter starts a new output row whenever
+// the grouping-key set changes, so a descending scan (points arriving
+// newest-first) must still coalesce the two local-hour-1 instants into one
+// bucket, exactly as the ascending scan does.
+func TestServer_Query_DatePart_DST_Descending(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		// Two instants in the repeated fall-back hour (local hour 1) ...
+		fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T05:30:00Z").UnixNano()), // 01:30 EDT
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T06:30:00Z").UnixNano()), // 01:30 EST
+		// ... plus one in local hour 3, so a descending scan yields hour 3 first
+		// then the merged hour 1, exercising ordering of multiple groups.
+		fmt.Sprintf(`cpu value=3 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T08:15:00Z").UnixNano()), // 03:15 EST
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			// Baseline ascending merge for direct comparison with the DESC case.
+			name:    `GROUP BY date_part hour ascending`,
+			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('hour', time) tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[["1969-12-31T19:00:00-05:00",2,1],["1969-12-31T19:00:00-05:00",1,3]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			// Same data, descending scan: the per-bucket counts must be identical
+			// (hour 1 → 2, hour 3 → 1); ORDER BY time DESC only reverses the order
+			// the groups are emitted, so hour 3 comes before the merged hour 1.
+			name:    `GROUP BY date_part hour descending merges identically`,
+			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('hour', time) ORDER BY time DESC tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[["1969-12-31T19:00:00-05:00",1,3],["1969-12-31T19:00:00-05:00",2,1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				require.NoError(t, test.init(s), "init error")
+				initialized = true
+			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
+		})
+	}
+}
+
 // Ensure GROUP BY date_part('epoch', ...) emits pre-1970 (negative) buckets in
 // chronological order. The reduce path orders series by sorting encoded
 // grouping-key strings, so the encoding must preserve signed value order.
