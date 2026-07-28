@@ -8848,6 +8848,140 @@ func TestServer_Query_DatePart_Timezone(t *testing.T) {
 	}
 }
 
+// TestServer_Query_DatePart_DSTBoundaries exercises date_part roll-up across DST
+// transitions in both directions, including the pathological cases that only
+// appear when a local calendar day/hour is not a fixed number of UTC seconds:
+//
+//  1. day roll-up where a single local day spans 23h (spring) or 25h (fall)
+//     and holds points on both sides of the transition (measurement dayroll);
+//  2. GROUP BY date_part('hour') at fall-back, where local hour 1 occurs twice
+//     and two distinct UTC instants must merge into one bucket (hourfall);
+//  3. spring-forward's non-existent local hour (02:00–03:00 never happens), so
+//     a WHERE date_part('hour') = 2 filter matches nothing on the gap day even
+//     though a real 02:30 exists the next day (springgap);
+//  4. a southern-hemisphere, half-hour-offset zone (Australia/Lord_Howe), whose
+//     standard offset is +10:30 and DST offset +11:00, and whose 30-minute
+//     fall-back also repeats a local hour (lordhowe, lhfall).
+//
+// Each scenario uses its own measurement so an aggregate query without a time
+// range only sees that scenario's points.
+func TestServer_Query_DatePart_DSTBoundaries(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		// (1) day roll-up. NY fall-back 2023-11-05 is a 25h local day; both
+		// points are local Nov 5 (day 5), one on each side of the 06:00Z change.
+		fmt.Sprintf(`dayroll value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T05:30:00Z").UnixNano()), // 01:30 EDT
+		fmt.Sprintf(`dayroll value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T06:30:00Z").UnixNano()), // 01:30 EST
+		// NY spring-forward 2023-03-12 is a 23h local day; both points are local
+		// Mar 12 (day 12), one on each side of the 07:00Z change.
+		fmt.Sprintf(`dayroll value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T06:30:00Z").UnixNano()), // 01:30 EST
+		fmt.Sprintf(`dayroll value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T07:30:00Z").UnixNano()), // 03:30 EDT
+
+		// (2) fall-back hour merge. Both instants are local 01:30 — the first in
+		// EDT, the second in EST — so both have local hour 1 and must collapse
+		// into a single date_part('hour')=1 bucket.
+		fmt.Sprintf(`hourfall value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T05:30:00Z").UnixNano()), // 01:30 EDT
+		fmt.Sprintf(`hourfall value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T06:30:00Z").UnixNano()), // 01:30 EST
+
+		// (3) spring-forward gap. At 02:00 EST the clock jumps to 03:00 EDT, so
+		// no instant has local hour 2 on 2023-03-12. 06:59Z is 01:59 EST (hour
+		// 1); 07:00Z is 03:00 EDT (hour 3). A genuine 02:30 exists the next day.
+		fmt.Sprintf(`springgap value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T06:59:00Z").UnixNano()),  // 01:59 EST
+		fmt.Sprintf(`springgap value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T07:00:00Z").UnixNano()),  // 03:00 EDT
+		fmt.Sprintf(`springgap value=99 %d`, mustParseTime(time.RFC3339Nano, "2023-03-13T06:30:00Z").UnixNano()), // 02:30 EDT next day
+
+		// (4) half-hour-offset, southern-hemisphere zone (Australia/Lord_Howe).
+		// Jan is DST (+11:00) → 11:00 local; Jul is standard (+10:30) → 10:30
+		// local. date_part('minute') exposes the half-hour offset directly.
+		fmt.Sprintf(`lordhowe value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-15T00:00:00Z").UnixNano()), // 11:00 +11:00
+		fmt.Sprintf(`lordhowe value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-07-15T00:00:00Z").UnixNano()), // 10:30 +10:30
+		// Lord Howe fall-back 2023-04-02 is only 30 minutes: 02:00 +11 → 01:30
+		// +10:30. Both points are local 01:45 (hour 1) on opposite sides.
+		fmt.Sprintf(`lhfall value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-04-01T14:45:00Z").UnixNano()), // 01:45 +11:00
+		fmt.Sprintf(`lhfall value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-04-01T15:15:00Z").UnixNano()), // 01:45 +10:30
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			// A 25h day (fall) and a 23h day (spring) each hold two points on
+			// opposite sides of the transition; both must roll into a single
+			// per-day bucket (day 5 → 2, day 12 → 2), proving the variable-length
+			// local day does not split or drop a point.
+			name:    `GROUP BY date_part day rolls up both sides of a 23h and 25h day`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM db0.rp0.dayroll GROUP BY date_part('day', time) tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"dayroll","grouping_keys":["day"],"columns":["time","count","day"],"values":[["1969-12-31T19:00:00-05:00",2,5],["1969-12-31T19:00:00-05:00",2,12]]}]}]}`,
+		},
+		&Query{
+			// Fall-back repeats local hour 1: two different UTC instants both map
+			// to hour 1 and must merge into one bucket with count 2.
+			name:    `GROUP BY date_part hour merges the repeated fall-back hour`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM db0.rp0.hourfall GROUP BY date_part('hour', time) tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"hourfall","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[["1969-12-31T19:00:00-05:00",2,1]]}]}]}`,
+		},
+		&Query{
+			// The spring-forward gap means no instant on 2023-03-12 has local
+			// hour 2, so the filter only matches the genuine 02:30 on 2023-03-13.
+			name:    `WHERE date_part hour = 2 skips the non-existent spring-forward hour`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM db0.rp0.springgap WHERE date_part('hour', time) = 2 tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"springgap","columns":["time","value"],"values":[["2023-03-13T02:30:00-04:00",99]]}]}]}`,
+		},
+		&Query{
+			// The instant immediately after the gap (07:00Z) is 03:00 EDT: the
+			// local clock jumped 01:59 → 03:00, so hour 3 is the first hour after
+			// the gap, confirming hour 2 was skipped rather than misassigned.
+			name:    `WHERE date_part hour = 3 matches the first instant after the gap`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM db0.rp0.springgap WHERE date_part('hour', time) = 3 tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"springgap","columns":["time","value"],"values":[["2023-03-12T03:00:00-04:00",2]]}]}]}`,
+		},
+		&Query{
+			// Half-hour-offset zone: DST (+11:00) yields hour 11 / minute 0,
+			// standard (+10:30) yields hour 10 / minute 30. The minute part is
+			// what makes the 30-minute offset observable.
+			name:    `date_part reflects the half-hour offset of Australia/Lord_Howe`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value, date_part('hour', time) AS h, date_part('minute', time) AS m FROM db0.rp0.lordhowe tz('Australia/Lord_Howe')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"lordhowe","columns":["time","value","h","m"],"values":[["2023-01-15T11:00:00+11:00",1,11,0],["2023-07-15T10:30:00+10:30",2,10,30]]}]}]}`,
+		},
+		&Query{
+			// Southern-hemisphere 30-minute fall-back also repeats a local hour:
+			// both local-01:45 instants have hour 1 and must merge into one bucket.
+			name:    `GROUP BY date_part hour merges the 30-minute Lord Howe fall-back`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM db0.rp0.lhfall GROUP BY date_part('hour', time) tz('Australia/Lord_Howe')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"lhfall","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[["1970-01-01T10:00:00+10:00",2,1]]}]}]}`,
+		},
+	}...)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				err := test.init(s)
+				require.NoError(t, err, "init error")
+				initialized = true
+			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
+		})
+	}
+}
+
 func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
