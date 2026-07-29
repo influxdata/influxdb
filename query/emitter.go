@@ -1,6 +1,7 @@
 package query
 
 import (
+	"maps"
 	"sort"
 
 	"github.com/influxdata/influxdb/models"
@@ -56,7 +57,7 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 		// Otherwise return existing row and add values to next emitted row.
 		if e.row == nil {
 			e.createRow(row.Series, row.GroupingKeys, row.Values)
-		} else if e.series.SameSeries(row.Series) && sameGroupingKeys(e.groupingKeys, row.GroupingKeys) {
+		} else if e.series.SameSeries(row.Series) && maps.Equal(e.groupingKeys, row.GroupingKeys) {
 			if e.chunkSize > 0 && len(e.row.Values) >= e.chunkSize {
 				r := e.row
 				r.Partial = true
@@ -83,19 +84,6 @@ func (e *Emitter) createRow(series Series, groupingKeys map[string]struct{}, val
 		Columns:      e.columns,
 		Values:       [][]interface{}{values},
 	}
-}
-
-// sameGroupingKeys returns true if two grouping key sets have the same dimension names.
-func sameGroupingKeys(a, b map[string]struct{}) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k := range a {
-		if _, ok := b[k]; !ok {
-			return false
-		}
-	}
-	return true
 }
 
 // sortedKeys returns a sorted slice of keys from a set.
