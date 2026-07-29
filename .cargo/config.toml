@@ -25,3 +25,11 @@ rustflags = [
     "-C", "link-arg=-Wl,--no-rosegment",
     "-C", "force-frame-pointers=yes",
 ]
+
+[target.x86_64-pc-windows-gnu]
+linker = "rust-lld"
+rustflags = [
+  "-C", "link-arg=/usr/x86_64-w64-mingw32/lib/crt2.o",
+  "-L", "/usr/x86_64-w64-mingw32/lib/",
+  "-L", "/usr/lib/gcc/x86_64-w64-mingw32/12-posix",
+]

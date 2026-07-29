@@ -16,7 +16,7 @@ use influxdb3_catalog::{
 use influxdb3_clap_blocks::plugins::{PackageManager, PluginTriggerType, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig,
-    memory_size::{ByteSize, MemorySizeMb},
+    memory_size::{LegacyMemorySizeMb, LenientByteSize, MemorySizeMb},
     object_store::ObjectStoreConfig,
     socket_addr::SocketAddr,
     tokio::TokioDatafusionConfig,
@@ -241,15 +241,16 @@ pub struct Config {
 
     /// Maximum size of HTTP requests.
     ///
-    /// A bare number is a size in bytes; unit suffixes (`b`, `kb`, `mb`, `gb`, `tb`)
-    /// are also accepted, e.g. `10mb`.
+    /// Prefer an explicit unit suffix (`b`, `kb`, `mb`, `gb`, `tb`),
+    /// e.g. `10mb`. Bare numbers are accepted as bytes (the pre-3.11
+    /// meaning) with a startup warning.
     #[clap(
         long = "max-http-request-size",
         env = "INFLUXDB3_MAX_HTTP_REQUEST_SIZE",
-        default_value = "10485760", // 10 MiB
-        action,
+        default_value = "10mb",
+        action
     )]
-    pub max_http_request_size: ByteSize,
+    pub max_http_request_size: LenientByteSize,
 
     /// The address on which InfluxDB will serve HTTP API requests
     #[clap(
@@ -289,16 +290,26 @@ pub struct Config {
     ///
     /// Specify either a percentage of the total available memory (e.g. `20%`)
     /// or an absolute size with an explicit unit suffix (e.g. `8gb`). Bare
-    /// numbers are rejected: they previously meant megabytes and will mean
-    /// bytes in a future release.
+    /// numbers are rejected: they previously meant megabytes; use an
+    /// explicit unit.
     #[clap(
         long = "exec-mem-pool-size",
-        visible_alias = "exec-mem-pool-bytes",
         env = "INFLUXDB3_EXEC_MEM_POOL_SIZE",
         default_value = "20%",
         action
     )]
     pub exec_mem_pool_size: MemorySizeMb,
+
+    /// Deprecated alias of `--exec-mem-pool-size` that accepts the
+    /// pre-3.11 value format (bare numbers mean megabytes). Warned about
+    /// and resolved in [`resolve_legacy_size_options`].
+    #[clap(
+        long = "exec-mem-pool-bytes",
+        env = "INFLUXDB3_EXEC_MEM_POOL_BYTES",
+        hide = true,
+        action
+    )]
+    pub exec_mem_pool_bytes: Option<LegacyMemorySizeMb>,
 
     /// Flag to indicate that server should start without auth
     #[clap(long = "without-auth", env = "INFLUXDB3_WITHOUT_AUTH", action)]
@@ -480,17 +491,26 @@ pub struct Config {
     ///
     /// Specify either a percentage of the total available memory (e.g. `20%`)
     /// or an absolute size with an explicit unit suffix (e.g. `4gb`). Bare
-    /// numbers are rejected: they previously meant megabytes and will mean
-    /// bytes in a future release.
-    /// breaking: removed parquet-mem-cache-size-mb and env var INFLUXDB3_PARQUET_MEM_CACHE_SIZE_MB
+    /// numbers are rejected: they previously meant megabytes; use an
+    /// explicit unit.
     #[clap(
         long = "file-cache-size",
-        visible_alias = "parquet-mem-cache-size",
         env = "INFLUXDB3_FILE_CACHE_SIZE",
         default_value = "20%",
         action
     )]
     pub file_cache_size: MemorySizeMb,
+
+    /// Deprecated alias of `--file-cache-size` that accepts the
+    /// pre-3.11 value format (bare numbers mean megabytes). Warned about
+    /// and resolved in [`resolve_legacy_size_options`].
+    #[clap(
+        long = "parquet-mem-cache-size",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_SIZE",
+        hide = true,
+        action
+    )]
+    pub parquet_mem_cache_size: Option<LegacyMemorySizeMb>,
 
     /// The percentage of entries to prune during a prune operation on the in-memory Parquet cache.
     ///
@@ -564,15 +584,26 @@ pub struct Config {
     ///
     /// Specify either a percentage of the total available memory (e.g. `70%`)
     /// or an absolute size with an explicit unit suffix (e.g. `1000mb`). Bare
-    /// numbers are rejected: they previously meant megabytes and will mean
-    /// bytes in a future release.
+    /// numbers are rejected: they previously meant megabytes; use an
+    /// explicit unit.
     #[clap(
-        long = "force-snapshot-mem-threshold",
-        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
+        long = "force-snapshot-mem-size",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_SIZE",
         default_value = "50%",
         action
     )]
-    pub force_snapshot_mem_threshold: MemorySizeMb,
+    pub force_snapshot_mem_size: MemorySizeMb,
+
+    /// Deprecated alias of `--force-snapshot-mem-size` that accepts the
+    /// pre-3.11 value format (bare numbers mean megabytes). Warned about
+    /// and resolved in [`resolve_legacy_size_options`].
+    #[clap(
+        long = "force-snapshot-mem-threshold",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
+        hide = true,
+        action
+    )]
+    pub force_snapshot_mem_threshold: Option<LegacyMemorySizeMb>,
 
     /// Disable sending telemetry data to telemetry.v3.influxdata.com.
     #[clap(
@@ -618,12 +649,19 @@ pub struct Config {
     #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
     pub query_file_limit: Option<usize>,
 
+    /// PEM-encoded private key for the server's TLS certificate.
+    ///
+    /// TLS is enabled when both --tls-key and --tls-cert are provided.
     #[clap(long = "tls-key", env = "INFLUXDB3_TLS_KEY")]
     pub key_file: Option<PathBuf>,
 
+    /// PEM-encoded TLS certificate for the server.
+    ///
+    /// TLS is enabled when both --tls-key and --tls-cert are provided.
     #[clap(long = "tls-cert", env = "INFLUXDB3_TLS_CERT")]
     pub cert_file: Option<PathBuf>,
 
+    /// Lowest TLS protocol version the server accepts from clients.
     #[clap(
         long = "tls-minimum-version",
         env = "INFLUXDB3_TLS_MINIMUM_VERSION",
@@ -655,6 +693,10 @@ pub struct Config {
     #[clap(long = "admin-token-file", env = "INFLUXDB3_ADMIN_TOKEN_FILE")]
     pub admin_token_file: Option<PathBuf>,
 
+    /// Concurrency limit during WAL replay at startup.
+    ///
+    /// Higher values shorten startup; setting this too high can lead to
+    /// OOM.
     #[clap(
         long = "wal-replay-concurrency-limit",
         env = "INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT",
@@ -671,6 +713,16 @@ pub struct Config {
         value_parser = parse_snapshot_concurrency_limit,
     )]
     pub parquet_snapshot_concurrency_limit: NonZeroUsize,
+
+    /// Deprecated: never had any effect; the server always uses the built-in
+    /// default hard-delete duration. Accepted so 3.10 configurations that set
+    /// it warn instead of failing to parse.
+    #[clap(
+        long = "hard-delete-default-duration",
+        env = "INFLUXDB3_HARD_DELETE_DEFAULT_DURATION",
+        hide = true
+    )]
+    pub hard_delete_default_duration: Option<String>,
 
     /// Grace period for hard deleted databases and tables before they are removed permanently from
     /// the catalog.
@@ -805,7 +857,65 @@ impl FromStr for ParquetCachePrunePercent {
     }
 }
 
-pub async fn command(config: Config, user_params: HashMap<String, String>) -> Result<()> {
+/// Apply values given through deprecated legacy aliases of renamed size
+/// options to their new counterparts, and warn about pre-3.11 value formats.
+///
+/// An explicitly set new name wins over its legacy alias, matching the
+/// precedence `env_compat` applied when the old env var name was an alias of
+/// the new one.
+fn resolve_legacy_size_options(config: &mut Config, user_params: &HashMap<String, String>) {
+    fn apply(
+        legacy: Option<LegacyMemorySizeMb>,
+        legacy_flag: &str,
+        new_flag: &str,
+        new_value: &mut MemorySizeMb,
+        user_params: &HashMap<String, String>,
+    ) {
+        let Some(legacy_value) = legacy else { return };
+        if user_params.contains_key(new_flag) {
+            warn!("--{legacy_flag} is deprecated and ignored because --{new_flag} is also set");
+        } else {
+            *new_value = legacy_value.into();
+            warn!(
+                "--{legacy_flag} is deprecated; use --{new_flag} with an explicit unit suffix \
+                (e.g. 500mb) or a percentage"
+            );
+        }
+    }
+
+    apply(
+        config.parquet_mem_cache_size,
+        "parquet-mem-cache-size",
+        "file-cache-size",
+        &mut config.file_cache_size,
+        user_params,
+    );
+    apply(
+        config.exec_mem_pool_bytes,
+        "exec-mem-pool-bytes",
+        "exec-mem-pool-size",
+        &mut config.exec_mem_pool_size,
+        user_params,
+    );
+    apply(
+        config.force_snapshot_mem_threshold,
+        "force-snapshot-mem-threshold",
+        "force-snapshot-mem-size",
+        &mut config.force_snapshot_mem_size,
+        user_params,
+    );
+
+    if config.max_http_request_size.is_bare() {
+        warn!(
+            "--max-http-request-size was given a bare number, which is interpreted as bytes; \
+            specify an explicit unit suffix (e.g. 10mb)"
+        );
+    }
+}
+
+pub async fn command(mut config: Config, user_params: HashMap<String, String>) -> Result<()> {
+    resolve_legacy_size_options(&mut config, &user_params);
+
     let node_id = Arc::from(config.get_node_id()?);
 
     let max_concurrent_queries = config.max_concurrent_queries.0;
@@ -834,6 +944,14 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     // check if any env vars that are deprecated is still being passed around and warn
     warn_use_of_deprecated_env_vars(DEPRECATED_ENV_VARS);
+
+    if config.hard_delete_default_duration.is_some() {
+        warn!(
+            "--hard-delete-default-duration / INFLUXDB3_HARD_DELETE_DEFAULT_DURATION is \
+            deprecated and has no effect; the built-in default hard-delete duration is \
+            used. Remove it from your configuration."
+        );
+    }
 
     let metrics = setup_metric_registry();
 
@@ -1158,7 +1276,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     info!("setting up background mem check for query buffer");
     background_buffer_checker(
-        config.force_snapshot_mem_threshold.as_num_bytes(),
+        config.force_snapshot_mem_size.as_num_bytes(),
         &write_buffer_impl,
     )
     .await;

@@ -8,18 +8,17 @@ use crate::format::apply::ApplyError;
 use crate::format::records::impl_bitcode_encoding;
 use crate::format::records::types::{
     RoleAdminTokenAction, RoleAdminTokenPermission, RoleDatabaseAction, RoleDatabasePermission,
-    RoleDatabaseResource, RolePermissionGrant, RoleRoleAction, RoleRolePermission,
-    RoleSystemAction, RoleSystemPermission, RoleSystemResource, RoleTokenAction,
+    RoleDatabaseResource, RolePermissionGrant, RoleRoleAction, RoleRolePermission, RoleTokenAction,
     RoleTokenPermission, RoleUserAction, RoleUserPermission,
 };
 use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
 use influxdb3_authz::role::role_permissions::{
     AdminTokenPermission, DatabasePermission, RolePermission as RoleResourcePermission,
-    SystemPermission, TokenPermission, UserPermission,
+    TokenPermission, UserPermission,
 };
 use influxdb3_authz::role::{
     AdminTokenAction, DatabaseAction, Permission, ResourceIdentifier, Role, RoleAction,
-    RoleDescription, RoleName, SystemAction, SystemResource, TokenAction, UserAction,
+    RoleDescription, RoleName, TokenAction, UserAction,
 };
 use influxdb3_id::{DbId, RoleId};
 
@@ -262,9 +261,16 @@ impl_bitcode_encoding!(CreateRole, UpdateRolePermissions, UpdateRole, DeleteRole
 // Wire <-> authz conversions
 // ---------------------------------------------------------------------------
 
-impl From<&Permission> for RolePermissionGrant {
-    fn from(p: &Permission) -> Self {
-        match p {
+impl RolePermissionGrant {
+    /// Convert a runtime [`Permission`] into its persisted grant.
+    ///
+    /// Returns `None` for `Permission::System`, which has no persisted
+    /// representation (#4905) and so never reaches the catalog.
+    ///
+    /// Inherent function rather than a `From` impl because
+    /// `From<&Permission> for Option<Self>` is rejected by the orphan rule.
+    pub(crate) fn from_permission(p: &Permission) -> Option<Self> {
+        Some(match p {
             Permission::AccountAdminAll => RolePermissionGrant::AccountAdminAll,
             Permission::Database(db) => RolePermissionGrant::Database(RoleDatabasePermission {
                 action: db.action().into(),
@@ -284,11 +290,8 @@ impl From<&Permission> for RolePermissionGrant {
                     action: a.action().into(),
                 })
             }
-            Permission::System(s) => RolePermissionGrant::System(RoleSystemPermission {
-                action: s.action().into(),
-                resource: s.resource().into(),
-            }),
-        }
+            Permission::System(_) => return None,
+        })
     }
 }
 
@@ -316,9 +319,6 @@ impl From<&RolePermissionGrant> for Option<Permission> {
             }
             RolePermissionGrant::AdminToken(a) => {
                 Permission::AdminToken(AdminTokenPermission::new(a.action.into()))
-            }
-            RolePermissionGrant::System(s) => {
-                Permission::System(SystemPermission::new(s.action.into(), s.resource.into()))
             }
         })
     }
@@ -447,46 +447,6 @@ impl From<RoleAdminTokenAction> for AdminTokenAction {
         match a {
             RoleAdminTokenAction::Create => AdminTokenAction::Create,
             RoleAdminTokenAction::Delete => AdminTokenAction::Delete,
-        }
-    }
-}
-
-impl From<SystemAction> for RoleSystemAction {
-    fn from(a: SystemAction) -> Self {
-        match a {
-            SystemAction::Read => RoleSystemAction::Read,
-        }
-    }
-}
-
-impl From<RoleSystemAction> for SystemAction {
-    fn from(a: RoleSystemAction) -> Self {
-        match a {
-            RoleSystemAction::Read => SystemAction::Read,
-        }
-    }
-}
-
-impl From<ResourceIdentifier<SystemResource>> for RoleSystemResource {
-    fn from(r: ResourceIdentifier<SystemResource>) -> Self {
-        match r {
-            ResourceIdentifier::All => RoleSystemResource::All,
-            ResourceIdentifier::Identifier(SystemResource::Health) => RoleSystemResource::Health,
-            ResourceIdentifier::Identifier(SystemResource::Metrics) => RoleSystemResource::Metrics,
-            ResourceIdentifier::Identifier(SystemResource::Ping) => RoleSystemResource::Ping,
-            ResourceIdentifier::Identifier(SystemResource::Ready) => RoleSystemResource::Ready,
-        }
-    }
-}
-
-impl From<RoleSystemResource> for ResourceIdentifier<SystemResource> {
-    fn from(r: RoleSystemResource) -> Self {
-        match r {
-            RoleSystemResource::All => ResourceIdentifier::All,
-            RoleSystemResource::Health => ResourceIdentifier::Identifier(SystemResource::Health),
-            RoleSystemResource::Metrics => ResourceIdentifier::Identifier(SystemResource::Metrics),
-            RoleSystemResource::Ping => ResourceIdentifier::Identifier(SystemResource::Ping),
-            RoleSystemResource::Ready => ResourceIdentifier::Identifier(SystemResource::Ready),
         }
     }
 }

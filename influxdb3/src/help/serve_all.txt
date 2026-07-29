@@ -212,17 +212,15 @@ Examples:
                                                    [env: INFLUXDB3_QUERY_FILE_LIMIT=]
 
 {}
-  --max-http-request-size <SIZE>                 Maximum size of HTTP requests [default: 10485760]
+  --max-http-request-size <SIZE>                 Maximum size of HTTP requests [default: 10mb]
                                                    [env: INFLUXDB3_MAX_HTTP_REQUEST_SIZE=]
 
 {}
   --exec-mem-pool-size <SIZE>                         Memory pool size for query execution [default: 20%]
-                                                        [aliases: exec-mem-pool-bytes]
                                                         [env: INFLUXDB3_EXEC_MEM_POOL_SIZE=]
-  --force-snapshot-mem-threshold <THRESH>             Internal buffer threshold [default: 50%]
-                                                        [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD=]
+  --force-snapshot-mem-size <SIZE>                    Internal buffer threshold [default: 50%]
+                                                        [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_SIZE=]
   --file-cache-size <SIZE>                            In-memory data file cache size [default: 20%]
-                                                        [aliases: parquet-mem-cache-size]
                                                         [env: INFLUXDB3_FILE_CACHE_SIZE=]
   --parquet-mem-cache-prune-percentage <PCT>          Percentage to prune from cache [default: 0.1]
                                                         [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE=]

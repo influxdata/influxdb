@@ -4,15 +4,13 @@ use std::{str::FromStr, sync::OnceLock};
 
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, get_current_pid};
 
-use crate::size_units::{UNITS, parse_unit_suffix, unit_suffixes};
+use crate::size_units::{MB, UNITS, parse_unit_suffix, unit_suffixes};
 
-/// Memory size in bytes with optional unit suffix.
+/// Memory size in bytes with required unit suffix or percentage.
 ///
 /// # Parsing
 /// This can be parsed from strings in one of the following formats:
 ///
-/// - **absolute (default bytes):** a plain non-negative number specifies the size in bytes,
-///   e.g. `1048576`
 /// - **with unit suffix:** append a unit suffix (case-insensitive) for explicit sizing:
 ///   - `b` for bytes, e.g. `1048576b`
 ///   - `kb` for kilobytes, e.g. `1024kb`
@@ -24,7 +22,9 @@ use crate::size_units::{UNITS, parse_unit_suffix, unit_suffixes};
 ///
 /// Whitespace before the suffix is allowed, e.g. `5 mb`.
 ///
-/// Unlike [`MemorySizeMb`], bare numbers are interpreted as bytes rather than megabytes.
+/// Bare numbers are rejected: sizes always carry an explicit unit, because
+/// bare numbers have historically meant megabytes for some options and
+/// bytes for others.
 ///
 #[derive(Debug, Clone, Copy)]
 pub struct MemorySize(usize);
@@ -44,31 +44,41 @@ impl FromStr for MemorySize {
         if has_unit_suffix(&s) {
             return parse_memory_with_unit(&s).map(Self);
         }
-        // Bare number = bytes
-        usize::from_str(&s)
-            .map(Self)
-            .map_err(|e| format!("failed to parse '{}' as a memory size in bytes: {}", s, e))
+        if usize::from_str(&s).is_ok() {
+            return Err(format!(
+                "bare number '{s}' is not accepted as a memory size: specify \
+                 an explicit unit suffix ({}, e.g. '{s}b' for bytes) or a \
+                 percentage of total memory (e.g. '20%')",
+                unit_suffixes()
+            ));
+        }
+        Err(format!(
+            "failed to parse '{}' as a memory size: expected a number with a \
+             unit suffix ({}) or a percentage",
+            s,
+            unit_suffixes()
+        ))
     }
 }
 
-/// Byte size with optional unit suffix. Does not accept percentages.
+/// Byte size with required unit suffix. Does not accept percentages.
 ///
 /// # Parsing
-/// This can be parsed from strings in one of the following formats:
+/// This can be parsed from strings with a unit suffix (case-insensitive):
 ///
-/// - **absolute (default bytes):** a plain non-negative number specifies the size in bytes,
-///   e.g. `1048576`
-/// - **with unit suffix** (case-insensitive):
-///   - `b` for bytes, e.g. `1048576b`
-///   - `kb` for kilobytes, e.g. `1024kb`
-///   - `mb` for megabytes, e.g. `100mb`
-///   - `gb` for gigabytes, e.g. `2gb`
-///   - `tb` for terabytes, e.g. `1tb`
+/// - `b` for bytes, e.g. `1048576b`
+/// - `kb` for kilobytes, e.g. `1024kb`
+/// - `mb` for megabytes, e.g. `100mb`
+/// - `gb` for gigabytes, e.g. `2gb`
+/// - `tb` for terabytes, e.g. `1tb`
 ///
 /// Whitespace before the suffix is allowed, e.g. `5 mb`.
 ///
-/// Unlike [`MemorySize`], percentages are not accepted since this type
-/// represents absolute file/data sizes rather than memory allocations.
+/// Bare numbers are rejected: sizes always carry an explicit unit, because
+/// bare numbers have historically meant megabytes for some options and
+/// bytes for others. Unlike [`MemorySize`], percentages are not accepted
+/// since this type represents absolute file/data sizes rather than memory
+/// allocations.
 #[derive(Debug, Clone, Copy)]
 pub struct ByteSize(usize);
 
@@ -83,13 +93,30 @@ impl FromStr for ByteSize {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim().to_lowercase();
+        if s.ends_with('%') {
+            return Err(format!(
+                "percentage '{s}' is not supported for this option: it is an \
+                 absolute size, not a memory-relative one; specify a unit \
+                 suffix ({})",
+                unit_suffixes()
+            ));
+        }
         if has_unit_suffix(&s) {
             return parse_bytes_with_unit(&s).map(Self);
         }
-        // Bare number = bytes
-        usize::from_str(&s)
-            .map(Self)
-            .map_err(|e| format!("failed to parse '{}' as a byte size in bytes: {}", s, e))
+        if usize::from_str(&s).is_ok() {
+            return Err(format!(
+                "bare number '{s}' is not accepted as a size: specify an \
+                 explicit unit suffix ({}, e.g. '{s}b' for bytes)",
+                unit_suffixes()
+            ));
+        }
+        Err(format!(
+            "failed to parse '{}' as a size: expected a number with a unit \
+             suffix ({})",
+            s,
+            unit_suffixes()
+        ))
     }
 }
 
@@ -109,10 +136,9 @@ impl FromStr for ByteSize {
 ///
 /// Whitespace before the suffix is allowed, e.g. `5 mb`.
 ///
-/// Bare numbers used to mean megabytes and will mean bytes in a future
-/// release; to avoid silently changing the meaning of existing
-/// configurations, they are rejected with a transitional error in the
-/// meantime.
+/// Bare numbers used to mean megabytes here; to avoid silently changing
+/// the meaning of existing configurations, they are rejected with an error
+/// pointing at the explicit forms (as they are for every size type).
 ///
 /// For new CLI arguments, prefer [`MemorySize`].
 ///
@@ -135,21 +161,118 @@ impl FromStr for MemorySizeMb {
         if has_unit_suffix(&s) {
             return parse_memory_with_unit(&s).map(Self);
         }
-        // Transitional: bare numbers used to mean megabytes here, but mean
-        // bytes for the other size types and will mean bytes here too in a
-        // future release. Reject them for now so the meaning of existing
-        // configurations never changes silently.
+        // Bare numbers used to mean megabytes here. Sizes now always
+        // require an explicit unit, so reject them with an error that
+        // points at the spelling preserving the old meaning.
         if usize::from_str(&s).is_ok() {
             return Err(format!(
                 "bare number '{s}' is no longer accepted for this value: it \
-                 previously meant megabytes and will mean bytes in a future \
-                 release; specify an explicit unit suffix (e.g. '{s}mb' for \
-                 the previous behavior) or a percentage (e.g. '20%')"
+                 previously meant megabytes; specify an explicit unit suffix \
+                 (e.g. '{s}mb' for the previous behavior) or a percentage \
+                 (e.g. '20%')"
             ));
         }
         Err(format!(
             "failed to parse '{}' as a memory size: expected a number with a \
              unit suffix ({}) or a percentage",
+            s,
+            unit_suffixes()
+        ))
+    }
+}
+
+/// Memory size accepted in the pre-3.11 value format: bare numbers mean
+/// megabytes; unit suffixes and percentages parse as in [`MemorySizeMb`].
+///
+/// Only for the legacy cli args so configurations written for 3.10 keep
+/// starting. New option names use the strict types above.
+#[derive(Debug, Clone, Copy)]
+pub struct LegacyMemorySizeMb(usize);
+
+impl LegacyMemorySizeMb {
+    /// Express this size in terms of bytes (B)
+    pub fn as_num_bytes(&self) -> usize {
+        self.0
+    }
+}
+
+impl From<LegacyMemorySizeMb> for MemorySizeMb {
+    fn from(size: LegacyMemorySizeMb) -> Self {
+        Self(size.0)
+    }
+}
+
+impl FromStr for LegacyMemorySizeMb {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim().to_lowercase();
+        if has_unit_suffix(&s) {
+            return parse_memory_with_unit(&s).map(Self);
+        }
+        // The pre-3.11 interpretation of a bare number.
+        if let Ok(num_mb) = usize::from_str(&s) {
+            return num_mb
+                .checked_mul(MB)
+                .map(Self)
+                .ok_or_else(|| format!("'{s}' megabytes overflows the maximum size in bytes"));
+        }
+        Err(format!(
+            "failed to parse '{}' as a memory size: expected a number, \
+             optionally with a unit suffix ({}) or a percentage",
+            s,
+            unit_suffixes()
+        ))
+    }
+}
+
+/// Byte size that still accepts the pre-3.11 bare-number form, which means
+/// bytes. Percentages are rejected as in [`ByteSize`].
+///
+/// `--max-http-request-size` kept its name across the switch to required
+/// unit suffixes, so there is no legacy alias to key leniency on; instead
+/// bare numbers keep their old meaning and [`Self::is_bare`] lets the caller
+/// warn that a unit should be used.
+#[derive(Debug, Clone, Copy)]
+pub struct LenientByteSize {
+    bytes: usize,
+    bare: bool,
+}
+
+impl LenientByteSize {
+    pub fn as_num_bytes(&self) -> usize {
+        self.bytes
+    }
+
+    /// True when parsed from a bare number without a unit suffix.
+    pub fn is_bare(&self) -> bool {
+        self.bare
+    }
+}
+
+impl FromStr for LenientByteSize {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim().to_lowercase();
+        if s.ends_with('%') {
+            return Err(format!(
+                "percentage '{s}' is not supported for this option: it is an \
+                 absolute size, not a memory-relative one; specify a unit \
+                 suffix ({})",
+                unit_suffixes()
+            ));
+        }
+        if has_unit_suffix(&s) {
+            return parse_bytes_with_unit(&s).map(|bytes| Self { bytes, bare: false });
+        }
+        // The pre-3.11 interpretation of a bare number.
+        if let Ok(bytes) = usize::from_str(&s) {
+            return Ok(Self { bytes, bare: true });
+        }
+        Err(format!(
+            "failed to parse '{}' as a size: expected a number, optionally \
+             with a unit suffix ({})",
             s,
             unit_suffixes()
         ))

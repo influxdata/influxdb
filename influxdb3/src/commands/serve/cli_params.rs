@@ -39,9 +39,11 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "bucket",
     // Memory and performance parameters
     "exec-mem-pool-size",
+    "exec-mem-pool-bytes",
     "num-datafusion-threads",
     "query-file-limit",
     "max-concurrent-queries",
+    "force-snapshot-mem-size",
     "force-snapshot-mem-threshold",
     // WAL parameters
     "wal-flush-interval",
@@ -54,6 +56,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "checkpoint-interval",
     // Cache parameters
     "file-cache-size",
+    "parquet-mem-cache-size",
     "parquet-mem-cache-prune-percentage",
     "parquet-mem-cache-prune-interval",
     "file-cache-recency",
@@ -67,6 +70,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     // Retention and deletion parameters
     "retention-check-interval",
     "delete-grace-period",
+    "hard-delete-default-duration",
     // Generation configuration
     "gen1-duration",
     "gen1-lookback-duration",

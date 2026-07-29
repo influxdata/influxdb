@@ -35,12 +35,14 @@ pub struct SetNextId {
 ///
 /// # Adding variants
 ///
-/// `NextIdScope` is part of the on-disk format and follows the append-only
-/// rule for bitcode enums (see [`super::types`]): a new variant goes at the
+/// `NextIdScope` is part of the on-disk format: a new variant goes at the
 /// **end**; existing discriminants are positional and frozen; never reorder,
 /// insert, or remove one — a retired entity type keeps its now-dead variant
 /// so old records still decode. Add a variant when a *new* entity type becomes
 /// removable (and so can leave a gap in its counter).
+///
+/// Appending is bounded by the bucket rule in [`super::types`] — at 11
+/// variants this enum has room up to 16, then it is frozen (#4905).
 ///
 /// If new variants are added, it is assumed that they would not be serialized
 /// into the log during an upgrade, because any HardDelete* records that they
