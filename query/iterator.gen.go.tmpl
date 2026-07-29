@@ -1127,7 +1127,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 					rp = &{{$k.name}}Reduce{{$v.Name}}Point{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}

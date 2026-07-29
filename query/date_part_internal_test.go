@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -265,4 +266,199 @@ func BenchmarkFilterCursor_DatePartCondition(b *testing.B) {
 	var row Row
 	for cur.Scan(&row) {
 	}
+}
+
+// --- Direct unit tests for the DimensionGrouper block in *Reduce*Iterator.reduce ---
+//
+// The end-to-end server tests exercise the happy path via response JSON, but the
+// error returns (ResolveKeys / DecodeEntry) and the Aux-width defensive guards
+// are never taken there. These tests drive a float reduce iterator directly with
+// a stub DimensionGrouper and stub reducer, asserting on the emitted Aux slots.
+
+// sliceFloatIterator is a minimal FloatIterator that replays a fixed slice.
+type sliceFloatIterator struct {
+	points []FloatPoint
+	i      int
+}
+
+func (it *sliceFloatIterator) Next() (*FloatPoint, error) {
+	if it.i >= len(it.points) {
+		return nil, nil
+	}
+	p := it.points[it.i]
+	it.i++
+	return &p, nil
+}
+func (it *sliceFloatIterator) Stats() IteratorStats { return IteratorStats{} }
+func (it *sliceFloatIterator) Close() error         { return nil }
+
+// stubReducer implements both FloatPointAggregator and FloatPointEmitter. Emit
+// returns a single point whose Aux is a fresh copy of the configured template,
+// letting each test control the width the reduce guards must normalize.
+type stubReducer struct {
+	emitAux []interface{}
+}
+
+func (r *stubReducer) AggregateFloat(p *FloatPoint) {}
+func (r *stubReducer) Emit() []FloatPoint {
+	return []FloatPoint{{Aux: append([]interface{}(nil), r.emitAux...)}}
+}
+
+// stubDimensionGrouper lets a test force the ResolveKeys / DecodeEntry outcomes.
+type stubDimensionGrouper struct {
+	entries    []GroupingEntry
+	decoded    interface{}
+	resolveErr error
+	decodeErr  error
+}
+
+func (g *stubDimensionGrouper) ResolveKeys(aux []interface{}, tags TagSubset) ([]GroupingEntry, error) {
+	if g.resolveErr != nil {
+		return nil, g.resolveErr
+	}
+	return g.entries, nil
+}
+func (g *stubDimensionGrouper) DecodeEntry(encodedKey string) (interface{}, error) {
+	if g.decodeErr != nil {
+		return nil, g.decodeErr
+	}
+	return g.decoded, nil
+}
+
+// drainReduceIterator runs one input point (with non-empty Aux, so the grouper
+// branch is taken) through a float reduce iterator and returns the emitted points.
+func drainReduceIterator(t *testing.T, opt IteratorOptions, reducerAux []interface{}) ([]FloatPoint, error) {
+	t.Helper()
+	input := &sliceFloatIterator{points: []FloatPoint{
+		// Aux is non-empty so reduce takes the DimensionGrouper branch; the raw
+		// int64 mirrors a first-level date_part aux value (the stub ignores it).
+		{Name: "cpu", Time: 0, Aux: []interface{}{int64(3)}},
+	}}
+	create := func() (FloatPointAggregator, FloatPointEmitter) {
+		r := &stubReducer{emitAux: reducerAux}
+		return r, r
+	}
+	itr := newFloatReduceFloatIterator(input, opt, create)
+	var got []FloatPoint
+	for {
+		p, err := itr.Next()
+		if err != nil {
+			return got, err
+		}
+		if p == nil {
+			return got, nil
+		}
+		got = append(got, *p)
+	}
+}
+
+func TestReduceIterator_DimensionGrouper_Aux(t *testing.T) {
+	decoded := DecodedDatePartKey{Expr: Month, Val: 3}
+	grouper := &stubDimensionGrouper{
+		entries: []GroupingEntry{{DimKey: "k", Expr: Month, Val: 3}},
+		decoded: decoded,
+	}
+
+	tests := []struct {
+		name    string
+		auxLen  int           // len(opt.Aux) — the scanner key count
+		dpDims  int           // len(opt.DatePartDimensions)
+		emitAux []interface{} // Aux the reducer's Emit returns
+		want    []interface{} // expected Aux on the emitted point
+	}{
+		{
+			// Aggregate (COUNT/SUM) emits an empty Aux: it must grow to the full
+			// scanner-key width with the active value in the last slot.
+			name: "aggregate widens empty aux to full width",
+			auxLen: 3, dpDims: 1, emitAux: nil,
+			want: []interface{}{nil, nil, decoded},
+		},
+		{
+			// Selector (MIN/MAX) emits a full-width Aux: the leading field slots
+			// are preserved and only the active date_part slot is overwritten.
+			name: "selector full-width aux preserves leading slots",
+			auxLen: 3, dpDims: 1, emitAux: []interface{}{"a", "b", "c"},
+			want: []interface{}{"a", "b", decoded},
+		},
+		{
+			// With multiple date_part dimensions every non-active dimension slot is
+			// nulled so a stale value can't leak into a non-active column.
+			name: "multi-dimension nulls every date_part slot",
+			auxLen: 3, dpDims: 2, emitAux: []interface{}{"a", "b", "c"},
+			want: []interface{}{"a", nil, decoded},
+		},
+		{
+			// No scanner keys and an empty emitted Aux: the width<1 guard forces a
+			// single slot so the active value still has somewhere to live.
+			name: "empty aux falls back to width one",
+			auxLen: 0, dpDims: 1, emitAux: nil,
+			want: []interface{}{decoded},
+		},
+		{
+			// More date_part dimensions than the Aux width: base would go negative
+			// and must clamp to 0 rather than panic.
+			name: "base clamps when dimensions exceed width",
+			auxLen: 1, dpDims: 2, emitAux: nil,
+			want: []interface{}{decoded},
+		},
+		{
+			// An emitted Aux longer than the scanner key set keeps the longer width.
+			name: "longer emitted aux keeps its width",
+			auxLen: 2, dpDims: 1, emitAux: []interface{}{"a", "b", "c", "d"},
+			want: []interface{}{"a", "b", "c", decoded},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opt := IteratorOptions{
+				StartTime:          0,
+				EndTime:            1 << 62,
+				Ascending:          true,
+				Ordered:            true,
+				Aux:                make([]influxql.VarRef, tc.auxLen),
+				DatePartDimensions: make([]DatePartDimension, tc.dpDims),
+				DimensionGrouper:   grouper,
+			}
+			got, err := drainReduceIterator(t, opt, tc.emitAux)
+			require.NoError(t, err)
+			require.Len(t, got, 1)
+			require.Equal(t, tc.want, got[0].Aux)
+		})
+	}
+}
+
+func TestReduceIterator_DimensionGrouper_Errors(t *testing.T) {
+	t.Run("ResolveKeys error is surfaced", func(t *testing.T) {
+		sentinel := errors.New("resolve boom")
+		opt := IteratorOptions{
+			StartTime:          0,
+			EndTime:            1 << 62,
+			Ascending:          true,
+			Ordered:            true,
+			Aux:                make([]influxql.VarRef, 1),
+			DatePartDimensions: make([]DatePartDimension, 1),
+			DimensionGrouper:   &stubDimensionGrouper{resolveErr: sentinel},
+		}
+		_, err := drainReduceIterator(t, opt, nil)
+		require.ErrorIs(t, err, sentinel)
+	})
+
+	t.Run("DecodeEntry error is surfaced", func(t *testing.T) {
+		sentinel := errors.New("decode boom")
+		opt := IteratorOptions{
+			StartTime:          0,
+			EndTime:            1 << 62,
+			Ascending:          true,
+			Ordered:            true,
+			Aux:                make([]influxql.VarRef, 1),
+			DatePartDimensions: make([]DatePartDimension, 1),
+			DimensionGrouper: &stubDimensionGrouper{
+				entries:   []GroupingEntry{{DimKey: "k", Expr: Month, Val: 3}},
+				decodeErr: sentinel,
+			},
+		}
+		_, err := drainReduceIterator(t, opt, nil)
+		require.ErrorIs(t, err, sentinel)
+	})
 }

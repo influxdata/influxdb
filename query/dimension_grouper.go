@@ -21,7 +21,15 @@ type DimensionGrouper interface {
 	DecodeEntry(encodedKey string) (interface{}, error)
 }
 
+// GroupingEntry is one resolved grouping dimension for a point.
+//
+// DimKey is the in-memory grouping/series-ordering key and is always computed.
+// Expr and Val are the encode inputs for the aux-transport key; the encoded key
+// is only needed when a new reduce bucket is created (a map miss), so it is
+// computed lazily via EncodedKey() rather than eagerly per point — on the common
+// bucket-hit path it is never built, avoiding a per-point allocation.
 type GroupingEntry struct {
-	DimKey     string
-	EncodedKey string
+	DimKey string
+	Expr   DatePartExpr
+	Val    int64
 }

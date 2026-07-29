@@ -748,14 +748,23 @@ func computeDimKey(expr DatePartExpr, val int64, tags TagSubset) string {
 	return expr.String() + ":" + valStr
 }
 
-// newGroupingEntry builds the paired keys for one resolved dimension value:
-// DimKey for in-memory grouping and series ordering, EncodedKey for aux
-// transport across reduce levels.
+// newGroupingEntry builds one resolved dimension value. Only DimKey (in-memory
+// grouping / series ordering) is computed eagerly; the aux-transport key is
+// derived lazily from Expr/Val via GroupingEntry.EncodedKey() because it is only
+// consumed when a new reduce bucket is created.
 func newGroupingEntry(expr DatePartExpr, val int64, tags TagSubset) GroupingEntry {
 	return GroupingEntry{
-		DimKey:     computeDimKey(expr, val, tags),
-		EncodedKey: encodeKey(expr, val),
+		DimKey: computeDimKey(expr, val, tags),
+		Expr:   expr,
+		Val:    val,
 	}
+}
+
+// EncodedKey returns the aux-transport key for this entry (1 byte expr + 8 byte
+// value). It is computed on demand so the common bucket-hit reduce path, which
+// never reads it, does not allocate it.
+func (e GroupingEntry) EncodedKey() string {
+	return encodeKey(e.Expr, e.Val)
 }
 
 // encodeKey encodes a dimension value into a 9-byte string (1 byte expr + 8 bytes value)

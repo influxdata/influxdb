@@ -8081,9 +8081,7 @@ func TestServer_Query_DatePart(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		// 2023 - First day of year, Sunday, Q1
@@ -8783,9 +8781,7 @@ func TestServer_Query_DatePart_Timezone(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		// Spring-forward boundary (NY): 07:30Z is EDT → 03:30 local.
@@ -8870,9 +8866,7 @@ func TestServer_Query_DatePart_DSTBoundaries(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		// (1) day roll-up. NY fall-back 2023-11-05 is a 25h local day; both
@@ -8987,9 +8981,7 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		// server01 - 2023 data
@@ -9363,9 +9355,7 @@ func TestServer_Query_DatePart_WildcardCollision(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		fmt.Sprintf(`m,host=a year=5,value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T00:00:00Z").UnixNano()),
@@ -9431,9 +9421,7 @@ func TestServer_Query_DatePart_Subquery_GroupBy(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T01:00:00Z").UnixNano()),
@@ -9486,9 +9474,7 @@ func TestServer_Query_DatePart_DST_SubqueryMerge(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		// NY fall-back 2023-11-05: 05:30Z is 01:30 EDT, 06:30Z is 01:30 EST.
@@ -9536,9 +9522,7 @@ func TestServer_Query_DatePart_DST_Descending(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		// Two instants in the repeated fall-back hour (local hour 1) ...
@@ -9586,6 +9570,68 @@ func TestServer_Query_DatePart_DST_Descending(t *testing.T) {
 	}
 }
 
+// TestServer_Query_DatePart_DST_SpringForward is the mirror of the fall-back
+// merge tests: at the NY 2023-03-12 spring-forward transition the local clock
+// jumps 02:00 EST -> 03:00 EDT, so no instant on that day has local hour 2.
+// GROUP BY date_part('hour') must therefore emit an hour-1 bucket and an hour-3
+// bucket with NO hour-2 bucket in between, and every point must land in its true
+// local hour (nothing dropped into or misassigned around the gap).
+func TestServer_Query_DatePart_DST_SpringForward(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
+
+	writes := []string{
+		// Two instants before the gap (local hour 1, EST = UTC-5) ...
+		fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T06:30:00Z").UnixNano()), // 01:30 EST
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T06:59:00Z").UnixNano()), // 01:59 EST
+		// ... and two after the gap (local hour 3, EDT = UTC-4). The instant at
+		// 07:00Z is 03:00 EDT — the clock jumped straight from 01:59 to 03:00, so
+		// hour 2 never occurs and can hold no point.
+		fmt.Sprintf(`cpu value=4 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T07:00:00Z").UnixNano()), // 03:00 EDT
+		fmt.Sprintf(`cpu value=8 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T07:45:00Z").UnixNano()), // 03:45 EDT
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			// Hour 1 holds the two pre-gap points (count 2), hour 3 holds the two
+			// post-gap points (count 2), and the skipped hour 2 produces no bucket.
+			name:    `GROUP BY date_part hour skips the non-existent spring-forward hour`,
+			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('hour', time) tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[["1969-12-31T19:00:00-05:00",2,1],["1969-12-31T19:00:00-05:00",2,3]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			// The values are chosen so the per-hour sums are distinct (hour 1 -> 3,
+			// hour 3 -> 12): this proves each point is assigned to its true local
+			// hour across the gap rather than merely that the counts add up.
+			name:    `GROUP BY date_part hour sums each spring-forward hour independently`,
+			command: `SELECT sum(value) FROM db0.rp0.cpu GROUP BY date_part('hour', time) tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["hour"],"columns":["time","sum","hour"],"values":[["1969-12-31T19:00:00-05:00",3,1],["1969-12-31T19:00:00-05:00",12,3]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				require.NoError(t, test.init(s), "init error")
+				initialized = true
+			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
+		})
+	}
+}
+
 // Ensure GROUP BY date_part('epoch', ...) emits pre-1970 (negative) buckets in
 // chronological order. The reduce path orders series by sorting encoded
 // grouping-key strings, so the encoding must preserve signed value order.
@@ -9594,9 +9640,7 @@ func TestServer_Query_DatePart_EpochPre1970(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "1969-12-31T23:59:59Z").UnixNano()), // epoch -1
@@ -9641,9 +9685,7 @@ func TestServer_Query_DatePart_Subquery_Where(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true))
 
 	writes := []string{
 		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T01:00:00Z").UnixNano()),

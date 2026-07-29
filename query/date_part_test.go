@@ -476,7 +476,7 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.NotEmpty(t, entries[0].DimKey)
-	require.NotEmpty(t, entries[0].EncodedKey)
+	require.NotEmpty(t, entries[0].EncodedKey())
 }
 
 func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
@@ -527,7 +527,7 @@ func TestDatePartGrouper_DecodeEntry(t *testing.T) {
 	entries, err := g.ResolveKeys(aux, query.TagSubset{})
 	require.NoError(t, err)
 
-	decoded, err := g.DecodeEntry(entries[0].EncodedKey)
+	decoded, err := g.DecodeEntry(entries[0].EncodedKey())
 	require.NoError(t, err)
 	dpk, ok := decoded.(query.DecodedDatePartKey)
 	require.True(t, ok, "expected DecodedDatePartKey, got %T", decoded)
@@ -589,6 +589,28 @@ func TestDatePartGrouper_DecodeEntry_InvalidExprByte(t *testing.T) {
 	require.Contains(t, err.Error(), "invalid expr byte")
 }
 
+// BenchmarkDatePartGrouper_ResolveKeys_BucketHit models the common reduce path:
+// most points land in a bucket that already exists, so EncodedKey is never read.
+// The encoded key must therefore not be computed (and allocated) during ResolveKeys.
+func BenchmarkDatePartGrouper_ResolveKeys_BucketHit(b *testing.B) {
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Expr: query.Month},
+	})
+	aux := []interface{}{int64(3)}
+	tags := query.TagSubset{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		entries, err := g.ResolveKeys(aux, tags)
+		if err != nil {
+			b.Fatal(err)
+		}
+		// Bucket-hit: consumer only reads DimKey, never EncodedKey.
+		_ = entries[0].DimKey
+	}
+}
+
 func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Expr: query.Year},
@@ -601,7 +623,7 @@ func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
 	require.Len(t, entries, 2)
 
 	for _, e := range entries {
-		_, err := g.DecodeEntry(e.EncodedKey)
+		_, err := g.DecodeEntry(e.EncodedKey())
 		require.NoError(t, err)
 	}
 }

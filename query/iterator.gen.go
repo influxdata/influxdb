@@ -1123,7 +1123,7 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					rp = &floatReduceFloatPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -1481,7 +1481,7 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					rp = &floatReduceIntegerPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -1839,7 +1839,7 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					rp = &floatReduceUnsignedPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -2197,7 +2197,7 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 					rp = &floatReduceStringPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -2555,7 +2555,7 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					rp = &floatReduceBooleanPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -4142,7 +4142,7 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					rp = &integerReduceFloatPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -4500,7 +4500,7 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					rp = &integerReduceIntegerPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -4858,7 +4858,7 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					rp = &integerReduceUnsignedPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -5216,7 +5216,7 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 					rp = &integerReduceStringPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -5574,7 +5574,7 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					rp = &integerReduceBooleanPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -7161,7 +7161,7 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					rp = &unsignedReduceFloatPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -7519,7 +7519,7 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					rp = &unsignedReduceIntegerPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -7877,7 +7877,7 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					rp = &unsignedReduceUnsignedPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -8235,7 +8235,7 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 					rp = &unsignedReduceStringPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -8593,7 +8593,7 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					rp = &unsignedReduceBooleanPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -10166,7 +10166,7 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					rp = &stringReduceFloatPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -10524,7 +10524,7 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					rp = &stringReduceIntegerPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -10882,7 +10882,7 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					rp = &stringReduceUnsignedPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -11240,7 +11240,7 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 					rp = &stringReduceStringPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -11598,7 +11598,7 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					rp = &stringReduceBooleanPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -13171,7 +13171,7 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					rp = &booleanReduceFloatPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -13529,7 +13529,7 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					rp = &booleanReduceIntegerPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -13887,7 +13887,7 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					rp = &booleanReduceUnsignedPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -14245,7 +14245,7 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 					rp = &booleanReduceStringPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
@@ -14603,7 +14603,7 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					rp = &booleanReduceBooleanPoint{
 						Name:        curr.Name,
 						Tags:        tags,
-						GroupingKey: entry.EncodedKey,
+						GroupingKey: entry.EncodedKey(),
 						Aggregator:  aggregator,
 						Emitter:     emitter,
 					}
