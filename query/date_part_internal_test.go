@@ -369,41 +369,41 @@ func TestReduceIterator_DimensionGrouper_Aux(t *testing.T) {
 		{
 			// Aggregate (COUNT/SUM) emits an empty Aux: it must grow to the full
 			// scanner-key width with the active value in the last slot.
-			name: "aggregate widens empty aux to full width",
+			name:   "aggregate widens empty aux to full width",
 			auxLen: 3, dpDims: 1, emitAux: nil,
 			want: []interface{}{nil, nil, decoded},
 		},
 		{
 			// Selector (MIN/MAX) emits a full-width Aux: the leading field slots
 			// are preserved and only the active date_part slot is overwritten.
-			name: "selector full-width aux preserves leading slots",
+			name:   "selector full-width aux preserves leading slots",
 			auxLen: 3, dpDims: 1, emitAux: []interface{}{"a", "b", "c"},
 			want: []interface{}{"a", "b", decoded},
 		},
 		{
 			// With multiple date_part dimensions every non-active dimension slot is
 			// nulled so a stale value can't leak into a non-active column.
-			name: "multi-dimension nulls every date_part slot",
+			name:   "multi-dimension nulls every date_part slot",
 			auxLen: 3, dpDims: 2, emitAux: []interface{}{"a", "b", "c"},
 			want: []interface{}{"a", nil, decoded},
 		},
 		{
 			// No scanner keys and an empty emitted Aux: the width<1 guard forces a
 			// single slot so the active value still has somewhere to live.
-			name: "empty aux falls back to width one",
+			name:   "empty aux falls back to width one",
 			auxLen: 0, dpDims: 1, emitAux: nil,
 			want: []interface{}{decoded},
 		},
 		{
 			// More date_part dimensions than the Aux width: base would go negative
 			// and must clamp to 0 rather than panic.
-			name: "base clamps when dimensions exceed width",
+			name:   "base clamps when dimensions exceed width",
 			auxLen: 1, dpDims: 2, emitAux: nil,
 			want: []interface{}{decoded},
 		},
 		{
 			// An emitted Aux longer than the scanner key set keeps the longer width.
-			name: "longer emitted aux keeps its width",
+			name:   "longer emitted aux keeps its width",
 			auxLen: 2, dpDims: 1, emitAux: []interface{}{"a", "b", "c", "d"},
 			want: []interface{}{"a", "b", "c", decoded},
 		},
