@@ -37,18 +37,19 @@ fn test_parse_memory_size() {
     assert_ok(" 5 mb", 5 * 1024 * 1024);
     assert_ok("5 MB", 5 * 1024 * 1024);
 
-    // Bare numbers are bytes
-    assert_ok("0", 0);
-    assert_ok("100", 100);
-    assert_ok("1048576", 1048576);
-    assert_ok(" 42 ", 42);
-
-    // Bare-number overflow is an error, not a wrap
-    assert_err("99999999999999999999999999", "number too large");
+    // Bare numbers are rejected: units are always explicit
+    assert_err("0", "specify an explicit unit suffix");
+    assert_err("100", "bare number '100' is not accepted");
+    assert_err("1048576", "specify an explicit unit suffix");
+    assert_err(" 42 ", "bare number '42' is not accepted");
+    assert_err(
+        "99999999999999999999999999",
+        "expected a number with a unit suffix",
+    );
 
     // Other error cases
     assert_err("-1mb", "invalid digit found in string");
-    assert_err("foo", "invalid digit found in string");
+    assert_err("foo", "expected a number with a unit suffix");
     assert_err("-1%", "invalid digit found in string");
     assert_err(
         "101%",
@@ -58,8 +59,8 @@ fn test_parse_memory_size() {
 
 #[test]
 fn test_parse_memory_size_mb() {
-    // Bare numbers are rejected with a transitional error: they used to
-    // mean megabytes and will mean bytes in a future release.
+    // Bare numbers are rejected: they used to mean megabytes here, and
+    // sizes now always require an explicit unit.
     assert_mb_err("0", "previously meant megabytes");
     assert_mb_err("1", "previously meant megabytes");
     assert_mb_err("100", "specify an explicit unit suffix");
@@ -152,7 +153,10 @@ fn assert_mb_err(s: &'static str, expected_substring: &'static str) {
 #[test]
 fn test_byte_size_rejects_percentage() {
     let err = ByteSize::from_str("50%").unwrap_err();
-    assert!(err.contains("requires a unit suffix"));
+    assert!(
+        err.contains("percentage") && err.contains("not supported"),
+        "error should say percentages are unsupported, got: {err}"
+    );
 }
 
 #[test]
@@ -162,10 +166,17 @@ fn test_byte_size_parsing() {
         let parsed: ByteSize = s.parse().unwrap();
         assert_eq!(parsed.as_num_bytes(), expected, "parsing '{}'", s);
     }
-    // Bare numbers are bytes
-    assert_bytes_ok("0", 0);
-    assert_bytes_ok("2048", 2048);
-    assert_bytes_ok(" 42 ", 42);
+    // Bare numbers are rejected: units are always explicit
+    for bare in ["0", "2048", " 42 "] {
+        let err = ByteSize::from_str(bare).unwrap_err();
+        assert!(
+            err.contains("specify an explicit unit suffix"),
+            "error for '{bare}' should demand a unit, got: {err}"
+        );
+    }
+    // Explicit bytes
+    assert_bytes_ok("0b", 0);
+    assert_bytes_ok("2048b", 2048);
     // Unit suffixes convert
     assert_bytes_ok("1kb", 1024);
     assert_bytes_ok("5 MB", 5 * 1024 * 1024);
@@ -218,4 +229,46 @@ fn test_format_bytes() {
         format_bytes(1024 * 1024 * 1024 * 2 + 1024 * 1024 * 512),
         "2.50GiB"
     );
+}
+
+#[test]
+fn test_legacy_memory_size_mb_bare_number_means_megabytes() {
+    // The pre-3.11 format used by hidden legacy option spellings: a bare
+    // number is megabytes, matching the 3.10 MemorySizeMb parser.
+    let parsed: LegacyMemorySizeMb = "500".parse().unwrap();
+    assert_eq!(parsed.as_num_bytes(), 500 * 1024 * 1024);
+
+    // Unit suffixes and percentages parse like the strict type.
+    let parsed: LegacyMemorySizeMb = "2gb".parse().unwrap();
+    assert_eq!(parsed.as_num_bytes(), 2 * 1024 * 1024 * 1024);
+    let parsed: LegacyMemorySizeMb = "50%".parse().unwrap();
+    assert!(parsed.as_num_bytes() > 0);
+
+    let err = LegacyMemorySizeMb::from_str("banana").unwrap_err();
+    assert!(err.contains("failed to parse"), "got: {err}");
+
+    // Conversion to the strict type preserves the byte value.
+    let strict: MemorySizeMb = LegacyMemorySizeMb(123).into();
+    assert_eq!(strict.as_num_bytes(), 123);
+}
+
+#[test]
+fn test_lenient_byte_size_bare_number_means_bytes() {
+    // The pre-3.11 format of --max-http-request-size: a bare number is
+    // bytes, and bare-ness is reported so serve can warn.
+    let parsed: LenientByteSize = "10485760".parse().unwrap();
+    assert_eq!(parsed.as_num_bytes(), 10485760);
+    assert!(parsed.is_bare());
+
+    let parsed: LenientByteSize = "10mb".parse().unwrap();
+    assert_eq!(parsed.as_num_bytes(), 10 * 1024 * 1024);
+    assert!(!parsed.is_bare());
+
+    let err = LenientByteSize::from_str("50%").unwrap_err();
+    assert!(
+        err.contains("percentage") && err.contains("not supported"),
+        "got: {err}"
+    );
+    let err = LenientByteSize::from_str("banana").unwrap_err();
+    assert!(err.contains("failed to parse"), "got: {err}");
 }

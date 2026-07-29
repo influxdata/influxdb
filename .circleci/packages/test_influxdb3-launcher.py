@@ -305,6 +305,7 @@ class TestReadConfigTOML(unittest.TestCase):
             'object-store = "file"\n'
             'http-bind = "0.0.0.0:8086"\n'
             'virtual-env-location = "/path/to/venv"\n'
+            "num-io-threads = 4\n"
         )
         env_vars = self.launcher.read_config_toml(config_path, "core")
         self.assertEqual(
@@ -313,6 +314,9 @@ class TestReadConfigTOML(unittest.TestCase):
                 "INFLUXDB3_OBJECT_STORE": "file",
                 "INFLUXDB3_HTTP_BIND_ADDR": "0.0.0.0:8086",
                 "VIRTUAL_ENV": "/path/to/venv",
+                # Must match the env var the binary actually reads
+                # (INFLUXDB3_NUM_IO_THREADS, not INFLUXDB3_IO_NUM_THREADS).
+                "INFLUXDB3_NUM_IO_THREADS": "4",
             },
         )
 
@@ -332,6 +336,28 @@ class TestReadConfigTOML(unittest.TestCase):
                 "INFLUXDB3_ENTERPRISE_CLUSTER_ID": "my-cluster",
                 "INFLUXDB3_ENTERPRISE_MODE": "all",
                 "INFLUXDB3_ENTERPRISE_LICENSE_FILE": "/path/to/license.jwt",
+            },
+        )
+
+    def test_enterprise_engine_mappings(self):
+        """Keys whose env vars do not follow the generic pattern must map to
+        names the current binary actually reads."""
+        config_path = self._write_toml_config(
+            'object-store = "file"\n'
+            'license-file = "/path/to/license.jwt"\n'
+            "max-columns = 1000000\n"
+            'preemptive-cache-age = "3d"\n'
+        )
+        env_vars = self.launcher.read_config_toml(config_path, "enterprise")
+        self.assertEqual(
+            env_vars,
+            {
+                "INFLUXDB3_OBJECT_STORE": "file",
+                "INFLUXDB3_ENTERPRISE_LICENSE_FILE": "/path/to/license.jwt",
+                # --max-total-columns; historic TOML key kept for compatibility
+                "INFLUXDB3_MAX_TOTAL_COLUMNS": "1000000",
+                # --preemptive-cache-age was never ENTERPRISE_-prefixed
+                "INFLUXDB3_PREEMPTIVE_CACHE_AGE": "3d",
             },
         )
 

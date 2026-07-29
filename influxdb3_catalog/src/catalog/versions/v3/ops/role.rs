@@ -7,6 +7,7 @@ use crate::CatalogError;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::format::RecordBatch;
 use crate::format::records::role::{CreateRole, DeleteRole, UpdateRole, UpdateRolePermissions};
+use crate::format::records::types::RolePermissionGrant;
 use influxdb3_authz::role::{Permission, Role, RoleDescription, RoleName};
 use influxdb3_id::{RoleId, UserId};
 
@@ -51,7 +52,12 @@ impl CatalogOp for CreateRoleOp {
         }
 
         let role_id = catalog.roles.repo().next_id();
-        let permissions = args.permissions.iter().map(Into::into).collect();
+        // System permissions have no persisted grant and are dropped (#4905).
+        let permissions = args
+            .permissions
+            .iter()
+            .filter_map(RolePermissionGrant::from_permission)
+            .collect();
 
         records.push(&CreateRole {
             role_id: role_id.get(),
@@ -100,7 +106,12 @@ impl CatalogOp for UpdateRolePermissionsOp {
             return Err(CatalogError::NotFound(format!("role {}", args.role_id)));
         }
 
-        let permissions = args.permissions.iter().map(Into::into).collect();
+        // System permissions have no persisted grant and are dropped (#4905).
+        let permissions = args
+            .permissions
+            .iter()
+            .filter_map(RolePermissionGrant::from_permission)
+            .collect();
 
         records.push(&UpdateRolePermissions {
             role_id: args.role_id.get(),

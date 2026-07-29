@@ -10,11 +10,19 @@
 //! Bitcode uses positional encoding — there are no field tags or self-describing
 //! metadata. This means:
 //!
-//! ## Enums: append-only
+//! ## Enums: do not reorder, insert, remove — or append across a bucket edge
 //!
-//! New variants may be appended to the end of an enum. Existing variant
-//! discriminants are positional (0, 1, 2, ...) and must not change. **Never
-//! reorder, insert, or remove variants.**
+//! Existing variant discriminants are positional (0, 1, 2, ...) and must not
+//! change.
+//!
+//! **Appending is not automatically safe.** bitcode picks the packing for
+//! variant tags from the enum's *variant count* and never writes that choice
+//! into the stream, so a variant may only be appended within a packing bucket.
+//! The bucket ceilings are 1, 2, 3, 4, 6, 16, 256: an enum whose count is one
+//! of those cannot grow without breaking already-written catalogs. Crossing an
+//! edge can also misdecode silently rather than erroring.
+//!
+//! See [issue #4905](https://github.com/influxdata/influxdb_pro/issues/4905).
 //!
 //! ## Structs: frozen
 //!
@@ -31,6 +39,11 @@
 //! All types have byte-stability snapshot tests. These catch accidental
 //! reordering, insertion, or field changes at compile time. When adding a new
 //! enum variant, add a corresponding snapshot assertion in the test file.
+//!
+//! `assert_encoding_stable!` on a single value does not detect a bucket
+//! crossing above 1 -> 2. An enum stored as `Vec<T>` in a record also needs a
+//! record-level `assert_roundtrip!` fixture holding two or more elements of
+//! distinct variants — that is the assertion that changes at a bucket edge.
 
 use bitcode::{Decode, Encode};
 use schema::InfluxColumnType;
@@ -311,7 +324,9 @@ pub struct ResourceNameEntry {
 
 /// A single permission grant attached to a role.
 ///
-/// Mirrors `influxdb3_authz::role::Permission`.
+/// Mirrors `influxdb3_authz::role::Permission`, minus `System`, which has no
+/// persisted representation (#4905). At 6 variants — a bucket ceiling, so read
+/// the module docs before adding one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
 pub enum RolePermissionGrant {
     AccountAdminAll,
@@ -320,7 +335,6 @@ pub enum RolePermissionGrant {
     User(RoleUserPermission),
     Role(RoleRolePermission),
     AdminToken(RoleAdminTokenPermission),
-    System(RoleSystemPermission),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
@@ -347,12 +361,6 @@ pub struct RoleRolePermission {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
 pub struct RoleAdminTokenPermission {
     pub action: RoleAdminTokenAction,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
-pub struct RoleSystemPermission {
-    pub action: RoleSystemAction,
-    pub resource: RoleSystemResource,
 }
 
 /// Database action.
@@ -402,23 +410,6 @@ pub enum RoleRoleAction {
 pub enum RoleAdminTokenAction {
     Create,
     Delete,
-}
-
-/// System action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
-pub enum RoleSystemAction {
-    Read,
-}
-
-/// System resource. `All` represents `ResourceIdentifier::All`; otherwise a
-/// specific system resource identified by its enumerated variant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
-pub enum RoleSystemResource {
-    All,
-    Health,
-    Metrics,
-    Ping,
-    Ready,
 }
 
 /// Database resource. `All` represents `ResourceIdentifier::All`, otherwise the

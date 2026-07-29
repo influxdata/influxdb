@@ -7,8 +7,8 @@ use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
 use crate::format::records::types::{
-    RoleDatabaseAction, RoleDatabasePermission, RoleDatabaseResource, RolePermissionGrant,
-    RoleSystemAction, RoleSystemPermission, RoleSystemResource, RoleTokenAction,
+    RoleAdminTokenAction, RoleAdminTokenPermission, RoleDatabaseAction, RoleDatabasePermission,
+    RoleDatabaseResource, RolePermissionGrant, RoleRoleAction, RoleRolePermission, RoleTokenAction,
     RoleTokenPermission, RoleUserAction, RoleUserPermission,
 };
 use influxdb3_authz::role::role_permissions::{
@@ -76,77 +76,72 @@ fn create_role_database_permission_roundtrip() {
     );
 }
 
+/// `Permission::System` has no persisted grant and is dropped on the write
+/// path — see #4905.
 #[test]
-fn create_role_system_permission_all_roundtrip() {
-    assert_roundtrip!(
-        CreateRole {
-            role_id: 4,
-            name: "monitor".to_string(),
-            description: None,
-            permissions: vec![RolePermissionGrant::System(RoleSystemPermission {
-                action: RoleSystemAction::Read,
-                resource: RoleSystemResource::All,
-            })],
-            is_required_role: false,
-            created_at: 1234567890,
-        },
-        "0604076d6f6e69746f72000106000002d2029649"
-    );
-}
-
-#[test]
-fn create_role_system_permission_specific_roundtrip() {
-    assert_roundtrip!(
-        CreateRole {
-            role_id: 5,
-            name: "health-only".to_string(),
-            description: None,
-            permissions: vec![RolePermissionGrant::System(RoleSystemPermission {
-                action: RoleSystemAction::Read,
-                resource: RoleSystemResource::Health,
-            })],
-            is_required_role: false,
-            created_at: 1234567890,
-        },
-        "06050b6865616c74682d6f6e6c79000106010002d2029649"
-    );
-}
-
-#[test]
-fn permission_system_authz_wire_roundtrip() {
+fn system_permissions_are_not_persisted() {
     use influxdb3_authz::role::{
         Permission, ResourceIdentifier, SystemAction, SystemResource,
         role_permissions::SystemPermission,
     };
 
     let cases = [
-        Permission::System(SystemPermission::new(
-            SystemAction::Read,
-            ResourceIdentifier::All,
-        )),
-        Permission::System(SystemPermission::new(
-            SystemAction::Read,
-            ResourceIdentifier::Identifier(SystemResource::Health),
-        )),
-        Permission::System(SystemPermission::new(
-            SystemAction::Read,
-            ResourceIdentifier::Identifier(SystemResource::Metrics),
-        )),
-        Permission::System(SystemPermission::new(
-            SystemAction::Read,
-            ResourceIdentifier::Identifier(SystemResource::Ping),
-        )),
-        Permission::System(SystemPermission::new(
-            SystemAction::Read,
-            ResourceIdentifier::Identifier(SystemResource::Ready),
-        )),
+        ResourceIdentifier::All,
+        ResourceIdentifier::Identifier(SystemResource::Health),
+        ResourceIdentifier::Identifier(SystemResource::Metrics),
+        ResourceIdentifier::Identifier(SystemResource::Ping),
+        ResourceIdentifier::Identifier(SystemResource::Ready),
     ];
 
-    for original in cases {
-        let wire: RolePermissionGrant = RolePermissionGrant::from(&original);
-        let back = Option::<Permission>::from(&wire).expect("system grant should convert");
-        assert_eq!(original, back, "system permission wire roundtrip");
+    for resource in cases {
+        let permission = Permission::System(SystemPermission::new(SystemAction::Read, resource));
+        assert_eq!(
+            RolePermissionGrant::from_permission(&permission),
+            None,
+            "system permission should have no persisted grant"
+        );
     }
+}
+
+/// Guards the variant count of `RolePermissionGrant` (#4905).
+///
+/// A single-grant fixture cannot detect an appended variant — one element
+/// encodes identically either side of a bucket edge. Holding every variant
+/// makes the golden hex change as soon as the count crosses one.
+///
+/// These bytes were verified out-of-band against a v3.10.5-shaped 6-variant
+/// type, so a match also confirms the encoding is unchanged from 3.10.
+#[test]
+fn create_role_all_grant_variants_roundtrip() {
+    assert_roundtrip!(
+        CreateRole {
+            role_id: 6,
+            name: "every-grant".to_string(),
+            description: None,
+            permissions: vec![
+                RolePermissionGrant::AccountAdminAll,
+                RolePermissionGrant::Database(RoleDatabasePermission {
+                    action: RoleDatabaseAction::Read,
+                    resource: RoleDatabaseResource::All,
+                }),
+                RolePermissionGrant::Token(RoleTokenPermission {
+                    action: RoleTokenAction::Create,
+                }),
+                RolePermissionGrant::User(RoleUserPermission {
+                    action: RoleUserAction::Update,
+                }),
+                RolePermissionGrant::Role(RoleRolePermission {
+                    action: RoleRoleAction::Delete,
+                }),
+                RolePermissionGrant::AdminToken(RoleAdminTokenPermission {
+                    action: RoleAdminTokenAction::Delete,
+                }),
+            ],
+            is_required_role: false,
+            created_at: 1234567890,
+        },
+        "06060b65766572792d6772616e7400064ecf0100010203010002d2029649"
+    );
 }
 
 #[test]
