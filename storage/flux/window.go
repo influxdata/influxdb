@@ -101,6 +101,7 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 			select {
 			case <-done:
 			case <-w.ctx.Done():
+				table.awaitAbandoned(done)
 				return w.ctx.Err()
 			}
 		}
@@ -125,7 +126,7 @@ func (w *windowTableSplitter) getTimeColumnIndex(label string) (int, error) {
 }
 
 type windowTableRow struct {
-	used   int32
+	used   atomic.Bool
 	buffer arrow.TableBuffer
 	done   chan struct{}
 }
@@ -139,7 +140,7 @@ func (w *windowTableRow) Cols() []flux.ColMeta {
 }
 
 func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
-	if !atomic.CompareAndSwapInt32(&w.used, 0, 1) {
+	if !w.used.CompareAndSwap(false, true) {
 		return &errors.Error{
 			Code: errors.EInternal,
 			Msg:  "table already read",
@@ -153,10 +154,28 @@ func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
 }
 
 func (w *windowTableRow) Done() {
-	if atomic.CompareAndSwapInt32(&w.used, 0, 1) {
+	if w.used.CompareAndSwap(false, true) {
 		w.buffer.Release()
 		close(w.done)
 	}
+}
+
+// awaitAbandoned settles ownership of a row the splitter is giving up on, so that
+// the buffer is released exactly once.
+//
+// This mirrors (*table).awaitAbandoned, for the same reason: waiting on done
+// unconditionally is unsafe because nothing guarantees a consumer will ever claim
+// this row, and closing without waiting would release a buffer the consumer is
+// still reading. The slices in this buffer retain the input table's arrays, so an
+// unreleased row pins the whole input allocation, not just its own slice.
+func (w *windowTableRow) awaitAbandoned(done <-chan struct{}) {
+	// Done claims the row and releases the buffer when no consumer has claimed
+	// it, and is a no-op when one already owns it.
+	w.Done()
+
+	// Whichever of Do or Done won the claim closes done, so this is bounded: if
+	// we just won it above, done is already closed.
+	<-done
 }
 
 func (w *windowTableRow) Empty() bool {
