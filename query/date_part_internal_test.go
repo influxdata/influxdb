@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	internal "github.com/influxdata/influxdb/query/internal"
 	"github.com/influxdata/influxql"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestDatePartMap_Value(t *testing.T) {
@@ -83,7 +85,21 @@ func TestEncodeDecodeAux_DatePartKey(t *testing.T) {
 	for _, test := range tests {
 		aux := []interface{}{int64(7), test.key, "host1"}
 
-		got := decodeAux(encodeAux(aux))
+		// Drive the full wire path
+		pt := &internal.Point{
+			Name: proto.String("cpu"),
+			Tags: proto.String(""),
+			Time: proto.Int64(0),
+			Nil:  proto.Bool(false),
+			Aux:  encodeAux(aux),
+		}
+		buf, err := proto.Marshal(pt)
+		require.NoError(t, err, "proto.Marshal must not fail on the non-UTF-8 encoded key")
+
+		var decoded internal.Point
+		require.NoError(t, proto.Unmarshal(buf, &decoded))
+
+		got := decodeAux(decoded.Aux)
 
 		require.Len(t, got, 3)
 		require.Equal(t, int64(7), got[0])
