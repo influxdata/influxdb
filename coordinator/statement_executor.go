@@ -1399,7 +1399,8 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 	}
 
 	timeIndex := -1
-	fieldIndexes := make(map[string]int)
+	// fields = all columns minus the grouping dimensions and the time column.
+	fieldIndexes := make(map[string]int, (len(row.Columns)-len(row.GroupingKeys))-1)
 	tagIndexes := make(map[string]int, len(row.GroupingKeys))
 	for i, c := range row.Columns {
 		if c == models.TimeString {
