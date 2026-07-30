@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/tracing"
@@ -700,14 +701,9 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 			// Skip a duplicate date_part dimension (e.g. GROUP BY date_part('year',
 			// time), date_part('year', time)); a repeated part would inject a
 			// duplicate output column and double-aggregate the same series.
-			duplicate := false
-			for _, existing := range opt.DatePartDimensions {
-				if existing.Expr == expr {
-					duplicate = true
-					break
-				}
-			}
-			if duplicate {
+			if slices.ContainsFunc(opt.DatePartDimensions, func(d DatePartDimension) bool {
+				return d.Expr == expr
+			}) {
 				continue
 			}
 			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{Expr: expr})

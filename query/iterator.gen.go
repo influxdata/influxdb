@@ -1154,23 +1154,12 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1523,23 +1512,12 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1892,23 +1870,12 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -2261,23 +2228,12 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -2630,23 +2586,12 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4228,23 +4173,12 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4597,23 +4531,12 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4966,23 +4889,12 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -5335,23 +5247,12 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -5704,23 +5605,12 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -7302,23 +7192,12 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -7671,23 +7550,12 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -8040,23 +7908,12 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -8409,23 +8266,12 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -8778,23 +8624,12 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -10362,23 +10197,12 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -10731,23 +10555,12 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11100,23 +10913,12 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11469,23 +11271,12 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11838,23 +11629,12 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -13422,23 +13202,12 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -13791,23 +13560,12 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -14160,23 +13918,12 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -14529,23 +14276,12 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -14898,23 +14634,12 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 	// Reverse sort points by name & tag.
 	// This ensures a consistent order of output.
-	if itr.opt.DimensionGrouper != nil {
-		// date_part grouping: buckets are created and emitted from this single
-		// reduce iterator (keyed by DimKey) and are not re-sorted by a downstream
-		// merge iterator, so their order must be established here in query
-		// direction — unconditionally, even when opt.Ordered is false.
-		if len(keys) > 0 {
-			var sorted sort.Interface = sort.StringSlice(keys)
-			if itr.opt.Ascending {
-				sorted = sort.Reverse(sorted)
-			}
-			sort.Sort(sorted)
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
 		}
-	} else if len(keys) > 1 && itr.opt.Ordered {
-		// Non-date_part aggregates: unchanged from the original behavior. The
-		// final order is imposed by the downstream sorted-merge iterator, so this
-		// reduce-internal sort only needs a stable, consistent key order.
-		sort.Sort(reverseStringSlice(keys))
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
