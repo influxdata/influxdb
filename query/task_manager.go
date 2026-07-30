@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	queryFieldNames []string = []string{"qid", "query", "database", "duration", "status", "user"}
+	queryFieldNames []string = []string{"host", "qid", "query", "database", "duration", "status", "user"}
 )
 
 func (t TaskStatus) String() string {
@@ -149,13 +149,36 @@ func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStateme
 
 		d = prettyTime(d)
 
-		values = append(values, []interface{}{id, qi.query, qi.database, d.String(), qi.status.String(), qi.userID})
+		values = append(values, []interface{}{qi.host, id, qi.query, qi.database, d.String(), qi.status.String(), qi.userID})
 	}
 
 	return []*models.Row{{
 		Columns: queryFieldNames,
 		Values:  values,
 	}}, nil
+}
+
+// SlowQueryCount returns a snapshot of the number of currently-running queries
+// that have been executing for longer than LogQueriesAfter. It returns 0 when
+// LogQueriesAfter is unset (0), matching the slow-query logging semantics.
+func (t *TaskManager) SlowQueryCount() int64 {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if t.LogQueriesAfter == 0 {
+		return 0
+	}
+
+	now := time.Now()
+	var n int64
+	for _, qi := range t.queries {
+		// >= matches the slow-query logging monitor, whose timer fires at
+		// exactly LogQueriesAfter.
+		if now.Sub(qi.startTime) >= t.LogQueriesAfter {
+			n++
+		}
+	}
+	return n
 }
 
 func prettyTime(d time.Duration) time.Duration {
@@ -172,12 +195,14 @@ func prettyTime(d time.Duration) time.Duration {
 
 func (t *TaskManager) LogCurrentQueries(logFunc func(string, ...zap.Field)) {
 	for _, queryInfo := range t.Queries() {
-		logFunc("Current Queries", zap.Uint64(queryFieldNames[0], queryInfo.ID),
-			zap.String(queryFieldNames[1], queryInfo.Query),
-			zap.String(queryFieldNames[2], queryInfo.Database),
-			zap.String(queryFieldNames[3], prettyTime(queryInfo.Duration).String()),
-			zap.String(queryFieldNames[4], queryInfo.Status.String()),
-			zap.String(queryFieldNames[5], queryInfo.User))
+		logFunc("Current Queries",
+			zap.String(queryFieldNames[0], queryInfo.Host),
+			zap.Uint64(queryFieldNames[1], queryInfo.ID),
+			zap.String(queryFieldNames[2], queryInfo.Query),
+			zap.String(queryFieldNames[3], queryInfo.Database),
+			zap.String(queryFieldNames[4], prettyTime(queryInfo.Duration).String()),
+			zap.String(queryFieldNames[5], queryInfo.Status.String()),
+			zap.String(queryFieldNames[6], queryInfo.User))
 	}
 }
 
@@ -218,6 +243,7 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, opt ExecutionOptions, inter
 		startTime: time.Now(),
 		closing:   make(chan struct{}),
 		monitorCh: make(chan error),
+		host:      opt.Host,
 	}
 	t.queries[qid] = query
 
@@ -229,8 +255,8 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, opt ExecutionOptions, inter
 
 			select {
 			case <-timer.C:
-				t.Logger.Warn(fmt.Sprintf("Detected slow query: %s (qid: %d, database: %s, user: %s, threshold: %s)",
-					query.query, qid, query.database, query.userID, t.LogQueriesAfter))
+				t.Logger.Warn(fmt.Sprintf("Detected slow query from %s: %s (qid: %d, database: %s, user: %s, threshold: %s)",
+					query.host, query.query, qid, query.database, query.userID, t.LogQueriesAfter))
 			case <-closing:
 			}
 			return nil
@@ -288,6 +314,7 @@ func (t *TaskManager) DetachQuery(qid uint64) error {
 
 // QueryInfo represents the information for a query.
 type QueryInfo struct {
+	Host     string        `json:"host"`
 	ID       uint64        `json:"id"`
 	Query    string        `json:"query"`
 	Database string        `json:"database"`
@@ -305,6 +332,7 @@ func (t *TaskManager) Queries() []QueryInfo {
 	queries := make([]QueryInfo, 0, len(t.queries))
 	for id, qi := range t.queries {
 		queries = append(queries, QueryInfo{
+			Host:     qi.host,
 			ID:       id,
 			Query:    qi.query,
 			Database: qi.database,

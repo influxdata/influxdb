@@ -45,6 +45,13 @@ type compiledStatement struct {
 	// TimeRange is the TimeRange for selecting data.
 	TimeRange influxql.TimeRange
 
+	// OpenUpperBound is true when the statement had no explicit upper time
+	// bound. During preprocessing the upper bound is resolved to now() for
+	// aggregate queries or to the maximum representable time for raw queries;
+	// this flag records that the bound was originally open so that range limits
+	// can measure it up to now() without depending on that resolved value.
+	OpenUpperBound bool
+
 	// Interval holds the time grouping interval.
 	Interval Interval
 
@@ -183,6 +190,7 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 		c.TimeRange.Min = time.Unix(0, influxql.MinTime).UTC()
 	}
 	if c.TimeRange.Max.IsZero() {
+		c.OpenUpperBound = true
 		// If the interval is non-zero, then we have an aggregate query and
 		// need to limit the maximum time to now() for backwards compatibility
 		// and usability.
@@ -1235,6 +1243,25 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 			} else {
 				timeRange.Min = time.Unix(0, last-int64(interval)*int64(sopt.MaxBucketsN-1))
 			}
+		}
+	}
+
+	// Enforce the maximum time range a query may span, if configured. The range
+	// is measured against the shard-mapping time range so that an aggregate
+	// query whose open lower bound has already been constrained by the bucket
+	// limit above is measured by its effective window rather than by all of
+	// time. An open upper bound (no explicit end time) is measured up to now(),
+	// matching how aggregate queries default their max time; the query still
+	// scans any data beyond now(). A query with no lower bound that the bucket
+	// limit did not constrain spans the full possible range and is therefore
+	// rejected when this limit is set.
+	if sopt.MaxTimeRange > 0 {
+		maxT := timeRange.MaxTime()
+		if c.OpenUpperBound {
+			maxT = c.Options.Now
+		}
+		if d := maxT.Sub(timeRange.MinTime()); d > sopt.MaxTimeRange {
+			return nil, fmt.Errorf("max-time-range limit exceeded: (%s/%s)", d, sopt.MaxTimeRange)
 		}
 	}
 

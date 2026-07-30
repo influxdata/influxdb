@@ -4,6 +4,7 @@ package cli // import "github.com/influxdata/influxdb/cmd/influx/cli"
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -30,6 +31,7 @@ import (
 	fluxClient "github.com/influxdata/influxdb/flux/client"
 	v8 "github.com/influxdata/influxdb/importer/v8"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxql"
 	"github.com/peterh/liner"
 	"golang.org/x/term"
@@ -40,30 +42,39 @@ var ErrBlankCommand = errors.New("empty input")
 
 // CommandLine holds CLI configuration and state.
 type CommandLine struct {
-	Line            *liner.State
-	URL             url.URL
-	Host            string
-	Port            int
-	PathPrefix      string
-	Database        string
-	Type            QueryLanguage
-	Ssl             bool
-	RetentionPolicy string
-	ClientVersion   string
-	ServerVersion   string
-	Pretty          bool   // controls pretty print for json
-	Format          string // controls the output format.  Valid values are json, csv, or column
-	Execute         string
-	ShowVersion     bool
-	Import          bool
-	Chunked         bool
-	ChunkSize       int
-	NodeID          int
-	Quit            chan struct{}
-	IgnoreSignals   bool // Ignore signals normally caught by this process (used primarily for testing)
-	ForceTTY        bool // Force the CLI to act as if it were connected to a TTY
-	osSignals       chan os.Signal
-	historyFilePath string
+	Line       *liner.State
+	URL        url.URL
+	Host       string
+	Port       int
+	PathPrefix string
+	Database   string
+	Type       QueryLanguage
+	Ssl        bool
+	ClientCert string // path to the client certificate presented for mutual TLS
+	ClientKey  string // path to the client private key for mutual TLS
+	RootCA     string // path to the CA bundle used to verify the server certificate
+	// InsecureCertificate ignores file permission checks when loading the client
+	// certificate and key.
+	InsecureCertificate bool
+	// IgnoreCertSanityChecks loads the client certificate even when it fails the
+	// sanity checks that decide whether it is usable for client authentication.
+	IgnoreCertSanityChecks bool
+	RetentionPolicy        string
+	ClientVersion          string
+	ServerVersion          string
+	Pretty                 bool   // controls pretty print for json
+	Format                 string // controls the output format.  Valid values are json, csv, or column
+	Execute                string
+	ShowVersion            bool
+	Import                 bool
+	Chunked                bool
+	ChunkSize              int
+	NodeID                 int
+	Quit                   chan struct{}
+	IgnoreSignals          bool // Ignore signals normally caught by this process (used primarily for testing)
+	ForceTTY               bool // Force the CLI to act as if it were connected to a TTY
+	osSignals              chan os.Signal
+	historyFilePath        string
 
 	Client         *client.Client
 	ClientConfig   client.Config // Client config options.
@@ -119,6 +130,32 @@ func (c *CommandLine) Run() error {
 		c.ClientConfig.Password = os.Getenv("INFLUX_PASSWORD")
 	}
 
+	// Read TLS settings from the environment when the corresponding flag was not
+	// given, mirroring the username/password precedence above.
+	if c.ClientCert == "" {
+		c.ClientCert = os.Getenv("INFLUX_CERT")
+	}
+	if c.ClientKey == "" {
+		c.ClientKey = os.Getenv("INFLUX_KEY")
+	}
+	if c.RootCA == "" {
+		c.RootCA = os.Getenv("INFLUX_ROOT_CA")
+	}
+	if !c.InsecureCertificate {
+		c.InsecureCertificate, _ = strconv.ParseBool(os.Getenv("INFLUX_INSECURE_CERTIFICATE"))
+	}
+	if !c.IgnoreCertSanityChecks {
+		c.IgnoreCertSanityChecks, _ = strconv.ParseBool(os.Getenv("INFLUX_IGNORE_CERT_SANITY_CHECKS"))
+	}
+
+	// Build the mutual TLS config once, up front, so a bad certificate or key is
+	// reported before any connection is attempted.
+	tlsConfig, err := c.buildClientTLSConfig()
+	if err != nil {
+		return err
+	}
+	c.ClientConfig.TLS = tlsConfig
+
 	addr := fmt.Sprintf("%s:%d/%s", c.Host, c.Port, c.PathPrefix)
 	url, err := client.ParseConnectionString(addr, c.Ssl)
 	if err != nil {
@@ -147,7 +184,7 @@ func (c *CommandLine) Run() error {
 			}
 			c.ClientConfig.UnsafeSsl = false
 		}
-		return fmt.Errorf("Failed to connect to %s: %s\n%s", c.Client.Addr(), err.Error(), msg)
+		return fmt.Errorf("Failed to connect to %s: %w\n%s", c.Client.Addr(), err, msg)
 	}
 
 	// Modify precision.
@@ -336,6 +373,42 @@ func (c *CommandLine) ParseCommand(cmd string) error {
 		return nil
 	}
 	return ErrBlankCommand
+}
+
+// buildClientTLSConfig builds the *tls.Config used for mutual TLS from the
+// configured client certificate, private key, and root CA. It returns nil when
+// none of them are set, leaving the client's default TLS behavior unchanged.
+//
+// InsecureSkipVerify is intentionally not set here; the client applies it from
+// the -unsafeSsl flag, which the SSL-detection retry logic in Run toggles after
+// this config has been built.
+func (c *CommandLine) buildClientTLSConfig() (*tls.Config, error) {
+	if c.ClientCert == "" && c.ClientKey == "" && c.RootCA == "" {
+		return nil, nil
+	}
+
+	var rootCA *tlsconfig.CAConfig
+	if c.RootCA != "" {
+		rootCA = &tlsconfig.CAConfig{Paths: []string{c.RootCA}}
+	}
+
+	// The influx CLI is a one-shot client, so the certificate monitor is never
+	// started; it exists only because the config manager requires one to build
+	// its client certificate loader.
+	monitor := tlsconfig.NewTLSCertMonitor()
+	cm, err := tlsconfig.NewClientTLSConfigManager(
+		monitor,
+		tlsconfig.WithUsage("influx"),
+		tlsconfig.WithUseTLS(true),
+		tlsconfig.WithClientCertificate(c.ClientCert, c.ClientKey),
+		tlsconfig.WithRootCA(rootCA),
+		tlsconfig.WithIgnoreFilePermissions(c.InsecureCertificate),
+		tlsconfig.WithIgnoreSanityChecks(c.IgnoreCertSanityChecks),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return cm.TLSConfig(), nil
 }
 
 // Connect connects to a server.

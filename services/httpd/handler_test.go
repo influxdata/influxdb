@@ -2,6 +2,7 @@ package httpd_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1992,7 +1993,7 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 				SchemaType: "implicit",
 			},
 			status: http.StatusBadRequest,
-			errMsg: `buckets - retention policy "/": invalid name`,
+			errMsg: `buckets - cannot create bucket "mydb//": invalid name`,
 		},
 		{
 			url:    "/api/v2/buckets/" + existingDb + "%2f" + goodRp,
@@ -2071,6 +2072,11 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 	}
 
 	createRp := func(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error) {
+		trimmed, ok := meta.ValidName(spec.Name)
+		if !ok {
+			return nil, meta.ErrInvalidName
+		}
+		spec.Name = trimmed
 		return &meta.RetentionPolicyInfo{
 			Name:               spec.Name,
 			ReplicaN:           *spec.ReplicaN,
@@ -2116,12 +2122,15 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 		CreateRetentionPolicyFn: createRp,
 		CreateDatabaseWithRetentionPolicyFn: func(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error) {
 			rpi, err := createRp(name, spec, true)
+			if err != nil {
+				return nil, err
+			}
 			return &meta.DatabaseInfo{
 				Name:                   name,
 				DefaultRetentionPolicy: spec.Name,
 				RetentionPolicies:      []meta.RetentionPolicyInfo{*rpi},
 				ContinuousQueries:      nil,
-			}, err
+			}, nil
 		},
 		DropRetentionPolicyFn:   dropDeleteRp,
 		UpdateRetentionPolicyFn: updateRp,
@@ -2852,35 +2861,36 @@ func TestHandlerDebugVars(t *testing.T) {
 
 }
 
+// findUserStat returns the value of field in the statistic named measurement
+// and tagged for user, and whether such a statistic was found.
+func findUserStat(stats []models.Statistic, measurement, field, user string) (int64, bool) {
+	for _, stat := range stats {
+		if stat.Name == measurement && stat.Tags[httpd.StatUserTagKey] == user {
+			if v, ok := stat.Values[field]; ok {
+				return v.(int64), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// countUserStats returns the number of statistics named measurement.
+func countUserStats(stats []models.Statistic, measurement string) int {
+	count := 0
+	for _, stat := range stats {
+		if stat.Name == measurement {
+			count++
+		}
+	}
+	return count
+}
+
 // TestHandler_QueryBytesPerUser tests that query response bytes are tracked per user.
 func TestHandler_QueryBytesPerUser(t *testing.T) {
 	const (
 		testUserAlice = "alice"
 		testUserBob   = "bob"
 	)
-
-	// Helper to find user query bytes statistic by user tag
-	findUserStat := func(stats []models.Statistic, user string) (int64, bool) {
-		for _, stat := range stats {
-			if stat.Name == "userquerybytes" && stat.Tags[httpd.StatUserTagKey] == user {
-				if v, ok := stat.Values["userQueryRespBytes"]; ok {
-					return v.(int64), true
-				}
-			}
-		}
-		return 0, false
-	}
-
-	// Helper to count userquerybytes statistics
-	countUserStats := func(stats []models.Statistic) int {
-		count := 0
-		for _, stat := range stats {
-			if stat.Name == "userquerybytes" {
-				count++
-			}
-		}
-		return count
-	}
 
 	t.Run("disabled by default", func(t *testing.T) {
 		h := NewHandler(false) // no auth, default config
@@ -2942,15 +2952,15 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		// Check statistics - should have httpd + 2 userquerybytes (one per user)
 		stats := h.Handler.Statistics(nil)
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, 2, countUserStats(stats), "expected 2 userquerybytes statistics (alice and bob)")
+		require.Equal(t, 2, countUserStats(stats, "userquerybytes"), "expected 2 userquerybytes statistics (alice and bob)")
 
 		// Alice made 2 queries
-		aliceBytes, found := findUserStat(stats, testUserAlice)
+		aliceBytes, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", testUserAlice)
 		require.True(t, found, "expected alice's bytes to be tracked")
 		require.Equal(t, int64(aliceBytes1*2), aliceBytes, "alice's bytes mismatch")
 
 		// Bob made 1 query
-		bobBytesActual, found := findUserStat(stats, testUserBob)
+		bobBytesActual, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", testUserBob)
 		require.True(t, found, "expected bob's bytes to be tracked")
 		require.Equal(t, int64(bobBytes), bobBytesActual, "bob's bytes mismatch")
 	})
@@ -2972,9 +2982,9 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		// Check statistics
 		stats := h.Handler.Statistics(nil)
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, 1, countUserStats(stats), "expected 1 userquerybytes statistic")
+		require.Equal(t, 1, countUserStats(stats, "userquerybytes"), "expected 1 userquerybytes statistic")
 
-		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		anonBytesActual, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", httpd.StatAnonymousUser)
 		require.True(t, found, "expected anonymous bytes to be tracked")
 		require.Equal(t, int64(anonBytes), anonBytesActual, "anonymous bytes mismatch")
 	})
@@ -3002,9 +3012,9 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		require.Equal(t, "httpd", stats[0].Name)
 
 		// Should only have one userquerybytes statistic - the anonymous user
-		require.Equal(t, 1, countUserStats(stats), "expected only anonymous user when auth is disabled")
+		require.Equal(t, 1, countUserStats(stats, "userquerybytes"), "expected only anonymous user when auth is disabled")
 
-		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		anonBytesActual, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", httpd.StatAnonymousUser)
 		require.True(t, found, "expected anonymous bytes to be tracked")
 		require.Equal(t, int64(totalBytes), anonBytesActual, "all queries should be attributed to anonymous user")
 	})
@@ -3026,9 +3036,9 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		stats := h.Handler.Statistics(nil)
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, 1, countUserStats(stats), "expected 1 userquerybytes statistic")
+		require.Equal(t, 1, countUserStats(stats, "userquerybytes"), "expected 1 userquerybytes statistic")
 
-		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		anonBytesActual, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", httpd.StatAnonymousUser)
 		require.True(t, found, "expected anonymous bytes to be tracked")
 		require.Equal(t, int64(totalBytes), anonBytesActual, "chunked query bytes mismatch")
 	})
@@ -3105,13 +3115,13 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		stats := h.Handler.Statistics(nil)
 		require.Equal(t, "httpd", stats[0].Name)
 		// Should have numUsers userquerybytes statistics (+ warmup user)
-		require.Equal(t, numUsers+1, countUserStats(stats), "expected %d userquerybytes statistics", numUsers+1)
+		require.Equal(t, numUsers+1, countUserStats(stats, "userquerybytes"), "expected %d userquerybytes statistics", numUsers+1)
 
 		// Verify all users have exact expected byte counts
 		expectedBytesPerUser := expectedBytesPerQuery * queriesPerUser
 		for i := 0; i < numUsers; i++ {
 			user := fmt.Sprintf("user%d", i)
-			bytes, found := findUserStat(stats, user)
+			bytes, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", user)
 			require.True(t, found, "expected user%d's bytes to be tracked", i)
 			require.Equal(t, expectedBytesPerUser, bytes, "user%d's bytes mismatch", i)
 		}
@@ -3150,14 +3160,14 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		// Get statistics
 		stats := h.Handler.Statistics(nil)
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, 2, countUserStats(stats), "expected 2 userquerybytes statistics")
+		require.Equal(t, 2, countUserStats(stats, "userquerybytes"), "expected 2 userquerybytes statistics")
 
 		// Verify each user has their own statistic with exact byte counts
-		aliceBytes, found := findUserStat(stats, testUserAlice)
+		aliceBytes, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", testUserAlice)
 		require.True(t, found, "expected alice in statistics")
 		require.Equal(t, int64(expectedAliceBytes), aliceBytes, "alice bytes mismatch")
 
-		bobBytes, found := findUserStat(stats, testUserBob)
+		bobBytes, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", testUserBob)
 		require.True(t, found, "expected bob in statistics")
 		require.Equal(t, int64(expectedBobBytes), bobBytes, "bob bytes mismatch")
 
@@ -3366,15 +3376,617 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		// Verify via Statistics() that both users are tracked internally.
 		stats := h.Handler.Statistics(nil)
-		require.Equal(t, 2, countUserStats(stats), "expected both admin and non-admin tracked")
+		require.Equal(t, 2, countUserStats(stats, "userquerybytes"), "expected both admin and non-admin tracked")
 
-		aliceBytesActual, found := findUserStat(stats, testUserAlice)
+		aliceBytesActual, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", testUserAlice)
 		require.True(t, found, "admin alice's bytes should be tracked")
 		require.Equal(t, int64(aliceBytes), aliceBytesActual)
 
-		bobBytesActual, found := findUserStat(stats, testUserBob)
+		bobBytesActual, found := findUserStat(stats, "userquerybytes", "userQueryRespBytes", testUserBob)
 		require.True(t, found, "non-admin bob's bytes should also be tracked")
 		require.Equal(t, int64(bobBytes), bobBytesActual)
+	})
+}
+
+// TestHandler_WriteBytesPerUser tests that write request bytes are tracked per user.
+func TestHandler_WriteBytesPerUser(t *testing.T) {
+	const (
+		testUserAlice = "alice"
+		testUserBob   = "bob"
+	)
+
+	// setupWrite wires the mocks every write subtest needs.
+	setupWrite := func(h *Handler) {
+		h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+			return &meta.DatabaseInfo{}
+		}
+		h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+			return nil
+		}
+	}
+
+	// setupAuth wires the authentication mocks; isAdmin decides which users
+	// are admins. All users are authorized to write.
+	setupAuth := func(h *Handler, isAdmin func(username string) bool) {
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: isAdmin(username)}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.WriteAuthorizer.AuthorizeWriteFn = func(username, database string) error {
+			return nil
+		}
+	}
+	allAdmin := func(string) bool { return true }
+
+	// doWrite POSTs body to url and returns the response recorder.
+	doWrite := func(h *Handler, url, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", url, strings.NewReader(body)))
+		return w
+	}
+
+	// gzipBody returns s gzip-compressed.
+	gzipBody := func(t *testing.T, s string) *bytes.Buffer {
+		t.Helper()
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		_, err := zw.Write([]byte(s))
+		require.NoError(t, err)
+		require.NoError(t, zw.Close())
+		return &buf
+	}
+
+	// promBody returns a snappy-compressed prometheus remote-write body.
+	promBody := func(t *testing.T) []byte {
+		t.Helper()
+		req := &prompb.WriteRequest{
+			Timeseries: []prompb.TimeSeries{
+				{
+					Labels: []prompb.Label{
+						{Name: "host", Value: "a"},
+						{Name: "region", Value: "west"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: 1, Value: 1.2},
+					},
+				},
+			},
+		}
+		data, err := req.Marshal()
+		require.NoError(t, err)
+		return snappy.Encode(nil, data)
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		h := NewHandler(false) // no auth, default config
+		setupWrite(h)
+
+		w := doWrite(h, "/write?db=foo", "cpu,host=a value=1")
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Check statistics - should only have httpd, no userwritebytes
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1, "expected only httpd statistic when user-write-bytes-enabled is false")
+		require.Equal(t, "httpd", stats[0].Name)
+	})
+
+	t.Run("tracks bytes for authenticated user", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, allAdmin)
+
+		const body1 = "cpu,host=a value=1"
+		const body2 = "cpu,host=bb value=22"
+		const body3 = "cpu,host=c value=3"
+
+		// Write as alice twice.
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", body1)
+		require.Equal(t, http.StatusNoContent, w.Code)
+		w = doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", body2)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Write as bob once.
+		w = doWrite(h, "/write?db=foo&u="+testUserBob+"&p=pass", body3)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Check statistics - should have httpd + 2 userwritebytes (one per user)
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 2, countUserStats(stats, "userwritebytes"), "expected 2 userwritebytes statistics (alice and bob)")
+
+		aliceBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", testUserAlice)
+		require.True(t, found, "expected alice's bytes to be tracked")
+		require.Equal(t, int64(len(body1)+len(body2)), aliceBytes, "alice's bytes mismatch")
+
+		bobBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", testUserBob)
+		require.True(t, found, "expected bob's bytes to be tracked")
+		require.Equal(t, int64(len(body3)), bobBytes, "bob's bytes mismatch")
+	})
+
+	t.Run("tracks bytes for anonymous user", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserWriteBytes())) // no auth required
+		setupWrite(h)
+
+		const body = "cpu,host=a value=1"
+		w := doWrite(h, "/write?db=foo", body)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Check statistics
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 1, countUserStats(stats, "userwritebytes"), "expected 1 userwritebytes statistic")
+
+		anonBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(len(body)), anonBytes, "anonymous bytes mismatch")
+	})
+
+	t.Run("all writes without auth attributed to anonymous user", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserWriteBytes())) // no auth required
+		setupWrite(h)
+
+		// Make multiple writes without authentication
+		const numWrites = 5
+		var totalBytes int
+		for i := 0; i < numWrites; i++ {
+			body := fmt.Sprintf("cpu,host=h%d value=%d", i, i)
+			w := doWrite(h, "/write?db=foo", body)
+			require.Equal(t, http.StatusNoContent, w.Code)
+			totalBytes += len(body)
+		}
+
+		// Check statistics - all bytes should be under the anonymous user
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 1, countUserStats(stats, "userwritebytes"), "expected only anonymous user when auth is disabled")
+
+		anonBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(totalBytes), anonBytes, "all writes should be attributed to anonymous user")
+	})
+
+	t.Run("gzip request body counts decompressed bytes", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserWriteBytes()))
+		setupWrite(h)
+
+		const uncompressed = "cpu,host=gzip value=1\ncpu,host=gzip value=2\n"
+		buf := gzipBody(t, uncompressed)
+		require.NotEqual(t, len(uncompressed), buf.Len(),
+			"compressed and uncompressed lengths must differ for this test to discriminate")
+
+		req := MustNewRequest("POST", "/write?db=foo", buf)
+		req.Header.Set("Content-Encoding", "gzip")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		stats := h.Handler.Statistics(nil)
+		anonBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(len(uncompressed)), anonBytes,
+			"gzip write must count decompressed bytes, not wire bytes")
+	})
+
+	t.Run("gzip body exceeding MaxBodySize is rejected", func(t *testing.T) {
+		// A small compressed body that passes the Content-Length pre-check but
+		// decompresses to more than MaxBodySize must be rejected with 413,
+		// rather than being buffered into memory without bound. Regression test
+		// for gzip decoding bypassing the truncateReader size limit (a
+		// decompression bomb).
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserWriteBytes()))
+		setupWrite(h)
+		const maxBody = 1024
+		h.Config.MaxBodySize = maxBody
+
+		// Highly compressible payload: small compressed, large decompressed.
+		uncompressed := strings.Repeat("cpu,host=a value=1\n", 4000)
+		buf := gzipBody(t, uncompressed)
+		require.Less(t, buf.Len(), maxBody,
+			"compressed body must pass the Content-Length pre-check")
+		require.Greater(t, len(uncompressed), maxBody,
+			"decompressed body must exceed MaxBodySize for this test to discriminate")
+
+		req := MustNewRequest("POST", "/write?db=foo", buf)
+		req.Header.Set("Content-Encoding", "gzip")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		require.Equal(t, http.StatusRequestEntityTooLarge, w.Code,
+			"gzip body decompressing beyond MaxBodySize must be rejected")
+
+		// The write is rejected before per-user accounting, so nothing counted.
+		stats := h.Handler.Statistics(nil)
+		_, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", httpd.StatAnonymousUser)
+		require.False(t, found, "rejected oversize gzip write must not be counted")
+	})
+
+	t.Run("prom write counts compressed bytes", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserWriteBytes()))
+		setupWrite(h)
+
+		compressed := promBody(t)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo", bytes.NewReader(compressed)))
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// servePromWrite counts compressed wire bytes (matching writeReqBytes),
+		// unlike serveWrite, which counts decompressed bytes. This deliberately
+		// pins the pre-existing unit inconsistency so "fixing" it is a
+		// conscious decision.
+		stats := h.Handler.Statistics(nil)
+		anonBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(len(compressed)), anonBytes,
+			"prom write must count compressed wire bytes")
+	})
+
+	t.Run("v1, v2 and prom endpoints share one counter", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, allAdmin)
+
+		const v1Body = "cpu,host=a value=1"
+		const v2Body = "cpu,host=bb value=22"
+		compressed := promBody(t)
+
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", v1Body)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		w = doWrite(h, "/api/v2/write?bucket=foo&u="+testUserAlice+"&p=pass", v2Body)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo&u="+testUserAlice+"&p=pass", bytes.NewReader(compressed)))
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, 1, countUserStats(stats, "userwritebytes"), "expected a single userwritebytes statistic for alice")
+
+		aliceBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", testUserAlice)
+		require.True(t, found, "expected alice's bytes to be tracked")
+		require.Equal(t, int64(len(v1Body)+len(v2Body)+len(compressed)), aliceBytes,
+			"v1, v2 and prom writes must all feed alice's single counter")
+	})
+
+	t.Run("per-user total equals global writeReqBytes", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, allAdmin)
+
+		// Mixed traffic: plain and gzip line protocol plus prom, from two users.
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", "cpu,host=a value=1")
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		req := MustNewRequest("POST", "/write?db=foo&u="+testUserBob+"&p=pass", gzipBody(t, "cpu,host=b value=2"))
+		req.Header.Set("Content-Encoding", "gzip")
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo&u="+testUserAlice+"&p=pass", bytes.NewReader(promBody(t))))
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		global := stats[0].Values["writeReqBytes"].(int64)
+		require.NotZero(t, global)
+		var sum int64
+		for _, s := range stats {
+			if s.Name == "userwritebytes" {
+				sum += s.Values["userWriteReqBytes"].(int64)
+			}
+		}
+		require.Equal(t, global, sum, "per-user write bytes must sum to writeReqBytes")
+	})
+
+	t.Run("bytes not counted on early errors", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserWriteBytes()))
+		h.Config.MaxBodySize = 10
+		// Database "missing" does not exist; everything else does.
+		h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+			if name == "missing" {
+				return nil
+			}
+			return &meta.DatabaseInfo{}
+		}
+		h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+			return nil
+		}
+
+		// Unknown database: rejected before the body is read.
+		w := doWrite(h, "/write?db=missing", "cpu value=1")
+		require.Equal(t, http.StatusNotFound, w.Code)
+
+		// Oversize body: rejected by the Content-Length check.
+		w = doWrite(h, "/write?db=foo", "cpu,host=oversize value=1")
+		require.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Zero(t, stats[0].Values["writeReqBytes"].(int64), "no write bytes should be counted on early errors")
+		require.Zero(t, countUserStats(stats, "userwritebytes"), "no per-user write bytes should be counted on early errors")
+	})
+
+	t.Run("concurrent writes", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, allAdmin)
+
+		const numUsers = 5
+		const writesPerUser = 10
+		const body = "cpu,host=a value=1"
+
+		// Create test data upfront (before spawning goroutines). Each request
+		// needs its own body reader.
+		type writeRequest struct {
+			user string
+			req  *http.Request
+		}
+		requests := make([]writeRequest, 0, numUsers*writesPerUser)
+		for i := 0; i < numUsers; i++ {
+			user := fmt.Sprintf("user%d", i)
+			for j := 0; j < writesPerUser; j++ {
+				req := MustNewRequest("POST", fmt.Sprintf("/write?db=foo&u=%s&p=pass", user), strings.NewReader(body))
+				requests = append(requests, writeRequest{user: user, req: req})
+			}
+		}
+
+		var mu sync.RWMutex
+		var concurrency, maxConcurrency atomic.Int64
+
+		var wg sync.WaitGroup
+		mu.Lock()
+		for _, wr := range requests {
+			wg.Add(1)
+			go func(wr writeRequest) {
+				mu.RLock()
+				defer mu.RUnlock()
+				defer wg.Done()
+
+				c := concurrency.Add(1)
+				if old := maxConcurrency.Load(); c > old {
+					maxConcurrency.CompareAndSwap(old, c)
+				}
+
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, wr.req)
+				// Fail at the point of failure rather than surfacing later as
+				// an opaque byte-count mismatch. Use assert (not require) so a
+				// failure marks the test via Errorf without calling FailNow
+				// from this goroutine, which is not permitted. Note this
+				// assert.Equal takes (got, expected).
+				assert.Equal(t, w.Code, http.StatusNoContent, "concurrent write for %s failed", wr.user)
+
+				concurrency.Add(-1)
+			}(wr)
+		}
+		mu.Unlock() // Release to start all goroutines simultaneously
+		wg.Wait()
+
+		t.Logf("max concurrency: %d", maxConcurrency.Load())
+
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, numUsers, countUserStats(stats, "userwritebytes"), "expected %d userwritebytes statistics", numUsers)
+
+		// Verify all users have exact expected byte counts
+		expectedBytesPerUser := int64(len(body) * writesPerUser)
+		for i := 0; i < numUsers; i++ {
+			user := fmt.Sprintf("user%d", i)
+			userBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", user)
+			require.True(t, found, "expected user%d's bytes to be tracked", i)
+			require.Equal(t, expectedBytesPerUser, userBytes, "user%d's bytes mismatch", i)
+		}
+	})
+
+	t.Run("statistics use user tag for per-user bytes", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, allAdmin)
+
+		const aliceBody = "cpu,host=a value=1"
+		const bobBody = "cpu,host=bb value=22"
+
+		// Make writes as different users
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", aliceBody)
+		require.Equal(t, http.StatusNoContent, w.Code)
+		w = doWrite(h, "/write?db=foo&u="+testUserBob+"&p=pass", bobBody)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Get statistics
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 2, countUserStats(stats, "userwritebytes"), "expected 2 userwritebytes statistics")
+
+		// Verify each user has their own statistic with exact byte counts
+		aliceBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", testUserAlice)
+		require.True(t, found, "expected alice in statistics")
+		require.Equal(t, int64(len(aliceBody)), aliceBytes, "alice bytes mismatch")
+
+		bobBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", testUserBob)
+		require.True(t, found, "expected bob in statistics")
+		require.Equal(t, int64(len(bobBody)), bobBytes, "bob bytes mismatch")
+
+		// Verify tag key is correct
+		for _, stat := range stats {
+			if stat.Name == "userwritebytes" {
+				require.Contains(t, stat.Tags, httpd.StatUserTagKey, "expected user tag key")
+				require.Contains(t, stat.Values, "userWriteReqBytes", "expected userWriteReqBytes value")
+			}
+		}
+	})
+
+	// The following subtests verify the 2x2 matrix of
+	// (UserWriteBytesEnabled) x (admin status) for visibility of the
+	// userwritebytes statistic via /debug/vars.
+	//
+	// When UserWriteBytesEnabled is true, ALL users' write bytes are tracked
+	// internally. Visibility via /debug/vars depends on the pprof-auth
+	// configuration: these 2x2 subtests use WithPprofAuthEnabled(), under which
+	// ServeHTTP routes /debug/vars through the admin-gated mux, so only admins
+	// can read it. WARNING: with the default PprofAuthEnabled=false, ServeHTTP
+	// serves /debug/vars unauthenticated for backwards compatibility (see
+	// handler.go), which exposes per-user write volumes to any client. The
+	// separate "default config" subtest below pins that exposure.
+
+	// hasUserWriteBytesKey returns true if any key in the parsed /debug/vars
+	// JSON response contains "userwritebytes".
+	hasUserWriteBytesKey := func(m map[string]interface{}) bool {
+		for k := range m {
+			if strings.Contains(k, "userwritebytes") {
+				return true
+			}
+		}
+		return false
+	}
+
+	// wireMonitor wires the mock monitor to return the handler's real
+	// statistics.
+	wireMonitor := func(h *Handler) {
+		h.Monitor.StatisticsFn = func(tags map[string]string) ([]*monitor.Statistic, error) {
+			handlerStats := h.Handler.Statistics(tags)
+			out := make([]*monitor.Statistic, len(handlerStats))
+			for i, s := range handlerStats {
+				out[i] = &monitor.Statistic{Statistic: s}
+			}
+			return out, nil
+		}
+	}
+
+	t.Run("enabled=true admin=true: userwritebytes visible in /debug/vars", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, func(username string) bool { return username == testUserAlice }) // alice is admin, bob is not
+		wireMonitor(h)
+
+		// Generate traffic from both admin (alice) and non-admin (bob).
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", "cpu,host=a value=1")
+		require.Equal(t, http.StatusNoContent, w.Code)
+		w = doWrite(h, "/write?db=foo&u="+testUserBob+"&p=pass", "cpu,host=b value=2")
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Admin (alice) accesses /debug/vars — should see userwritebytes.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserAlice+"&p=pass", nil)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var result map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+		require.True(t, hasUserWriteBytesKey(result),
+			"admin should see userwritebytes in /debug/vars when enabled")
+	})
+
+	t.Run("enabled=true admin=false: /debug/vars returns 403", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, func(username string) bool { return username == testUserAlice })
+
+		// Generate traffic from non-admin bob.
+		w := doWrite(h, "/write?db=foo&u="+testUserBob+"&p=pass", "cpu,host=b value=2")
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Non-admin (bob) accesses /debug/vars — should be rejected.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserBob+"&p=pass", nil)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusForbidden, w.Code,
+			"non-admin should not be able to access /debug/vars")
+	})
+
+	t.Run("enabled=false admin=true: no userwritebytes in /debug/vars", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled())) // no WithUserWriteBytes
+		setupWrite(h)
+		setupAuth(h, allAdmin)
+		wireMonitor(h)
+
+		// Generate traffic.
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", "cpu,host=a value=1")
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Admin accesses /debug/vars — should NOT see userwritebytes.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserAlice+"&p=pass", nil)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var result map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+		require.False(t, hasUserWriteBytesKey(result),
+			"should not see userwritebytes in /debug/vars when disabled")
+	})
+
+	t.Run("enabled=false admin=false: /debug/vars returns 403", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled())) // no WithUserWriteBytes
+		setupAuth(h, func(string) bool { return false })
+
+		// Non-admin accesses /debug/vars — should be rejected.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserBob+"&p=pass", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusForbidden, w.Code,
+			"non-admin should not be able to access /debug/vars")
+	})
+
+	t.Run("enabled=true pprof-auth disabled: /debug/vars exposes userwritebytes unauthenticated", func(t *testing.T) {
+		// Default configuration: auth enabled but PprofAuthEnabled left at its
+		// default (false). ServeHTTP then serves /debug/vars unauthenticated
+		// for backwards compatibility (handler.go), so enabling
+		// UserWriteBytesEnabled leaks per-user write volumes to anonymous
+		// clients. This pins that exposure so it cannot change silently and so
+		// the 2x2 matrix above is not mistaken for the full story.
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserWriteBytes())) // no WithPprofAuthEnabled
+		setupWrite(h)
+		setupAuth(h, allAdmin)
+		wireMonitor(h)
+
+		// Generate traffic.
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", "cpu,host=a value=1")
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Anonymous client (no credentials) reads /debug/vars.
+		r := MustNewJSONRequest("GET", "/debug/vars", nil)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code,
+			"/debug/vars is served without authentication when PprofAuthEnabled is false")
+
+		var result map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+		require.True(t, hasUserWriteBytesKey(result),
+			"per-user write bytes are exposed via unauthenticated /debug/vars in the default config")
+	})
+
+	// Verify that when enabled, bytes are tracked for ALL users (admin and
+	// non-admin alike) even though only admins can view the statistics.
+	t.Run("enabled=true: all users bytes tracked including non-admin", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled(), WithUserWriteBytes()))
+		setupWrite(h)
+		setupAuth(h, func(username string) bool { return username == testUserAlice })
+
+		const aliceBody = "cpu,host=a value=1"
+		const bobBody = "cpu,host=bb value=22"
+
+		// Generate traffic from admin alice and non-admin bob.
+		w := doWrite(h, "/write?db=foo&u="+testUserAlice+"&p=pass", aliceBody)
+		require.Equal(t, http.StatusNoContent, w.Code)
+		w = doWrite(h, "/write?db=foo&u="+testUserBob+"&p=pass", bobBody)
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		// Verify via Statistics() that both users are tracked internally.
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, 2, countUserStats(stats, "userwritebytes"), "expected both admin and non-admin tracked")
+
+		aliceBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", testUserAlice)
+		require.True(t, found, "admin alice's bytes should be tracked")
+		require.Equal(t, int64(len(aliceBody)), aliceBytes)
+
+		bobBytes, found := findUserStat(stats, "userwritebytes", "userWriteReqBytes", testUserBob)
+		require.True(t, found, "non-admin bob's bytes should also be tracked")
+		require.Equal(t, int64(len(bobBody)), bobBytes)
 	})
 }
 
@@ -3384,6 +3996,7 @@ type Handler struct {
 	MetaClient        *internal.MetaClientMock
 	StatementExecutor HandlerStatementExecutor
 	QueryAuthorizer   HandlerQueryAuthorizer
+	WriteAuthorizer   HandlerWriteAuthorizer
 	PointsWriter      HandlerPointsWriter
 	Monitor           *HandlerMonitor
 	Store             *internal.StorageStoreMock
@@ -3436,6 +4049,12 @@ func WithUserQueryBytes() configOption {
 	}
 }
 
+func WithUserWriteBytes() configOption {
+	return func(c *httpd.Config) {
+		c.UserWriteBytesEnabled = true
+	}
+}
+
 // NewHandlerConfig returns a new instance of httpd.Config with
 // authentication configured.
 func NewHandlerConfig(opts ...configOption) httpd.Config {
@@ -3471,6 +4090,7 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	h.Handler.QueryExecutor = query.NewExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
+	h.Handler.WriteAuthorizer = &h.WriteAuthorizer
 	h.Handler.PointsWriter = &h.PointsWriter
 	h.Handler.Monitor = h.Monitor
 	h.Handler.Version = "0.0.0"
@@ -3547,6 +4167,15 @@ func (a *HandlerQueryAuthorizer) AuthorizeCreateRetentionPolicy(u meta.User, db 
 
 func (a *HandlerQueryAuthorizer) AuthorizeDeleteRetentionPolicy(u meta.User, db string) error {
 	return a.AuthorizeDeleteRetentionPolicyFn(u, db)
+}
+
+// HandlerWriteAuthorizer is a mock implementation of Handler.WriteAuthorizer.
+type HandlerWriteAuthorizer struct {
+	AuthorizeWriteFn func(username, database string) error
+}
+
+func (a *HandlerWriteAuthorizer) AuthorizeWrite(username, database string) error {
+	return a.AuthorizeWriteFn(username, database)
 }
 
 type HandlerPointsWriter struct {

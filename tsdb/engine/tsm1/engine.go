@@ -149,6 +149,13 @@ const (
 	statTSMFullCompactionError    = "tsmFullCompactionErr"
 	statTSMFullCompactionDuration = "tsmFullCompactionDuration"
 	statTSMFullCompactionQueue    = "tsmFullCompactionQueue"
+
+	statCompactionPlannerFindGenerations = "compactionPlannerFindGenerations"
+	statCompactionPlannerPlanLevel1      = "compactionPlannerPlanLevel1"
+	statCompactionPlannerPlanLevel2      = "compactionPlannerPlanLevel2"
+	statCompactionPlannerPlanLevel3      = "compactionPlannerPlanLevel3"
+	statCompactionPlannerPlan            = "compactionPlannerPlan"
+	statCompactionPlannerPlanOptimize    = "compactionPlannerPlanOptimize"
 )
 
 // Engine represents a storage engine with compressed blocks.
@@ -709,6 +716,11 @@ type EngineStatistics struct {
 	TSMFullCompactionErrors   int64 // Counter of full compactions that have failed due to error.
 	TSMFullCompactionDuration int64 // Counter of number of wall nanoseconds spent in full compactions.
 	TSMFullCompactionsQueue   int64 // Gauge of full compactions queue.
+
+	CompactionPlannerFindGenerations int64                       // Counter of calls to CompactionPlanner.FindGenerations.
+	CompactionPlannerPlanLevel       [LevelCompactionCount]int64 // Counter of calls to CompactionPlanner.PlanLevel, by level (1..LevelCompactionCount).
+	CompactionPlannerPlan            int64                       // Counter of calls to CompactionPlanner.Plan.
+	CompactionPlannerPlanOptimize    int64                       // Counter of calls to CompactionPlanner.PlanOptimize.
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -752,6 +764,13 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 			statTSMFullCompactionError:    atomic.LoadInt64(&e.Stats.TSMFullCompactionErrors),
 			statTSMFullCompactionDuration: atomic.LoadInt64(&e.Stats.TSMFullCompactionDuration),
 			statTSMFullCompactionQueue:    atomic.LoadInt64(&e.Stats.TSMFullCompactionsQueue),
+
+			statCompactionPlannerFindGenerations: atomic.LoadInt64(&e.Stats.CompactionPlannerFindGenerations),
+			statCompactionPlannerPlanLevel1:      atomic.LoadInt64(&e.Stats.CompactionPlannerPlanLevel[0]),
+			statCompactionPlannerPlanLevel2:      atomic.LoadInt64(&e.Stats.CompactionPlannerPlanLevel[1]),
+			statCompactionPlannerPlanLevel3:      atomic.LoadInt64(&e.Stats.CompactionPlannerPlanLevel[2]),
+			statCompactionPlannerPlan:            atomic.LoadInt64(&e.Stats.CompactionPlannerPlan),
+			statCompactionPlannerPlanOptimize:    atomic.LoadInt64(&e.Stats.CompactionPlannerPlanOptimize),
 		},
 	})
 
@@ -2358,11 +2377,20 @@ func makePlannedCompactionGroup(groups []CompactionGroup, pointsPerBlock int) []
 }
 
 func (e *Engine) planCompactionsLevel(generations TsmGenerations, level int) []PlannedCompactionGroup {
+	// The stat array is sized to LevelCompactionCount, so the number of exported
+	// stat keys is fixed at compile time. Only valid levels are counted; an
+	// out-of-range level (a programming error here, since this method is only
+	// ever called with levels 1..LevelCompactionCount) is ignored rather than
+	// allowed to grow the exported stat set without bound.
+	if level >= 1 && level <= LevelCompactionCount {
+		atomic.AddInt64(&e.Stats.CompactionPlannerPlanLevel[level-1], 1)
+	}
 	groups, _ := e.CompactionPlan.PlanLevel(generations, level)
 	return makePlannedCompactionGroup(groups, tsdb.DefaultMaxPointsPerBlock)
 }
 
 func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
+	atomic.AddInt64(&e.Stats.CompactionPlannerFindGenerations, 1)
 	generations := e.CompactionPlan.FindGenerations()
 
 	// Find our compaction plans
@@ -2370,7 +2398,9 @@ func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedComp
 	level2Groups := e.planCompactionsLevel(generations, 2)
 	level3Groups := e.planCompactionsLevel(generations, 3)
 	lastModified := e.LastModified()
+	atomic.AddInt64(&e.Stats.CompactionPlannerPlan, 1)
 	l4Groups, _ := e.CompactionPlan.Plan(generations, lastModified)
+	atomic.AddInt64(&e.Stats.CompactionPlannerPlanOptimize, 1)
 	l5Groups, _, l5GenCount := e.CompactionPlan.PlanOptimize(generations, lastModified)
 
 	// Some groups in level 4 may contain already optimized files. In these cases, it is

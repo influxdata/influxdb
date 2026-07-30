@@ -14,6 +14,11 @@
 # Bind address to use for the RPC service for backup and restore.
 # bind-address = "127.0.0.1:8088"
 
+# Enable hardening options. When enabled, flux HTTP requests are restricted to
+# non-private (public) addresses to mitigate SSRF (Server Side Request Forgery)
+# attacks. Disabled by default to preserve existing behavior.
+# hardening-enabled = false
+
 ###
 ### [meta]
 ###
@@ -252,6 +257,12 @@
   # number of buckets unlimited.
   # max-select-buckets = 0
 
+  # The maximum time range a single SELECT statement may cover.  A query whose time range exceeds this
+  # limit returns an error.  A query with no upper time bound is measured up to now(); a query with no
+  # lower time bound is treated as covering all time and will exceed any non-zero limit.  This can help
+  # prevent queries that scan an excessive time span.  A value of 0 disables the limit.
+  # max-time-range = "0s"
+
   # Whether to print a list of running queries when a data node receives a SIGTERM (sent when a process
   # exceeds a container memory limit, or by the kill command.
   # termination-query-log = false
@@ -389,6 +400,20 @@
   # Allows insecure file permissions for https-certificate and https-private-key when enabled.
   # https-insecure-certificate = false
 
+  # Loads https-certificate even when it fails the checks for whether a server can use it,
+  # such as the certificate not permitting server authentication. The failed checks are
+  # logged instead. A missing or unparseable certificate is still an error.
+  # https-ignore-sanity-checks = false
+
+  # The type of client certificate authentication (mutual TLS) to require. One of
+  # NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven, or
+  # RequireAndVerifyClientCert. Unset leaves client authentication disabled (NoClientCert).
+  # https-client-auth-type = "RequireAndVerifyClientCert"
+
+  # CA certificates used to verify client certificates during client authentication.
+  # "paths" lists PEM files to trust; "include-system" also trusts the host's system CA pool.
+  # https-client-ca = { paths = ["/etc/ssl/client-ca.pem"], include-system = false }
+
   # The JWT auth shared secret to validate requests using JSON web tokens.
   # shared-secret = ""
 
@@ -419,6 +444,16 @@
   # The maximum duration for a write to wait in the queue to be processed.
   # Setting this to 0 or setting max-concurrent-write-limit to 0 disables the limit.
   # enqueued-write-timeout = 0
+
+  # Determines whether query response bytes are tracked per user, reported in
+  # the userquerybytes statistic tagged with the user name. Unauthenticated
+  # queries are attributed to the user "(anonymous)".
+  # user-query-bytes-enabled = false
+
+  # Determines whether write request bytes are tracked per user, reported in
+  # the userwritebytes statistic tagged with the user name. Unauthenticated
+  # writes are attributed to the user "(anonymous)".
+  # user-write-bytes-enabled = false
 
 	# User supplied HTTP response headers
 	#
@@ -469,6 +504,24 @@
 
   # The path to the PEM encoded CA certs file. If the empty string, the default system certs will be used
   # ca-certs = ""
+
+  # Additional CA certificates used to verify subscription endpoint server certificates,
+  # combined with ca-certs above. "paths" lists PEM files to trust; "include-system" also
+  # trusts the host's system CA pool.
+  # root-ca = { paths = ["/etc/ssl/subscriber-ca.pem"], include-system = false }
+
+  # Client certificate (and its private key) the subscriber presents to HTTPS endpoints
+  # for mutual TLS. Empty means no client certificate is presented.
+  # certificate = ""
+  # private-key = ""
+
+  # Allows insecure file permissions on certificate and private-key when enabled.
+  # insecure-certificate = false
+
+  # Loads certificate even when it fails the checks for whether a server can use it, such as
+  # the certificate not permitting server authentication. The failed checks are logged
+  # instead. A missing or unparseable certificate is still an error.
+  # ignore-cert-sanity-checks = false
 
   # The number of writer goroutines processing the write channel.
   # write-concurrency = 40
@@ -589,6 +642,20 @@
 
   # Allows insecure file permissions on certificate and private-key when enabled.
   # insecure-certificate = false
+
+  # Loads certificate even when it fails the checks for whether a server can use it, such as
+  # the certificate not permitting server authentication. The failed checks are logged
+  # instead. A missing or unparseable certificate is still an error.
+  # ignore-cert-sanity-checks = false
+
+  # The type of client certificate authentication (mutual TLS) to require. One of
+  # NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven, or
+  # RequireAndVerifyClientCert. Unset leaves client authentication disabled (NoClientCert).
+  # client-auth-type = "RequireAndVerifyClientCert"
+
+  # CA certificates used to verify client certificates during client authentication.
+  # "paths" lists PEM files to trust; "include-system" also trusts the host's system CA pool.
+  # client-ca = { paths = ["/etc/ssl/client-ca.pem"], include-system = false }
 
   # Log an error for every malformed point.
   # log-point-errors = true

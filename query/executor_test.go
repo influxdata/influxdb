@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -321,7 +322,8 @@ func TestQueryExecutor_Abort(t *testing.T) {
 
 func TestQueryExecutor_ShowQueries(t *testing.T) {
 	const testUser = "Fred"
-	const userColumn = 5
+	// Column layout is queryFieldNames: host, qid, query, database, duration, status, user.
+	const userColumn = 6
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
@@ -347,9 +349,9 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 	} else if len(result.Series[0].Values) != 1 {
 		t.Errorf("expected %d row, got %d", 1, len(result.Series[0].Values))
 	} else if result.Series[0].Values[0][userColumn] != testUser {
-		t.Errorf("unexpected user: %s", result.Series[0].Values[0][0])
+		t.Errorf("unexpected user: %s", result.Series[0].Values[0][userColumn])
 	} else if result.Series[0].Columns[userColumn] != "user" {
-		t.Errorf("unexpected column: %s", result.Series[0].Columns[5])
+		t.Errorf("unexpected column: %s", result.Series[0].Columns[userColumn])
 	}
 	if result.Err != nil {
 		t.Errorf("unexpected error: %s", result.Err)
@@ -362,7 +364,8 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 // databases they have read access to, while an admin should see all queries.
 func TestQueryExecutor_ShowQueries_NonAdminFiltering(t *testing.T) {
 	const (
-		dbColumn     = 2
+		// Column layout is queryFieldNames: host, qid, query, database, duration, status, user.
+		dbColumn     = 3
 		allowedDB    = "mydb"
 		forbiddenDB  = "secretdb"
 		nonAdminUser = "bar"
@@ -723,8 +726,212 @@ func TestQueryExecutor_InvalidSource(t *testing.T) {
 	}
 }
 
+// TestQueryExecutor_InvalidSource_StatementID verifies that a system-source
+// error raised for a later statement in a multi-statement query is attributed
+// to that statement's index, not statement 0.
+func TestQueryExecutor_InvalidSource_StatementID(t *testing.T) {
+	e := NewQueryExecutor()
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			return nil // the first (valid) statement succeeds
+		},
+	}
+
+	q, err := influxql.ParseQuery(`SELECT value FROM cpu; SELECT fieldKey FROM _fieldKeys`)
+	require.NoError(t, err)
+
+	var errResult *query.Result
+	for r := range e.ExecuteQuery(q, query.ExecutionOptions{}, nil) {
+		if r.Err != nil {
+			errResult = r
+		}
+	}
+	require.NotNil(t, errResult)
+	require.EqualError(t, errResult.Err, `unable to use system source '_fieldKeys': use SHOW FIELD KEYS instead`)
+	require.Equal(t, 1, errResult.StatementID)
+}
+
 func discardOutput(results <-chan *query.Result) {
 	for range results {
 		// Read all results and discard.
 	}
+}
+
+// queryExecutorStat returns the named value from the executor's queryExecutor
+// statistic. It fails the test if the stat is missing or not an int64.
+func queryExecutorStat(t *testing.T, e *query.Executor, key string) int64 {
+	t.Helper()
+	stats := e.Statistics(nil)
+	require.Len(t, stats, 1)
+	v, ok := stats[0].Values[key].(int64)
+	require.Truef(t, ok, "stat %q missing or not int64: %v", key, stats[0].Values[key])
+	return v
+}
+
+func TestQueryExecutor_Statistics_QueriesFailed(t *testing.T) {
+	t.Run("success is not counted", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				return nil
+			},
+		}
+		q, err := influxql.ParseQuery(goodStatement)
+		require.NoError(t, err)
+		discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+		require.Equal(t, int64(0), queryExecutorStat(t, e, "queriesFailed"))
+	})
+
+	t.Run("single failure counts once", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				return errUnexpected
+			},
+		}
+		q, err := influxql.ParseQuery(goodStatement)
+		require.NoError(t, err)
+		discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesFailed"))
+	})
+
+	t.Run("multi-statement failure counts once", func(t *testing.T) {
+		e := NewQueryExecutor()
+		var calls int
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				calls++
+				return errUnexpected
+			},
+		}
+		queryStr := strings.Join([]string{goodStatement, goodStatement, goodStatement}, ";")
+		q, err := influxql.ParseQuery(queryStr)
+		require.NoError(t, err)
+		discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+		// The first statement fails; the remaining statements emit ErrNotExecuted
+		// without being executed. The query counts as failed exactly once.
+		require.Equal(t, 1, calls)
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesFailed"))
+	})
+
+	t.Run("executor-streamed error counts", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				// Mirrors real statement executors that report an error by
+				// sending a Result and returning nil (see, e.g., the meta/SHOW
+				// paths in coordinator/statement_executor.go).
+				return ctx.Send(&query.Result{Err: errUnexpected})
+			},
+		}
+		q, err := influxql.ParseQuery(goodStatement)
+		require.NoError(t, err)
+		discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesFailed"))
+	})
+
+	t.Run("panic counts as failure", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				panic("test error")
+			},
+		}
+		q, err := influxql.ParseQuery(goodStatement)
+		require.NoError(t, err)
+		discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesFailed"))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "recoveredPanics"))
+	})
+
+	t.Run("error then panic counts once", func(t *testing.T) {
+		e := NewQueryExecutor()
+		var call int
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				call++
+				if call == 1 {
+					// First statement reports an error by sending a Result and
+					// returning nil, which sets ctx.Failed().
+					return ctx.Send(&query.Result{Err: errUnexpected})
+				}
+				// A later statement panics after the failure was already
+				// recorded; the query must still be counted as failed only once.
+				panic("test error")
+			},
+		}
+		queryStr := strings.Join([]string{goodStatement, goodStatement}, ";")
+		q, err := influxql.ParseQuery(queryStr)
+		require.NoError(t, err)
+		discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesFailed"))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "recoveredPanics"))
+	})
+}
+
+func TestTaskManager_SlowQueryCount(t *testing.T) {
+	// newBlockingExecutor returns an executor whose statement execution blocks
+	// until the returned release func is called (idempotent — safe to call more
+	// than once), signalling on started once the query is attached and running.
+	// Callers should defer release so a failed assertion cannot strand the
+	// blocked query goroutine.
+	newBlockingExecutor := func() (e *query.Executor, started <-chan struct{}, release func()) {
+		startedCh := make(chan struct{})
+		releaseCh := make(chan struct{})
+		var once sync.Once
+		e = NewQueryExecutor()
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				close(startedCh)
+				<-releaseCh
+				return nil
+			},
+		}
+		return e, startedCh, func() { once.Do(func() { close(releaseCh) }) }
+	}
+
+	t.Run("counts in-flight queries slower than log-queries-after", func(t *testing.T) {
+		e, started, release := newBlockingExecutor()
+		defer e.Close()
+		defer release()
+		e.TaskManager.LogQueriesAfter = 20 * time.Millisecond
+
+		q, err := influxql.ParseQuery(goodStatement)
+		require.NoError(t, err)
+		results := e.ExecuteQuery(q, query.ExecutionOptions{}, nil)
+
+		<-started // query is attached and running
+
+		// Once it has been running longer than the threshold, it is counted.
+		require.Eventually(t, func() bool {
+			return e.TaskManager.SlowQueryCount() == 1
+		}, time.Second, 2*time.Millisecond)
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesSlow"))
+
+		release()
+		discardOutput(results)
+
+		// After the query finishes and detaches, the snapshot returns to zero.
+		require.Equal(t, int64(0), e.TaskManager.SlowQueryCount())
+	})
+
+	t.Run("zero threshold counts nothing", func(t *testing.T) {
+		e, started, release := newBlockingExecutor()
+		defer e.Close()
+		defer release()
+		e.TaskManager.LogQueriesAfter = 0 // slow-query detection disabled
+
+		q, err := influxql.ParseQuery(goodStatement)
+		require.NoError(t, err)
+		results := e.ExecuteQuery(q, query.ExecutionOptions{}, nil)
+
+		<-started // query is attached and running
+
+		// Even with a long-running in-flight query, a zero threshold never counts.
+		require.Equal(t, int64(0), e.TaskManager.SlowQueryCount())
+		require.Equal(t, int64(0), queryExecutorStat(t, e, "queriesSlow"))
+
+		release()
+		discardOutput(results)
+	})
 }

@@ -58,6 +58,7 @@ type StatementExecutor struct {
 	MaxSelectPointN   int
 	MaxSelectSeriesN  int
 	MaxSelectBucketsN int
+	MaxTimeRange      time.Duration
 }
 
 // ExecuteStatement executes the given statement with the given execution context.
@@ -264,23 +265,11 @@ func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.Cr
 }
 
 func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.CreateDatabaseStatement) error {
-	if !meta.ValidName(stmt.Name) {
-		// TODO This should probably be in `(*meta.Data).CreateDatabase`
-		// but can't go there until 1.1 is used everywhere
-		return meta.ErrInvalidName
-	}
-
+	// Name validation is performed by the meta client's create methods, which
+	// are the common chokepoint for every creation path.
 	if !stmt.RetentionPolicyCreate {
 		_, err := e.MetaClient.CreateDatabase(stmt.Name)
 		return err
-	}
-
-	// If we're doing, for example, CREATE DATABASE "db" WITH DURATION 1d then
-	// the name will not yet be set. We only need to validate non-empty
-	// retention policy names, such as in the statement:
-	// 	CREATE DATABASE "db" WITH DURATION 1d NAME "xyz"
-	if stmt.RetentionPolicyName != "" && !meta.ValidName(stmt.RetentionPolicyName) {
-		return meta.ErrInvalidName
 	}
 
 	spec := meta.RetentionPolicySpec{
@@ -296,12 +285,7 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 }
 
 func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement) error {
-	if !meta.ValidName(stmt.Name) {
-		// TODO This should probably be in `(*meta.Data).CreateRetentionPolicy`
-		// but can't go there until 1.1 is used everywhere
-		return meta.ErrInvalidName
-	}
-
+	// Name validation is performed by the meta client's CreateRetentionPolicy.
 	spec := meta.RetentionPolicySpec{
 		Name:               stmt.Name,
 		Duration:           &stmt.Duration,
@@ -419,10 +403,11 @@ func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStateme
 
 func (e *StatementExecutor) executeExplainStatement(ctx *query.ExecutionContext, q *influxql.ExplainStatement) (models.Rows, error) {
 	opt := query.SelectOptions{
-		NodeID:      ctx.ExecutionOptions.NodeID,
-		MaxSeriesN:  e.MaxSelectSeriesN,
-		MaxBucketsN: e.MaxSelectBucketsN,
-		Authorizer:  ctx.Authorizer,
+		NodeID:       ctx.ExecutionOptions.NodeID,
+		MaxSeriesN:   e.MaxSelectSeriesN,
+		MaxBucketsN:  e.MaxSelectBucketsN,
+		MaxTimeRange: e.MaxTimeRange,
+		Authorizer:   ctx.Authorizer,
 	}
 
 	// Prepare the query for execution, but do not actually execute it.
@@ -636,11 +621,12 @@ func (e *StatementExecutor) executeSelectStatement(ctx *query.ExecutionContext, 
 
 func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.SelectStatement, opt query.ExecutionOptions) (query.Cursor, error) {
 	sopt := query.SelectOptions{
-		NodeID:      opt.NodeID,
-		MaxSeriesN:  e.MaxSelectSeriesN,
-		MaxPointN:   e.MaxSelectPointN,
-		MaxBucketsN: e.MaxSelectBucketsN,
-		Authorizer:  opt.Authorizer,
+		NodeID:       opt.NodeID,
+		MaxSeriesN:   e.MaxSelectSeriesN,
+		MaxPointN:    e.MaxSelectPointN,
+		MaxBucketsN:  e.MaxSelectBucketsN,
+		MaxTimeRange: e.MaxTimeRange,
+		Authorizer:   opt.Authorizer,
 	}
 
 	// Create a set of iterators from a selection.

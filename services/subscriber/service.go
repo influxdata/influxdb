@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 )
@@ -119,18 +121,26 @@ type Service struct {
 	conf            Config
 	subs            map[subEntry]*chanWriter
 
+	// certMonitor is the TLS certificate monitor to use for tlsManager.
+	certMonitor *tlsconfig.TLSCertMonitor
+
+	// tlsManager builds the client TLS configuration for HTTPS writers and owns
+	// the client certificate loader so rotated certificates can be reloaded.
+	tlsManager *tlsconfig.TLSConfigManager
+
 	// subscriptionRouter is not locked by mu
 	router *subscriptionRouter
 }
 
 // NewService returns a subscriber service with given settings
-func NewService(c Config) *Service {
+func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) *Service {
 	stats := &Statistics{}
 	s := &Service{
-		Logger: zap.NewNop(),
-		stats:  stats,
-		conf:   c,
-		router: newSubscriptionRouter(stats),
+		Logger:      zap.NewNop(),
+		stats:       stats,
+		conf:        c,
+		router:      newSubscriptionRouter(stats),
+		certMonitor: certMonitor,
 	}
 	s.NewPointsWriter = s.newPointsWriter
 	return s
@@ -149,6 +159,19 @@ func (s *Service) Open() error {
 		if s.MetaClient == nil {
 			return errors.New("no meta store")
 		}
+
+		// Build the client TLS manager once for all HTTPS writers. It resolves
+		// the root CAs (RootCA block plus the legacy ca-certs) and any client
+		// certificate, and owns the certificate loader used for reloads.
+		cm, err := tlsconfig.NewClientTLSConfigManager(
+			s.certMonitor,
+			append(
+				s.conf.TLSManagerOpts(),
+				tlsconfig.WithLogger(s.Logger))...)
+		if err != nil {
+			return fmt.Errorf("subscriber: error creating TLS manager: %w", err)
+		}
+		s.tlsManager = cm
 
 		s.closing = make(chan struct{})
 
@@ -211,8 +234,38 @@ func (s *Service) Close() error {
 		cw.Close()
 	}
 	s.subs = nil
+	if s.tlsManager != nil {
+		if err := s.tlsManager.Close(); err != nil {
+			s.Logger.Warn("error closing TLS manager", zap.Error(err))
+		}
+		s.tlsManager = nil
+	}
 	s.Logger.Info("Closed service")
 	return nil
+}
+
+// PrepareReloadTLSCertificates verifies that the client TLS settings in conf can
+// be loaded. On success it returns a function that applies them; subsequent
+// HTTPS connections then use the new settings, including from writers that
+// already exist, because writers dial through the TLS manager. Connections that
+// are already established are left alone.
+//
+// A service with TLS disabled has no TLS manager, so there is nothing to reload
+// and the returned function is a no-op.
+func (s *Service) PrepareReloadTLSCertificates(conf Config) (func() error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.tlsManager == nil {
+		return func() error { return nil }, nil
+	}
+	apply, err := s.tlsManager.PrepareReconfigure(conf.TLSManagerOpts()...)
+	if err != nil {
+		// Report the paths being loaded, not the ones currently in use: the
+		// whole point of the message is to name what failed.
+		return nil, fmt.Errorf("subscriber: TLS certificate reload failed (%q, %q): %w", conf.Certificate, conf.PrivateKey, err)
+	}
+	return apply, nil
 }
 
 // WithLogger sets the logger on the service.
@@ -403,7 +456,14 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 		if s.conf.InsecureSkipVerify {
 			s.Logger.Warn("'insecure-skip-verify' is true. This will skip all certificate verifications.")
 		}
-		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts, s.conf.TLS)
+		// Writers dial through the manager, which resolves the TLS
+		// configuration on each connection, so a reloaded configuration reaches
+		// writers that already exist.
+		var dialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)
+		if s.tlsManager != nil {
+			dialTLSContext = s.tlsManager.DialContext
+		}
+		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), dialTLSContext)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}

@@ -2397,6 +2397,52 @@ func TestEngine_Statistics_TSI1Cache(t *testing.T) {
 	}
 }
 
+// TestEngine_Statistics_CompactionPlanner verifies that calls to the
+// CompactionPlanner methods are counted and surfaced through the engine's
+// Statistics aggregator. Each PlanCompactions cycle calls FindGenerations once,
+// PlanLevel three times (levels 1-3), Plan once, and PlanOptimize once, so after
+// N cycles the counters are deterministic regardless of the installed planner.
+func TestEngine_Statistics_CompactionPlanner(t *testing.T) {
+	e, err := NewEngine(tsdb.TSI1IndexName)
+	require.NoError(t, err)
+	// Disable background compactions so PlanCompactions is only invoked by this test.
+	e.SetEnabled(false)
+	require.NoError(t, e.Open())
+	defer e.Close()
+
+	// Install a no-op planner so PlanCompactions exercises every planner method
+	// without doing real compaction work.
+	e.CompactionPlan = &mockPlanner{}
+
+	const cycles = 3
+	for i := 0; i < cycles; i++ {
+		e.PlanCompactions()
+	}
+
+	stats := e.Statistics(map[string]string{"database": "db0", "id": "1"})
+
+	var found *models.Statistic
+	for i := range stats {
+		if stats[i].Name == "tsm1_engine" {
+			found = &stats[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "expected a tsm1_engine statistic in engine output")
+	require.Equal(t, int64(cycles), found.Values["compactionPlannerFindGenerations"].(int64),
+		"FindGenerations is called once per cycle")
+	require.Equal(t, int64(cycles), found.Values["compactionPlannerPlanLevel1"].(int64),
+		"PlanLevel is called once per cycle at level 1")
+	require.Equal(t, int64(cycles), found.Values["compactionPlannerPlanLevel2"].(int64),
+		"PlanLevel is called once per cycle at level 2")
+	require.Equal(t, int64(cycles), found.Values["compactionPlannerPlanLevel3"].(int64),
+		"PlanLevel is called once per cycle at level 3")
+	require.Equal(t, int64(cycles), found.Values["compactionPlannerPlan"].(int64),
+		"Plan is called once per cycle")
+	require.Equal(t, int64(cycles), found.Values["compactionPlannerPlanOptimize"].(int64),
+		"PlanOptimize is called once per cycle")
+}
+
 func TestEngine_WritePoints_TypeConflict(t *testing.T) {
 	os.Setenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED", "1")
 	defer os.Unsetenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED")

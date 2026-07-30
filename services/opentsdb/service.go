@@ -50,13 +50,24 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
-	wg           sync.WaitGroup
-	tls          bool
-	tlsManager   *tlsconfig.TLSConfigManager
-	tlsConfig    *tls.Config
-	cert         string
-	privateKey   string
-	insecureCert bool
+	wg sync.WaitGroup
+
+	certMonitor *tlsconfig.TLSCertMonitor
+
+	tls                bool
+	tlsManager         *tlsconfig.TLSConfigManager
+	tlsConfig          *tls.Config
+	cert               string
+	privateKey         string
+	insecureCert       bool
+	ignoreSanityChecks bool
+
+	// clientAuthType controls TLS client-certificate authentication (mTLS). A
+	// nil value leaves the base TLS config's ClientAuth in place.
+	clientAuthType *tls.ClientAuthType
+	// clientCA configures the CA pool used to verify client certificates. A nil
+	// value leaves the base TLS config's client pool in place.
+	clientCA *tlsconfig.CAConfig
 
 	mu    sync.RWMutex
 	ready bool          // Has the required database been created?
@@ -87,26 +98,38 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config) (*Service, error) {
+func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) (*Service, error) {
 	// Use defaults where necessary.
 	d := c.WithDefaults()
 
+	// Convert the optional client-auth type to a *tls.ClientAuthType so a nil
+	// (unset) config leaves the base TLS config's ClientAuth in place.
+	var clientAuthType *tls.ClientAuthType
+	if d.ClientAuthType != nil {
+		auth := tls.ClientAuthType(*d.ClientAuthType)
+		clientAuthType = &auth
+	}
+
 	s := &Service{
-		tls:             d.TLSEnabled,
-		tlsConfig:       d.TLS,
-		cert:            d.Certificate,
-		privateKey:      d.PrivateKey,
-		insecureCert:    d.InsecureCertificate,
-		BindAddress:     d.BindAddress,
-		Database:        d.Database,
-		RetentionPolicy: d.RetentionPolicy,
-		batchSize:       d.BatchSize,
-		batchPending:    d.BatchPending,
-		batchTimeout:    time.Duration(d.BatchTimeout),
-		Logger:          zap.NewNop(),
-		LogPointErrors:  d.LogPointErrors,
-		stats:           &Statistics{},
-		defaultTags:     models.StatisticTags{"bind": d.BindAddress},
+		certMonitor:        certMonitor,
+		tls:                d.TLSEnabled,
+		tlsConfig:          d.TLS,
+		cert:               d.Certificate,
+		privateKey:         d.PrivateKey,
+		insecureCert:       d.InsecureCertificate,
+		ignoreSanityChecks: d.IgnoreCertSanityChecks,
+		clientAuthType:     clientAuthType,
+		clientCA:           d.ClientCA,
+		BindAddress:        d.BindAddress,
+		Database:           d.Database,
+		RetentionPolicy:    d.RetentionPolicy,
+		batchSize:          d.BatchSize,
+		batchPending:       d.BatchPending,
+		batchTimeout:       time.Duration(d.BatchTimeout),
+		Logger:             zap.NewNop(),
+		LogPointErrors:     d.LogPointErrors,
+		stats:              &Statistics{},
+		defaultTags:        models.StatisticTags{"bind": d.BindAddress},
 	}
 	if s.tlsConfig == nil {
 		s.tlsConfig = new(tls.Config)
@@ -134,9 +157,19 @@ func (s *Service) Open() error {
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.processBatches(s.batcher) }()
 
-	// Open listener.
-	cm, err := tlsconfig.NewTLSConfigManager(s.tls, s.tlsConfig, s.cert, s.privateKey, false,
+	// Open listener. The usage carries the bind address because a server can run
+	// several OpenTSDB services at once, and the certificate monitor groups its
+	// warnings by usage.
+	cm, err := tlsconfig.NewServerTLSConfigManager(
+		s.certMonitor,
+		tlsconfig.WithUsage(fmt.Sprintf("opentsdb(%s)", s.BindAddress)),
+		tlsconfig.WithUseTLS(s.tls),
+		tlsconfig.WithBaseConfig(s.tlsConfig),
+		tlsconfig.WithServerCertificate(s.cert, s.privateKey),
 		tlsconfig.WithIgnoreFilePermissions(s.insecureCert),
+		tlsconfig.WithIgnoreSanityChecks(s.ignoreSanityChecks),
+		tlsconfig.WithClientAuthPtr(s.clientAuthType),
+		tlsconfig.WithClientCA(s.clientCA),
 		tlsconfig.WithLogger(s.Logger))
 	if err != nil {
 		return fmt.Errorf("opentsdb: error creating TLS manager: %w", err)
@@ -220,7 +253,7 @@ func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
 		return nil, errors.New("opentsdb: no TLS manager available")
 	}
 
-	if apply, err := s.tlsManager.PrepareCertificateLoad(s.cert, s.privateKey); err == nil {
+	if apply, err := s.tlsManager.PrepareReconfigure(tlsconfig.WithServerCertificate(s.cert, s.privateKey)); err == nil {
 		return apply, nil
 	} else {
 		return nil, fmt.Errorf("opentsdb: TLS certificate reload failed (%q, %q): %w", s.cert, s.privateKey, err)

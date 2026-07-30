@@ -46,6 +46,8 @@ const (
 	statQueriesActive          = "queriesActive"   // Number of queries currently being executed.
 	statQueriesExecuted        = "queriesExecuted" // Number of queries that have been executed (started).
 	statQueriesFinished        = "queriesFinished" // Number of queries that have finished.
+	statQueriesFailed          = "queriesFailed"   // Number of queries that have failed.
+	statQueriesSlow            = "queriesSlow"     // Snapshot of in-flight queries running longer than log-queries-after.
 	statQueryExecutionDuration = "queryDurationNs" // Total (wall) time spent executing queries.
 	statRecoveredPanics        = "recoveredPanics" // Number of panics recovered by Query Executor.
 
@@ -204,6 +206,9 @@ type ExecutionOptions struct {
 
 	// UserID is the ID of the user executing the query.
 	UserID string
+
+	// Remote requesting address
+	Host string
 }
 
 type (
@@ -261,6 +266,7 @@ type Statistics struct {
 	ActiveQueries          int64
 	ExecutedQueries        int64
 	FinishedQueries        int64
+	FailedQueries          int64
 	QueryExecutionDuration int64
 	RecoveredPanics        int64
 }
@@ -274,6 +280,8 @@ func (e *Executor) Statistics(tags map[string]string) []models.Statistic {
 			statQueriesActive:          atomic.LoadInt64(&e.stats.ActiveQueries),
 			statQueriesExecuted:        atomic.LoadInt64(&e.stats.ExecutedQueries),
 			statQueriesFinished:        atomic.LoadInt64(&e.stats.FinishedQueries),
+			statQueriesFailed:          atomic.LoadInt64(&e.stats.FailedQueries),
+			statQueriesSlow:            e.TaskManager.SlowQueryCount(),
 			statQueryExecutionDuration: atomic.LoadInt64(&e.stats.QueryExecutionDuration),
 			statRecoveredPanics:        atomic.LoadInt64(&e.stats.RecoveredPanics),
 		},
@@ -301,18 +309,38 @@ func (e *Executor) ExecuteQuery(query *influxql.Query, opt ExecutionOptions, clo
 
 func (e *Executor) executeQuery(query *influxql.Query, opt ExecutionOptions, closing <-chan struct{}, results chan *Result) {
 	defer close(results)
-	defer e.recover(query, results)
 
 	atomic.AddInt64(&e.stats.ActiveQueries, 1)
 	atomic.AddInt64(&e.stats.ExecutedQueries, 1)
+
+	// A query is counted as failed at most once, here in the single cleanup
+	// closure. It is deferred BEFORE e.recover below so it runs AFTER recover
+	// during unwinding and can observe a recovered panic via panicked. Three
+	// signals feed it: failed, for terminal errors executeQuery emits directly
+	// on the results channel (before ctx exists, or bypassing it); panicked, set
+	// by recover when it recovers a panic; and ctx.Failed(), set whenever any
+	// Result with a non-nil Err is sent through the ExecutionContext — including
+	// errors a StatementExecutor sends itself while returning nil, and
+	// ErrNotExecuted emitted for interrupted queries.
+	failed := false
+	panicked := false
+	var ctx *ExecutionContext
 	defer func(start time.Time) {
 		atomic.AddInt64(&e.stats.ActiveQueries, -1)
 		atomic.AddInt64(&e.stats.FinishedQueries, 1)
+		if failed || panicked || (ctx != nil && ctx.Failed()) {
+			atomic.AddInt64(&e.stats.FailedQueries, 1)
+		}
 		atomic.AddInt64(&e.stats.QueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
-	ctx, detach, err := e.TaskManager.AttachQuery(query, opt, closing)
+	defer e.recover(query, results, &panicked)
+
+	var detach func()
+	var err error
+	ctx, detach, err = e.TaskManager.AttachQuery(query, opt, closing)
 	if err != nil {
+		failed = true
 		select {
 		case results <- &Result{Err: err}:
 		case <-opt.AbortCh:
@@ -359,8 +387,11 @@ LOOP:
 						case "_tags":
 							command = "SHOW TAG VALUES"
 						}
-						results <- &Result{
-							Err: fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
+						if err := ctx.send(&Result{
+							StatementID: i,
+							Err:         fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
+						}); err == ErrQueryAborted {
+							return
 						}
 						break LOOP
 					}
@@ -372,7 +403,9 @@ LOOP:
 		// This can occur on meta read statements which convert to SELECT statements.
 		newStmt, err := RewriteStatement(stmt)
 		if err != nil {
-			results <- &Result{Err: err}
+			if err := ctx.send(&Result{StatementID: i, Err: err}); err == ErrQueryAborted {
+				return
+			}
 			break
 		}
 		stmt = newStmt
@@ -424,6 +457,11 @@ LOOP:
 		}
 
 		if interrupted {
+			// A query killed or timed out between statements is a failed query,
+			// consistent with one interrupted during a statement (err != nil
+			// above). The ErrNotExecuted fan-out below sets ctx.Failed() when
+			// statements remain, but not when this was the last statement.
+			failed = true
 			break
 		}
 	}
@@ -450,8 +488,13 @@ func init() {
 	}
 }
 
-func (e *Executor) recover(query *influxql.Query, results chan *Result) {
+// recover recovers a panic from executing a query. When it recovers a panic it
+// sets *panicked so the caller's cleanup counts the query as failed exactly once
+// (a panicked query is a failed query); recover does not touch FailedQueries
+// itself to avoid double-counting a query that also emitted an error Result.
+func (e *Executor) recover(query *influxql.Query, results chan *Result, panicked *bool) {
 	if err := recover(); err != nil {
+		*panicked = true
 		atomic.AddInt64(&e.stats.RecoveredPanics, 1) // Capture the panic in _internal stats.
 		e.Logger.Error(fmt.Sprintf("%s [panic:%s] %s", query.String(), err, debug.Stack()))
 		results <- &Result{
@@ -479,6 +522,7 @@ type Task struct {
 	closing   chan struct{}
 	monitorCh chan error
 	err       error
+	host      string
 	mu        sync.Mutex
 }
 

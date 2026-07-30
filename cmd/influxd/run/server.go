@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
+	"github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
@@ -23,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	prometheus2 "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/control"
@@ -79,6 +81,10 @@ type Server struct {
 
 	err     chan error
 	closing chan struct{}
+
+	// certMonitor is the TLS certificate monitor all TLSConfigManager objects
+	// in influxd should use.
+	certMonitor *tlsconfig.TLSCertMonitor
 
 	BindAddress string
 	Listener    net.Listener
@@ -197,6 +203,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		reportingDisabled: c.ReportingDisabled,
 
+		certMonitor: tlsconfig.NewTLSCertMonitor(),
+
 		httpAPIAddr: c.HTTPD.BindAddress,
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 
@@ -217,7 +225,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.TSDBStore.EngineOptions.IndexVersion = c.Data.Index
 
 	// Create the Subscriber service
-	s.Subscriber = subscriber.NewService(c.Subscriber)
+	s.Subscriber = subscriber.NewService(c.Subscriber, s.certMonitor)
 
 	// Initialize points writer.
 	s.PointsWriter = coordinator.NewPointsWriter()
@@ -240,6 +248,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		MaxSelectPointN:     c.Coordinator.MaxSelectPointN,
 		MaxSelectSeriesN:    c.Coordinator.MaxSelectSeriesN,
 		MaxSelectBucketsN:   c.Coordinator.MaxSelectBucketsN,
+		MaxTimeRange:        time.Duration(c.Coordinator.MaxTimeRange),
 	}
 	s.QueryExecutor.TaskManager.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
 	s.QueryExecutor.TaskManager.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
@@ -308,11 +317,11 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendHTTPDService(c httpd.Config) error {
+func (s *Server) appendHTTPDService(c httpd.Config, certMonitor *tlsconfig.TLSCertMonitor) error {
 	if !c.Enabled {
 		return nil
 	}
-	srv := httpd.NewService(c)
+	srv := httpd.NewService(c, certMonitor)
 	srv.Handler.MetaClient = s.MetaClient
 	authorizer := meta.NewQueryAuthorizer(s.MetaClient)
 	srv.Handler.QueryAuthorizer = authorizer
@@ -325,7 +334,16 @@ func (s *Server) appendHTTPDService(c httpd.Config) error {
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
 	if s.config.HTTPD.FluxEnabled {
-		storageDep, err := influxdb2.NewDependencies(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.PointsWriter)
+		// When hardening is enabled, use an HTTP IP validator that restricts
+		// flux HTTP requests to non-private addresses.
+		var urlValidator url.Validator
+		if s.config.HardeningEnabled {
+			urlValidator = url.PrivateIPValidator{}
+		} else {
+			urlValidator = url.PassValidator{}
+		}
+
+		storageDep, err := influxdb2.NewDependencies(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.PointsWriter, influxdb2.WithURLValidator(urlValidator))
 		if err != nil {
 			return err
 		}
@@ -361,11 +379,11 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
+func (s *Server) appendOpenTSDBService(c opentsdb.Config, certMonitor *tlsconfig.TLSCertMonitor) error {
 	if !c.Enabled {
 		return nil
 	}
-	srv, err := opentsdb.NewService(c)
+	srv, err := opentsdb.NewService(c, certMonitor)
 	if err != nil {
 		return err
 	}
@@ -437,6 +455,13 @@ func (s *Server) Open() error {
 		return err
 	}
 
+	// Configure and start certificate monitor. Do this early so we don't block
+	// on any of its channels.
+	s.certMonitor.SetLogger(s.Logger)
+	if err := s.certMonitor.Open(); err != nil {
+		return fmt.Errorf("error starting TLS certificate monitor: %w", err)
+	}
+
 	// Open shared TCP connection.
 	ln, err := net.Listen("tcp", s.BindAddress)
 	if err != nil {
@@ -453,7 +478,7 @@ func (s *Server) Open() error {
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
-	if err := s.appendHTTPDService(s.config.HTTPD); err != nil {
+	if err := s.appendHTTPDService(s.config.HTTPD, s.certMonitor); err != nil {
 		return err
 	}
 	s.appendRetentionPolicyService(s.config.Retention)
@@ -466,7 +491,7 @@ func (s *Server) Open() error {
 		s.appendCollectdService(i)
 	}
 	for _, i := range s.config.OpenTSDBInputs {
-		if err := s.appendOpenTSDBService(i); err != nil {
+		if err := s.appendOpenTSDBService(i, s.certMonitor); err != nil {
 			return err
 		}
 	}
@@ -542,6 +567,9 @@ func (s *Server) Open() error {
 func (s *Server) Close() error {
 	s.stopProfile()
 
+	// Close the TLS certificate monitor.
+	s.certMonitor.Close()
+
 	// Close the listener first to stop any new connections
 	if s.Listener != nil {
 		s.Listener.Close()
@@ -609,6 +637,16 @@ func (s *Server) ApplyReloadedConfig(config *Config, log *zap.Logger) error {
 			log.Error("error reloading OpenTSDB service TLS certificate, no new configuration applied", zap.Error(err),
 				zap.String("bind-address", srv.BindAddress),
 				zap.String("database", srv.Database), zap.String("retention-policy", srv.RetentionPolicy))
+			return err
+		}
+	}
+
+	// Reload the subscriber's TLS configuration, including certificates, CAs, and other TLS settings.
+	if s.Subscriber != nil {
+		if af, err := s.Subscriber.PrepareReloadTLSCertificates(config.Subscriber); err == nil {
+			applyFuncs = append(applyFuncs, af)
+		} else {
+			log.Error("error reloading subscriber service TLS certificate, no new configuration applied", zap.Error(err))
 			return err
 		}
 	}
