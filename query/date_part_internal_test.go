@@ -40,17 +40,56 @@ func TestDatePartMap_Value(t *testing.T) {
 // to stream iterators between enterprise data nodes; without explicit handling the
 // key serializes to null and all date_part GROUP BY buckets collapse into one.
 func TestEncodeDecodeAux_DatePartKey(t *testing.T) {
-	// Use a non-zero Expr (Month) so the expr byte is actually exercised, alongside
-	// neighbouring aux values of other types.
-	key := DecodedDatePartKey{Expr: Month, Val: 12}
-	aux := []interface{}{int64(7), key, "host1"}
+	tests := []struct {
+		key DecodedDatePartKey
+	}{
+		{
+			key: DecodedDatePartKey{Expr: Hour, Val: int64(time.Now().Hour())},
+		},
+		{
+			key: DecodedDatePartKey{Expr: Minute, Val: int64(time.Now().Minute())},
+		},
+		{
+			key: DecodedDatePartKey{Expr: Year, Val: 1970},
+		},
+		{
+			key: DecodedDatePartKey{Expr: Quarter, Val: 2},
+		},
+		{
+			key: DecodedDatePartKey{Expr: Month, Val: int64(time.Now().Month())},
+		}, {
+			key: DecodedDatePartKey{Expr: Week, Val: 2},
+		}, {
+			key: DecodedDatePartKey{Expr: Day, Val: int64(time.Now().Day())},
+		}, {
+			key: DecodedDatePartKey{Expr: Second, Val: int64(time.Now().Second())},
+		}, {
+			key: DecodedDatePartKey{Expr: Millisecond, Val: time.Now().UnixMilli()},
+		}, {
+			key: DecodedDatePartKey{Expr: Microsecond, Val: time.Now().UnixMicro()},
+		}, {
+			key: DecodedDatePartKey{Expr: Nanosecond, Val: time.Now().UnixNano()},
+		}, {
+			key: DecodedDatePartKey{Expr: DOW, Val: int64(time.Now().Weekday())},
+		}, {
+			key: DecodedDatePartKey{Expr: DOY, Val: int64(time.Now().YearDay())},
+		}, {
+			key: DecodedDatePartKey{Expr: Epoch, Val: time.Now().Unix()},
+		}, {
+			key: DecodedDatePartKey{Expr: ISODOW, Val: int64(time.Now().Weekday())},
+		},
+	}
 
-	got := decodeAux(encodeAux(aux))
+	for _, test := range tests {
+		aux := []interface{}{int64(7), test.key, "host1"}
 
-	require.Len(t, got, 3)
-	require.Equal(t, int64(7), got[0])
-	require.Equal(t, key, got[1], "DecodedDatePartKey must survive the iterator wire codec")
-	require.Equal(t, "host1", got[2])
+		got := decodeAux(encodeAux(aux))
+
+		require.Len(t, got, 3)
+		require.Equal(t, int64(7), got[0])
+		require.Equal(t, test.key, got[1], "DecodedDatePartKey must survive the iterator wire codec")
+		require.Equal(t, "host1", got[2])
+	}
 }
 
 func TestNewDatePartCondition(t *testing.T) {
