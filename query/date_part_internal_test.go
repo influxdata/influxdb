@@ -306,10 +306,11 @@ func (r *stubReducer) Emit() []FloatPoint {
 
 // stubDimensionGrouper lets a test force the ResolveKeys / DecodeEntry outcomes.
 type stubDimensionGrouper struct {
-	entries    []GroupingEntry
-	decoded    interface{}
-	resolveErr error
-	decodeErr  error
+	entries     []GroupingEntry
+	decoded     interface{}
+	decodeByKey map[string]interface{} // per-key decode, keyed by EncodedKey()
+	resolveErr  error
+	decodeErr   error
 }
 
 func (g *stubDimensionGrouper) ResolveKeys(aux []interface{}, tags TagSubset) ([]GroupingEntry, error) {
@@ -321,6 +322,9 @@ func (g *stubDimensionGrouper) ResolveKeys(aux []interface{}, tags TagSubset) ([
 func (g *stubDimensionGrouper) DecodeEntry(encodedKey string) (interface{}, error) {
 	if g.decodeErr != nil {
 		return nil, g.decodeErr
+	}
+	if g.decodeByKey != nil {
+		return g.decodeByKey[encodedKey], nil
 	}
 	return g.decoded, nil
 }
@@ -461,4 +465,72 @@ func TestReduceIterator_DimensionGrouper_Errors(t *testing.T) {
 		_, err := drainReduceIterator(t, opt, nil)
 		require.ErrorIs(t, err, sentinel)
 	})
+}
+
+// TestReduceIterator_DimensionGrouper_SortOrder covers the key sort in reduce
+// whose sort.Reverse is conditional on opt.Ascending. Two grouping buckets are
+// created from one input point; the emitted series order is governed purely by
+// the string sort of the DimKeys, so it flips with the scan direction. The
+// server-level DST_Descending test exercises the same branch end-to-end; this
+// asserts it directly on the emitted Aux without a server round-trip.
+func TestReduceIterator_DimensionGrouper_SortOrder(t *testing.T) {
+	// Distinct DimKeys ("hour:1" < "hour:3") and distinct encode inputs, so each
+	// bucket decodes to its own value in the active Aux slot.
+	entryLow := GroupingEntry{DimKey: "hour:1", Expr: Hour, Val: 1}
+	entryHigh := GroupingEntry{DimKey: "hour:3", Expr: Hour, Val: 3}
+	decLow := DecodedDatePartKey{Expr: Hour, Val: 1}
+	decHigh := DecodedDatePartKey{Expr: Hour, Val: 3}
+	grouper := &stubDimensionGrouper{
+		entries: []GroupingEntry{entryLow, entryHigh},
+		decodeByKey: map[string]interface{}{
+			entryLow.EncodedKey():  decLow,
+			entryHigh.EncodedKey(): decHigh,
+		},
+	}
+
+	// The active date_part value lands in the last Aux slot, so the ordered
+	// tail across the two emitted points reveals the series order.
+	tail := func(pts []FloatPoint) []interface{} {
+		out := make([]interface{}, len(pts))
+		for i, p := range pts {
+			out[i] = p.Aux[len(p.Aux)-1]
+		}
+		return out
+	}
+
+	tests := []struct {
+		name      string
+		ascending bool
+		want      []interface{}
+	}{
+		{
+			// Ascending scan: the lower hour emits first (ascending series order).
+			name: "ascending emits low hour first", ascending: true,
+			want: []interface{}{decLow, decHigh},
+		},
+		{
+			// Descending scan (ORDER BY time DESC): the Ascending-conditional
+			// sort.Reverse is skipped, flipping the series order — high hour first.
+			name: "descending emits high hour first", ascending: false,
+			want: []interface{}{decHigh, decLow},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opt := IteratorOptions{
+				StartTime:          0,
+				EndTime:            1 << 62,
+				Ascending:          tc.ascending,
+				Ordered:            true,
+				Aux:                make([]influxql.VarRef, 1),
+				DatePartDimensions: make([]DatePartDimension, 1),
+				DimensionGrouper:   grouper,
+			}
+			got, err := drainReduceIterator(t, opt, nil)
+			require.NoError(t, err)
+			require.Len(t, got, 2)
+			require.Equal(t, tc.want, tail(got))
+		})
+	}
 }

@@ -8857,7 +8857,10 @@ func TestServer_Query_DatePart_Timezone(t *testing.T) {
 //     though a real 02:30 exists the next day (springgap);
 //  4. a southern-hemisphere, half-hour-offset zone (Australia/Lord_Howe), whose
 //     standard offset is +10:30 and DST offset +11:00, and whose 30-minute
-//     fall-back also repeats a local hour (lordhowe, lhfall).
+//     fall-back also repeats a local hour (lordhowe, lhfall);
+//  5. a no-DST, half-hour-offset zone (Asia/Kolkata, permanent +05:30), where
+//     two instants six months apart map to the identical local hour/minute,
+//     proving the offset holds year-round with no transition (kolkata).
 //
 // Each scenario uses its own measurement so an aggregate query without a time
 // range only sees that scenario's points.
@@ -8900,6 +8903,13 @@ func TestServer_Query_DatePart_DSTBoundaries(t *testing.T) {
 		// +10:30. Both points are local 01:45 (hour 1) on opposite sides.
 		fmt.Sprintf(`lhfall value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-04-01T14:45:00Z").UnixNano()), // 01:45 +11:00
 		fmt.Sprintf(`lhfall value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-04-01T15:15:00Z").UnixNano()), // 01:45 +10:30
+
+		// (5) no-DST, half-hour-offset zone (Asia/Kolkata, permanent +05:30). Two
+		// instants six months apart both map to local 05:30, so a DST-blind
+		// application of the half-hour offset yields the identical hour/minute
+		// year-round.
+		fmt.Sprintf(`kolkata value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-15T00:00:00Z").UnixNano()), // 05:30 +05:30
+		fmt.Sprintf(`kolkata value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-07-15T00:00:00Z").UnixNano()), // 05:30 +05:30
 	}
 
 	test := NewTest("db0", "rp0")
@@ -8959,6 +8969,17 @@ func TestServer_Query_DatePart_DSTBoundaries(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT count(value) FROM db0.rp0.lhfall GROUP BY date_part('hour', time) tz('Australia/Lord_Howe')`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"lhfall","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[["1970-01-01T10:00:00+10:00",2,1]]}]}]}`,
+		},
+		&Query{
+			// No-DST, half-hour-offset zone: the permanent +05:30 offset yields the
+			// same local hour 5 / minute 30 for both the January and July instant.
+			// Identical output across the two proves the offset is applied without
+			// any DST transition shifting it, and the minute part confirms the
+			// half-hour component survives a zone that never changes offset.
+			name:    `date_part reflects the permanent half-hour offset of Asia/Kolkata`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value, date_part('hour', time) AS h, date_part('minute', time) AS m FROM db0.rp0.kolkata tz('Asia/Kolkata')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"kolkata","columns":["time","value","h","m"],"values":[["2023-01-15T05:30:00+05:30",1,5,30],["2023-07-15T05:30:00+05:30",2,5,30]]}]}]}`,
 		},
 	}...)
 
