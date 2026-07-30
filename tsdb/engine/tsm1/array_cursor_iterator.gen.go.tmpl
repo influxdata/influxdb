@@ -22,6 +22,11 @@ func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, nam
 		}
 		err = q.asc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+		    // reset takes ownership of keyCursor before the read that can fail,
+		    // so on error the references it holds are ours to release. Nothing
+		    // else can: the cursor is only reachable through this pooled struct,
+		    // and CursorIterator has no teardown hook.
+		    q.asc.{{.Name}}.Close()
 		    return nil, err
 		}
 		return q.asc.{{.Name}}, nil
@@ -31,6 +36,7 @@ func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, nam
 		}
 		err = q.desc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+		    q.desc.{{.Name}}.Close()
 		    return nil, err
 		}
 		return q.desc.{{.Name}}, nil

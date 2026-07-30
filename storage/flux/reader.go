@@ -50,6 +50,9 @@ type storageTable interface {
 	flux.Table
 	Close()
 	Cancel()
+	// awaitAbandoned must be called before Close on any table the producer is
+	// giving up on, so that a consumer cannot still be inside advance().
+	awaitAbandoned(done <-chan struct{})
 	Statistics() cursors.CursorStats
 }
 
@@ -227,6 +230,7 @@ READ:
 
 		if !table.Empty() {
 			if err := f(table); err != nil {
+				table.awaitAbandoned(done)
 				table.Close()
 				table = nil
 				return err
@@ -234,7 +238,7 @@ READ:
 			select {
 			case <-done:
 			case <-fi.ctx.Done():
-				table.Cancel()
+				table.awaitAbandoned(done)
 				break READ
 			}
 		}
@@ -371,6 +375,7 @@ READ:
 		gc = nil
 
 		if err := f(table); err != nil {
+			table.awaitAbandoned(done)
 			table.Close()
 			table = nil
 			return err
@@ -378,7 +383,7 @@ READ:
 		select {
 		case <-done:
 		case <-gi.ctx.Done():
-			table.Cancel()
+			table.awaitAbandoned(done)
 			break READ
 		}
 
@@ -833,6 +838,7 @@ READ:
 
 		if !table.Empty() {
 			if err := f(table); err != nil {
+				table.awaitAbandoned(done)
 				table.Close()
 				table = nil
 				return err
@@ -840,7 +846,7 @@ READ:
 			select {
 			case <-done:
 			case <-wai.ctx.Done():
-				table.Cancel()
+				table.awaitAbandoned(done)
 				break READ
 			}
 		}
