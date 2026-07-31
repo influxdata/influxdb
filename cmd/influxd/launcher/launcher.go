@@ -10,6 +10,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -163,6 +164,19 @@ type Launcher struct {
 	tasksReady        *check.ReadyGate
 	schedulerReady    *check.ReadyGate
 	startupProgress   *run.StartupProgressLogger
+
+	// httpServing reports whether runHTTP established a listener. Consulted
+	// by holdForStartupError: with no listener there is nothing to scrape and
+	// waiting only delays the error.
+	httpServing bool
+
+	// shutdownMu guards the closer list and the accumulated teardown state.
+	// Teardown can run in two phases — see shutdownSubsystems — so a closer
+	// is consumed from m.closers as it runs rather than the whole teardown
+	// being gated by a single sync.Once.
+	shutdownMu   sync.Mutex
+	shutdownErrs []string
+	shutdownDone bool
 }
 
 type stoppingScheduler interface {
@@ -195,20 +209,28 @@ func (m *Launcher) ReadyCheckNames() []string {
 	return m.checkHandler.ReadyCheckNames()
 }
 
-// Shutdown shuts down the HTTP server and waits for all services to clean up.
+// Shutdown closes whatever is left of the launcher and waits for all services
+// to clean up. It is the final teardown phase: after it returns, nothing the
+// launcher registered is still running.
+//
+// Every registered closer runs at most once across all calls, because each is
+// consumed as it runs. A caller that cannot tell whether the launcher was
+// already torn down — in whole or, via shutdownSubsystems, in part — can call
+// Shutdown without double-closing a store or reporting a spurious error for
+// already-released state. The returned error accumulates every phase's closer
+// failures, so a single call site can report the whole teardown.
 func (m *Launcher) Shutdown(ctx context.Context) error {
-	var errs []string
-
-	// Shut down subsystems in the reverse order of their registration.
-	for i := len(m.closers); i > 0; i-- {
-		lc := m.closers[i-1]
-		m.log.Info("Stopping subsystem", zap.String("subsystem", lc.label))
-		if err := lc.closer(ctx); err != nil {
-			m.log.Error("Failed to stop subsystem", zap.String("subsystem", lc.label), zap.Error(err))
-			errs = append(errs, err.Error())
-		}
+	m.shutdownMu.Lock()
+	defer m.shutdownMu.Unlock()
+	if m.shutdownDone {
+		return m.shutdownError()
 	}
 
+	m.runClosers(ctx)
+
+	// Safe only here, and not in shutdownSubsystems: the HTTP serve goroutine
+	// is tracked in m.wg and returns only once the server closes, which the
+	// closer above has now done.
 	m.wg.Wait()
 
 	// N.B. We ignore any errors here because Sync is known to fail with EINVAL
@@ -218,14 +240,144 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 	// See: https://github.com/uber-go/zap/issues/328
 	_ = m.log.Sync()
 
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to shut down server: [%s]", strings.Join(errs, ","))
+	m.shutdownDone = true
+	return m.shutdownError()
+}
+
+// shutdownSubsystems runs every registered closer except the HTTP server's,
+// releasing the PID file, the bolt flock, the sqlite file and the engine
+// directory while leaving the listener — and so /health and /ready — serving.
+// It is the first of the two teardown phases used by holdForStartupError;
+// Shutdown is the second and closes the listener.
+//
+// It deliberately does not wait on m.wg. The HTTP serve goroutine is tracked
+// there and returns only once the server closes, so waiting here would block
+// for exactly as long as the listener is retained.
+func (m *Launcher) shutdownSubsystems(ctx context.Context) error {
+	m.shutdownMu.Lock()
+	defer m.shutdownMu.Unlock()
+	if m.shutdownDone {
+		return m.shutdownError()
 	}
-	return nil
+
+	m.runClosers(ctx, SubsystemHTTPServer)
+	return m.shutdownError()
+}
+
+// runClosers runs the registered closers in reverse registration order,
+// skipping any whose label is in keep, and records each failure. The closers
+// it is about to run are removed from m.closers before any of them run, so no
+// closer can run twice even if one panics. The kept closers stay in
+// registration order, so a later phase still tears down in reverse.
+//
+// Caller must hold shutdownMu.
+func (m *Launcher) runClosers(ctx context.Context, keep ...string) {
+	kept := make([]labeledCloser, 0, len(keep))
+	pending := make([]labeledCloser, 0, len(m.closers))
+	for _, lc := range m.closers {
+		if slices.Contains(keep, lc.label) {
+			kept = append(kept, lc)
+			continue
+		}
+		pending = append(pending, lc)
+	}
+	m.closers = kept
+
+	// Shut down subsystems in the reverse order of their registration.
+	for i := len(pending); i > 0; i-- {
+		lc := pending[i-1]
+		m.log.Info("Stopping subsystem", zap.String("subsystem", lc.label))
+		if err := lc.closer(ctx); err != nil {
+			m.log.Error("Failed to stop subsystem", zap.String("subsystem", lc.label), zap.Error(err))
+			m.shutdownErrs = append(m.shutdownErrs, err.Error())
+		}
+	}
+}
+
+// shutdownError renders the closer failures accumulated across every teardown
+// phase run so far. Caller must hold shutdownMu.
+func (m *Launcher) shutdownError() error {
+	if len(m.shutdownErrs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("failed to shut down server: [%s]", strings.Join(m.shutdownErrs, ","))
 }
 
 func (m *Launcher) Done() <-chan struct{} {
 	return m.doneChan
+}
+
+// failSubsystem logs err, latches it into the subsystem's gate (whose response
+// is already name-stamped, so msg alone), and returns it prefixed with the
+// subsystem name for the single /health startup entry.
+func (m *Launcher) failSubsystem(g *check.ReadyGate, msg string, err error) error {
+	err = fmt.Errorf("%s: %w", msg, err)
+	m.log.Error("Subsystem failed during startup",
+		zap.String("subsystem", g.CheckName()), zap.Error(err))
+	g.Fail(err)
+	return fmt.Errorf("%s: %w", g.CheckName(), err)
+}
+
+// holdForStartupError releases everything the failed process no longer needs
+// and then keeps /health and /ready scrapeable for d, so the latched startup
+// error can be retrieved before the process exits.
+//
+// Teardown is split around the wait. Every subsystem except the HTTP listener
+// is closed first, so the PID file, the bolt flock, the sqlite file and the
+// engine directory are released before the process parks: a supervisor
+// restarting influxd must not be blocked for the whole window by state
+// belonging to a run that already failed. The listener is the only thing the
+// wait needs, and the Shutdown that follows closes it.
+//
+// The check set is narrowed to the catch-all startup gate before that
+// teardown; see retainStartupCheckOnly. Non-check requests are unaffected:
+// the delegate handler is installed as the last statement of a successful
+// run, so on this path there is none and they still get the 503 "starting"
+// body.
+//
+// It returns immediately, tearing nothing down, when d is non-positive or no
+// listener was ever established — there is then nothing to scrape, and the
+// caller's Shutdown does the whole teardown in one phase as before. It also
+// returns once the launcher's context is done, so a signal cuts the wait
+// short. ctx bounds the subsystem teardown only, not the wait; pass the
+// process context rather than a signal-wrapped one so a signal racing the
+// teardown does not truncate it.
+func (m *Launcher) holdForStartupError(ctx context.Context, d time.Duration) {
+	if d <= 0 || !m.httpServing {
+		return
+	}
+
+	m.retainStartupCheckOnly()
+
+	subsysCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+	// Errors are logged per subsystem by runClosers and accumulate into the
+	// error the caller's Shutdown returns, so there is nothing to report here.
+	_ = m.shutdownSubsystems(subsysCtx)
+	cancel()
+
+	m.log.Warn("Startup failed; holding /health and /ready open",
+		zap.Duration("duration", d), zap.Int("port", m.httpPort))
+	select {
+	case <-time.After(d):
+	case <-m.Done():
+	}
+}
+
+// retainStartupCheckOnly narrows /health and /ready to the catch-all startup
+// gate, which carries the error that aborted startup.
+//
+// Called before the teardown that precedes the hold, because the subsystems
+// about to be closed publish their own checks: sqlite pings a closed handle,
+// and the bolt probe snapshot ages past its staleness budget once the prober
+// stops. Left registered, both would report a deliberate teardown as a fresh
+// failure. Worse, check responses sort by name, so "shards" and "sqlite" sort
+// ahead of "startup" and /health's top-level message would advertise one of
+// those secondary symptoms instead of the real cause.
+func (m *Launcher) retainStartupCheckOnly() {
+	if m.checkHandler == nil {
+		return
+	}
+	m.checkHandler.RetainOnlyChecks(SubsystemStartup)
 }
 
 func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
@@ -308,6 +460,20 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker())
 	m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker())
 
+	// Catch-all gate: passes until an error aborts startup, then carries that
+	// error on both endpoints after run returns and before the process exits.
+	// On /health it is the only startup-failure signal, so failSubsystem
+	// prefixes the responsible subsystem's name onto the message. On /ready it
+	// also closes the window in which every gate has fired but a later step
+	// failed, which would otherwise report "ready" until the process exits.
+	// run's return is named, so the deferred Fail — which ignores nil — covers
+	// every error path below without touching each one.
+	startupGate := check.NewReadyGate(SubsystemStartup)
+	startupGate.Ready()
+	m.checkHandler.AddNamedHealthCheck(startupGate)
+	m.checkHandler.AddNamedReadyCheck(startupGate)
+	defer func() { startupGate.Fail(err) }()
+
 	// Under NoTasks the tasks subsystem and scheduler never start; pre-fire
 	// their gates so /ready does not block forever waiting on subsystems
 	// that will never come up. The gates remain registered and refer to the
@@ -326,6 +492,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if err != nil {
 		return err
 	}
+	m.httpServing = true
 
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(collectors.NewGoCollector())
@@ -426,7 +593,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	} else {
 		// check for 2.x data / state from a prior 2.x
 		if err := checkForPriorVersion(ctx, m.log, opts.BoltPath, opts.EnginePath, ts.BucketService, metaClient); err != nil {
-			os.Exit(1)
+			return m.failSubsystem(m.engineReady, "incompatible prior version detected", err)
 		}
 
 		m.engine = storage.NewEngine(
@@ -444,8 +611,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// latches into a terminal Fail that surfaces the error.
 	m.startupProgress.Finish(err)
 	if err != nil {
-		m.log.Error("Failed to open engine", zap.Error(err))
-		return err
+		return m.failSubsystem(m.engineReady, "failed to open engine", err)
 	}
 	m.engineReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
@@ -478,8 +644,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(replicationsMetrics.PrometheusCollectors()...)
 
 	if err = replicationSvc.Open(ctx); err != nil {
-		m.log.Error("Failed to open replications service", zap.Error(err))
-		return err
+		return m.failSubsystem(m.replicationsReady, "failed to open replications service", err)
 	}
 	m.replicationsReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
@@ -511,8 +676,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		influxdb.WithURLValidator(urlValidator),
 	)
 	if err != nil {
-		m.log.Error("Failed to get query controller dependencies", zap.Error(err))
-		return err
+		return m.failSubsystem(m.queryReady, "failed to get query controller dependencies", err)
 	}
 
 	dependencyList := []flux.Dependency{deps}
@@ -531,8 +695,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		FluxLogEnabled:                  opts.FluxLogEnabled,
 	}, m.log.With(zap.String("service", "storage-reads")))
 	if err != nil {
-		m.log.Error("Failed to create query controller", zap.Error(err))
-		return err
+		return m.failSubsystem(m.queryReady, "failed to create query controller", err)
 	}
 	m.queryReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
@@ -569,7 +732,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 		err = executor.LoadExistingScheduleRuns(ctx)
 		if err != nil {
-			m.log.Fatal("could not load existing scheduled runs", zap.Error(err))
+			return m.failSubsystem(m.tasksReady, "could not load existing scheduled runs", err)
 		}
 		m.executor = executor
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
@@ -593,10 +756,14 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 						zap.Error(err))
 				}),
 			)
-			sch = treeSch
+			// Check before assigning: on failure treeSch is a nil
+			// *TreeScheduler, and assigning it to the sch interface first
+			// would leave a non-nil interface holding a nil pointer, so the
+			// registered closer's sch.Stop() would panic during Shutdown.
 			if err != nil {
-				m.log.Fatal("could not start task scheduler", zap.Error(err))
+				return m.failSubsystem(m.schedulerReady, "could not start task scheduler", err)
 			}
+			sch = treeSch
 			m.closers = append(m.closers, labeledCloser{
 				label: SubsystemTaskScheduler,
 				closer: func(context.Context) error {
@@ -1178,8 +1345,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		boltClient.Path = opts.BoltPath
 
 		if err := boltClient.Open(ctx); err != nil {
-			m.log.Error("Failed opening bolt", zap.Error(err))
-			return "", err
+			return "", m.failSubsystem(m.kvReady, "failed opening bolt", err)
 		}
 		m.reg.MustRegister(boltClient)
 		procID = boltClient.ID().String()
@@ -1204,16 +1370,14 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		}
 		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
-			m.log.Error("Failed opening sqlite store", zap.Error(err))
-			return "", err
+			return "", m.failSubsystem(m.sqliteReady, "failed opening sqlite store", err)
 		}
 
 	case MemoryStore:
 		kvStore = inmem.NewKVStore()
 		sqlStore, err = sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
-			m.log.Error("Failed opening sqlite store", zap.Error(err))
-			return "", err
+			return "", m.failSubsystem(m.sqliteReady, "failed opening sqlite store", err)
 		}
 
 	default:
@@ -1240,8 +1404,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		all.Migrations[:]...,
 	)
 	if err != nil {
-		m.log.Error("Failed to initialize kv migrator", zap.Error(err))
-		return "", err
+		return "", m.failSubsystem(m.kvReady, "failed to initialize kv migrator", err)
 	}
 	sqlMigrator := sqlite.NewMigrator(sqlStore, m.log.With(zap.String("service", "SQL migrations")))
 
@@ -1253,13 +1416,11 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		sqlMigrator.SetBackupPath(fmt.Sprintf(backupPattern, opts.SqLitePath, info.Version))
 	}
 	if err := kvMigrator.Up(ctx); err != nil {
-		m.log.Error("Failed to apply KV migrations", zap.Error(err))
-		return "", err
+		return "", m.failSubsystem(m.kvReady, "failed to apply KV migrations", err)
 	}
 	m.kvReady.Ready()
 	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
-		m.log.Error("Failed to apply SQL migrations", zap.Error(err))
-		return "", err
+		return "", m.failSubsystem(m.sqliteReady, "failed to apply SQL migrations", err)
 	}
 	m.sqliteReady.Ready()
 

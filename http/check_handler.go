@@ -118,6 +118,11 @@ func (h *HealthReadyHandler) AddNamedHealthCheck(nc check.NamedChecker) {
 	h.check.AddNamedHealthCheck(nc)
 }
 
+// RetainOnlyChecks drops every registered health and ready check except
+// those named in names. See check.Check.RetainOnly for the semantics and
+// the terminal-state use it exists for.
+func (h *HealthReadyHandler) RetainOnlyChecks(names ...string) { h.check.RetainOnly(names...) }
+
 // ReadyCheckNames returns the names of currently-registered ready checks
 // in registration order.
 func (h *HealthReadyHandler) ReadyCheckNames() []string { return h.check.ReadyCheckNames() }

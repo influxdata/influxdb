@@ -79,6 +79,49 @@ func (c *Check) AddNamedReadyCheck(nc NamedChecker) {
 	c.readyNames = append(c.readyNames, nc.CheckName())
 }
 
+// RetainOnly drops every registered health and ready check whose name is not
+// in names, preserving registration order. An anonymous health check — one
+// registered via AddHealthCheck with a Checker that does not implement
+// NamedChecker — has no name to match against and is always dropped.
+//
+// Intended for terminal states, where most registered checks describe
+// subsystems that have been deliberately torn down. Left registered, those
+// checks report the teardown as a fresh failure and, because responses sort
+// by name, can outrank the one response that explains why the process is
+// terminal. There is no way to restore a dropped check; re-register it if it
+// is needed again.
+func (c *Check) RetainOnly(names ...string) {
+	keep := make(map[string]bool, len(names))
+	for _, n := range names {
+		keep[n] = true
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.healthChecks, _ = retainNamed(c.healthChecks, keep)
+	c.readyChecks, c.readyNames = retainNamed(c.readyChecks, keep)
+}
+
+// retainNamed returns the checks whose CheckName is in keep, in their
+// original order, along with those names. A check that does not implement
+// NamedChecker cannot be matched and is dropped, so the returned names line
+// up one-to-one with the returned checks.
+func retainNamed(checks []Checker, keep map[string]bool) ([]Checker, []string) {
+	var (
+		kept  []Checker
+		names []string
+	)
+	for _, ch := range checks {
+		nc, ok := ch.(NamedChecker)
+		if !ok || !keep[nc.CheckName()] {
+			continue
+		}
+		kept = append(kept, ch)
+		names = append(names, nc.CheckName())
+	}
+	return kept, names
+}
+
 // ReadyCheckNames returns the names of currently-registered ready checks
 // in registration order. All ready checks are required to be named, so
 // no entry is ever empty.

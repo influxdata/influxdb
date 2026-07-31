@@ -20,4 +20,9 @@ const (
 	SubsystemSQLite        = "sqlite"
 	SubsystemHTTPServer    = "http-server"
 	SubsystemShards        = "shards"
+
+	// SubsystemStartup names the catch-all check that carries whatever error
+	// aborted startup. Unlike the others it describes no single subsystem;
+	// Launcher.failSubsystem prefixes the responsible one onto the message.
+	SubsystemStartup = "startup"
 )

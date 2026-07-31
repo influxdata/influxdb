@@ -147,12 +147,18 @@ func BoundDeadline(ctx context.Context, max time.Duration) (context.Context, con
 	return context.WithTimeout(ctx, max)
 }
 
+// MsgNotReady is the message a ReadyGate reports when it has been neither
+// fired by Ready nor failed by Fail.
+const MsgNotReady = "not ready"
+
 // ReadyGate is a NamedChecker that reports StatusFail until Ready is called,
 // after which it reports StatusPass. It is intended for gating readiness on
-// subsystem init phases that complete once at startup.
+// subsystem init phases that complete once at startup. A gate also carries a
+// terminal failure; see Fail.
 type ReadyGate struct {
-	name  string
-	ready atomic.Bool
+	name    string
+	ready   atomic.Bool
+	failMsg atomic.Pointer[string] // terminal startup failure
 }
 
 // NewReadyGate returns a ReadyGate that initially reports StatusFail.
@@ -164,13 +170,16 @@ func NewReadyGate(name string) *ReadyGate {
 func (g *ReadyGate) CheckName() string { return g.name }
 
 // Check returns StatusPass once Ready has been called, otherwise StatusFail.
-// The response is stamped with the gate's name to satisfy the NamedChecker
-// contract.
+// A terminal failure latched by Fail outranks both. The response is stamped
+// with the gate's name to satisfy the NamedChecker contract.
 func (g *ReadyGate) Check(context.Context) Response {
+	if msg := g.failMsg.Load(); msg != nil {
+		return NamedFail(g.name, *msg)
+	}
 	if g.ready.Load() {
 		return NamedPass(g.name)
 	}
-	return NamedFail(g.name, "not ready")
+	return NamedFail(g.name, MsgNotReady)
 }
 
 // Ready flips the gate to report StatusPass.
@@ -178,3 +187,19 @@ func (g *ReadyGate) Ready() { g.ready.Store(true) }
 
 // Unready flips the gate to report StatusFail.
 func (g *ReadyGate) Unready() { g.ready.Store(false) }
+
+// Fail latches a terminal startup failure carrying err's message, which Check
+// reports from then on. The first error wins, so a later generic error cannot
+// overwrite the specific cause. A nil err is ignored.
+//
+// Fail is for startup failures only: it outranks Ready and Unready
+// permanently, which is correct for a subsystem that failed to construct
+// because there is nothing to recover into. Use Unready for a condition the
+// subsystem can come back from.
+func (g *ReadyGate) Fail(err error) {
+	if err == nil {
+		return
+	}
+	msg := err.Error()
+	g.failMsg.CompareAndSwap(nil, &msg)
+}

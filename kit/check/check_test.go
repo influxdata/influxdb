@@ -169,6 +169,60 @@ func TestAddHealthCheck_NamedCheckerDispatch(t *testing.T) {
 	require.Equal(t, "alpha", resp.Checks()[0].Name())
 }
 
+func TestCheck_RetainOnly(t *testing.T) {
+	// "drop" fails on /health so a regression that leaves it registered is
+	// visible in the aggregate, not just in the name list.
+	newCheck := func() *Check {
+		c := NewCheck()
+		c.AddNamedHealthCheck(Named("keep", mockFail("")))
+		c.AddNamedHealthCheck(Named("drop", mockFail("")))
+		c.AddHealthCheck(mockPass("anonymous")) // no CheckName to match on
+		c.AddNamedReadyCheck(Named("keep", mockFail("")))
+		c.AddNamedReadyCheck(Named("drop", mockPass("")))
+		return c
+	}
+
+	t.Run("keeps the named checks and drops the rest", func(t *testing.T) {
+		c := newCheck()
+		c.RetainOnly("keep")
+
+		require.Equal(t, []string{"keep"}, c.ReadyCheckNames())
+		require.Equal(t, []string{"keep"}, checkedNames(c.CheckHealth(context.Background())))
+		require.Equal(t, []string{"keep"}, checkedNames(c.CheckReady(context.Background())))
+	})
+
+	t.Run("the retained failure is what the aggregate reports", func(t *testing.T) {
+		// The point of narrowing: a dropped check can no longer outrank the
+		// one response that explains the terminal state.
+		c := newCheck()
+		c.RetainOnly("keep")
+		require.Equal(t, StatusFail, c.CheckHealth(context.Background()).Status())
+	})
+
+	t.Run("an unmatched name retains nothing", func(t *testing.T) {
+		c := newCheck()
+		c.RetainOnly("absent")
+		require.Empty(t, c.ReadyCheckNames())
+		require.Empty(t, checkedNames(c.CheckHealth(context.Background())))
+	})
+
+	t.Run("retaining several preserves registration order", func(t *testing.T) {
+		c := newCheck()
+		c.RetainOnly("drop", "keep") // argument order must not matter
+		require.Equal(t, []string{"keep", "drop"}, c.ReadyCheckNames())
+	})
+}
+
+// checkedNames returns the names of a response's nested checks, in the order
+// the aggregate reports them.
+func checkedNames(r Response) []string {
+	out := make([]string, 0, len(r.Checks()))
+	for _, c := range r.Checks() {
+		out = append(out, c.Name())
+	}
+	return out
+}
+
 func ExampleNewCheck() {
 	h := NewCheck()
 	h.CheckHealth(context.Background())

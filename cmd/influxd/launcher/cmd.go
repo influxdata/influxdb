@@ -22,8 +22,13 @@ import (
 	"github.com/influxdata/influxdb/v2/vault"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+// shutdownTimeout bounds teardown, giving in-progress requests a few seconds
+// to finish. Applies to both the normal exit and the startup-failure path.
+const shutdownTimeout = 2 * time.Second
 
 func errInvalidFlags(flags []string, configFile string) error {
 	return fmt.Errorf(
@@ -122,16 +127,30 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		l.log = logger
 
 		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
-		if err := l.run(signals.WithStandardSignals(ctx), o); err != nil {
-			return err
+		runErr := l.run(signals.WithStandardSignals(ctx), o)
+		if runErr != nil {
+			// Startup failed. Release whatever did come up (PID file, bolt,
+			// sqlite, engine) and hold only the listener open for the
+			// configured window, so the latched error can be retrieved
+			// without pinning state a restart needs.
+			l.holdForStartupError(ctx, o.StartupErrorTimeout)
+		} else {
+			<-l.Done()
 		}
-		<-l.Done()
 
-		// Tear down the launcher, allowing it a few seconds to finish any
-		// in-progress requests.
-		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		// Tear down what is left of the launcher, allowing it a few seconds to
+		// finish any in-progress requests. Derive from the outer ctx, not the
+		// signal-wrapped one, so a SIGTERM does not instantly cancel teardown.
+		shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
-		return l.Shutdown(shutdownCtx)
+		serr := l.Shutdown(shutdownCtx)
+		if runErr != nil {
+			if serr != nil {
+				logger.Error("Failed to shut down after startup error", zap.Error(serr))
+			}
+			return runErr // original error, so the exit code reflects the cause
+		}
+		return serr
 	}
 }
 
@@ -145,8 +164,9 @@ type InfluxdOpts struct {
 	TracingType       string
 	ReportingDisabled bool
 
-	PIDFile          string
-	OverwritePIDFile bool
+	PIDFile             string
+	OverwritePIDFile    bool
+	StartupErrorTimeout time.Duration // how long /health and /ready stay up after a failed startup; 0 disables
 
 	AssetsPath string
 	BoltPath   string
@@ -221,8 +241,9 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		FluxLogEnabled:    false,
 		ReportingDisabled: false,
 
-		PIDFile:          "",
-		OverwritePIDFile: false,
+		PIDFile:             "",
+		OverwritePIDFile:    false,
+		StartupErrorTimeout: 0,
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
 		SqLitePath: filepath.Join(dir, sqlite.DefaultFilename),
@@ -349,6 +370,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "overwrite-pid-file",
 			Default: o.OverwritePIDFile,
 			Desc:    "overwrite PID file if it already exists instead of exiting",
+		},
+		{
+			DestP:   &o.StartupErrorTimeout,
+			Flag:    "startup-error-timeout",
+			Default: o.StartupErrorTimeout,
+			Desc:    "max duration to keep /health and /ready serving after a failed startup so the error can be retrieved. Set to 0 to exit immediately",
 		},
 		{
 			DestP:   &o.SessionLength,
