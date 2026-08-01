@@ -288,6 +288,20 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		// Match the root handler so /health and /ready also carry the header.
 		m.checkHandler.SetStrictTransportSecurity(opts.StrictTransportSecurityMaxAge)
 	}
+	// Fold --hardening-enabled's implications into the individual options,
+	// which is what NewConfigHandler below reports and what everything past
+	// this point reads. An option the operator set for themselves survives;
+	// see applyHardeningImplications.
+	opts.applyHardeningImplications()
+	// Set before runHTTP so it is in place for the very first request.
+	m.checkHandler.SetHealthAuthRequired(opts.HealthAuthEnabled)
+	if opts.HealthAuthEnabled {
+		// Bracket the window in the log: no credential can be resolved until
+		// the authorization store opens, and an operator who sees a body with
+		// no messages in it should be able to tell that phase apart from a
+		// rejected credential. The matching line is at SetCredentialResolver.
+		m.log.Info("Check detail on /health and /ready requires operator permissions; until the authorization store opens, both report check names and statuses without messages")
+	}
 	m.kvReady = check.NewReadyGate(SubsystemKV)
 	m.sqliteReady = check.NewReadyGate(SubsystemSQLite)
 	m.engineReady = check.NewReadyGate(SubsystemEngine)
@@ -330,27 +344,74 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(collectors.NewGoCollector())
 
-	// Open KV and SQL stores. openMetaStores fires m.kvReady and
-	// m.sqliteReady individually as each store's migrations succeed.
+	// Open the KV and SQL stores and migrate the KV store, firing m.kvReady.
+	// The SQL migrations are deliberately not part of this call: everything
+	// between here and SetCredentialResolver below runs with /health and /ready
+	// unable to identify any caller, so the only work admitted into that gap is
+	// work the resolver itself depends on.
 	procID, err := m.openMetaStores(ctx, opts)
 	if err != nil {
 		return err
 	}
 
-	// Surface metastore liveness on /health. In-memory KV (testing mode)
-	// has no meaningful failure surface; skip it. Both boltKV and
-	// m.sqlStore are registered via their own NamedChecker impls; their
-	// CheckNames were set to SubsystemKV / SubsystemSQLite at
-	// construction (see bolt.WithCheckName and sqlite.WithCheckName), so
-	// no extra Named wrap is needed here.
+	// Surface KV liveness on /health. In-memory KV (testing mode) has no
+	// meaningful failure surface; skip it. boltKV is registered via its own
+	// NamedChecker impl; its CheckName was set to SubsystemKV at construction
+	// (see bolt.WithCheckName), so no extra Named wrap is needed here.
 	if boltKV, ok := m.kvStore.(*bolt.KVStore); ok {
 		m.checkHandler.AddNamedHealthCheck(boltKV)
+		// Credential resolution for /health and /ready reads this store, and a
+		// bolt View cannot be cancelled, so the store's own prober-backed check
+		// gates whether resolution is attempted at all. In-memory KV (testing)
+		// leaves this unset, which is correct: it cannot wedge. Install it
+		// before the resolver: the reverse order leaves a window in which
+		// resolution is attempted with no wedged-store guard in place.
+		m.checkHandler.SetAuthDependencyChecker(boltKV)
 	}
-	m.checkHandler.AddNamedHealthCheck(m.sqlStore)
-	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
 	ts := tenant.NewSystem(tenantStore, m.log.With(zap.String("store", "new")), m.reg, opts.StrongPasswords, metric.WithSuffix("new"))
+
+	var authSvc platform.AuthorizationService
+	{
+		hasherVariantName := authorization.DefaultHashVariantName // This value could come from opts in the future.
+		authStoreLogger := m.log.With(zap.String("store", "auth"))
+		authStore, err := authorization.NewStore(ctx, m.kvStore, opts.UseHashedTokens, authorization.WithAuthorizationHashVariantName(hasherVariantName), authorization.WithLogger(authStoreLogger))
+		if err != nil {
+			m.log.Error("Failed creating new authorization store", zap.Error(err), zap.Bool("UseHashedTokens", opts.UseHashedTokens), zap.String("hasherVariant", hasherVariantName))
+			return err
+		}
+		authSvc = authorization.NewService(authStore, ts)
+	}
+
+	// Give /health and /ready a token-only resolver here, the earliest point at
+	// which any credential can be resolved: the authorization store reads the
+	// migrated KV schema (its setup rejects a pre-migration bolt file outright)
+	// and nothing else, so it cannot be built sooner and must not be built
+	// later. Everything slow in startup — the SQL migrations just below,
+	// engine.Open, shard loading — now happens with an operator able to read
+	// check detail over HTTP. Sessions are not wired until much later; the full
+	// resolver replaces this one once they are.
+	//
+	// KEEP THIS IMMEDIATELY AFTER openMetaStores. Anything inserted above it
+	// widens the window in which no caller, operator included, can see more
+	// than check names and statuses.
+	m.checkHandler.SetCredentialResolver(
+		newHealthCredentialResolver(httpLogger, authSvc, ts.UserService, nil))
+	if opts.HealthAuthEnabled {
+		m.log.Info("Check detail on /health and /ready now gated on operator permissions",
+			zap.String("credentials", "token"))
+	}
+
+	// Migrate the SQL store, firing m.sqliteReady. Registering its health check
+	// stays on this side of the migrations: the checker pings the database, and
+	// a ping that times out under migration load would flip /health to 503 and
+	// invite an orchestrator to restart a server that is migrating correctly.
+	if err := m.migrateSQLStore(ctx, opts); err != nil {
+		return err
+	}
+	m.checkHandler.AddNamedHealthCheck(m.sqlStore)
+	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	serviceConfig := kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
@@ -370,18 +431,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		sourceSvc        platform.SourceService             = m.kvService
 		scraperTargetSvc platform.ScraperTargetStoreService = m.kvService
 	)
-
-	var authSvc platform.AuthorizationService
-	{
-		hasherVariantName := authorization.DefaultHashVariantName // This value could come from opts in the future.
-		authStoreLogger := m.log.With(zap.String("store", "auth"))
-		authStore, err := authorization.NewStore(ctx, m.kvStore, opts.UseHashedTokens, authorization.WithAuthorizationHashVariantName(hasherVariantName), authorization.WithLogger(authStoreLogger))
-		if err != nil {
-			m.log.Error("Failed creating new authorization store", zap.Error(err), zap.Bool("UseHashedTokens", opts.UseHashedTokens), zap.String("hasherVariant", hasherVariantName))
-			return err
-		}
-		authSvc = authorization.NewService(authStore, ts)
-	}
 
 	secretStore, err := secret.NewStore(m.kvStore)
 	if err != nil {
@@ -859,6 +908,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		FlagsHandler:                    feature.NewFlagsHandler(errorHandler, feature.ByKey),
 	}
 
+	// Replace the token-only resolver installed during startup now that the
+	// session service exists, so a UI session can read check detail too.
+	m.checkHandler.SetCredentialResolver(
+		newHealthCredentialResolver(httpLogger, authSvc, ts.UserService, sessionSvc))
+
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
 	authAgent := new(authorizer.AuthAgent)
@@ -1156,8 +1210,9 @@ func (m *Launcher) writePIDFile(pidFilename string, overwrite bool) error {
 	return nil
 }
 
-// openMetaStores opens the embedded DBs used to store metadata about influxd resources, migrating them to
-// the latest schema expected by the server.
+// openMetaStores opens the embedded DBs used to store metadata about influxd resources, migrating the KV
+// store to the latest schema expected by the server. The SQL store is opened here but migrated by
+// migrateSQLStore, which the caller invokes once the /health credential resolver is installed.
 // On success, a unique ID is returned to be used as an identifier for the influxd instance in telemetry.
 func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (string, error) {
 	type flushableKVStore interface {
@@ -1233,7 +1288,9 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.flushers = append(m.flushers, kvStore, sqlStore)
 	}
 
-	// Apply migrations to the KV and SQL metadata stores.
+	// Apply migrations to the KV metadata store. The SQL store is migrated
+	// separately, by migrateSQLStore, so that the /health credential resolver
+	// can be installed between the two.
 	kvMigrator, err := migration.NewMigrator(
 		m.log.With(zap.String("service", "KV migrations")),
 		kvStore,
@@ -1243,29 +1300,52 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.log.Error("Failed to initialize kv migrator", zap.Error(err))
 		return "", err
 	}
-	sqlMigrator := sqlite.NewMigrator(sqlStore, m.log.With(zap.String("service", "SQL migrations")))
-
-	// If we're migrating a persistent data store, take a backup of the pre-migration state for rollback.
-	if opts.StoreType == DiskStore || opts.StoreType == BoltStore {
-		backupPattern := "%s.pre-%s-upgrade.backup"
-		info := platform.GetBuildInfo()
-		kvMigrator.SetBackupPath(fmt.Sprintf(backupPattern, opts.BoltPath, info.Version))
-		sqlMigrator.SetBackupPath(fmt.Sprintf(backupPattern, opts.SqLitePath, info.Version))
+	if persistentStore(opts) {
+		kvMigrator.SetBackupPath(preMigrationBackupPath(opts.BoltPath))
 	}
 	if err := kvMigrator.Up(ctx); err != nil {
 		m.log.Error("Failed to apply KV migrations", zap.Error(err))
 		return "", err
 	}
 	m.kvReady.Ready()
-	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
-		m.log.Error("Failed to apply SQL migrations", zap.Error(err))
-		return "", err
-	}
-	m.sqliteReady.Ready()
 
 	m.kvStore = kvStore
 	m.sqlStore = sqlStore
 	return procID, nil
+}
+
+// migrateSQLStore applies the SQL migrations to the store openMetaStores
+// opened, firing m.sqliteReady on success.
+//
+// It is split out of openMetaStores because these migrations are slow on a
+// large database and depend on nothing that /health's credential resolver needs
+// — the authorization store the resolver reads lives in KV — so the resolver is
+// installed first and this window is served with check detail available to an
+// operator rather than to nobody. See Launcher.run.
+func (m *Launcher) migrateSQLStore(ctx context.Context, opts *InfluxdOpts) error {
+	sqlMigrator := sqlite.NewMigrator(m.sqlStore, m.log.With(zap.String("service", "SQL migrations")))
+	if persistentStore(opts) {
+		sqlMigrator.SetBackupPath(preMigrationBackupPath(opts.SqLitePath))
+	}
+	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
+		m.log.Error("Failed to apply SQL migrations", zap.Error(err))
+		return err
+	}
+	m.sqliteReady.Ready()
+	return nil
+}
+
+// persistentStore reports whether the metadata stores are on disk, and so
+// whether a pre-migration backup is worth taking for rollback.
+func persistentStore(opts *InfluxdOpts) bool {
+	return opts.StoreType == DiskStore || opts.StoreType == BoltStore
+}
+
+// preMigrationBackupPath names the rollback copy taken before a metadata store
+// is migrated. Shared by the KV and SQL migrators so the two backups stay
+// identically named.
+func preMigrationBackupPath(storePath string) string {
+	return fmt.Sprintf("%s.pre-%s-upgrade.backup", storePath, platform.GetBuildInfo().Version)
 }
 
 // runHTTP configures and launches a listener for incoming HTTP(S) requests.
@@ -1497,4 +1577,31 @@ func (m *Launcher) DBRPMappingService() platform.DBRPMappingService {
 
 func (m *Launcher) SessionService() platform.SessionService {
 	return m.apibackend.SessionService
+}
+
+// newHealthCredentialResolver builds the resolver /health and /ready use to
+// identify callers when health auth is enabled.
+//
+// It is deliberately a separate AuthenticationHandler from the one inside the
+// platform handler. That one is not retained anywhere and is built much later,
+// but more importantly it inherits --session-renew-disabled, which defaults to
+// off: a browser polling /health every few seconds through it would keep its
+// session alive indefinitely, silently defeating --session-length. Renewal is
+// therefore always disabled here.
+//
+// sessionSvc may be nil, which it is for the token-only resolver installed
+// during startup; cookie-bearing callers are simply unresolvable until the full
+// resolver replaces it.
+func newHealthCredentialResolver(
+	log *zap.Logger,
+	authSvc platform.AuthorizationService,
+	userSvc platform.UserService,
+	sessionSvc platform.SessionService,
+) http.CredentialResolver {
+	h := http.NewAuthenticationHandler(log, kithttp.NewErrorHandler(log))
+	h.AuthorizationService = authSvc
+	h.UserService = userSvc
+	h.SessionService = sessionSvc
+	h.SessionRenewDisabled = true
+	return h
 }
