@@ -130,9 +130,9 @@ func (h *AuthenticationHandler) Authorize(r *http.Request) (platform.Authorizer,
 		return nil, err
 	}
 
-	// jwt based auth is permission based rather than identity based
-	// and therefor has no associated user. if the user ID is invalid
-	// disregard the user active check
+	// JWT-based auth is permission-based rather than identity-based and therefore
+	// has no associated user. If the user ID is invalid, disregard the user active
+	// check.
 	if !auth.GetUserID().Valid() {
 		return auth, nil
 	}
