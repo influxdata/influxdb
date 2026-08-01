@@ -2,6 +2,7 @@ package launcher_test
 
 import (
 	"encoding/json"
+	"io"
 	nethttp "net/http"
 	"testing"
 
@@ -13,15 +14,21 @@ import (
 // httpGetJSON issues a GET against url and decodes the JSON body into out.
 // The HTTP status is returned so callers can distinguish 200 from 503 in
 // addition to whatever the body carries. /health and /ready use different
-// envelope shapes, so out is a per-call struct.
-func httpGetJSON(t *testing.T, url string, out interface{}) int {
+// envelope shapes, so out is a per-call struct. An empty token sends no
+// Authorization header at all, which is what the anonymous-probe cases need.
+func httpGetJSON(t *testing.T, url, token string, out interface{}) int {
 	t.Helper()
 	req, err := nethttp.NewRequestWithContext(ctx, "GET", url, nil)
 	require.NoError(t, err)
+	if token != "" {
+		req.Header.Set("Authorization", "Token "+token)
+	}
 	resp, err := nethttp.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, resp.Body.Close()) }()
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(out))
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoErrorf(t, json.Unmarshal(body, out), "body: %s", body)
 	return resp.StatusCode
 }
 
@@ -31,9 +38,12 @@ func httpGetJSON(t *testing.T, url string, out interface{}) int {
 // and cannot be a decode target, so nested checks decode as
 // BasicResponse.
 type healthBody struct {
-	Name   string                `json:"name"`
-	Status check.Status          `json:"status"`
-	Checks []check.BasicResponse `json:"checks"`
+	Name    string                `json:"name"`
+	Status  check.Status          `json:"status"`
+	Message string                `json:"message"`
+	Checks  []check.BasicResponse `json:"checks"`
+	Version string                `json:"version"`
+	Commit  string                `json:"commit"`
 }
 
 // checkNames returns the set of names present in a checks slice.
@@ -88,9 +98,14 @@ func TestLauncher_HealthEndpoint(t *testing.T) {
 			l.SetupOrFail(t)
 
 			var body healthBody
-			status := httpGetJSON(t, l.URL().String()+"/health", &body)
+			status := httpGetJSON(t, l.URL().String()+"/health", "", &body)
 			require.Equal(t, nethttp.StatusOK, status)
 			require.Equal(t, check.StatusPass, body.Status)
+
+			// With health auth off (the default), an anonymous caller gets the
+			// full envelope. This is the backward-compat pin for that flag.
+			require.Equal(t, "healthy", body.Message)
+			require.NotEmpty(t, body.Name)
 
 			got := checkNames(body.Checks)
 			require.Len(t, got, len(tt.expected),
@@ -117,7 +132,7 @@ func TestLauncher_ReadyEndpoint(t *testing.T) {
 	var body struct {
 		Status string `json:"status"`
 	}
-	status := httpGetJSON(t, l.URL().String()+"/ready", &body)
+	status := httpGetJSON(t, l.URL().String()+"/ready", "", &body)
 	require.Equal(t, nethttp.StatusOK, status)
 	require.Equal(t, "ready", body.Status)
 

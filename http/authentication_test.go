@@ -16,6 +16,8 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/session"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -142,6 +144,31 @@ func TestAuthenticationHandler(t *testing.T) {
 			},
 		},
 		{
+			// The active-user check reports 403 for BOTH a user whose status is
+			// inactive and any UserService lookup failure. Only the former was
+			// covered; this pins the latter so the two cannot drift apart.
+			name: "associated user cannot be looked up",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
+						return &influxdb.Authorization{UserID: one}, nil
+					},
+				},
+				SessionService: mock.NewSessionService(),
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(context.Context, platform.ID) (*influxdb.User, error) {
+						return nil, errors.New("user not found")
+					},
+				},
+			},
+			args: args{
+				token: "abc123",
+			},
+			wants: wants{
+				code: http.StatusForbidden,
+			},
+		},
+		{
 			name: "no auth provided",
 			fields: fields{
 				AuthorizationService: mock.NewAuthorizationService(),
@@ -248,6 +275,177 @@ func TestAuthenticationHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAuthenticationHandler_Authorize pins the (Authorizer, error) contract that
+// HealthReadyHandler depends on. The distinction that matters is between "the
+// caller could not be identified" (nil, err) and "the caller was identified but
+// rejected" (auth, err) -- ServeHTTP relies on the latter to record the
+// authorizer for the request log before answering 403.
+func TestAuthenticationHandler_Authorize(t *testing.T) {
+	activeUser := func(context.Context, platform.ID) (*influxdb.User, error) {
+		return &influxdb.User{}, nil
+	}
+
+	tests := []struct {
+		name           string
+		token          string
+		session        string
+		authSvc        influxdb.AuthorizationService
+		sessionSvc     influxdb.SessionService
+		findUserByID   func(context.Context, platform.ID) (*influxdb.User, error)
+		wantAuthorizer bool
+		wantErr        bool
+		wantInactive   bool
+	}{
+		{
+			name:       "no credentials",
+			authSvc:    mock.NewAuthorizationService(),
+			sessionSvc: mock.NewSessionService(),
+			wantErr:    true,
+		},
+		{
+			name:  "token does not resolve",
+			token: "abc123",
+			authSvc: &mock.AuthorizationService{
+				FindAuthorizationByTokenFn: func(context.Context, string) (*influxdb.Authorization, error) {
+					return nil, errors.New("authorization not found")
+				},
+			},
+			sessionSvc: mock.NewSessionService(),
+			wantErr:    true,
+		},
+		{
+			name:  "token resolves",
+			token: "abc123",
+			authSvc: &mock.AuthorizationService{
+				FindAuthorizationByTokenFn: func(context.Context, string) (*influxdb.Authorization, error) {
+					return &influxdb.Authorization{}, nil
+				},
+			},
+			sessionSvc:     mock.NewSessionService(),
+			wantAuthorizer: true,
+		},
+		{
+			name:    "session resolves",
+			session: "abc123",
+			authSvc: mock.NewAuthorizationService(),
+			sessionSvc: &mock.SessionService{
+				FindSessionFn: func(context.Context, string) (*influxdb.Session, error) {
+					return &influxdb.Session{}, nil
+				},
+				RenewSessionFn: func(context.Context, *influxdb.Session, time.Time) error {
+					return nil
+				},
+			},
+			wantAuthorizer: true,
+		},
+		{
+			name:    "cookie presented but no session service",
+			session: "abc123",
+			authSvc: mock.NewAuthorizationService(),
+			wantErr: true,
+		},
+		{
+			name:  "user is inactive",
+			token: "abc123",
+			authSvc: &mock.AuthorizationService{
+				FindAuthorizationByTokenFn: func(context.Context, string) (*influxdb.Authorization, error) {
+					return &influxdb.Authorization{UserID: one}, nil
+				},
+			},
+			sessionSvc: mock.NewSessionService(),
+			findUserByID: func(context.Context, platform.ID) (*influxdb.User, error) {
+				return &influxdb.User{Status: "inactive"}, nil
+			},
+			wantAuthorizer: true,
+			wantErr:        true,
+			wantInactive:   true,
+		},
+		{
+			name:  "user lookup fails",
+			token: "abc123",
+			authSvc: &mock.AuthorizationService{
+				FindAuthorizationByTokenFn: func(context.Context, string) (*influxdb.Authorization, error) {
+					return &influxdb.Authorization{UserID: one}, nil
+				},
+			},
+			sessionSvc: mock.NewSessionService(),
+			findUserByID: func(context.Context, platform.ID) (*influxdb.User, error) {
+				return nil, errors.New("user not found")
+			},
+			wantAuthorizer: true,
+			wantErr:        true,
+			wantInactive:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := platformhttp.NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.NewErrorHandler(zaptest.NewLogger(t)))
+			h.AuthorizationService = tt.authSvc
+			h.SessionService = tt.sessionSvc
+			findUser := activeUser
+			if tt.findUserByID != nil {
+				findUser = tt.findUserByID
+			}
+			h.UserService = &mock.UserService{FindUserByIDFn: findUser}
+
+			r := httptest.NewRequest("GET", "http://any.url", nil)
+			if tt.session != "" {
+				session.SetCookieSession(tt.session, r)
+			}
+			if tt.token != "" {
+				platformhttp.SetToken(tt.token, r)
+			}
+
+			auth, err := h.Authorize(r)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.wantAuthorizer {
+				assert.NotNil(t, auth, "expected the caller to be identified")
+			} else {
+				assert.Nil(t, auth, "expected the caller to be unidentifiable")
+			}
+			assert.Equal(t, tt.wantInactive, errors.Is(err, platformhttp.ErrInactiveUser),
+				"ErrInactiveUser classification drives the 403-vs-401 split")
+		})
+	}
+}
+
+// TestAuthenticationHandler_Authorize_SessionRenewDisabled pins that a resolver
+// configured with SessionRenewDisabled never extends the session. The health
+// resolver relies on this: without it a browser polling /health would keep its
+// session alive indefinitely, defeating --session-length.
+func TestAuthenticationHandler_Authorize_SessionRenewDisabled(t *testing.T) {
+	h := platformhttp.NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.NewErrorHandler(zaptest.NewLogger(t)))
+	h.AuthorizationService = mock.NewAuthorizationService()
+	h.SessionRenewDisabled = true
+	h.SessionService = &mock.SessionService{
+		FindSessionFn: func(context.Context, string) (*influxdb.Session, error) {
+			return &influxdb.Session{}, nil
+		},
+		RenewSessionFn: func(context.Context, *influxdb.Session, time.Time) error {
+			t.Error("RenewSession must not be called when SessionRenewDisabled is set")
+			return nil
+		},
+	}
+	h.UserService = &mock.UserService{
+		FindUserByIDFn: func(context.Context, platform.ID) (*influxdb.User, error) {
+			return &influxdb.User{}, nil
+		},
+	}
+
+	r := httptest.NewRequest("GET", "http://any.url", nil)
+	session.SetCookieSession("abc123", r)
+
+	auth, err := h.Authorize(r)
+	require.NoError(t, err)
+	require.NotNil(t, auth)
 }
 
 func TestProbeAuthScheme(t *testing.T) {

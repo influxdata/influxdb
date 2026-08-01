@@ -1,7 +1,9 @@
 # `/health` and `/ready`
 
-A reference and operator guide for the two unauthenticated diagnostic
-endpoints served by `influxd`.
+A reference and operator guide for the two diagnostic endpoints served by
+`influxd`. Both are unauthenticated by default; `--health-auth-enabled`
+gates their diagnostic detail behind operator permissions without
+breaking credential-free probes. See [Authentication](#authentication).
 
 ## Overview
 
@@ -31,11 +33,14 @@ This pre-API 503 is byte-exact (pinned by
 
 ## Endpoint summary
 
-| Path                            | Methods | 200 body status | 503 body status   |
-|---------------------------------|---------|-----------------|-------------------|
-| `/health`, `/health/`           | GET     | `"pass"`        | `"fail"`          |
-| `/ready`, `/ready/`             | GET     | `"ready"`       | `"starting"`      |
-| any other path (pre-API)        | any     | —               | `"starting"`      |
+| Path                            | Methods | 200 body status | 503 body status   | Auth gated |
+|---------------------------------|---------|-----------------|-------------------|------------|
+| `/health`, `/health/`           | GET     | `"pass"`        | `"fail"`          | detail only |
+| `/ready`, `/ready/`             | GET     | `"ready"`       | `"starting"`      | detail only |
+| any other path (pre-API)        | any     | —               | `"starting"`      | no         |
+
+"Detail only" means the status code and the top-level status are always
+served; see [Authentication](#authentication).
 
 Trailing slashes are accepted on both endpoints. Query parameters are
 ignored--for example, `/health?cachebust=1` is matched as `/health`.
@@ -54,6 +59,218 @@ Every response written by `HealthReadyHandler` carries:
 | `X-Influxdb-Version`| The build version string           |
 
 Source: `http/check_handler.go`, `NewHealthReadyHandler`.
+
+---
+
+## Authentication
+
+By default both endpoints are fully unauthenticated: any caller receives
+the complete body documented below. This is the historical behavior and
+it is unchanged unless you opt in.
+
+`--health-auth-enabled` (also implied by `--hardening-enabled`) requires
+**operator permissions** to read the diagnostic detail. This exists
+because check messages carry raw error text — filesystem paths,
+permission errors, shard ids — which is not appropriate to publish to an
+unauthenticated caller in a hardened deployment.
+
+### Opting out under `--hardening-enabled`
+
+`--hardening-enabled` turns on every hardening feature, this one
+included. If your monitoring parses the `/health` body, **set
+`--health-auth-enabled=false` explicitly** and it wins:
+
+```bash
+influxd --hardening-enabled --health-auth-enabled=false
+```
+
+The same works from `INFLUXD_HEALTH_AUTH_ENABLED=false` or from
+`health-auth-enabled: false` in the config file. What matters is that the
+option is named somewhere, not where — an option left at its default is
+what `--hardening-enabled` is allowed to imply.
+
+This escape hatch exists because dropping `--hardening-enabled` is not a
+substitute: the flux/pkger IP validator it enables has no per-feature
+flag, so there would be no way to keep it while declining this. The
+opt-out is honored by `applyHardeningImplications` in
+`cmd/influxd/launcher/cmd.go`, and `/api/v2/config` reports the resolved
+value — `health-auth-enabled: false` alongside `hardening-enabled: true`
+— so what the API reports is always what the server enforces.
+
+`--template-file-urls-disabled`, the other feature `--hardening-enabled`
+implies, has no such opt-out. It changes no response body, so nothing
+downstream can break on it unannounced.
+
+### What changes when it is enabled
+
+The **HTTP status code never changes**. A credential-free liveness or
+readiness probe continues to work exactly as before; only the body is
+reduced. What is withheld is every check `message`, the build fields,
+and — once something is actually failing — which check it was:
+
+| Endpoint / state    | Authorized                                    | Rejected                              | Unidentifiable †                      |
+|---------------------|-----------------------------------------------|---------------------------------------|---------------------------------------|
+| `/health` passing   | `name`, `status`, `message`, `checks`, `version`, `commit` | `name`, `status`, `message`, `checks` (no per-check messages) | same as "rejected" |
+| `/health` failing   | `name`, `status`, `message`, `checks`, `version`, `commit` | `name`, `status`         | `name`, `status`, `checks` (no messages) |
+| `/ready` ready      | `status`, `started`, `up`                     | `status`, `started`, `up`             | `status`, `started`, `up`             |
+| `/ready` starting   | `status`, `started`, `up`, `checks`           | `status`, `started`, `up`             | `status`, `started`, `up`, `checks` (no messages) |
+
+† **Rejected** means a credential was resolved and found wanting — or
+none was presented, which is every credential-free probe.
+**Unidentifiable** means the handler could not ask at all: the
+[startup window](#the-startup-window), a
+[wedged KV store](#behavior-when-the-kv-store-is-wedged), or a saturated
+resolution cap. Not being able to ask is not the caller's doing, so it
+releases the check names and statuses — never the messages.
+
+**A passing `/health` keeps its documented shape for everyone.** The
+aggregate is `pass`, so the `checks` array is just the list of
+registered subsystems with `"status":"pass"` — the same list on every
+install of the same configuration, saying nothing the `200` does not
+already say — and `message` is the constant `"healthy"`. Withholding
+those would break every consumer that reads them, on the path that is
+true almost all of the time, and protect nothing. What a non-operator
+does not get is the per-check messages (the `task-scheduler` check
+reports its next-run timing in one) and `version`/`commit`.
+
+Once a check fails, *which* check failed is this server's state rather
+than its shape, so it is withheld — along with the top-level `message`,
+which is that check's raw error text verbatim:
+
+```json
+{"name":"influxdb","status":"fail"}
+```
+
+That body is a `check.BasicResponse`, the same type the in-repo
+remote-health client decodes, so existing consumers keep parsing it.
+
+`/ready` only ever emits `checks` when it is failing, so on a ready
+instance the authorized and unauthorized bodies are identical. `started`
+and `up` are not withheld: neither is sensitive, and a probe reading
+uptime should keep working.
+
+### Who counts as authorized
+
+The bar is `influxdb.OperPermissions()` — the same one `/api/v2/config`
+and `/api/v2/backup` use. Two credentials satisfy it:
+
+- An **operator token**, such as the one minted during onboarding.
+- A **session for the initial setup user**, which holds read and write on
+  the `instance` resource type. That type is an action-wide wildcard in
+  `Permission.matchesV1`.
+
+An **organization owner is not sufficient.** `OwnerPermissions` grants
+permissions scoped to an org ID, and an org-scoped permission cannot
+satisfy the org-wide (nil `OrgID`) permission `OperPermissions`
+requires. On a multi-user install, non-setup users see the reduced body
+in the UI. Only the `instance` resource type crosses that line, and it
+cannot be attached to an API token — `authorization/middleware_auth.go`
+rejects creating one.
+
+### The startup window
+
+The handler begins serving before an authorization service exists, so
+early in startup no credential can be validated **at all** — not even an
+operator token. This window is a floor, not a wiring oversight:
+resolving a token reads the authorization store, and that store cannot
+be opened until the KV migrations have finished (its setup rejects a
+pre-migration bolt file outright, with `missing required index, upgrade
+required`).
+
+Withholding everything for that window would blind an operator during
+the one phase — migrating, or hung mid-migration — when these endpoints
+are all they have. So while no resolver is installed, both endpoints
+release **check names and statuses with the messages stripped**:
+
+```json
+{"name":"influxdb","status":"fail","checks":[{"name":"kv","status":"fail"}]}
+```
+
+The messages are what stay behind, because that is where startup error
+text lives — filesystem paths, addresses, DSNs. `version` and `commit`
+stay behind with them. This is a deliberate relaxation, and it applies
+to every caller including an anonymous one: during this window there is
+nobody to ask.
+
+Only the failing bodies change here. A **passing** `/health` serves the
+same thing during the window as it does afterwards, because a passing
+`/health` withholds no attribution from anyone.
+
+The same body is served whenever the handler cannot identify a caller,
+not only during startup — see
+[Behavior when the KV store is wedged](#behavior-when-the-kv-store-is-wedged).
+
+It ends for good the moment a resolver is installed, which the launcher
+does immediately after the KV migrations, before the SQL migrations and
+before `engine.Open`. From then on the caller's permissions decide, and
+a caller who cannot prove operator permissions gets **less** than the
+window gave away. A **token-only** resolver goes in first, so an
+operator with a token can watch shard-loading progress on `/ready`
+throughout the slow part of startup; session (cookie) credentials only
+work once the full resolver replaces it, late in startup.
+
+Both edges are logged, so an operator seeing a message-less body can
+tell which phase they are in:
+
+```text
+Check detail on /health and /ready requires operator permissions; until the
+  authorization store opens, both report check names and statuses without messages
+Check detail on /health and /ready now gated on operator permissions  {"credentials": "token"}
+```
+
+Source: `Launcher.run`, which pins the resolver install directly after
+`openMetaStores` — the SQL migrations were split into `migrateSQLStore`
+specifically so they land on the far side of it.
+
+### Behavior when the KV store is wedged
+
+Resolving a credential reads bolt, and a bolt `View` cannot be
+cancelled. To keep a wedged store from hanging the probe — the exact
+failure the background prober exists to survive — credential resolution
+is **skipped entirely while the KV health check is failing**.
+
+Nobody can be identified while that holds, operator tokens included. So
+this is treated the same way as the [startup window](#the-startup-window)
+and for the same reason: **check names and statuses go out, messages do
+not**. An operator watching a KV incident still learns which subsystems
+are failing, including subsystems that have nothing to do with KV. The
+messages — the raw error text this flag exists to gate — need a
+credential, and getting one is what the guard is refusing to do. Read
+the `influxd` log for those.
+
+If you present an operator token and get a body with no messages in it,
+that is this guard or the startup window, not a credential problem. A
+bare `{"name","status"}` on a failing `/health` is the other case: a
+credential was resolved and rejected.
+
+**Concurrent resolutions are capped** (`maxInflightResolutions`, 8).
+The guard above is up to `DefaultProbeStaleness` late, so a store that
+wedges just after its last successful probe still looks healthy for
+seconds, and any resolution begun in that window never returns.
+Uncapped, each one strands a goroutine and a bolt read transaction for
+the life of the process. Capped, the damage stops at 8 and every later
+request is answered from check state that reads no store at all. A
+request that cannot get a slot is answered like any other caller who
+could not be identified — names and statuses, no messages — never with
+a different status code.
+
+### Cost
+
+A caller presenting no credential costs nothing extra: the scheme probe
+fails before any store access. A token costs two bolt reads per request.
+A **session cookie is considerably more expensive** — session lookup
+recomputes the permission set on every request, which includes a full
+scan of the authorization bucket. Prefer tokens for automated polling.
+
+Session renewal is always disabled on this path, so polling `/health`
+with a browser session does not extend that session's lifetime.
+
+### Limitations
+
+Suppressing `version` and `commit` from the body does not conceal the
+version: `X-Influxdb-Version` is still stamped on every response,
+including reduced ones. That header is shared with the root handler and
+the whole API, so changing it is out of scope for this flag.
 
 ---
 
@@ -84,6 +301,14 @@ Each entry in `checks` is:
 
 Per-check `message` and the rarely-used `checks` sub-array are
 `omitempty` (see `kit/check/response.go`).
+
+> **This envelope is the unauthenticated default.** With
+> `--health-auth-enabled` (or `--hardening-enabled`) a caller who cannot
+> prove operator permissions still gets `name`, `status`, `message` and
+> `checks` on a `200`, but with the per-check messages and the build
+> fields removed; on a `503` it gets `{"name","status"}` and no `checks`
+> key at all. If you parse `/health`, read
+> [Authentication](#authentication) before assuming a field is present.
 
 ### Status codes
 
@@ -268,6 +493,12 @@ Notes:
   entirely**, not an empty array. On a `503` it contains **only the
   failing** gates.
 
+> With `--health-auth-enabled` (or `--hardening-enabled`) the `503`
+> `checks` array is withheld from a caller who cannot prove operator
+> permissions, and carries names and statuses without messages during
+> the [startup window](#the-startup-window). `status`, `started` and
+> `up` are never withheld.
+
 Source: `http/check_handler.go`.
 
 ### Status codes
@@ -371,6 +602,11 @@ other than `/health` or `/ready` returns `503` with:
 
 This includes `/api/v2/*`, `/query`, `/write`, etc. Once the main API
 handler is installed via `SetHandler`, those paths are served normally.
+
+With health auth enabled, this early phase is also the
+[startup window](#the-startup-window): until the KV migrations finish
+and the authorization store opens, no credential can be checked, and
+both endpoints report check names and statuses without their messages.
 
 ### Picking the right endpoint
 
@@ -572,6 +808,13 @@ from running.
 **Action:** Check disk and kernel logs for an unresponsive mmap. Inspect
 `iostat`, `dmesg`, and the `influxd` process's CPU and memory state.
 
+**With `--health-auth-enabled`,** this is the one failure where an
+operator token buys nothing: resolving it would read the store that is
+wedged. The body above loses its `message` fields for every caller and
+keeps the `checks` names and statuses, so you can still see what is
+failing here and in the other subsystems — see
+[Behavior when the KV store is wedged](#behavior-when-the-kv-store-is-wedged).
+
 ### `/health` 503 — scheduler stalled
 
 ```json
@@ -669,9 +912,22 @@ issue with the body and headers attached.
 This document is derived from the implementation introduced in commit
 `67afeb385b` (PR #27370). Authoritative source files:
 
-- `http/check_handler.go` — endpoint handler, JSON envelopes.
+- `http/check_handler.go` — endpoint handler, JSON envelopes, the
+  authorization gate and the reduced body.
 - `http/check_handler_jsoncompat_test.go` — pinned wire format.
-- `http/handler.go` — `HealthPath`, `ReadyPath` constants.
+- `http/check_handler_auth_test.go` — permission matrix and reduced-body
+  wire format.
+- `http/authentication_middleware.go` — `CredentialResolver`, the
+  `Authorize` method the gate calls.
+- `http/handler.go` — `HealthPath`, `ReadyPath` constants,
+  `serverHeaderWriter`.
+- `authz.go` — `OperPermissions`, `Permission.matchesV1` and the
+  `instance` wildcard.
+- `cmd/influxd/launcher/cmd.go` — `--health-auth-enabled`,
+  `--hardening-enabled`, and `applyHardeningImplications`, which lets an
+  explicitly-set `--health-auth-enabled` override the implication.
+- `cmd/influxd/launcher/launcher.go` — `openMetaStores` /
+  `migrateSQLStore` and the credential-resolver install between them.
 - `kit/check/check.go` — status enum, aggregation rule.
 - `kit/check/freshness.go` — staleness model and stale-message format.
 - `kit/check/helpers.go` — `ReadyGate`, `DefaultProbeTimeout`.
@@ -686,3 +942,5 @@ This document is derived from the implementation introduced in commit
 - `cmd/influxd/launcher/subsystems.go` — canonical subsystem names.
 - `cmd/influxd/launcher/health_ready_test.go` — authoritative
   `/health` and `/ready` check sets.
+- `cmd/influxd/launcher/health_ready_auth_test.go` — end-to-end
+  authorization behavior.
