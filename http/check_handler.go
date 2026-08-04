@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/toml"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 // operPermissions is the bar a caller must clear to read check detail, built
@@ -55,6 +56,31 @@ const (
 	// real credentialed probe traffic -- a handful of monitors, not a fleet --
 	// and low enough that stranding that many costs nothing that matters.
 	maxInflightResolutions = 8
+
+	// maxResolutionsPerSecond and resolutionBurst cap the *rate* of credential
+	// resolutions, and so the rate of store reads a caller can drive through
+	// these endpoints. maxInflightResolutions caps concurrency, which is a
+	// different quantity and not the one at risk here: eight slots turning over
+	// at bolt speed is thousands of reads a second, and /health is the endpoint
+	// operators routinely exempt from the rate limiting that fronts everything
+	// else. Resolving a token opens a bolt View and an index lookup, and neither
+	// requires the credential to be valid -- a garbage token costs the same read
+	// a real one does, and can be sent as fast as the network allows.
+	//
+	// Sized for real credentialed probe traffic -- a handful of monitors on a
+	// 5-15s interval -- with the burst absorbing their alignment. A resolution
+	// that does not fit in the budget is not a rejection on the credential's
+	// merits; it simply does not happen, which detail answers the same way it
+	// answers a saturated pool.
+	maxResolutionsPerSecond = 2
+	resolutionBurst         = 16
+
+	// resolveBudgetLogInterval throttles the line logged when the budget is
+	// exhausted. The condition is caller-inducible, so logging per occurrence
+	// would hand a flood the log volume as well; one line per interval is enough
+	// for an operator to tell "I am being flooded" from "my token is wrong",
+	// which are otherwise the same symptom -- a reduced body.
+	resolveBudgetLogInterval = time.Minute
 )
 
 // delegateHandler wraps an http.Handler so the atomic pointer targets a
@@ -99,6 +125,17 @@ type HealthReadyHandler struct {
 	// resolveSlots bounds concurrent credential resolutions; see resolve. Its
 	// capacity is the number of goroutines a wedged store may strand.
 	resolveSlots chan struct{}
+
+	// resolveBudget bounds the rate of credential resolutions, and so the rate
+	// of store reads a caller can drive; see resolve. One bucket for the
+	// handler rather than one per caller: the resource being protected is the
+	// store, per-IP state is unbounded memory an anonymous caller controls, and
+	// X-Forwarded-For is not trustworthy on the path these endpoints sit on.
+	resolveBudget *rate.Limiter
+
+	// budgetLog throttles the resolveBudget-exhausted log line so a flood
+	// cannot turn itself into log volume.
+	budgetLog *rate.Limiter
 }
 
 // healthBody is the full /health envelope: a check response plus build info.
@@ -130,11 +167,13 @@ func NewHealthReadyHandler(log *zap.Logger) *HealthReadyHandler {
 		log = zap.NewNop()
 	}
 	return &HealthReadyHandler{
-		check:        check.NewCheck(),
-		startTime:    time.Now(),
-		headers:      &AddHeader{WriteHeader: serverHeaderWriter(false, 0)},
-		log:          log,
-		resolveSlots: make(chan struct{}, maxInflightResolutions),
+		check:         check.NewCheck(),
+		startTime:     time.Now(),
+		headers:       &AddHeader{WriteHeader: serverHeaderWriter(false, 0)},
+		log:           log,
+		resolveSlots:  make(chan struct{}, maxInflightResolutions),
+		resolveBudget: rate.NewLimiter(maxResolutionsPerSecond, resolutionBurst),
+		budgetLog:     rate.NewLimiter(rate.Every(resolveBudgetLogInterval), 1),
 	}
 }
 
@@ -223,17 +262,21 @@ const (
 // bool load, so the atomics are never touched on the common path.
 //
 // Note that a caller presenting no credential at all is rejected by
-// ProbeAuthScheme without any store access, which is what keeps credential-free
-// liveness probes free of the cost (and of the wedged-store risk) entirely.
+// ProbeAuthScheme without any store access and without occupying a resolution
+// slot, which is what keeps credential-free liveness probes free of the cost
+// (and of the wedged-store risk) entirely.
 //
-// Three of the paths below end in detailNames rather than detailNone, and they
+// Two of the paths below end in detailNames rather than detailNone, and they
 // are the same situation: the handler could not ask who the caller is. No
-// resolver exists yet, the store resolution would read is failing, or every
-// resolution slot is occupied. None of those is anything the caller did, and
-// answering them as though the caller had been rejected costs an operator the
-// subsystem attribution during exactly the incidents these endpoints exist to
-// report. Being unable to ask releases shape -- check names and statuses --
-// and never content: messages and build info still require a credential.
+// resolver exists yet, or the store resolution would read is failing. Neither
+// is anything a caller did -- both are global server state, reached identically
+// by every request in flight -- and answering them as though the caller had
+// been rejected costs an operator the subsystem attribution during exactly the
+// incidents these endpoints exist to report. Being unable to ask releases shape
+// -- check names and statuses -- and never content: messages and build info
+// still require a credential.
+//
+// Slot exhaustion is deliberately not a third; see the !asked branch below.
 // See HEALTH_READY.md ("The startup window", "Behavior when the KV store is
 // wedged") for the operator-facing description.
 func (h *HealthReadyHandler) detail(r *http.Request) detailLevel {
@@ -267,7 +310,23 @@ func (h *HealthReadyHandler) detail(r *http.Request) detailLevel {
 	}
 	auth, asked := h.resolve(r, rh)
 	if !asked {
-		return detailNames
+		// The resolution was turned away by one of resolve's bounds: the rate
+		// budget was empty, or every slot was occupied. Unlike the two cases
+		// above, both are caller-inducible -- enough credential-bearing
+		// requests exhaust either. Answering detailNames here would let a flood
+		// grant itself more than any single one of its requests earns on its
+		// own -- a rejected caller gets detailNone -- while demoting the
+		// operator probe it crowds out. So neither bound ever escalates: a
+		// caller that does not get resolved is answered as though it had been
+		// asked and rejected.
+		//
+		// The wedged-store incident the slot bound exists for still reaches
+		// detailNames, by the authDep guard above, once the prober notices.
+		// The window where the slots are gone but the guard has not yet
+		// flipped is bounded by bolt.DefaultProbeStaleness, and costs an
+		// operator names and statuses for that long -- never the correct
+		// status code, which writeHealth and writeReady compute above the gate.
+		return detailNone
 	}
 	if auth == nil {
 		return detailNone
@@ -278,12 +337,34 @@ func (h *HealthReadyHandler) detail(r *http.Request) detailLevel {
 	return detailNone
 }
 
-// resolve identifies the caller behind r, bounding how many resolutions may be
-// in flight at once. It reports asked=false when no slot was free -- which is
-// not a denial, the caller was never asked -- and a nil Authorizer with
-// asked=true when the credential was resolved and rejected.
+// resolve identifies the caller behind r, bounding both how many resolutions
+// may be in flight at once and how fast they may be started. It reports
+// asked=false when either bound turned the request away -- which is not a
+// denial, the caller was never asked, though detail answers it as one -- and a
+// nil Authorizer with asked=true both when the request carries no credential to
+// resolve and when the credential was resolved and rejected.
 //
-// The bound exists because the freshness guard above it is up to
+// The three checks run cheapest-first, so a request that will not be resolved is
+// turned away before it consumes anything scarcer than the check itself:
+//
+//  1. The credential probe reads a header and a cookie and touches no store, so
+//     a credential-free request -- every plain liveness probe, which is most of
+//     this endpoint's traffic -- is answered without spending a slot or a unit
+//     of budget, and cannot crowd out the credentialed probe those bound.
+//  2. The rate budget caps store reads per second. Resolving a token opens a
+//     bolt View whether or not the token is any good, so without it an
+//     anonymous caller can drive unbounded reads against the metadata store
+//     through an endpoint that is conventionally exempt from the rate limiting
+//     in front of everything else. See maxResolutionsPerSecond.
+//  3. The in-flight slot caps what a wedged store can strand, below.
+//
+// The rate budget is global, so a flood costs a real operator the check detail
+// for as long as it lasts -- their probe finds the same empty bucket. That is
+// the same trade the slot bound already makes, and it is deliberate: the status
+// code is computed above the gate and never depends on any of this, so a
+// liveness probe reads the truth throughout.
+//
+// The slot bound exists because the freshness guard above it is up to
 // bolt.DefaultProbeStaleness late: a store that wedges just after its last
 // successful probe still looks healthy for seconds, and every resolution begun
 // in that window opens a bolt View, which bbolt cannot cancel. Those requests
@@ -294,6 +375,26 @@ func (h *HealthReadyHandler) detail(r *http.Request) detailLevel {
 // a stranded resolution never reaches -- deliberately, since the resource it is
 // standing in for is not free either.
 func (h *HealthReadyHandler) resolve(r *http.Request, rh *resolverHolder) (platform.Authorizer, bool) {
+	// A caller carrying no credential has nothing to resolve, which is an
+	// answer, not a slot or a unit of budget spent: report it as asked and
+	// rejected. Authorize probes again on the path below -- a second header read
+	// and cookie lookup, no store access -- which keeps CredentialResolver a
+	// single-method interface.
+	if _, err := ProbeAuthScheme(r); err != nil {
+		return nil, true
+	}
+	if !h.resolveBudget.Allow() {
+		if h.budgetLog.Allow() {
+			// Warn, not Error: nothing is broken, and the endpoints keep
+			// reporting the truth. But an operator whose probe just lost its
+			// detail has no other way to learn why, since a starved probe and a
+			// rejected credential produce the same body.
+			h.log.Warn("Credential resolution for /health and /ready is over budget; check detail is being withheld from callers that would otherwise be authorized",
+				zap.Int("resolutions_per_second", maxResolutionsPerSecond),
+				zap.Int("burst", resolutionBurst))
+		}
+		return nil, false
+	}
 	select {
 	case h.resolveSlots <- struct{}{}:
 	default:
@@ -468,7 +569,7 @@ func (h *HealthReadyHandler) writeReady(w http.ResponseWriter, r *http.Request) 
 		case detailFull:
 			checks = failingChecks(resp.Checks())
 		case detailNames:
-			checks = stripDetail(failingChecks(resp.Checks()))
+			checks = failingChecksStripped(resp.Checks())
 		}
 	}
 	h.writeJSON(w, r, status, readyBody{
@@ -523,9 +624,9 @@ func firstFailureMessage(checks check.Responses) string {
 // is the whole reason health auth exists. Sub-checks go with them: they carry
 // messages of their own, and no check registered on this handler nests any.
 //
-// A nil return rather than an empty slice matters: readyBody.Checks and
-// BasicResponse.Checks are both omitempty, so an empty result must omit the
-// field rather than emit "checks":[].
+// A nil return rather than an empty slice matters: BasicResponse.Checks is
+// omitempty, so an empty result must omit the field rather than emit
+// "checks":[]. /ready reaches the same shape through failingChecksStripped.
 func stripDetail(checks check.Responses) check.Responses {
 	if len(checks) == 0 {
 		return nil
@@ -542,6 +643,29 @@ func failingChecks(checks check.Responses) check.Responses {
 	for _, c := range checks {
 		if c.Status() == check.StatusFail {
 			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// failingChecksStripped is failingChecks followed by stripDetail in a single
+// pass. Composing the two builds the filtered slice only to copy it and throw it
+// away, and /ready takes this path for the whole of the startup window, when the
+// readiness probe polls hardest and every gate is failing.
+//
+// The single pass also reads each Status once rather than twice, which matters
+// beyond the saved call: a live Response (check.FreshnessResponse) can report
+// differently on a second invocation, and selecting an entry on one reading
+// while rendering it from another can emit a check the body says is failing
+// with a status of pass.
+//
+// Like both halves it returns nil rather than an empty slice, which
+// readyBody.Checks's omitempty needs in order to omit the field.
+func failingChecksStripped(checks check.Responses) check.Responses {
+	var out check.Responses
+	for _, c := range checks {
+		if status := c.Status(); status == check.StatusFail {
+			out = append(out, check.NewBasicResponse(c.Name(), status, "", nil))
 		}
 	}
 	return out
