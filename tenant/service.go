@@ -29,7 +29,9 @@ func isInternal(ctx context.Context) bool {
 
 type Service struct {
 	store *Store
-	// Store raw version (not interface) for test purposes.
+	// The raw version (not the interface), retained so tests can reach the
+	// concrete type and so UndecoratedUserService can hand out the service
+	// without the middleware NewSystem layers over the embedded UserService.
 	userSvc *UserSvc
 	influxdb.UserService
 	influxdb.PasswordsService
@@ -58,6 +60,24 @@ func NewService(st *Store, UserSvcOptFns ...func(svc *UserSvc)) *Service {
 	svc.BucketService = NewBucketSvc(st, svc)
 
 	return svc
+}
+
+// UndecoratedUserService returns the user service without the logging and
+// metrics middleware NewSystem wraps around the embedded UserService. It reads
+// the same store and honors the same options — SetUserOptions reaches it too —
+// so it differs from UserService only in what it reports about itself. On a
+// Service from NewService, which has no middleware, the two are the same.
+//
+// Almost no caller wants this: a user lookup that goes unrecorded is a lookup
+// missing from the metrics an operator uses to understand load. Use it only
+// where the lookup is not user activity and reporting it as such would be a
+// lie. The one caller today is the /health and /ready credential resolver,
+// which identifies the caller behind every credentialed probe: through the
+// decorated service, a monitor polling every ten seconds becomes a permanent
+// stream of find_user_by_id in service_user_new_call_total and a log line per
+// probe, indistinguishable from a user actually doing something.
+func (s *Service) UndecoratedUserService() influxdb.UserService {
+	return s.userSvc
 }
 
 func (s *Service) SetUserOptions(opts ...func(*UserSvc)) {
