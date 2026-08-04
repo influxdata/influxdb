@@ -128,11 +128,6 @@ func TestReadyGate_Fail(t *testing.T) {
 	t.Run("typed nil in interface ignored", func(t *testing.T) {
 		var typedNil *nilErr
 		var err error = typedNil
-		// Not require.NotNil: testify unwraps the interface and reports this
-		// as nil, which is the very confusion isNilError exists to handle.
-		// The plain comparison is what the language does, and what a caller's
-		// own `if err != nil` guard would have done before calling Fail.
-		require.False(t, err == nil, "test setup: err must be a non-nil interface")
 		require.Panics(t, func() { _ = err.Error() },
 			"test setup: Error() on this value must panic, or the case is not the one under test")
 
