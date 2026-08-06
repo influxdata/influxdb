@@ -661,6 +661,7 @@ impl IntoResponse for CatalogError {
             }
             Self::AlreadyExists
             | Self::AlreadyDeleted(_)
+            | Self::TokenHashAlreadyExists
             | Self::NodeNotFullyStopped { .. }
             | Self::NodeModeNotRemovable { .. }
             | Self::NodeInQueryGroup { .. } => Either::Right(StatusCode::CONFLICT),

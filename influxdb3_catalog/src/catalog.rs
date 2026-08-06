@@ -257,6 +257,12 @@ impl TokenRepository {
         hash: Vec<u8>,
         updated_at: i64,
     ) -> Result<()> {
+        if let Some(existing_id) = self.hash_to_id(hash.clone())
+            && existing_id != token_id
+        {
+            return Err(CatalogError::TokenHashAlreadyExists);
+        }
+
         let mut token_info = self
             .repo
             .get_by_id(&token_id)

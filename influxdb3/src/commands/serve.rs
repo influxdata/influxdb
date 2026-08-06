@@ -286,7 +286,10 @@ pub struct Config {
     )]
     pub admin_token_recovery_bind_address: Option<SocketAddr>,
 
-    /// Size of memory pool used during query exec.
+    /// Memory budget for query execution. Queries whose sorts, joins, and
+    /// aggregations exceed the pool fail with a resource exhausted error
+    /// instead of taking down the process; a larger pool admits bigger
+    /// queries at the expense of memory left for caches and ingest.
     ///
     /// Specify either a percentage of the total available memory (e.g. `20%`)
     /// or an absolute size with an explicit unit suffix (e.g. `8gb`). Bare
@@ -368,8 +371,13 @@ pub struct Config {
     )]
     pub wal_flush_interval: humantime::Duration,
 
-    /// The number of WAL files to attempt to remove in a snapshot. This times the interval will
-    /// determine how often snapshot is taken.
+    /// Number of WAL files accumulated before a snapshot persists their data
+    /// and removes them; with --wal-flush-interval this sets snapshot
+    /// cadence. Larger batches snapshot less often and more efficiently
+    /// (less per-snapshot overhead, fewer files for the compactor to
+    /// merge). Smaller batches keep fewer un-snapshotted WAL files on the
+    /// query path, let the compactor see new data sooner, and shorten
+    /// restart replay, at the cost of more frequent snapshots.
     #[clap(
         long = "wal-files-per-snapshot",
         visible_alias = "wal-snapshot-size",
@@ -379,8 +387,9 @@ pub struct Config {
     )]
     pub wal_files_per_snapshot: usize,
 
-    /// The maximum number of writes requests that can be buffered before a flush must be run
-    /// and succeed.
+    /// Nominal cap on write requests buffered awaiting a WAL flush. Write
+    /// buffer memory is bounded by --force-snapshot-mem-size, not this
+    /// count, so raising or lowering it has little practical effect.
     #[clap(
         long = "wal-max-buffered-writes",
         visible_alias = "wal-max-write-buffer-size",
@@ -453,7 +462,10 @@ pub struct Config {
     #[clap(flatten)]
     pub node_id: NodeId,
 
-    /// Maximum number of table indices to cache in memory.
+    /// Maximum number of table indices to cache in memory. Queries against
+    /// tables whose index is not cached must first load it from object
+    /// store; a larger cache speeds cold queries across many tables at the
+    /// cost of memory.
     ///
     /// Defaults to 100 entries. Set to 0 for unlimited cache size.
     #[clap(
@@ -512,9 +524,14 @@ pub struct Config {
     )]
     pub parquet_mem_cache_size: Option<LegacyMemorySizeMb>,
 
-    /// The percentage of entries to prune during a prune operation on the in-memory Parquet cache.
+    /// The percentage of cache entries (by count, not bytes) evicted, oldest
+    /// access first, when the in-memory Parquet cache exceeds its size.
+    /// Higher values free memory in bigger steps but drop more cached data
+    /// at once (temporarily lowering hit rate); lower values need more prune
+    /// cycles to get back under budget.
     ///
-    /// This must be a number between 0 and 1.
+    /// Expressed as a fraction of 1 — e.g. 0.1 evicts 10%. Must be greater
+    /// than 0 and less than 1.
     #[clap(
         long = "parquet-mem-cache-prune-percentage",
         env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE",
@@ -523,7 +540,9 @@ pub struct Config {
     )]
     pub parquet_mem_cache_prune_percentage: ParquetCachePrunePercent,
 
-    /// The interval on which to check if the in-memory Parquet cache needs to be pruned.
+    /// The interval on which to check if the in-memory Parquet cache needs
+    /// to be pruned. Longer intervals mean the cache can overshoot its size
+    /// budget for longer between checks.
     ///
     /// Enter as a human-readable time, e.g., "1s", "100ms", "1m", etc.
     #[clap(
@@ -580,7 +599,9 @@ pub struct Config {
     #[clap(flatten)]
     pub processing_engine_config: ProcessingEngineConfig,
 
-    /// Threshold for internal buffer.
+    /// Memory used by the write buffer at which a snapshot is forced to free
+    /// memory. Lower thresholds snapshot earlier — lower OOM risk during
+    /// write bursts, but more, smaller persisted files.
     ///
     /// Specify either a percentage of the total available memory (e.g. `70%`)
     /// or an absolute size with an explicit unit suffix (e.g. `1000mb`). Bare
@@ -1947,7 +1968,7 @@ async fn initialize_admin_token_from_file(catalog: &Catalog, token_file: &PathBu
 
     // Create admin token with computed hash and name
     match catalog
-        .create_named_admin_token_with_hash(name.clone(), hash, expiry_millis)
+        .create_named_admin_token_with_hash(name.clone(), hash.clone(), expiry_millis)
         .await
     {
         Ok(()) => {
@@ -1960,6 +1981,33 @@ async fn initialize_admin_token_from_file(catalog: &Catalog, token_file: &PathBu
                 existing_name
             );
             Ok(())
+        }
+        Err(CatalogError::TokenHashAlreadyExists) => {
+            if let Some(existing_token) =
+                influxdb3_authz::TokenProvider::get_token(catalog, hash.clone())
+            {
+                if existing_token.name.as_ref() == name && existing_token.is_admin() {
+                    info!(
+                        "Admin token '{}' with same token value already exists, skipping initialization",
+                        name
+                    );
+                    Ok(())
+                } else {
+                    let err = CatalogError::unexpected(format!(
+                        "Token hash collision: admin token file refers to token '{name}', but its hash is already used by existing token '{}' (admin={})",
+                        existing_token.name,
+                        existing_token.is_admin()
+                    ));
+                    error!("{}", err);
+                    Err(Error::TokenError(err))
+                }
+            } else {
+                let err = CatalogError::unexpected(format!(
+                    "Token hash collision: admin token file refers to token '{name}', but its hash is already registered in the catalog"
+                ));
+                error!("{}", err);
+                Err(Error::TokenError(err))
+            }
         }
         Err(e) => Err(Error::TokenError(e)),
     }

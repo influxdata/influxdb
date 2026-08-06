@@ -198,3 +198,169 @@ fn prepare_create_resource_scoped_token() {
         influxdb3_authz::Actions::Database(_)
     ));
 }
+
+#[test]
+fn prepare_create_admin_token_duplicate_hash() {
+    let mut catalog = test_catalog();
+
+    // Create first token with a specific hash
+    let mut batch = RecordBatch::new(1);
+    CreateAdminTokenOp::prepare(
+        &CreateAdminTokenArgs {
+            name: "admin1".to_string(),
+            hash: vec![1, 2, 3],
+            created_at: 1000,
+            updated_at: None,
+            expiry: None,
+            description: None,
+            created_by: None,
+            updated_by: None,
+        },
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    // Try to create second token with the same hash
+    batch = RecordBatch::new(1);
+    let result = CreateAdminTokenOp::prepare(
+        &CreateAdminTokenArgs {
+            name: "admin2".to_string(),
+            hash: vec![1, 2, 3],
+            created_at: 2000,
+            updated_at: None,
+            expiry: None,
+            description: None,
+            created_by: None,
+            updated_by: None,
+        },
+        &catalog,
+        &mut batch,
+    );
+    assert!(matches!(result, Err(CatalogError::TokenHashAlreadyExists)));
+}
+
+#[test]
+fn prepare_create_resource_scoped_token_duplicate_hash() {
+    let mut catalog = test_catalog();
+
+    // Need a database for permission resolution
+    let mut batch = RecordBatch::new(1);
+    CreateDatabaseOp::prepare(
+        &CreateDatabaseArgs {
+            name: "mydb".to_string(),
+            retention_period: None,
+        },
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    // Create first token
+    batch = RecordBatch::new(1);
+    CreateResourceScopedTokenOp::prepare(
+        &CreateResourceScopedTokenArgs {
+            name: "token1".to_string(),
+            hash: vec![10, 11, 12],
+            created_at: 1000,
+            updated_at: None,
+            expiry: None,
+            description: None,
+            created_by: None,
+            updated_by: None,
+            permissions: vec![WirePermission {
+                resource_type: WireResourceType::Database,
+                resource_identifier: WireResourceIdent::Database(vec![0]),
+                actions: WireActions::Database(DatabaseActions::READ),
+                resource_names: vec![],
+            }],
+        },
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    // Try creating another token with the same hash
+    batch = RecordBatch::new(1);
+    let result = CreateResourceScopedTokenOp::prepare(
+        &CreateResourceScopedTokenArgs {
+            name: "token2".to_string(),
+            hash: vec![10, 11, 12],
+            created_at: 2000,
+            updated_at: None,
+            expiry: None,
+            description: None,
+            created_by: None,
+            updated_by: None,
+            permissions: vec![WirePermission {
+                resource_type: WireResourceType::Database,
+                resource_identifier: WireResourceIdent::Database(vec![0]),
+                actions: WireActions::Database(DatabaseActions::READ),
+                resource_names: vec![],
+            }],
+        },
+        &catalog,
+        &mut batch,
+    );
+    assert!(matches!(result, Err(CatalogError::TokenHashAlreadyExists)));
+}
+
+#[test]
+fn prepare_regenerate_admin_token_duplicate_hash() {
+    let mut catalog = test_catalog();
+
+    // Create first admin token
+    let mut batch = RecordBatch::new(1);
+    let op1 = CreateAdminTokenOp::prepare(
+        &CreateAdminTokenArgs {
+            name: "admin1".to_string(),
+            hash: vec![1, 2, 3],
+            created_at: 1000,
+            updated_at: None,
+            expiry: None,
+            description: None,
+            created_by: None,
+            updated_by: None,
+        },
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+    let token1 = op1.output(&catalog);
+
+    // Create second admin token with a different hash
+    batch = RecordBatch::new(1);
+    let _op2 = CreateAdminTokenOp::prepare(
+        &CreateAdminTokenArgs {
+            name: "admin2".to_string(),
+            hash: vec![4, 5, 6],
+            created_at: 1000,
+            updated_at: None,
+            expiry: None,
+            description: None,
+            created_by: None,
+            updated_by: None,
+        },
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    // Try to regenerate token1's hash to match token2's hash
+    batch = RecordBatch::new(1);
+    let result = RegenerateAdminTokenOp::prepare(
+        &RegenerateAdminTokenArgs {
+            token_id: token1.id,
+            new_hash: vec![4, 5, 6],
+            updated_at: 2000,
+        },
+        &catalog,
+        &mut batch,
+    );
+    assert!(matches!(result, Err(CatalogError::TokenHashAlreadyExists)));
+}

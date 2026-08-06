@@ -248,7 +248,7 @@ impl CatalogUpdate {
 /// Carries the broadcasted update plus the ACK channel back to the
 /// broadcaster. Dropping this fires the ACK, i.e., after the subscriber
 /// is done processing the events; the broadcaster's `send_update` returns
-/// once every non-stopped subscriber has ACK'd.
+/// once every live (non-stopped, non-closed) subscriber has ACK'd.
 ///
 /// Subscribers should drop the message promptly. The broadcaster waits
 /// for every ACK before returning, so any inline work between `recv` and
@@ -370,24 +370,31 @@ pub(crate) struct CatalogSubscriptions {
 }
 
 impl CatalogSubscriptions {
-    /// Panics on duplicate `name` — one subscription per named component is
-    /// the contract; duplicates should fail loudly at server startup.
+    /// One subscription per named component is the contract. Components
+    /// normally subscribe once and hold the receiver for the life of the
+    /// process, so a duplicate name is unusual. When it does happen and the
+    /// prior receiver has already been dropped, the slot is stale, not a
+    /// conflict: reclaim it so a component that re-subscribes under the same
+    /// name -- today only the compactor, on primary-lease re-election -- does
+    /// not collide with its own dropped slot. A duplicate whose receiver is
+    /// still live is a genuine bug and still panics.
     pub(crate) fn subscribe(&mut self, name: &'static str) -> CatalogUpdateReceiver {
         let (tx, rx) = mpsc::channel(CATALOG_SUBSCRIPTION_BUFFER_SIZE);
         let stopped = Arc::new(AtomicBool::new(false));
         let stop_signal = Arc::new(Notify::new());
-        assert!(
-            self.subscriptions
-                .insert(
-                    name,
-                    CatalogUpdateSender {
-                        tx,
-                        stopped: Arc::clone(&stopped),
-                        stop_signal: Arc::clone(&stop_signal),
-                    },
-                )
-                .is_none(),
-            "duplicate catalog subscription name: {name}",
+        if let Some(existing) = self.subscriptions.get(name) {
+            assert!(
+                existing.is_closed(),
+                "duplicate catalog subscription name: {name}",
+            );
+        }
+        self.subscriptions.insert(
+            name,
+            CatalogUpdateSender {
+                tx,
+                stopped: Arc::clone(&stopped),
+                stop_signal: Arc::clone(&stop_signal),
+            },
         );
         CatalogUpdateReceiver {
             rx,
@@ -396,9 +403,10 @@ impl CatalogSubscriptions {
         }
     }
 
-    /// Completes once every subscriber has either dropped its
+    /// Completes once every live subscriber has either dropped its
     /// [`CatalogUpdateMessage`] (firing the ACK) or transitioned to stopped
-    /// while the message was in flight.
+    /// while the message was in flight. Subscribers whose receiver has already
+    /// been dropped (closed) are skipped, not awaited.
     pub(crate) async fn send_update(
         &self,
         update: Arc<CatalogUpdate>,
@@ -406,16 +414,31 @@ impl CatalogSubscriptions {
         let futures = self
             .subscriptions
             .iter()
-            .filter(|(_, sub)| !sub.is_stopped())
+            // Skip stopped subscribers (opted out) and closed ones (whose
+            // receiver has been dropped, e.g. a component shutting down).
+            // Sending to a closed channel would otherwise fail the whole
+            // broadcast, and thus the catalog write driving it. A closed slot
+            // is simply skipped; it lingers harmlessly until the process ends
+            // (or, if the name is ever re-subscribed, is reclaimed then).
+            .filter(|(_, sub)| !sub.is_stopped() && !sub.is_closed())
             .map(|(name, sub)| {
                 let update = Arc::clone(&update);
                 let name = *name;
                 let sub = sub.clone();
                 async move {
                     let (tx, ack_rx) = oneshot::channel();
-                    sub.send(CatalogUpdateMessage::new(update, tx))
+                    if sub
+                        .send(CatalogUpdateMessage::new(update, tx))
                         .await
-                        .with_context(|| format!("failed to send update to {name}"))?;
+                        .is_err()
+                    {
+                        // Receiver dropped between the is_closed() filter and
+                        // now. A send error can only mean the subscriber is
+                        // gone -- exactly the teardown case the filter already
+                        // tolerates -- so skip it rather than fail the whole
+                        // broadcast (and the catalog write driving it).
+                        return Ok::<(), anyhow::Error>(());
+                    }
 
                     // Race: subscriber may call `stop()` between the filter
                     // above and now. Register as a `Notified` waiter *before*

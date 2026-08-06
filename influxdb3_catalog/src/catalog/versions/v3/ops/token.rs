@@ -45,6 +45,10 @@ impl CatalogOp for CreateAdminTokenOp {
             return Err(CatalogError::TokenNameAlreadyExists(args.name.clone()));
         }
 
+        if catalog.tokens.hash_to_id(&args.hash).is_some() {
+            return Err(CatalogError::TokenHashAlreadyExists);
+        }
+
         let token_id = catalog.tokens.repo().next_id();
         records.push(&CreateAdminToken {
             token_id: token_id.get(),
@@ -96,6 +100,12 @@ impl CatalogOp for RegenerateAdminTokenOp {
     ) -> Result<Self, CatalogError> {
         if catalog.tokens.repo().get_by_id(&args.token_id).is_none() {
             return Err(CatalogError::MissingAdminTokenToUpdate);
+        }
+
+        if let Some(existing_id) = catalog.tokens.hash_to_id(&args.new_hash)
+            && existing_id != args.token_id
+        {
+            return Err(CatalogError::TokenHashAlreadyExists);
         }
 
         records.push(&RegenerateAdminToken {
@@ -190,6 +200,10 @@ impl CatalogOp for CreateResourceScopedTokenOp {
     ) -> Result<Self, CatalogError> {
         if catalog.tokens.repo().get_by_name(&args.name).is_some() {
             return Err(CatalogError::TokenNameAlreadyExists(args.name.clone()));
+        }
+
+        if catalog.tokens.hash_to_id(&args.hash).is_some() {
+            return Err(CatalogError::TokenHashAlreadyExists);
         }
 
         let token_id = catalog.tokens.repo().next_id();

@@ -143,6 +143,32 @@ pub enum SystemEvent {
         duration_ms: u64,
     },
 
+    // ── parquet_cleanup ───────────────────────────────────────────────
+    /// A post-upgrade cleanup attempt completed successfully. Node-scoped:
+    /// one primary compactor walks the whole cluster object store. A dry run
+    /// reports matches while `files_deleted` and `bytes_reclaimed` remain 0.
+    ParquetCleanupSuccess {
+        /// `"delete"` or `"dry_run"`.
+        cleanup_mode: &'static str,
+        files_matched: u64,
+        bytes_matched: u64,
+        files_deleted: u64,
+        bytes_reclaimed: u64,
+        duration_ms: u64,
+    },
+    /// A post-upgrade cleanup reached a durable terminal failure. Counts
+    /// reflect progress persisted before the failure; `error_code` is a
+    /// static category and never includes an object-store path or message.
+    ParquetCleanupError {
+        cleanup_mode: &'static str,
+        files_matched: u64,
+        bytes_matched: u64,
+        files_deleted: u64,
+        bytes_reclaimed: u64,
+        error_code: &'static str,
+        duration_ms: u64,
+    },
+
     // ── compaction_planned ────────────────────────────────────────────
     /// The compactor produced one or more plans for a database in this
     /// planning cycle. One emission per (cycle, database).
