@@ -68,6 +68,14 @@ fn noop_sink_accepts_any_event() {
         bytes_reclaimed: 1,
         duration_ms: 1,
     });
+    sink.emit(SystemEvent::ParquetCleanupSuccess {
+        cleanup_mode: "dry_run",
+        files_matched: 1,
+        bytes_matched: 1,
+        files_deleted: 0,
+        bytes_reclaimed: 0,
+        duration_ms: 1,
+    });
     sink.emit(SystemEvent::CompactionPlannedSuccess {
         database_id: 1,
         groups_planned: 1,

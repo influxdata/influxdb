@@ -1617,7 +1617,7 @@ impl Catalog {
         token_hash: Vec<u8>,
     ) -> Option<PermissionAttributes> {
         let inner = self.inner.read();
-        let token_id = inner.tokens.hash_to_id(token_hash)?;
+        let token_id = inner.tokens.hash_to_id(&token_hash)?;
         let resource_id = inner.databases.name_to_id(db_name)?;
         inner.token_permissions.get_permission(
             ResourceType::Database,

@@ -261,6 +261,9 @@ pub enum CatalogError {
     #[error("token name already exists, {0}")]
     TokenNameAlreadyExists(String),
 
+    #[error("token hash already exists")]
+    TokenHashAlreadyExists,
+
     #[error("missing admin token, cannot update")]
     MissingAdminTokenToUpdate,
 

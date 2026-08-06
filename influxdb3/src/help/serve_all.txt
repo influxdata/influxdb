@@ -185,12 +185,19 @@ Examples:
                                                  [env: INFLUXDB3_RETENTION_CHECK_INTERVAL=]
 
 {}
-  --wal-flush-interval <INTERVAL>                Interval to flush data to WAL file [default: 1s]
+  --wal-flush-interval <INTERVAL>                Interval to flush data to WAL file; shorter intervals
+                                                 acknowledge writes sooner but produce smaller WAL files
+                                                 and more object-store requests [default: 1s]
                                                    [env: INFLUXDB3_WAL_FLUSH_INTERVAL=]
-  --wal-files-per-snapshot <N>                   Number of WAL files per snapshot [default: 600]
+  --wal-files-per-snapshot <N>                   Number of WAL files per snapshot; larger batches snapshot
+                                                 more efficiently, smaller batches keep the query path and
+                                                 compactor more current
+                                                 [default: 600]
                                                    [aliases: wal-snapshot-size]
                                                    [env: INFLUXDB3_WAL_FILES_PER_SNAPSHOT=]
-  --wal-max-buffered-writes <N>                  Max write requests in buffer [default: 100000]
+  --wal-max-buffered-writes <N>                  Nominal cap on write requests awaiting flush; memory is
+                                                 bounded by --force-snapshot-mem-size, not this count
+                                                 [default: 100000]
                                                    [aliases: wal-max-write-buffer-size]
                                                    [env: INFLUXDB3_WAL_MAX_BUFFERED_WRITES=]
   --wal-replay-concurrency-limit <LIMIT>         Concurrency limit during WAL replay [default: max(num_cpus, 10)]
@@ -216,9 +223,13 @@ Examples:
                                                    [env: INFLUXDB3_MAX_HTTP_REQUEST_SIZE=]
 
 {}
-  --exec-mem-pool-size <SIZE>                         Memory pool size for query execution [default: 20%]
+  --exec-mem-pool-size <SIZE>                         Memory budget for query execution; queries exceeding it
+                                                      fail with a resource exhausted error instead of OOMing
+                                                      [default: 20%]
+                                                        [aliases: exec-mem-pool-bytes]
                                                         [env: INFLUXDB3_EXEC_MEM_POOL_SIZE=]
-  --force-snapshot-mem-size <SIZE>                    Internal buffer threshold [default: 50%]
+  --force-snapshot-mem-size <SIZE>                    Write-buffer memory at which a snapshot is forced to free
+                                                      memory [default: 50%]
                                                         [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_SIZE=]
   --file-cache-size <SIZE>                            In-memory data file cache size [default: 20%]
                                                         [env: INFLUXDB3_FILE_CACHE_SIZE=]

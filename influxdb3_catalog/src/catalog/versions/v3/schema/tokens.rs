@@ -35,8 +35,8 @@ impl TokenRepository {
         self.repo.get_by_id(&id)
     }
 
-    pub(crate) fn hash_to_id(&self, hash: Vec<u8>) -> Option<TokenId> {
-        self.hash_lookup_map.get_by_right(&hash).copied()
+    pub(crate) fn hash_to_id(&self, hash: &[u8]) -> Option<TokenId> {
+        self.hash_lookup_map.get_by_right(hash).copied()
     }
 
     pub(crate) fn add_token(&mut self, token_id: TokenId, token_info: TokenInfo) -> Result<()> {
@@ -52,6 +52,12 @@ impl TokenRepository {
         hash: Vec<u8>,
         updated_at: i64,
     ) -> Result<()> {
+        if let Some(existing_id) = self.hash_to_id(&hash)
+            && existing_id != token_id
+        {
+            return Err(CatalogError::TokenHashAlreadyExists);
+        }
+
         let mut token_info = self
             .repo
             .get_by_id(&token_id)
