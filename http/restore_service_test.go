@@ -56,10 +56,9 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 			}
 			return &influxdb.Bucket{ID: existingID, OrgID: orgID, Name: name}, nil
 		}
-		deleted := false
 		buckets.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
 			*calls = append(*calls, "create")
-			if bucketExists && !deleted {
+			if bucketExists {
 				return &errors.Error{Code: errors.EConflict, Msg: "bucket with name telegraf already exists"}
 			}
 			b.ID = newID
@@ -67,9 +66,6 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 		}
 		buckets.DeleteBucketFn = func(_ context.Context, id platform.ID) error {
 			*calls = append(*calls, fmt.Sprintf("delete:%s", id))
-			if id == existingID {
-				deleted = true
-			}
 			return nil
 		}
 
@@ -109,13 +105,18 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 		return mappings
 	}
 
-	t.Run("invalid value", func(t *testing.T) {
-		var calls []string
-		w := postManifest(t, newHandler(t, false, nil, &calls), "overwrite")
+	// "replace" is deliberately not a server-side option: it would have to
+	// delete the existing bucket before any shard data is uploaded. The CLI
+	// implements replace by restoring to a temporary bucket and swapping.
+	for _, onConflict := range []string{"overwrite", "replace"} {
+		t.Run(fmt.Sprintf("invalid value %s", onConflict), func(t *testing.T) {
+			var calls []string
+			w := postManifest(t, newHandler(t, false, nil, &calls), onConflict)
 
-		require.Equal(t, 400, w.Code)
-		require.Empty(t, calls)
-	})
+			require.Equal(t, 400, w.Code)
+			require.Empty(t, calls)
+		})
+	}
 
 	t.Run("default errors on existing bucket", func(t *testing.T) {
 		var calls []string
@@ -133,55 +134,31 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 		mappings := decodeMappings(t, w.Body)
 		require.Equal(t, existingID, mappings.ID)
 		require.Empty(t, mappings.ShardMappings)
-		require.Equal(t, []string{"find"}, calls)
+		require.Equal(t, []string{"create", "find"}, calls)
 	})
 
-	t.Run("replace deletes existing bucket then restores the new one", func(t *testing.T) {
+	t.Run("skip restores normally when bucket is missing", func(t *testing.T) {
 		var calls []string
-		w := postManifest(t, newHandler(t, true, nil, &calls), "replace")
+		w := postManifest(t, newHandler(t, false, nil, &calls), "skip")
 
 		require.Equal(t, 201, w.Code)
 		mappings := decodeMappings(t, w.Body)
 		require.Equal(t, newID, mappings.ID)
 		require.Equal(t, manifest.BucketName, mappings.Name)
 		require.Equal(t, []influxdb.RestoredShardMapping{{OldId: 10, NewId: 20}}, mappings.ShardMappings)
-
-		// The exact sequence matters: the old bucket must be deleted before the
-		// new one is created, and the restore must run against the new bucket.
-		require.Equal(t, []string{
-			"find",
-			fmt.Sprintf("delete:%s", existingID),
-			"create",
-			fmt.Sprintf("restore:%s", newID),
-		}, calls)
+		require.Equal(t, []string{"create", fmt.Sprintf("restore:%s", newID)}, calls)
 	})
 
-	t.Run("replace with failed restore cleans up the new bucket", func(t *testing.T) {
+	t.Run("failed restore cleans up the new bucket", func(t *testing.T) {
 		var calls []string
 		restoreErr := &errors.Error{Code: errors.EInternal, Msg: "restore blew up"}
-		w := postManifest(t, newHandler(t, true, restoreErr, &calls), "replace")
+		w := postManifest(t, newHandler(t, false, restoreErr, &calls), "skip")
 
 		require.Equal(t, 500, w.Code)
-		// The old bucket is gone and the restore failed; the handler must still
-		// have attempted the restore against the new bucket, then deleted it.
 		require.Equal(t, []string{
-			"find",
-			fmt.Sprintf("delete:%s", existingID),
 			"create",
 			fmt.Sprintf("restore:%s", newID),
 			fmt.Sprintf("delete:%s", newID),
 		}, calls)
 	})
-
-	for _, onConflict := range []string{"skip", "replace"} {
-		t.Run(fmt.Sprintf("%s restores normally when bucket is missing", onConflict), func(t *testing.T) {
-			var calls []string
-			w := postManifest(t, newHandler(t, false, nil, &calls), onConflict)
-
-			require.Equal(t, 201, w.Code)
-			mappings := decodeMappings(t, w.Body)
-			require.Equal(t, newID, mappings.ID)
-			require.Equal(t, []string{"find", "create", fmt.Sprintf("restore:%s", newID)}, calls)
-		})
-	}
 }
