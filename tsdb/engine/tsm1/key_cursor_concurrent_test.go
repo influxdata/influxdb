@@ -11,29 +11,30 @@ import (
 )
 
 // TestKeyCursor_ConcurrentClose reproduces the "sync: negative WaitGroup counter"
-// panic seen in EAR-7019 and EAR-6049.
+// panic seen in EAR-7019 and EAR-6049, now prevented by the `closed` guard in
+// KeyCursor.Close.
 //
-// KeyCursor.Close releases a reference for every location in c.seeks and only
-// afterwards clears the slice:
+// Before the guard, Close released a reference for every location in c.seeks
+// and only afterwards cleared the slice:
 //
 //	for _, f := range c.seeks {
 //		f.r.Unref()
 //	}
 //	c.seeks = nil
 //
-// The read and the clear are not atomic, so two goroutines closing the same
-// cursor can both observe a populated c.seeks and both run the release loop.
-// Every TSMReader involved is then Unref'd twice. That drives its reference
-// count negative and permanently poisons the WaitGroup guarding its lifetime,
-// after which *every* subsequent Ref or Unref on that reader panics for the
+// The read and the clear were not atomic, so two goroutines closing the same
+// cursor could both observe a populated c.seeks and both run the release loop.
+// Every TSMReader involved was then Unref'd twice. That drove its reference
+// count negative and permanently poisoned the WaitGroup guarding its lifetime,
+// after which *every* subsequent Ref or Unref on that reader panicked for the
 // remaining life of the process -- which is why a single occurrence produced
 // days of continuous query failures.
 //
 // floatArrayAscendingCursor.Close has the same non-atomic check-then-clear on
-// c.tsm.keyCursor, so it does not prevent the second entry either.
+// c.tsm.keyCursor, so it did not prevent the second entry either.
 //
-// Concurrent Close is reachable in production. storage/flux/reader.go abandons
-// a table when the query context is cancelled:
+// Concurrent Close was reachable in production. storage/flux/reader.go used to
+// abandon a table when the query context was cancelled:
 //
 //	case <-gi.ctx.Done():
 //		table.Cancel()
@@ -41,11 +42,13 @@ import (
 //
 // table.Cancel only sets an atomic flag; it does not interrupt an advance()
 // already in flight on the Flux dispatcher goroutine. Deferred cleanup then
-// calls table.Close() -> cur.Close() on the storage goroutine while the
-// dispatcher is still inside advance() -> cursor.Next() -> nextArrayCursor(),
-// whose first action is to close the same cursor chain.
+// called table.Close() -> cur.Close() on the storage goroutine while the
+// dispatcher was still inside advance() -> cursor.Next() -> nextArrayCursor(),
+// whose first action is to close the same cursor chain. That overlap is now
+// prevented at the source by table.awaitAbandoned (storage/flux/table.go); the
+// guard in KeyCursor.Close is the backstop this test pins down.
 //
-// Run with -race to also surface the underlying data race on c.seeks.
+// Run with -race: before the guard it also surfaced the data race on c.seeks.
 func TestKeyCursor_ConcurrentClose(t *testing.T) {
 	// Several TSM files for the same key so that each cursor holds several
 	// locations, matching the production shape where one bad close corrupts

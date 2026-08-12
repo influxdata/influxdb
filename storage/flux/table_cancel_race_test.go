@@ -295,12 +295,13 @@ func largeGroupSpec() (time.Duration, MultiShardSetupFunc) {
 	}
 }
 
-// TestStorageReader_CancelTeardownLatency measures the wait that an
-// ownership-transfer fix would add to query teardown, and bounds it.
+// TestStorageReader_CancelTeardownLatency measures the wait that the
+// ownership-transfer fix (table.awaitAbandoned) adds to query teardown, and
+// bounds it.
 //
-// Today cancellation returns immediately: handleRead does `break READ` and
-// abandons the consumer, which keeps draining anyway - unsafely, which is the
-// bug. A fix that waits for the consumer instead makes teardown latency equal to
+// Before the fix, cancellation returned immediately: handleRead did `break READ`
+// and abandoned the consumer, which kept draining anyway - unsafely, which was
+// the bug. Waiting for the consumer instead makes teardown latency equal to
 // however long the consumer still needs.
 //
 // The concern was xGroupTable.advance(): for an aggregate it drains every series
@@ -308,7 +309,7 @@ func largeGroupSpec() (time.Duration, MultiShardSetupFunc) {
 // AccumulateMore/advanceCursor loop), and table.do only checks isCancelled()
 // *between* advance() calls, so Cancel() cannot interrupt it. If that drain
 // happened on the consumer goroutine, waiting for it would delay a cancelled
-// query's response by the cost of a whole group, and the fix would need
+// query's response by the cost of a whole group, and the fix would have needed
 // isCancelled() checks pushed down into those inner loops - a change across the
 // generated templates rather than three call sites.
 //
@@ -535,9 +536,9 @@ func TestStorageReader_CancelWithUnconsumedTable(t *testing.T) {
 // reader reference it takes, on all of the exits handleRead has: normal
 // completion, a consumer error, an f(table) error, and cancellation.
 //
-// The deterministic scenarios must pass today and after the fix. The two
-// concurrent scenarios are the ones this bug can violate; they may pass by luck
-// today and must be deterministic after the fix.
+// The deterministic scenarios held even before the fix. The two concurrent
+// scenarios are the ones the bug could violate; they passed only by luck before
+// awaitAbandoned and must now pass deterministically.
 func TestStorageReader_ReferencesReleased(t *testing.T) {
 	dur, setup := smallSpec()
 	reader := NewMultiShardStorageReader(t, dur, setup)
@@ -617,23 +618,22 @@ func TestStorageReader_ReferencesReleased(t *testing.T) {
 			},
 		},
 		{
-			// NOT a reachable production path - kept to pin the invariant that
-			// makes it unreachable, so that a change in flux is noticed here.
+			// NOT a reachable production path - flux's contract makes it
+			// unreachable: consecutiveTransport.Process returns t.err() from
+			// its `select { case <-t.finished: }` *before* pushMsg, and
+			// returns nil unconditionally afterwards, so a callback that
+			// errors has not queued the table. The multi-transformation
+			// branch of Source.processTable is safe for a different reason -
+			// execute.CopyTable consumes the storage table inline before any
+			// copy is queued.
 			//
-			// handleRead's `if err := f(table); err != nil { table.Close() }`
-			// (reader.go:229, :373, :835) does not wait for `done`, so it is
-			// only safe because a callback that errors has not queued the
-			// table. consecutiveTransport.Process guarantees that: it returns
-			// t.err() from its `select { case <-t.finished: }` *before*
-			// pushMsg, and returns nil unconditionally afterwards. The
-			// multi-transformation branch of Source.processTable is safe for a
-			// different reason - execute.CopyTable consumes the storage table
-			// inline before any copy is queued.
-			//
-			// Violating that invariant, as this case deliberately does, faults
-			// deterministically. If flux ever grows a path that queues a table
-			// and then reports an error, this becomes a live bug and handleRead
-			// must wait on this path too.
+			// handleRead used to lean on that contract: its f(table) error
+			// branch closed the table without waiting for `done`, so this
+			// case - which deliberately violates the contract by consuming
+			// the table on another goroutine and then erroring - faulted
+			// deterministically. Those branches now call awaitAbandoned
+			// before Close, so it must pass even under the violation. Kept
+			// so a regression of that stronger guarantee is noticed here.
 			name:       "f(table) errors after deferred consume starts (contract violation)",
 			concurrent: true,
 			run: func(t *testing.T, rec *panicRecorder) {
@@ -677,13 +677,12 @@ func TestStorageReader_ReferencesReleased(t *testing.T) {
 // Tests 3 and 4 - race coverage for the remaining close paths and variants.
 // ---------------------------------------------------------------------------
 
-// TestStorageReader_CancelDuringDeferredConsume shows that storage/flux lets two
-// goroutines close the same cursor chain concurrently, across all three
-// handleRead variants and both of their unsynchronised close paths.
+// TestStorageReader_CancelDuringDeferredConsume shows that storage/flux used to
+// let two goroutines close the same cursor chain concurrently, across all three
+// handleRead variants and both of their previously unsynchronised close paths.
 //
 // storage/flux hands each table to the caller and then waits for it to signal
-// completion, but abandons that wait on cancellation (reader.go:236, :380,
-// :842):
+// completion, but used to abandon that wait on cancellation:
 //
 //	select {
 //	case <-done:
@@ -692,10 +691,11 @@ func TestStorageReader_ReferencesReleased(t *testing.T) {
 //	    break READ
 //	}
 //
-// and on an f(table) error it does not wait at all (reader.go:229, :373, :835).
-// table.Cancel only sets an atomic flag, checked between advance() iterations,
-// so it does not stop an advance already in flight. The deferred table.Close()
-// then runs concurrently with it.
+// and on an f(table) error it did not wait at all. table.Cancel only sets an
+// atomic flag, checked between advance() iterations, so it does not stop an
+// advance already in flight. The deferred table.Close() then ran concurrently
+// with it. Both paths now settle ownership through table.awaitAbandoned before
+// closing; this test is the regression guard for that.
 //
 // The interleaving is real because flux does not consume tables inline:
 // consecutiveTransport queues the table and a poolDispatcher goroutine calls
@@ -707,12 +707,12 @@ func TestStorageReader_ReferencesReleased(t *testing.T) {
 // itself; with one shard it returns early on len(c.itrs) == 0 and the consumer
 // never closes anything.
 //
-// Under -race this reports writes in floatArrayAscendingCursor.Close against
-// reads in its Next, and a write of t.cur against advance()'s read. It also
-// faults outright, because Close clears c.tsm.keyCursor while nextTSM() is
-// dereferencing it.
+// Before the fix, -race reported writes in floatArrayAscendingCursor.Close
+// against reads in its Next, and a write of t.cur against advance()'s read. It
+// also faulted outright, because Close cleared c.tsm.keyCursor while nextTSM()
+// was dereferencing it.
 //
-// It does not by itself produce the negative WaitGroup counter: that needs
+// It did not by itself produce the negative WaitGroup counter: that needs
 // table.Close() to land inside one of the few brief nextArrayCursor() calls per
 // table rather than anywhere in Next(). See TestKeyCursor_ConcurrentClose in
 // tsdb/engine/tsm1 for the deterministic version.
