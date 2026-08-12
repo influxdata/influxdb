@@ -49,10 +49,11 @@ func (err *GroupCursorError) Error() string {
 type storageTable interface {
 	flux.Table
 	Close()
-	Cancel()
-	// awaitAbandoned must be called before Close on any table the producer is
-	// giving up on, so that a consumer cannot still be inside advance().
-	awaitAbandoned(done <-chan struct{})
+	// abandon must be called instead of Close on any table the producer is
+	// giving up on, so that a consumer cannot still be inside advance() when
+	// the table's cursors are torn down. Close is only for tables whose
+	// consumer has already signalled completion via done.
+	abandon(done <-chan struct{})
 	Statistics() cursors.CursorStats
 }
 
@@ -230,15 +231,15 @@ READ:
 
 		if !table.Empty() {
 			if err := f(table); err != nil {
-				table.awaitAbandoned(done)
-				table.Close()
+				table.abandon(done)
 				table = nil
 				return err
 			}
 			select {
 			case <-done:
 			case <-fi.ctx.Done():
-				table.awaitAbandoned(done)
+				table.abandon(done)
+				table = nil
 				break READ
 			}
 		}
@@ -375,15 +376,15 @@ READ:
 		gc = nil
 
 		if err := f(table); err != nil {
-			table.awaitAbandoned(done)
-			table.Close()
+			table.abandon(done)
 			table = nil
 			return err
 		}
 		select {
 		case <-done:
 		case <-gi.ctx.Done():
-			table.awaitAbandoned(done)
+			table.abandon(done)
+			table = nil
 			break READ
 		}
 
@@ -838,15 +839,15 @@ READ:
 
 		if !table.Empty() {
 			if err := f(table); err != nil {
-				table.awaitAbandoned(done)
-				table.Close()
+				table.abandon(done)
 				table = nil
 				return err
 			}
 			select {
 			case <-done:
 			case <-wai.ctx.Done():
-				table.awaitAbandoned(done)
+				table.abandon(done)
+				table = nil
 				break READ
 			}
 		}

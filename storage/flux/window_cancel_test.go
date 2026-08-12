@@ -69,7 +69,7 @@ func newSplitWindowsInput(alloc memory.Allocator, rows int) *splitWindowsInput {
 }
 
 // TestSplitWindows_CancelReleasesBuffer covers the same defect in splitWindows
-// that awaitAbandoned fixes in handleRead: the producer stops waiting for the
+// that abandon fixes in handleRead: the producer stops waiting for the
 // consumer on context cancellation and walks away from a table nobody owns.
 //
 // windowTableRow's buffer is released by whichever of Do or Done claims the

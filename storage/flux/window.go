@@ -101,7 +101,7 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 			select {
 			case <-done:
 			case <-w.ctx.Done():
-				table.awaitAbandoned(done)
+				table.abandon(done)
 				return w.ctx.Err()
 			}
 		}
@@ -160,15 +160,17 @@ func (w *windowTableRow) Done() {
 	}
 }
 
-// awaitAbandoned settles ownership of a row the splitter is giving up on, so that
-// the buffer is released exactly once.
+// abandon settles ownership of a row the splitter is giving up on, so that
+// the buffer is released exactly once. Unlike the storageTable implementations
+// there is no separate Close to pair with: releasing the buffer, done by
+// whichever of Do or Done claims the row, is this type's teardown.
 //
-// This mirrors (*table).awaitAbandoned, for the same reason: waiting on done
-// unconditionally is unsafe because nothing guarantees a consumer will ever claim
-// this row, and closing without waiting would release a buffer the consumer is
-// still reading. The slices in this buffer retain the input table's arrays, so an
-// unreleased row pins the whole input allocation, not just its own slice.
-func (w *windowTableRow) awaitAbandoned(done <-chan struct{}) {
+// This mirrors the storageTable abandon method, for the same reason: waiting on
+// done unconditionally is unsafe because nothing guarantees a consumer will ever
+// claim this row, and closing without waiting would release a buffer the consumer
+// is still reading. The slices in this buffer retain the input table's arrays, so
+// an unreleased row pins the whole input allocation, not just its own slice.
+func (w *windowTableRow) abandon(done <-chan struct{}) {
 	// Done claims the row and releases the buffer when no consumer has claimed
 	// it, and is a no-op when one already owns it.
 	w.Done()

@@ -45,7 +45,7 @@ import (
 // called table.Close() -> cur.Close() on the storage goroutine while the
 // dispatcher was still inside advance() -> cursor.Next() -> nextArrayCursor(),
 // whose first action is to close the same cursor chain. That overlap is now
-// prevented at the source by table.awaitAbandoned (storage/flux/table.go); the
+// prevented at the source by table.abandon (storage/flux); the
 // guard in KeyCursor.Close is the backstop this test pins down.
 //
 // Run with -race: before the guard it also surfaced the data race on c.seeks.

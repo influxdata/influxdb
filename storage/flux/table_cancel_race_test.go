@@ -296,7 +296,7 @@ func largeGroupSpec() (time.Duration, MultiShardSetupFunc) {
 }
 
 // TestStorageReader_CancelTeardownLatency measures the wait that the
-// ownership-transfer fix (table.awaitAbandoned) adds to query teardown, and
+// ownership-transfer fix (table.abandon) adds to query teardown, and
 // bounds it.
 //
 // Before the fix, cancellation returned immediately: handleRead did `break READ`
@@ -538,7 +538,7 @@ func TestStorageReader_CancelWithUnconsumedTable(t *testing.T) {
 //
 // The deterministic scenarios held even before the fix. The two concurrent
 // scenarios are the ones the bug could violate; they passed only by luck before
-// awaitAbandoned and must now pass deterministically.
+// table.abandon and must now pass deterministically.
 func TestStorageReader_ReferencesReleased(t *testing.T) {
 	dur, setup := smallSpec()
 	reader := NewMultiShardStorageReader(t, dur, setup)
@@ -631,9 +631,10 @@ func TestStorageReader_ReferencesReleased(t *testing.T) {
 			// branch closed the table without waiting for `done`, so this
 			// case - which deliberately violates the contract by consuming
 			// the table on another goroutine and then erroring - faulted
-			// deterministically. Those branches now call awaitAbandoned
-			// before Close, so it must pass even under the violation. Kept
-			// so a regression of that stronger guarantee is noticed here.
+			// deterministically. Those branches now abandon the table,
+			// settling ownership with any in-flight consumer before closing,
+			// so it must pass even under the violation. Kept so a regression
+			// of that stronger guarantee is noticed here.
 			name:       "f(table) errors after deferred consume starts (contract violation)",
 			concurrent: true,
 			run: func(t *testing.T, rec *panicRecorder) {
@@ -694,8 +695,9 @@ func TestStorageReader_ReferencesReleased(t *testing.T) {
 // and on an f(table) error it did not wait at all. table.Cancel only sets an
 // atomic flag, checked between advance() iterations, so it does not stop an
 // advance already in flight. The deferred table.Close() then ran concurrently
-// with it. Both paths now settle ownership through table.awaitAbandoned before
-// closing; this test is the regression guard for that.
+// with it. Both paths now go through table.abandon, which settles ownership
+// with any in-flight consumer before closing; this test is the regression
+// guard for that.
 //
 // The interleaving is real because flux does not consume tables inline:
 // consecutiveTransport queues the table and a poolDispatcher goroutine calls

@@ -74,9 +74,11 @@ func (t *table) init(advance func() bool) {
 	t.empty = !advance() && t.err == nil
 }
 
-// awaitAbandoned makes it safe for the producer to close a table it is giving up
-// on, whether because the query context was cancelled or because the consumer
-// rejected the table.
+// awaitAbandoned is the ownership-settling half of abandon (table.gen.go): it
+// makes it safe for the producer to close a table it is giving up on, whether
+// because the query context was cancelled or because the consumer rejected the
+// table. Producers never call it directly - they call abandon, which pairs it
+// with Close.
 //
 // The producer cannot simply close. advance() runs on the consumer's goroutine
 // and touches the same cursor Close() tears down, so closing underneath it
