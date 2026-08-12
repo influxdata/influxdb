@@ -233,16 +233,20 @@ func (r *multiShardReader) inUseFiles(tb testing.TB) []string {
 // before this runs) and a leak (which leaves the count above zero and would
 // later park FileStore.Close in refsWG.Wait()).
 //
-// Polled rather than asserted once, because a background compaction may
-// legitimately hold a reference for a short time. A genuine leak never drains.
+// The only legitimate transient holder of a reference is a background
+// compaction, and SetCompactionsEnabled(false) blocks until any in-flight
+// compaction has finished and released its references. Draining that first
+// makes a single assertion deterministic: anything still referenced afterwards
+// is a leaked query reference. Compactions stay disabled, which is harmless
+// here - the harness data is fully written during setup and the tests only
+// query - and repeated calls are no-ops.
 func (r *multiShardReader) requireReferencesReleased(tb testing.TB) {
 	tb.Helper()
-	var last []string
-	require.Eventually(tb, func() bool {
-		last = r.inUseFiles(tb)
-		return len(last) == 0
-	}, 15*time.Second, 25*time.Millisecond,
-		"TSM references were never released; still in use: %v", last)
+	for _, sh := range r.tsdbStore.Shards(r.shardIDs) {
+		sh.SetCompactionsEnabled(false)
+	}
+	require.Empty(tb, r.inUseFiles(tb),
+		"TSM references leaked: still in use after queries completed and compactions drained")
 }
 
 // closeBounded shuts the reader down with a deadline. Aborting KeyCursor.Close's
