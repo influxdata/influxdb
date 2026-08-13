@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -126,9 +127,12 @@ func (w *windowTableSplitter) getTimeColumnIndex(label string) (int, error) {
 }
 
 type windowTableRow struct {
-	used   atomic.Bool
-	buffer arrow.TableBuffer
-	done   chan struct{}
+	used atomic.Bool
+	// abandoned records that the splitter gave up on this row, so a late Do
+	// can report cancellation instead of an internal error.
+	abandoned atomic.Bool
+	buffer    arrow.TableBuffer
+	done      chan struct{}
 }
 
 func (w *windowTableRow) Key() flux.GroupKey {
@@ -141,6 +145,14 @@ func (w *windowTableRow) Cols() []flux.ColMeta {
 
 func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
 	if !w.used.CompareAndSwap(false, true) {
+		if w.abandoned.Load() {
+			// See (*table).do: the splitter abandoned this row because the
+			// query terminated; report cancellation, not an internal error.
+			return &flux.Error{
+				Code: codes.Canceled,
+				Msg:  "window table was abandoned because the query terminated",
+			}
+		}
 		return &errors.Error{
 			Code: errors.EInternal,
 			Msg:  "table already read",
@@ -171,6 +183,10 @@ func (w *windowTableRow) Done() {
 // is still reading. The slices in this buffer retain the input table's arrays, so
 // an unreleased row pins the whole input allocation, not just its own slice.
 func (w *windowTableRow) abandon(done <-chan struct{}) {
+	// The store is sequenced before Done's CAS, so any Do that loses that CAS
+	// to us observes the flag and reports cancellation.
+	w.abandoned.Store(true)
+
 	// Done claims the row and releases the buffer when no consumer has claimed
 	// it, and is a no-op when one already owns it.
 	w.Done()

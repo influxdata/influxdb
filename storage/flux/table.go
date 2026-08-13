@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/v2/models"
@@ -119,6 +120,21 @@ func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
 	// Mark this table as having been used. If this doesn't
 	// succeed, then this has already been invoked somewhere else.
 	if !t.used.CompareAndSwap(false, true) {
+		if t.isCancelled() {
+			// The producer abandoned this table before any consumer claimed
+			// it (abandon Cancels before taking the CAS, so losing the CAS
+			// here always observes the flag), meaning this Do comes from a
+			// dispatcher draining its queue after the query terminated.
+			// Report that rather than an internal error: the query controller
+			// maps codes.Canceled to a 4xx, while a plain error surfaces as a
+			// 500 - and on cancellation this error can win the race to be the
+			// query's reported error, since handleRead itself returns
+			// rs.Err(), which may be nil.
+			return &flux.Error{
+				Code: codes.Canceled,
+				Msg:  "storage table was abandoned because the query terminated",
+			}
+		}
 		return errors.New("table already used")
 	}
 	defer t.closeDone()
