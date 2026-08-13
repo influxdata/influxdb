@@ -80,16 +80,14 @@ func TestKeyCursor_ConcurrentClose(t *testing.T) {
 
 	panics := make(chan any, iterations*closers)
 
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		c := fs.KeyCursor(context.Background(), []byte("cpu"), 0, true)
 
 		var wg sync.WaitGroup
 		start := make(chan struct{})
 
-		for j := 0; j < closers; j++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range closers {
+			wg.Go(func() {
 				defer func() {
 					if r := recover(); r != nil {
 						panics <- r
@@ -97,7 +95,7 @@ func TestKeyCursor_ConcurrentClose(t *testing.T) {
 				}()
 				<-start // release both goroutines together
 				c.Close()
-			}()
+			})
 		}
 
 		close(start)
