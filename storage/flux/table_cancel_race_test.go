@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storagev1 "github.com/influxdata/influxdb/v2/v1/services/storage"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,9 +85,10 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 	metaClient := meta.NewClient(meta.NewConfig(), kvStore)
 	require.NoError(tb, metaClient.Open())
 	closers = append(closers, func() {
-		if err := metaClient.Close(); err != nil {
-			tb.Errorf("close meta client: %s", err)
-		}
+		// assert rather than require: closers run inside closeBounded's
+		// watchdog goroutine, and require.FailNow is only legal on the
+		// goroutine running the test.
+		assert.NoError(tb, metaClient.Close(), "close meta client")
 	})
 
 	idgen := mock.NewMockIDGenerator()
@@ -144,9 +146,7 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 	engine := storage.NewEngine(enginePath, storage.NewConfig(), storage.WithMetaClient(metaClient))
 	require.NoError(tb, engine.Open(context.Background()), "failed to open storage engine")
 	closers = append(closers, func() {
-		if err := engine.Close(); err != nil {
-			tb.Errorf("close engine: %s", err)
-		}
+		assert.NoError(tb, engine.Close(), "close engine")
 	})
 
 	store := storagev1.NewStore(engine.TSDBStore(), engine.MetaClient())
@@ -250,7 +250,7 @@ func (r *multiShardReader) closeBounded(tb testing.TB) {
 	select {
 	case <-closed:
 	case <-time.After(20 * time.Second):
-		tb.Error("SHUTDOWN HANG: reader.Close did not return; TSMReader.Close is " +
+		require.Fail(tb, "SHUTDOWN HANG: reader.Close did not return; TSMReader.Close is "+
 			"parked in refsWG.Wait() on leaked references")
 	}
 }
@@ -516,7 +516,7 @@ func TestStorageReader_CancelWithUnconsumedTable(t *testing.T) {
 			select {
 			case <-returned:
 			case <-time.After(30 * time.Second):
-				t.Fatal("handleRead did not return after cancellation with an " +
+				require.Fail(t, "handleRead did not return after cancellation with an "+
 					"unconsumed table: the wait for `done` is unbounded")
 			}
 
