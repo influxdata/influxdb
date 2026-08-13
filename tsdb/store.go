@@ -1044,10 +1044,16 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	shards := s.filterShards(byDatabase(db))
 	s.mu.Unlock()
 
-	// Ensure the pending deletion flag is cleared on exit.
+	// Ensure the pending deletion flag is cleared on exit, restoring the
+	// shard to the store's maps if it was never closed.
+	restore := sh
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if restore != nil {
+			s.shards[shardID] = restore
+			s.epochs[shardID] = newEpochTracker()
+		}
 		delete(s.pendingShardDeletes, shardID)
 	}()
 
@@ -1124,6 +1130,8 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 	// The shard is being permanently removed. Close it first so the engine's
 	// background compaction goroutines stop, then delete its Prometheus series.
+	// Once closing begins the shard is no longer safe to restore.
+	restore = nil
 	if err := sh.CloseAndRemoveMetrics(); err != nil {
 		return err
 	}
@@ -1142,9 +1150,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 // DeleteShardsByID removes the given shards from disk. It is equivalent to
 // calling DeleteShard for each ID, but determines which series have lost their
-// last remaining shard — and so must be dropped from each database's series
-// file — with a single walk of the surviving shards per database instead of
-// one walk per deleted shard.
+// last remaining shard.
 func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 	// Claim the shards, removing them from the store's maps so they are not
 	// returned to callers while their files are deleted, and skipping any
@@ -1152,6 +1158,7 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 	s.mu.Lock()
 	doomedByDB := make(map[string][]*Shard)
 	claimed := make([]uint64, 0, len(shardIDs))
+	restorable := make(map[uint64]*Shard, len(shardIDs))
 	for _, id := range shardIDs {
 		sh, ok := s.shards[id]
 		if !ok {
@@ -1164,14 +1171,19 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 		delete(s.epochs, id)
 		s.pendingShardDeletes[id] = struct{}{}
 		claimed = append(claimed, id)
+		restorable[id] = sh
 		doomedByDB[sh.Database()] = append(doomedByDB[sh.Database()], sh)
 	}
 	s.mu.Unlock()
 
-	// Ensure the pending deletion flags are cleared on exit.
+	// Ensure the pending deletion flags are cleared on exit
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		for id, sh := range restorable {
+			s.shards[id] = sh
+			s.epochs[id] = newEpochTracker()
+		}
 		for _, id := range claimed {
 			delete(s.pendingShardDeletes, id)
 		}
@@ -1250,6 +1262,9 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 		}
 
 		for _, sh := range doomed {
+			// Once closing begins the shard is no longer safe to restore.
+			delete(restorable, sh.id)
+
 			// The shard is being permanently removed. Close it first so the
 			// engine's background compaction goroutines stop, then delete its
 			// Prometheus series.
@@ -1263,7 +1278,11 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 			} else if err := os.RemoveAll(sh.walPath); err != nil {
 				return err
 			}
-			s.databases[db].removeIndexType(sh.IndexType())
+			s.mu.Lock()
+			if state := s.databases[db]; state != nil {
+				state.removeIndexType(sh.IndexType())
+			}
+			s.mu.Unlock()
 		}
 	}
 

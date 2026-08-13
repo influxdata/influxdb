@@ -492,12 +492,16 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 		}
 	}
 
-	// Update data.
-	if err := e.metaClient.SetData(&data); err != nil {
-		return nil, err
+	var createdShardIDs []uint64
+	rollbackShards := func() {
+		if len(createdShardIDs) == 0 {
+			return
+		}
+		if err := e.tsdbStore.DeleteShardsByID(createdShardIDs); err != nil {
+			e.logger.Warn("Failed to clean up shards after aborted restore",
+				zap.Uint64s("shard_ids", createdShardIDs), zap.Error(err))
+		}
 	}
-
-	// Create shards.
 	for _, sgi := range rpi.ShardGroups {
 		if sgi.Deleted() {
 			continue
@@ -505,15 +509,20 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 
 		for _, sh := range sgi.Shards {
 			if err := e.tsdbStore.CreateShard(ctx, dbi.Name, rpi.Name, sh.ID, true); err != nil {
+				rollbackShards()
 				return nil, err
 			}
+			createdShardIDs = append(createdShardIDs, sh.ID)
 		}
 	}
 
-	// Delete data for the replaced shards, after the new shards exist so a
-	// creation failure cannot also destroy the old files. The committed
-	// metadata no longer references the replaced shards, so a failure here
-	// leaks disk space but cannot corrupt the restored bucket.
+	// Commit the metadata
+	if err := e.metaClient.SetData(&data); err != nil {
+		rollbackShards()
+		return nil, err
+	}
+
+	// Delete data for the replaced shards, only after the commit
 	if len(replacedShardIDs) > 0 {
 		if err := e.tsdbStore.DeleteShardsByID(replacedShardIDs); err != nil {
 			e.logger.Warn("Failed to delete replaced shards during restore",
