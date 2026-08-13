@@ -68,6 +68,16 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 		}
 	}
 
+	// require.* calls FailNow without running closeAll, so a guarded Cleanup
+	// covers every failure exit below. On success the reader owns closeAll
+	// (returned as its Close) and this becomes a no-op.
+	built := false
+	tb.Cleanup(func() {
+		if !built {
+			closeAll()
+		}
+	})
+
 	kvStore := inmem.NewKVStore()
 	require.NoError(tb, kvStore.CreateBucket(context.Background(), meta.BucketName))
 
@@ -88,23 +98,15 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 		Name:               meta.DefaultRetentionPolicyName,
 		ShardGroupDuration: shardGroupDuration,
 	}
-	if _, err := metaClient.CreateDatabaseWithRetentionPolicy(bucket.String(), rp); err != nil {
-		closeAll()
-		tb.Fatalf("failed to create database: %s", err)
-	}
+	_, err := metaClient.CreateDatabaseWithRetentionPolicy(bucket.String(), rp)
+	require.NoError(tb, err, "failed to create database")
 
 	enginePath := filepath.Join(rootDir, "engine")
 	dbPath := filepath.Join(enginePath, "data", bucket.String())
-	if err := os.MkdirAll(dbPath, 0700); err != nil {
-		closeAll()
-		tb.Fatalf("failed to create data directory: %s", err)
-	}
+	require.NoError(tb, os.MkdirAll(dbPath, 0700), "failed to create data directory")
 
 	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
-	if err := sfile.Open(); err != nil {
-		closeAll()
-		tb.Fatalf("failed to open series file: %s", err)
-	}
+	require.NoError(tb, sfile.Open(), "failed to open series file")
 	defer sfile.Close()
 	sfile.DisableCompactions()
 
@@ -115,10 +117,7 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 	var shardIDs []uint64
 	for cur := tr.Start; cur.Before(tr.End); {
 		sgi, err := metaClient.CreateShardGroup(bucket.String(), rp.Name, cur)
-		if err != nil {
-			closeAll()
-			tb.Fatalf("failed to create shard group at %s: %s", cur, err)
-		}
+		require.NoError(tb, err, "failed to create shard group at %s", cur)
 
 		groupRange := datagen.TimeRange{
 			Start: maxTime(sgi.StartTime, tr.Start),
@@ -126,14 +125,10 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 		}
 
 		id := sgi.Shards[0].ID
-		if err := os.MkdirAll(filepath.Join(shardPath, strconv.FormatUint(id, 10)), 0700); err != nil {
-			closeAll()
-			tb.Fatalf("failed to create shard directory: %s", err)
-		}
-		if err := writeShard(sfile, datagen.NewSeriesGeneratorFromSpec(spec, groupRange), id, shardPath); err != nil {
-			closeAll()
-			tb.Fatalf("failed to write shard %d: %s", id, err)
-		}
+		require.NoError(tb, os.MkdirAll(filepath.Join(shardPath, strconv.FormatUint(id, 10)), 0700),
+			"failed to create shard directory")
+		require.NoError(tb, writeShard(sfile, datagen.NewSeriesGeneratorFromSpec(spec, groupRange), id, shardPath),
+			"failed to write shard %d", id)
 
 		shardIDs = append(shardIDs, id)
 		cur = sgi.EndTime
@@ -142,21 +137,12 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 
 	for i, p := range sfile.Partitions() {
 		c := tsdb.NewSeriesPartitionCompactor()
-		if err := c.Compact(p); err != nil {
-			closeAll()
-			tb.Fatalf("failed to compact series file %d: %s", i, err)
-		}
+		require.NoError(tb, c.Compact(p), "failed to compact series file %d", i)
 	}
-	if err := sfile.Close(); err != nil {
-		closeAll()
-		tb.Fatalf("failed to close series file: %s", err)
-	}
+	require.NoError(tb, sfile.Close(), "failed to close series file")
 
 	engine := storage.NewEngine(enginePath, storage.NewConfig(), storage.WithMetaClient(metaClient))
-	if err := engine.Open(context.Background()); err != nil {
-		closeAll()
-		tb.Fatalf("failed to open storage engine: %s", err)
-	}
+	require.NoError(tb, engine.Open(context.Background()), "failed to open storage engine")
 	closers = append(closers, func() {
 		if err := engine.Close(); err != nil {
 			tb.Errorf("close engine: %s", err)
@@ -164,6 +150,7 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 	})
 
 	store := storagev1.NewStore(engine.TSDBStore(), engine.MetaClient())
+	built = true
 	return &multiShardReader{
 		StorageReader: &StorageReader{
 			Org:    org,

@@ -51,7 +51,9 @@ func BenchmarkKeyCursor_OpenClose(b *testing.B) {
 			ctx := context.Background()
 
 			// Confirm the fixture really produces the intended fan-out, so a
-			// silently-empty cursor cannot make this look fast.
+			// silently thin store cannot make this look fast. The warm-up
+			// cursor also takes one create/close cycle out of the timed loop.
+			require.Equal(b, files, fs.Count())
 			c := fs.KeyCursor(ctx, key, 0, true)
 			c.Close()
 
