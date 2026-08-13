@@ -1035,6 +1035,8 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 	delete(s.shards, shardID)
+	// Keep the tracker it may hold in-flight writes later deletes must wait on.
+	epoch := s.epochs[shardID]
 	delete(s.epochs, shardID)
 	s.pendingShardDeletes[shardID] = struct{}{}
 
@@ -1052,7 +1054,10 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		defer s.mu.Unlock()
 		if restore != nil {
 			s.shards[shardID] = restore
-			s.epochs[shardID] = newEpochTracker()
+			if epoch == nil {
+				epoch = newEpochTracker()
+			}
+			s.epochs[shardID] = epoch
 		}
 		delete(s.pendingShardDeletes, shardID)
 	}()
@@ -1159,6 +1164,8 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 	doomedByDB := make(map[string][]*Shard)
 	claimed := make([]uint64, 0, len(shardIDs))
 	restorable := make(map[uint64]*Shard, len(shardIDs))
+	// Keep the trackers they may hold in-flight writes later deletes must wait on.
+	epochs := make(map[uint64]*epochTracker, len(shardIDs))
 	for _, id := range shardIDs {
 		sh, ok := s.shards[id]
 		if !ok {
@@ -1168,6 +1175,7 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 			continue
 		}
 		delete(s.shards, id)
+		epochs[id] = s.epochs[id]
 		delete(s.epochs, id)
 		s.pendingShardDeletes[id] = struct{}{}
 		claimed = append(claimed, id)
@@ -1182,7 +1190,10 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 		defer s.mu.Unlock()
 		for id, sh := range restorable {
 			s.shards[id] = sh
-			s.epochs[id] = newEpochTracker()
+			if epochs[id] == nil {
+				epochs[id] = newEpochTracker()
+			}
+			s.epochs[id] = epochs[id]
 		}
 		for _, id := range claimed {
 			delete(s.pendingShardDeletes, id)
