@@ -435,7 +435,7 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	return nil
 }
 
-func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) (map[uint64]uint64, error) {
+func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, replace bool) (map[uint64]uint64, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -457,6 +457,21 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) 
 		return nil, fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
 	} else if len(newDBI.RetentionPolicies) != 1 {
 		return nil, fmt.Errorf("bucket must have 1 retention policy; attempting to restore %d retention policies", len(newDBI.RetentionPolicies))
+	}
+
+	// When replacing, collect the shards the bucket currently owns so their
+	// data can be removed once the restored metadata is committed and the new
+	// shards exist. Without replace, any pre-existing shard files are left
+	// orphaned on disk, preserving the behavior of the 2.0.x restore endpoint.
+	var replacedShardIDs []uint64
+	if replace {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				for _, sh := range sgi.Shards {
+					replacedShardIDs = append(replacedShardIDs, sh.ID)
+				}
+			}
+		}
 	}
 
 	dbi.RetentionPolicies = newDBI.RetentionPolicies
@@ -492,6 +507,17 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) 
 			if err := e.tsdbStore.CreateShard(ctx, dbi.Name, rpi.Name, sh.ID, true); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	// Delete data for the replaced shards, after the new shards exist so a
+	// creation failure cannot also destroy the old files. The committed
+	// metadata no longer references the replaced shards, so a failure here
+	// leaks disk space but cannot corrupt the restored bucket.
+	if len(replacedShardIDs) > 0 {
+		if err := e.tsdbStore.DeleteShardsByID(replacedShardIDs); err != nil {
+			e.logger.Warn("Failed to delete replaced shards during restore",
+				zap.Uint64s("shard_ids", replacedShardIDs), zap.Error(err))
 		}
 	}
 

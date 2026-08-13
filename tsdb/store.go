@@ -1140,6 +1140,136 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	}
 }
 
+// DeleteShardsByID removes the given shards from disk. It is equivalent to
+// calling DeleteShard for each ID, but determines which series have lost their
+// last remaining shard — and so must be dropped from each database's series
+// file — with a single walk of the surviving shards per database instead of
+// one walk per deleted shard.
+func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
+	// Claim the shards, removing them from the store's maps so they are not
+	// returned to callers while their files are deleted, and skipping any
+	// already being deleted.
+	s.mu.Lock()
+	doomedByDB := make(map[string][]*Shard)
+	claimed := make([]uint64, 0, len(shardIDs))
+	for _, id := range shardIDs {
+		sh, ok := s.shards[id]
+		if !ok {
+			continue
+		}
+		if _, ok := s.pendingShardDeletes[id]; ok {
+			continue
+		}
+		delete(s.shards, id)
+		delete(s.epochs, id)
+		s.pendingShardDeletes[id] = struct{}{}
+		claimed = append(claimed, id)
+		doomedByDB[sh.Database()] = append(doomedByDB[sh.Database()], sh)
+	}
+	s.mu.Unlock()
+
+	// Ensure the pending deletion flags are cleared on exit.
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		for _, id := range claimed {
+			delete(s.pendingShardDeletes, id)
+		}
+	}()
+
+	for db, doomed := range doomedByDB {
+		// Union the series contained in the doomed shards, then subtract every
+		// series still present in one of the database's surviving shards; the
+		// remainder exists nowhere else and is dropped from the series file.
+		ss := NewSeriesIDSet()
+		for _, sh := range doomed {
+			index, err := sh.Index()
+			if err != nil {
+				return err
+			}
+			ss.Merge(index.SeriesIDSet())
+		}
+
+		s.mu.RLock()
+		survivors := s.filterShards(byDatabase(db))
+		s.mu.RUnlock()
+
+		err := s.walkShards(survivors, func(sh *Shard) error {
+			index, err := sh.Index()
+			if err != nil {
+				s.Logger.Error("cannot find shard index", zap.Uint64("shard_id", sh.ID()), zap.Error(err))
+				return err
+			}
+			ss.Diff(index.SeriesIDSet())
+			return nil
+		})
+		if err != nil {
+			// We couldn't get the index for a shard. Rather than deleting series
+			// which may exist in that shard as well as in the doomed shards, we
+			// stop the deletion.
+			return err
+		}
+
+		if seriesCount := ss.Cardinality(); seriesCount > 0 {
+			const DeleteLogTrigger = 10_000
+			deleteStart := time.Now()
+			var deletedCount atomic.Uint64
+			partitionIDs := make(map[int]struct{}, SeriesFilePartitionN)
+			if sfile := s.seriesFile(db); sfile != nil {
+				ss.ForEach(func(id uint64) {
+					p, err := sfile.DeleteSeriesID(id, NoFlush)
+					if err != nil {
+						sfile.Logger.Error(
+							"cannot delete series",
+							zap.Uint64("series_id", id),
+							zap.String("series_file_path", sfile.Path()),
+							zap.Error(err))
+						return
+					}
+					partitionIDs[p.id] = struct{}{}
+					deleted := deletedCount.Add(1)
+
+					if deleted%DeleteLogTrigger == 0 {
+						s.Logger.Info(fmt.Sprintf("DeleteShards: %d series deleted", DeleteLogTrigger),
+							zap.String("db", db),
+							zap.String("series_file_path", sfile.Path()),
+							zap.Uint64("deleted", deleted),
+							zap.Uint64("remaining", seriesCount-deleted),
+							zap.Uint64("total", seriesCount),
+							zap.Duration("elapsed", time.Since(deleteStart)))
+					}
+				})
+
+				if err := sfile.FlushSegments(partitionIDs); err != nil {
+					sfile.Logger.Error(
+						"error while flushing a series file segment",
+						zap.String("series_file_path", sfile.Path()),
+						zap.Error(err))
+				}
+			}
+		}
+
+		for _, sh := range doomed {
+			// The shard is being permanently removed. Close it first so the
+			// engine's background compaction goroutines stop, then delete its
+			// Prometheus series.
+			if err := sh.CloseAndRemoveMetrics(); err != nil {
+				return err
+			}
+
+			// Remove the on-disk shard data.
+			if err := os.RemoveAll(sh.path); err != nil {
+				return err
+			} else if err := os.RemoveAll(sh.walPath); err != nil {
+				return err
+			}
+			s.databases[db].removeIndexType(sh.IndexType())
+		}
+	}
+
+	return nil
+}
+
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 //
 // Returns nil if no database exists

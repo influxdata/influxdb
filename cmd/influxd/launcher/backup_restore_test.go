@@ -135,6 +135,41 @@ func runTestBackupRestore_Full(backupHashedTokens, restoreHashedTokens bool, t *
 	require.Equal(t, exp2, res2)
 }
 
+func TestBackupRestore_OnConflictReplace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	backupDir := t.TempDir()
+
+	// Boot a server, write some data, and take a backup.
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.StoreType = "bolt"
+		o.Testing = false
+		o.LogLevel = zap.InfoLevel
+	})
+	defer l.ShutdownOrFail(t, ctx)
+	l.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000\nm,k=v2 f=200i 946684800000000001")
+	l.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
+
+	// Write another point after the backup, then restore over the live bucket.
+	l.WritePointsOrFail(t, "m,k=v3 f=300i 946684800000000002")
+	l.RestoreOrFail(t, ctx, restore.Params{Path: backupDir, OnConflict: "replace"})
+
+	// The bucket must keep its ID so tokens, DBRP mappings, and tasks
+	// referencing it stay valid.
+	rbkt, err := l.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{Org: &l.Org.Name, Name: &l.Bucket.Name})
+	require.NoError(t, err)
+	require.Equal(t, l.Bucket.ID, rbkt.ID)
+
+	// The bucket's contents match the backup: the post-backup point is gone.
+	q := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
+	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v1` + "\r\n" +
+		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00.000000001Z,200,f,m,v2` + "\r\n\r\n"
+	res := l.FluxQueryOrFail(t, l.Org, l.Auth.Token, q)
+	require.Equal(t, exp, res)
+}
+
 func TestBackupRestore_Partial(t *testing.T) {
 	t.Helper()
 	runBackupRestoreTests(t, "TestBackupRestore_Full", runTestBackupRestore_Partial)

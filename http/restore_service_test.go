@@ -22,11 +22,11 @@ import (
 type restoreServiceMock struct {
 	influxdb.RestoreService
 
-	restoreBucketFn func(ctx context.Context, id platform.ID, dbInfo []byte) (map[uint64]uint64, error)
+	restoreBucketFn func(ctx context.Context, id platform.ID, dbInfo []byte, replace bool) (map[uint64]uint64, error)
 }
 
-func (s *restoreServiceMock) RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte) (map[uint64]uint64, error) {
-	return s.restoreBucketFn(ctx, id, dbInfo)
+func (s *restoreServiceMock) RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte, replace bool) (map[uint64]uint64, error) {
+	return s.restoreBucketFn(ctx, id, dbInfo, replace)
 }
 
 func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
@@ -68,14 +68,21 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 			*calls = append(*calls, fmt.Sprintf("delete:%s", id))
 			return nil
 		}
+		buckets.UpdateBucketFn = func(_ context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+			*calls = append(*calls, fmt.Sprintf("update:%s", id))
+			require.Equal(t, existingID, id)
+			require.NotNil(t, upd.RetentionPeriod)
+			require.Equal(t, manifest.RetentionPolicies[0].Duration, *upd.RetentionPeriod)
+			return &influxdb.Bucket{ID: existingID, OrgID: orgID, Name: manifest.BucketName}, nil
+		}
 
 		return NewRestoreHandler(&RestoreBackend{
 			Logger:           zaptest.NewLogger(t),
 			HTTPErrorHandler: kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 			BucketService:    buckets,
 			RestoreService: &restoreServiceMock{
-				restoreBucketFn: func(_ context.Context, id platform.ID, dbInfo []byte) (map[uint64]uint64, error) {
-					*calls = append(*calls, fmt.Sprintf("restore:%s", id))
+				restoreBucketFn: func(_ context.Context, id platform.ID, dbInfo []byte, replace bool) (map[uint64]uint64, error) {
+					*calls = append(*calls, fmt.Sprintf("restore:%s:replace=%t", id, replace))
 					require.NotEmpty(t, dbInfo)
 					if restoreErr != nil {
 						return nil, restoreErr
@@ -105,18 +112,13 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 		return mappings
 	}
 
-	// "replace" is deliberately not a server-side option: it would have to
-	// delete the existing bucket before any shard data is uploaded. The CLI
-	// implements replace by restoring to a temporary bucket and swapping.
-	for _, onConflict := range []string{"overwrite", "replace"} {
-		t.Run(fmt.Sprintf("invalid value %s", onConflict), func(t *testing.T) {
-			var calls []string
-			w := postManifest(t, newHandler(t, false, nil, &calls), onConflict)
+	t.Run("invalid value overwrite", func(t *testing.T) {
+		var calls []string
+		w := postManifest(t, newHandler(t, false, nil, &calls), "overwrite")
 
-			require.Equal(t, 400, w.Code)
-			require.Empty(t, calls)
-		})
-	}
+		require.Equal(t, 400, w.Code)
+		require.Empty(t, calls)
+	})
 
 	t.Run("default errors on existing bucket", func(t *testing.T) {
 		var calls []string
@@ -146,7 +148,7 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 		require.Equal(t, newID, mappings.ID)
 		require.Equal(t, manifest.BucketName, mappings.Name)
 		require.Equal(t, []influxdb.RestoredShardMapping{{OldId: 10, NewId: 20}}, mappings.ShardMappings)
-		require.Equal(t, []string{"create", fmt.Sprintf("restore:%s", newID)}, calls)
+		require.Equal(t, []string{"create", fmt.Sprintf("restore:%s:replace=false", newID)}, calls)
 	})
 
 	t.Run("failed restore cleans up the new bucket", func(t *testing.T) {
@@ -157,8 +159,48 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 		require.Equal(t, 500, w.Code)
 		require.Equal(t, []string{
 			"create",
-			fmt.Sprintf("restore:%s", newID),
+			fmt.Sprintf("restore:%s:replace=false", newID),
 			fmt.Sprintf("delete:%s", newID),
+		}, calls)
+	})
+
+	t.Run("replace restores under the existing bucket ID", func(t *testing.T) {
+		var calls []string
+		w := postManifest(t, newHandler(t, true, nil, &calls), "replace")
+
+		require.Equal(t, 200, w.Code)
+		mappings := decodeMappings(t, w.Body)
+		require.Equal(t, existingID, mappings.ID)
+		require.Equal(t, manifest.BucketName, mappings.Name)
+		require.Equal(t, []influxdb.RestoredShardMapping{{OldId: 10, NewId: 20}}, mappings.ShardMappings)
+		require.Equal(t, []string{
+			"create",
+			"find",
+			fmt.Sprintf("restore:%s:replace=true", existingID),
+			fmt.Sprintf("update:%s", existingID),
+		}, calls)
+	})
+
+	t.Run("replace restores normally when bucket is missing", func(t *testing.T) {
+		var calls []string
+		w := postManifest(t, newHandler(t, false, nil, &calls), "replace")
+
+		require.Equal(t, 201, w.Code)
+		mappings := decodeMappings(t, w.Body)
+		require.Equal(t, newID, mappings.ID)
+		require.Equal(t, []string{"create", fmt.Sprintf("restore:%s:replace=false", newID)}, calls)
+	})
+
+	t.Run("failed replace leaves the existing bucket untouched", func(t *testing.T) {
+		var calls []string
+		restoreErr := &errors.Error{Code: errors.EInternal, Msg: "restore blew up"}
+		w := postManifest(t, newHandler(t, true, restoreErr, &calls), "replace")
+
+		require.Equal(t, 500, w.Code)
+		require.Equal(t, []string{
+			"create",
+			"find",
+			fmt.Sprintf("restore:%s:replace=true", existingID),
 		}, calls)
 	})
 }

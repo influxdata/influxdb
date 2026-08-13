@@ -51,12 +51,15 @@ type RestoreService interface {
 	// RestoreKVStore restores & replaces metadata database.
 	RestoreKVStore(ctx context.Context, r io.Reader) error
 
-	// RestoreBucket restores storage metadata for a bucket.
+	// RestoreBucket restores storage metadata for a bucket. When replace is
+	// true, the data of any shards the bucket owned beforehand is deleted once
+	// the restored metadata is committed; otherwise pre-existing shard files
+	// are left orphaned on disk.
 	// TODO(danmoran): As far as I can tell, dbInfo is typed as a []byte because typing it as
 	//  a meta.DatabaseInfo introduces a circular dependency between the root package and `meta`.
 	//  We should refactor to make this signature easier to use. It might be easier to wait
 	//  until we're ready to delete the 2.0.x restore APIs before refactoring.
-	RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte) (shardIDMap map[uint64]uint64, err error)
+	RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte, replace bool) (shardIDMap map[uint64]uint64, err error)
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error
