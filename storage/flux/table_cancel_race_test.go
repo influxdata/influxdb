@@ -312,10 +312,16 @@ func TestStorageReader_CancelTeardownLatency(t *testing.T) {
 	reader := NewMultiShardStorageReader(t, dur, setup)
 	defer reader.closeBounded(t)
 
-	// maxConsumerDrain bounds the wait an ownership-transfer fix would add.
-	// Generous: the point is to catch a whole-group drain landing here, not to
-	// pin down a precise duration.
-	const maxConsumerDrain = 2 * time.Second
+	// maxConsumerDrain bounds the wait the ownership-transfer fix adds to a
+	// cancelled query's teardown. It is a tripwire for catastrophic
+	// regressions - a wait that scales with the remaining data or blocks on
+	// the downstream - not a precise performance gate: the measured drain is
+	// normally milliseconds (see the logs below), but a loaded or -race CI
+	// runner can stretch one advance() plus one downstream callback well past
+	// a tight bound, and a wall-clock assertion that flakes gets ignored.
+	// Regressions smaller than this tripwire show up in the logged
+	// construction-vs-drain split.
+	const maxConsumerDrain = 10 * time.Second
 
 	for _, tc := range []struct {
 		name string

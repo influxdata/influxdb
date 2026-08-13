@@ -108,8 +108,10 @@ func (t *table) awaitAbandoned(done <-chan struct{}) {
 	}
 
 	// do() or Done() claimed it first, and both defer closeDone, so done is
-	// guaranteed to close. The wait is bounded by at most one advance() call,
-	// since do() checks isCancelled() before each iteration.
+	// guaranteed to close. The wait is bounded by at most one advance() call
+	// plus one f(colBufs) delivery of that buffer: do() checks isCancelled()
+	// before each iteration, but a cancel landing during advance() still pays
+	// the loop body - including the downstream callback - for that buffer.
 	<-done
 }
 
