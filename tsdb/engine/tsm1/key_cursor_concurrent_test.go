@@ -112,7 +112,8 @@ func TestKeyCursor_ConcurrentClose(t *testing.T) {
 
 	if r, ok := <-panics; ok {
 		// The FileStore is now unusable; do not attempt to close it.
-		t.Fatalf("concurrent KeyCursor.Close corrupted a TSMReader reference count: %v", r)
+		require.Failf(t, "concurrent KeyCursor.Close corrupted a TSMReader reference count",
+			"panic: %v", r)
 	}
 
 	require.NoError(t, fs.Close())
