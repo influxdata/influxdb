@@ -183,11 +183,18 @@ func (fi *filterIterator) handleRead(f func(flux.Table) error, rs storage.Result
 	var (
 		cur   cursors.Cursor
 		table storageTable
+		// tableDone is table's done channel, kept alongside it so the deferred
+		// cleanup can settle ownership. The defer sees a non-nil table only
+		// when a panic unwinds out of f(table) or the code around it - every
+		// ordinary exit abandons or closes and nils table first - and on that
+		// path a queued consumer may still be draining, so a bare Close would
+		// recreate the concurrent close the abandon protocol prevents.
+		tableDone chan struct{}
 	)
 
 	defer func() {
 		if table != nil {
-			table.Close()
+			table.abandon(tableDone)
 		}
 		if cur != nil {
 			cur.Close()
@@ -207,6 +214,7 @@ READ:
 		bnds := fi.spec.Bounds
 		key := defaultGroupKeyForSeries(rs.Tags(), bnds)
 		done := make(chan struct{})
+		tableDone = done
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
@@ -316,11 +324,14 @@ func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupRe
 		gc    storage.GroupCursor
 		cur   cursors.Cursor
 		table storageTable
+		// tableDone pairs with table so the deferred cleanup can abandon on
+		// panic unwind; see the comment in filterIterator.handleRead.
+		tableDone chan struct{}
 	)
 
 	defer func() {
 		if table != nil {
-			table.Close()
+			table.abandon(tableDone)
 		}
 		if cur != nil {
 			cur.Close()
@@ -351,6 +362,7 @@ READ:
 		bnds := gi.spec.Bounds
 		key := groupKeyForGroup(gc.PartitionKeyVals(), &gi.spec, bnds)
 		done := make(chan struct{})
+		tableDone = done
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt, gc.Aggregate(), key)
@@ -731,11 +743,14 @@ func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs stor
 	var (
 		cur   cursors.Cursor
 		table storageTable
+		// tableDone pairs with table so the deferred cleanup can abandon on
+		// panic unwind; see the comment in filterIterator.handleRead.
+		tableDone chan struct{}
 	)
 
 	defer func() {
 		if table != nil {
-			table.Close()
+			table.abandon(tableDone)
 		}
 		if cur != nil {
 			cur.Close()
@@ -755,6 +770,7 @@ READ:
 		bnds := wai.spec.Bounds
 		key := defaultGroupKeyForSeries(rs.Tags(), bnds)
 		done := make(chan struct{})
+		tableDone = done
 		hasTimeCol := timeColumn != ""
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:

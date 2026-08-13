@@ -654,6 +654,42 @@ func TestStorageReader_ReferencesReleased(t *testing.T) {
 				require.Error(t, err)
 			},
 		},
+		{
+			// A panic escaping f(table) unwinds through handleRead's deferred
+			// cleanup while a deferred consumer may still be draining the
+			// table. This is the only path that can reach that defer with a
+			// non-nil table, so the defer must settle ownership via abandon
+			// rather than bare-close - a bare Close here recreates the
+			// concurrent close the abandon protocol exists to prevent.
+			name:       "f(table) panics after deferred consume starts",
+			concurrent: true,
+			run: func(t *testing.T, rec *panicRecorder) {
+				ti, err := reader.ReadFilter(context.Background(), reader.filterSpec(), newAlloc())
+				require.NoError(t, err)
+
+				var wg sync.WaitGroup
+				func() {
+					defer func() {
+						// The panic must propagate out of ti.Do - handleRead's
+						// defer cleans up but does not recover - the way flux's
+						// executionState.recover then catches it in production.
+						require.NotNil(t, recover(), "expected the source panic to propagate")
+					}()
+					_ = ti.Do(func(tbl flux.Table) error {
+						wg.Go(func() {
+							defer func() {
+								if r := recover(); r != nil {
+									rec.record(r)
+								}
+							}()
+							_ = tbl.Do(func(flux.ColReader) error { return nil })
+						})
+						panic("source panic after handoff")
+					})
+				}()
+				wg.Wait()
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := newPanicRecorder()
