@@ -94,6 +94,7 @@ type MetaClient interface {
 	Restore(ctx context.Context, r io.Reader) error
 	Data() meta.Data
 	SetData(data *meta.Data) error
+	UpdateData(update func(data *meta.Data) error) error
 }
 
 type TSDBStore interface {
@@ -450,46 +451,34 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 	if err := newDBI.UnmarshalBinary(buf); err != nil {
 		return nil, err
 	}
-
-	data := e.metaClient.Data()
-	dbi := data.Database(id.String())
-	if dbi == nil {
-		return nil, fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
-	} else if len(newDBI.RetentionPolicies) != 1 {
+	if len(newDBI.RetentionPolicies) != 1 {
 		return nil, fmt.Errorf("bucket must have 1 retention policy; attempting to restore %d retention policies", len(newDBI.RetentionPolicies))
 	}
+	rpi := newDBI.RetentionPolicies[0]
 
-	// When replacing, collect the shards the bucket currently owns so their
-	// data can be removed once the restored metadata is committed and the new
-	// shards exist. Without replace, any pre-existing shard files are left
-	// orphaned on disk, preserving the behavior of the 2.0.x restore endpoint.
-	var replacedShardIDs []uint64
-	if replace {
-		for _, rpi := range dbi.RetentionPolicies {
-			for _, sgi := range rpi.ShardGroups {
-				for _, sh := range sgi.Shards {
-					replacedShardIDs = append(replacedShardIDs, sh.ID)
-				}
+	// Reserve the new shard group and shard IDs in their own commit, so IDs
+	// handed out by concurrent shard-group creation cannot collide with the
+	// shards created below.
+	shardIDMap := make(map[uint64]uint64)
+	if err := e.metaClient.UpdateData(func(data *meta.Data) error {
+		if data.Database(id.String()) == nil {
+			return fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
+		}
+
+		for j, sgi := range rpi.ShardGroups {
+			data.MaxShardGroupID++
+			rpi.ShardGroups[j].ID = data.MaxShardGroupID
+
+			for k := range sgi.Shards {
+				data.MaxShardID++
+				shardIDMap[sgi.Shards[k].ID] = data.MaxShardID
+				sgi.Shards[k].ID = data.MaxShardID
+				sgi.Shards[k].Owners = []meta.ShardOwner{}
 			}
 		}
-	}
-
-	dbi.RetentionPolicies = newDBI.RetentionPolicies
-	dbi.ContinuousQueries = newDBI.ContinuousQueries
-
-	// Generate shard ID mapping.
-	shardIDMap := make(map[uint64]uint64)
-	rpi := newDBI.RetentionPolicies[0]
-	for j, sgi := range rpi.ShardGroups {
-		data.MaxShardGroupID++
-		rpi.ShardGroups[j].ID = data.MaxShardGroupID
-
-		for k := range sgi.Shards {
-			data.MaxShardID++
-			shardIDMap[sgi.Shards[k].ID] = data.MaxShardID
-			sgi.Shards[k].ID = data.MaxShardID
-			sgi.Shards[k].Owners = []meta.ShardOwner{}
-		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	var createdShardIDs []uint64
@@ -508,7 +497,7 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 		}
 
 		for _, sh := range sgi.Shards {
-			if err := e.tsdbStore.CreateShard(ctx, dbi.Name, rpi.Name, sh.ID, true); err != nil {
+			if err := e.tsdbStore.CreateShard(ctx, id.String(), rpi.Name, sh.ID, true); err != nil {
 				rollbackShards()
 				return nil, err
 			}
@@ -516,8 +505,32 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 		}
 	}
 
-	// Commit the metadata
-	if err := e.metaClient.SetData(&data); err != nil {
+	// Commit the restored metadata. When replacing, collect the shards the
+	// bucket owns at commit time so their data can be removed afterward.
+	// Without replace, any pre-existing shard files are left orphaned on
+	// disk, preserving the behavior of the 2.0.x restore endpoint.
+	var replacedShardIDs []uint64
+	if err := e.metaClient.UpdateData(func(data *meta.Data) error {
+		dbi := data.Database(id.String())
+		if dbi == nil {
+			return fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
+		}
+
+		if replace {
+			replacedShardIDs = replacedShardIDs[:0]
+			for _, rpi := range dbi.RetentionPolicies {
+				for _, sgi := range rpi.ShardGroups {
+					for _, sh := range sgi.Shards {
+						replacedShardIDs = append(replacedShardIDs, sh.ID)
+					}
+				}
+			}
+		}
+
+		dbi.RetentionPolicies = newDBI.RetentionPolicies
+		dbi.ContinuousQueries = newDBI.ContinuousQueries
+		return nil
+	}); err != nil {
 		rollbackShards()
 		return nil, err
 	}
