@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -101,6 +102,7 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 			select {
 			case <-done:
 			case <-w.ctx.Done():
+				table.abandon(done)
 				return w.ctx.Err()
 			}
 		}
@@ -125,9 +127,12 @@ func (w *windowTableSplitter) getTimeColumnIndex(label string) (int, error) {
 }
 
 type windowTableRow struct {
-	used   int32
-	buffer arrow.TableBuffer
-	done   chan struct{}
+	used atomic.Bool
+	// abandoned records that the splitter gave up on this row, so a late Do
+	// can report cancellation instead of an internal error.
+	abandoned atomic.Bool
+	buffer    arrow.TableBuffer
+	done      chan struct{}
 }
 
 func (w *windowTableRow) Key() flux.GroupKey {
@@ -139,7 +144,15 @@ func (w *windowTableRow) Cols() []flux.ColMeta {
 }
 
 func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
-	if !atomic.CompareAndSwapInt32(&w.used, 0, 1) {
+	if !w.used.CompareAndSwap(false, true) {
+		if w.abandoned.Load() {
+			// See (*table).do: the splitter abandoned this row because the
+			// query terminated; report cancellation, not an internal error.
+			return &flux.Error{
+				Code: codes.Canceled,
+				Msg:  "window table was abandoned because the query terminated",
+			}
+		}
 		return &errors.Error{
 			Code: errors.EInternal,
 			Msg:  "table already read",
@@ -153,10 +166,34 @@ func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
 }
 
 func (w *windowTableRow) Done() {
-	if atomic.CompareAndSwapInt32(&w.used, 0, 1) {
+	if w.used.CompareAndSwap(false, true) {
 		w.buffer.Release()
 		close(w.done)
 	}
+}
+
+// abandon settles ownership of a row the splitter is giving up on, so that
+// the buffer is released exactly once. Unlike the storageTable implementations
+// there is no separate Close to pair with: releasing the buffer, done by
+// whichever of Do or Done claims the row, is this type's teardown.
+//
+// This mirrors the storageTable abandon method, for the same reason: waiting on
+// done unconditionally is unsafe because nothing guarantees a consumer will ever
+// claim this row, and closing without waiting would release a buffer the consumer
+// is still reading. The slices in this buffer retain the input table's arrays, so
+// an unreleased row pins the whole input allocation, not just its own slice.
+func (w *windowTableRow) abandon(done <-chan struct{}) {
+	// The store is sequenced before Done's CAS, so any Do that loses that CAS
+	// to us observes the flag and reports cancellation.
+	w.abandoned.Store(true)
+
+	// Done claims the row and releases the buffer when no consumer has claimed
+	// it, and is a no-op when one already owns it.
+	w.Done()
+
+	// Whichever of Do or Done won the claim closes done, so this is bounded: if
+	// we just won it above, done is already closed.
+	<-done
 }
 
 func (w *windowTableRow) Empty() bool {

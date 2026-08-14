@@ -26,6 +26,11 @@ func (q *arrayCursorIterator) buildFloatArrayCursor(ctx context.Context, name []
 		}
 		err = q.asc.Float.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			// reset takes ownership of keyCursor before the read that can fail,
+			// so on error the references it holds are ours to release. Nothing
+			// else can: the cursor is only reachable through this pooled struct,
+			// and CursorIterator has no teardown hook.
+			q.asc.Float.Close()
 			return nil, err
 		}
 		return q.asc.Float, nil
@@ -35,6 +40,7 @@ func (q *arrayCursorIterator) buildFloatArrayCursor(ctx context.Context, name []
 		}
 		err = q.desc.Float.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			q.desc.Float.Close()
 			return nil, err
 		}
 		return q.desc.Float, nil
@@ -53,6 +59,11 @@ func (q *arrayCursorIterator) buildIntegerArrayCursor(ctx context.Context, name 
 		}
 		err = q.asc.Integer.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			// reset takes ownership of keyCursor before the read that can fail,
+			// so on error the references it holds are ours to release. Nothing
+			// else can: the cursor is only reachable through this pooled struct,
+			// and CursorIterator has no teardown hook.
+			q.asc.Integer.Close()
 			return nil, err
 		}
 		return q.asc.Integer, nil
@@ -62,6 +73,7 @@ func (q *arrayCursorIterator) buildIntegerArrayCursor(ctx context.Context, name 
 		}
 		err = q.desc.Integer.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			q.desc.Integer.Close()
 			return nil, err
 		}
 		return q.desc.Integer, nil
@@ -80,6 +92,11 @@ func (q *arrayCursorIterator) buildUnsignedArrayCursor(ctx context.Context, name
 		}
 		err = q.asc.Unsigned.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			// reset takes ownership of keyCursor before the read that can fail,
+			// so on error the references it holds are ours to release. Nothing
+			// else can: the cursor is only reachable through this pooled struct,
+			// and CursorIterator has no teardown hook.
+			q.asc.Unsigned.Close()
 			return nil, err
 		}
 		return q.asc.Unsigned, nil
@@ -89,6 +106,7 @@ func (q *arrayCursorIterator) buildUnsignedArrayCursor(ctx context.Context, name
 		}
 		err = q.desc.Unsigned.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			q.desc.Unsigned.Close()
 			return nil, err
 		}
 		return q.desc.Unsigned, nil
@@ -107,6 +125,11 @@ func (q *arrayCursorIterator) buildStringArrayCursor(ctx context.Context, name [
 		}
 		err = q.asc.String.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			// reset takes ownership of keyCursor before the read that can fail,
+			// so on error the references it holds are ours to release. Nothing
+			// else can: the cursor is only reachable through this pooled struct,
+			// and CursorIterator has no teardown hook.
+			q.asc.String.Close()
 			return nil, err
 		}
 		return q.asc.String, nil
@@ -116,6 +139,7 @@ func (q *arrayCursorIterator) buildStringArrayCursor(ctx context.Context, name [
 		}
 		err = q.desc.String.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			q.desc.String.Close()
 			return nil, err
 		}
 		return q.desc.String, nil
@@ -134,6 +158,11 @@ func (q *arrayCursorIterator) buildBooleanArrayCursor(ctx context.Context, name 
 		}
 		err = q.asc.Boolean.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			// reset takes ownership of keyCursor before the read that can fail,
+			// so on error the references it holds are ours to release. Nothing
+			// else can: the cursor is only reachable through this pooled struct,
+			// and CursorIterator has no teardown hook.
+			q.asc.Boolean.Close()
 			return nil, err
 		}
 		return q.asc.Boolean, nil
@@ -143,6 +172,7 @@ func (q *arrayCursorIterator) buildBooleanArrayCursor(ctx context.Context, name 
 		}
 		err = q.desc.Boolean.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
 		if err != nil {
+			q.desc.Boolean.Close()
 			return nil, err
 		}
 		return q.desc.Boolean, nil
