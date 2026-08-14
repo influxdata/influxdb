@@ -1035,8 +1035,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 	delete(s.shards, shardID)
-	// Keep the tracker it may hold in-flight writes later deletes must wait on.
+	// Keep the tracker it may hold in-flight writes we must wait on.
 	epoch := s.epochs[shardID]
+	if epoch == nil {
+		epoch = newEpochTracker()
+	}
 	delete(s.epochs, shardID)
 	s.pendingShardDeletes[shardID] = struct{}{}
 
@@ -1046,6 +1049,13 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	shards := s.filterShards(byDatabase(db))
 	s.mu.Unlock()
 
+	// Block new writes to the shard and wait for in-flight writes that
+	// retained it before the claim, so none can add series behind the
+	// index snapshot below.
+	waiter := epoch.WaitDelete(newGuard(influxql.MinTime, influxql.MaxTime, nil, nil))
+	defer waiter.Done()
+	waiter.Wait()
+
 	// Ensure the pending deletion flag is cleared on exit, restoring the
 	// shard to the store's maps if it was never closed.
 	restore := sh
@@ -1054,9 +1064,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		defer s.mu.Unlock()
 		if restore != nil {
 			s.shards[shardID] = restore
-			if epoch == nil {
-				epoch = newEpochTracker()
-			}
 			s.epochs[shardID] = epoch
 		}
 		delete(s.pendingShardDeletes, shardID)
@@ -1175,7 +1182,11 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 			continue
 		}
 		delete(s.shards, id)
-		epochs[id] = s.epochs[id]
+		epoch := s.epochs[id]
+		if epoch == nil {
+			epoch = newEpochTracker()
+		}
+		epochs[id] = epoch
 		delete(s.epochs, id)
 		s.pendingShardDeletes[id] = struct{}{}
 		claimed = append(claimed, id)
@@ -1184,15 +1195,28 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 	}
 	s.mu.Unlock()
 
+	// Block new writes to the claimed shards and wait for in-flight writes
+	// that retained them before the claim, so none can add series behind
+	// the index snapshots below.
+	waiters := make([]epochWaiter, 0, len(claimed))
+	for _, id := range claimed {
+		waiters = append(waiters, epochs[id].WaitDelete(newGuard(influxql.MinTime, influxql.MaxTime, nil, nil)))
+	}
+	defer func() {
+		for _, waiter := range waiters {
+			waiter.Done()
+		}
+	}()
+	for _, waiter := range waiters {
+		waiter.Wait()
+	}
+
 	// Ensure the pending deletion flags are cleared on exit
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		for id, sh := range restorable {
 			s.shards[id] = sh
-			if epochs[id] == nil {
-				epochs[id] = newEpochTracker()
-			}
 			s.epochs[id] = epochs[id]
 		}
 		for _, id := range claimed {
