@@ -321,10 +321,10 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 
 	if outcome == restoredBucketReplaced {
 		// Bring the bucket's own metadata (description, retention) in line with
-		// the backup, now that the data restore is committed. Failing the
-		// request here would abort the client's shard uploads mid-replace, so a
-		// failure only logs: the restored data is intact and the bucket merely
-		// keeps its previous description and retention settings.
+		// the backup. The shard-data swap itself stays staged until the client
+		// finishes uploading every shard. Failing the request here would abort
+		// those uploads, so a failure only logs: the bucket merely keeps its
+		// previous description and retention settings.
 		if _, err := h.BucketService.UpdateBucket(ctx, target.ID, influxdb.BucketUpdate{
 			Description:        &bkt.Description,
 			RetentionPeriod:    &bkt.RetentionPeriod,
