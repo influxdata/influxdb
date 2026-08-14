@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,11 +41,12 @@ func BenchmarkKeyCursor_OpenClose(b *testing.B) {
 			for i := range data {
 				data[i] = keyValues{"cpu", []tsm1.Value{tsm1.NewValue(int64(i), float64(i))}}
 			}
-			_, err := newFileDir(b, dir, data...)
+			_, err := newFileDir(dir, data...)
 			require.NoError(b, err)
 
-			fs := newTestFileStore(b, dir)
-			require.NoError(b, fs.Open(context.Background()))
+			fs := tsm1.NewFileStore(dir)
+			defer fs.Close()
+			require.NoError(b, fs.Open())
 
 			key := []byte("cpu")
 			ctx := context.Background()

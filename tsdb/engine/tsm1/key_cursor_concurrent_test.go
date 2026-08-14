@@ -5,8 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,15 +60,15 @@ func TestKeyCursor_ConcurrentClose(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	_, err := newFileDir(t, dir, data...)
+	_, err := newFileDir(dir, data...)
 	require.NoError(t, err)
 
-	// Deliberately not newTestFileStore: once a reader's WaitGroup has gone
-	// negative, TSMReader.Close blocks in refsWG.Wait() forever. Registering a
-	// cleanup that closes the FileStore would hang the test run instead of
-	// failing it, so the store is closed explicitly only on success.
-	fs := tsm1.NewFileStore(dir, tsdb.EngineTags{})
-	require.NoError(t, fs.Open(context.Background()))
+	// Deliberately no deferred close: once a reader's WaitGroup has gone
+	// negative, TSMReader.Close blocks in refsWG.Wait() forever. A cleanup that
+	// closes the FileStore would hang the test run instead of failing it, so the
+	// store is closed explicitly only on success.
+	fs := tsm1.NewFileStore(dir)
+	require.NoError(t, fs.Open())
 
 	// The race window is narrow, so try repeatedly with a fresh cursor each
 	// time. In practice the detector or the panic fires well inside this.

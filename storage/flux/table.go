@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
@@ -31,7 +32,7 @@ type table struct {
 
 	err error
 
-	cancelled, used int32
+	cancelled, used atomic.Bool
 	cache           *tagsCache
 	alloc           memory.Allocator
 }
@@ -63,21 +64,77 @@ func (t *table) Err() error           { return t.err }
 func (t *table) Empty() bool          { return t.empty }
 
 func (t *table) Cancel() {
-	atomic.StoreInt32(&t.cancelled, 1)
+	t.cancelled.Store(true)
 }
 
 func (t *table) isCancelled() bool {
-	return atomic.LoadInt32(&t.cancelled) != 0
+	return t.cancelled.Load()
 }
 
 func (t *table) init(advance func() bool) {
 	t.empty = !advance() && t.err == nil
 }
 
+// awaitAbandoned is the ownership-settling half of abandon (table.gen.go): it
+// makes it safe for the producer to close a table it is giving up on, whether
+// because the query context was cancelled or because the consumer rejected the
+// table. Producers never call it directly - they call abandon, which pairs it
+// with Close.
+//
+// The producer cannot simply close. advance() runs on the consumer's goroutine
+// and touches the same cursor Close() tears down, so closing underneath it
+// releases that cursor's TSM file references twice, which drives
+// TSMReader.refsWG negative. WaitGroup.Add decrements before it panics, so the
+// reader is then permanently unusable and every later query touching it fails.
+//
+// The producer also cannot simply wait for done. A table can be dropped without
+// ever being consumed - consecutiveTransport abandons its queue on error or
+// finish, and done is closed only by do() or by Done() via processMsg.Ack() - so
+// an unconditional wait can block forever.
+//
+// The used CAS already arbitrates ownership, so reuse it: whoever wins it owns
+// the table and is responsible for closing done. do() and Done() are the other
+// two claimants.
+func (t *table) awaitAbandoned(done <-chan struct{}) {
+	// Ask any running consumer to stop at its next iteration boundary, so the
+	// wait below is as short as possible.
+	t.Cancel()
+
+	if t.used.CompareAndSwap(false, true) {
+		// We claimed the table first. do()'s opening act is this same CAS and it
+		// touches nothing beforehand, so no consumer can ever run against this
+		// table and there is nothing to wait for.
+		t.closeDone()
+		return
+	}
+
+	// do() or Done() claimed it first, and both defer closeDone, so done is
+	// guaranteed to close. The wait is bounded by at most one advance() call
+	// plus one f(colBufs) delivery of that buffer: do() checks isCancelled()
+	// before each iteration, but a cancel landing during advance() still pays
+	// the loop body - including the downstream callback - for that buffer.
+	<-done
+}
+
 func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
 	// Mark this table as having been used. If this doesn't
 	// succeed, then this has already been invoked somewhere else.
-	if !atomic.CompareAndSwapInt32(&t.used, 0, 1) {
+	if !t.used.CompareAndSwap(false, true) {
+		if t.isCancelled() {
+			// The producer abandoned this table before any consumer claimed
+			// it (abandon Cancels before taking the CAS, so losing the CAS
+			// here always observes the flag), meaning this Do comes from a
+			// dispatcher draining its queue after the query terminated.
+			// Report that rather than an internal error: the query controller
+			// maps codes.Canceled to a 4xx, while a plain error surfaces as a
+			// 500 - and on cancellation this error can win the race to be the
+			// query's reported error, since handleRead itself returns
+			// rs.Err(), which may be nil.
+			return &flux.Error{
+				Code: codes.Canceled,
+				Msg:  "storage table was abandoned because the query terminated",
+			}
+		}
 		return errors.New("table already used")
 	}
 	defer t.closeDone()
@@ -105,7 +162,7 @@ func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
 func (t *table) Done() {
 	// Mark the table as having been used. If this has already
 	// been done, then nothing needs to be done.
-	if atomic.CompareAndSwapInt32(&t.used, 0, 1) {
+	if t.used.CompareAndSwap(false, true) {
 		defer t.closeDone()
 	}
 

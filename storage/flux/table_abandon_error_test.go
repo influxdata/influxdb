@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
-	kiterrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	kiterrors "github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/stretchr/testify/require"
 )
 

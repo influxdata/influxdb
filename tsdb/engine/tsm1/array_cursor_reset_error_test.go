@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,7 +68,8 @@ func TestArrayCursor_ResetError_ReleasesTSMReferences(t *testing.T) {
 				{"descending", false},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
-					e := MustOpenEngine(t, index)
+					e := MustOpenEngine(index)
+					defer e.Close()
 
 					require.NoError(t, e.WritePointsString(
 						"cpu,host=A value=1.1 1000000000",
@@ -121,8 +122,8 @@ func TestArrayCursor_ResetError_ReleasesTSMReferences(t *testing.T) {
 					// fieldset does not tolerate the harness cleanup's second
 					// Close - with a deadline. This must happen before any
 					// assertion can fail the test: FileStore.Close nils f.files
-					// before waiting, so once it has run (even hung), the harness
-					// cleanup's engine Close is a no-op on the FileStore and the
+					// before waiting, so once it has run (even hung), the
+					// deferred engine Close is a no-op on the FileStore and the
 					// binary exits with a reported failure instead of wedging in
 					// cleanup on the leaked references. The error is asserted on
 					// the test goroutine; the buffered channel carries it out of

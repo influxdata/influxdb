@@ -17,17 +17,13 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/mock"
-	datagen "github.com/influxdata/influxdb/v2/pkg/data/gen"
-	"github.com/influxdata/influxdb/v2/query"
-	"github.com/influxdata/influxdb/v2/storage"
-	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	storagev1 "github.com/influxdata/influxdb/v2/v1/services/storage"
+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+	datagen "github.com/influxdata/influxdb/pkg/data/gen"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/storage"
+	storageflux "github.com/influxdata/influxdb/storage/flux"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,13 +32,13 @@ import (
 // generate. Unlike SetupFunc it hands back the spec rather than a built
 // generator, because NewMultiShardStorageReader needs one generator per shard
 // group.
-type MultiShardSetupFunc func(org, bucket platform.ID) (*datagen.Spec, datagen.TimeRange)
+type MultiShardSetupFunc func(db, rp string) (*datagen.Spec, datagen.TimeRange)
 
 // multiShardReader augments StorageReader with the handles needed to inspect
 // TSM reader reference counts after a query.
 type multiShardReader struct {
 	*StorageReader
-	tsdbStore storage.TSDBStore
+	tsdbStore *tsdb.Store
 	shardIDs  []uint64
 }
 
@@ -79,10 +75,9 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 		}
 	})
 
-	kvStore := inmem.NewKVStore()
-	require.NoError(tb, kvStore.CreateBucket(context.Background(), meta.BucketName))
-
-	metaClient := meta.NewClient(meta.NewConfig(), kvStore)
+	metaConfig := meta.NewConfig()
+	metaConfig.Dir = rootDir
+	metaClient := meta.NewClient(metaConfig)
 	require.NoError(tb, metaClient.Open())
 	closers = append(closers, func() {
 		// assert rather than require: closers run inside closeBounded's
@@ -91,20 +86,18 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 		assert.NoError(tb, metaClient.Close(), "close meta client")
 	})
 
-	idgen := mock.NewMockIDGenerator()
-	org, bucket := idgen.ID(), idgen.ID()
+	dbName, rpName := "db", "rp"
 
-	spec, tr := setupFn(org, bucket)
+	spec, tr := setupFn(dbName, rpName)
 
 	rp := &meta.RetentionPolicySpec{
-		Name:               meta.DefaultRetentionPolicyName,
+		Name:               rpName,
 		ShardGroupDuration: shardGroupDuration,
 	}
-	_, err := metaClient.CreateDatabaseWithRetentionPolicy(bucket.String(), rp)
+	_, err := metaClient.CreateDatabaseWithRetentionPolicy(dbName, rp)
 	require.NoError(tb, err, "failed to create database")
 
-	enginePath := filepath.Join(rootDir, "engine")
-	dbPath := filepath.Join(enginePath, "data", bucket.String())
+	dbPath := filepath.Join(rootDir, dbName)
 	require.NoError(tb, os.MkdirAll(dbPath, 0700), "failed to create data directory")
 
 	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
@@ -118,7 +111,7 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 	// series that falls inside each group.
 	var shardIDs []uint64
 	for cur := tr.Start; cur.Before(tr.End); {
-		sgi, err := metaClient.CreateShardGroup(bucket.String(), rp.Name, cur)
+		sgi, err := metaClient.CreateShardGroup(dbName, rp.Name, cur)
 		require.NoError(tb, err, "failed to create shard group at %s", cur)
 
 		groupRange := datagen.TimeRange{
@@ -127,9 +120,9 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 		}
 
 		id := sgi.Shards[0].ID
-		require.NoError(tb, os.MkdirAll(filepath.Join(shardPath, strconv.FormatUint(id, 10)), 0700),
-			"failed to create shard directory")
-		require.NoError(tb, writeShard(sfile, datagen.NewSeriesGeneratorFromSpec(spec, groupRange), id, shardPath),
+		shardDir := filepath.Join(shardPath, strconv.FormatUint(id, 10))
+		require.NoError(tb, os.MkdirAll(shardDir, 0700), "failed to create shard directory")
+		require.NoError(tb, writeShard(sfile, datagen.NewSeriesGeneratorFromSpec(spec, groupRange), id, shardDir),
 			"failed to write shard %d", id)
 
 		shardIDs = append(shardIDs, id)
@@ -143,26 +136,26 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 	}
 	require.NoError(tb, sfile.Close(), "failed to close series file")
 
-	engine := storage.NewEngine(enginePath, storage.NewConfig(), storage.WithMetaClient(metaClient))
-	require.NoError(tb, engine.Open(context.Background()), "failed to open storage engine")
+	tsdbStore := tsdb.NewStore(rootDir)
+	require.NoError(tb, tsdbStore.Open(), "failed to open TSDB store")
 	closers = append(closers, func() {
-		assert.NoError(tb, engine.Close(), "close engine")
+		assert.NoError(tb, tsdbStore.Close(), "close TSDB store")
 	})
 
-	store := storagev1.NewStore(engine.TSDBStore(), engine.MetaClient())
+	store := storage.NewStore(tsdbStore, metaClient)
 	built = true
 	return &multiShardReader{
 		StorageReader: &StorageReader{
-			Org:    org,
-			Bucket: bucket,
+			Database:        dbName,
+			RetentionPolicy: rpName,
 			Bounds: execute.Bounds{
 				Start: values.ConvertTime(tr.Start),
 				Stop:  values.ConvertTime(tr.End),
 			},
-			Close:         closeAll,
-			StorageReader: storageflux.NewReader(store),
+			Close:  closeAll,
+			Reader: storageflux.NewReader(store),
 		},
-		tsdbStore: engine.TSDBStore(),
+		tsdbStore: tsdbStore,
 		shardIDs:  shardIDs,
 	}
 }
@@ -182,11 +175,11 @@ func minTime(a, b time.Time) time.Time {
 }
 
 // filterSpec is the standard full-range read used by these tests.
-func (r *multiShardReader) filterSpec() query.ReadFilterSpec {
-	return query.ReadFilterSpec{
-		OrganizationID: r.Org,
-		BucketID:       r.Bucket,
-		Bounds:         r.Bounds,
+func (r *multiShardReader) filterSpec() influxdb.ReadFilterSpec {
+	return influxdb.ReadFilterSpec{
+		Database:        r.Database,
+		RetentionPolicy: r.RetentionPolicy,
+		Bounds:          r.Bounds,
 	}
 }
 
@@ -259,8 +252,8 @@ func (r *multiShardReader) closeBounded(tb testing.TB) {
 // per second. Enough that a table spans several buffers and every series spans
 // every shard.
 func smallSpec() (time.Duration, MultiShardSetupFunc) {
-	return time.Hour, func(org, bucket platform.ID) (*datagen.Spec, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	return time.Hour, func(db, rp string) (*datagen.Spec, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 50),
@@ -275,8 +268,8 @@ func smallSpec() (time.Duration, MultiShardSetupFunc) {
 // occupy a consumer goroutine, since that is what a fix which waits for the
 // consumer would have to wait for.
 func largeGroupSpec() (time.Duration, MultiShardSetupFunc) {
-	return time.Hour, func(org, bucket platform.ID) (*datagen.Spec, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	return time.Hour, func(db, rp string) (*datagen.Spec, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 500),
@@ -325,28 +318,28 @@ func TestStorageReader_CancelTeardownLatency(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		read func(ctx context.Context) (query.TableIterator, error)
+		read func(ctx context.Context) (influxdb.TableIterator, error)
 	}{
-		{"ReadFilter", func(ctx context.Context) (query.TableIterator, error) {
+		{"ReadFilter", func(ctx context.Context) (influxdb.TableIterator, error) {
 			return reader.ReadFilter(ctx, reader.filterSpec(), newAlloc())
 		}},
-		{"ReadGroup/aggregate", func(ctx context.Context) (query.TableIterator, error) {
-			return reader.ReadGroup(ctx, query.ReadGroupSpec{
+		{"ReadGroup/aggregate", func(ctx context.Context) (influxdb.TableIterator, error) {
+			return reader.ReadGroup(ctx, influxdb.ReadGroupSpec{
 				ReadFilterSpec:  reader.filterSpec(),
-				GroupMode:       query.GroupModeBy,
+				GroupMode:       influxdb.GroupModeBy,
 				GroupKeys:       []string{"_measurement"},
 				AggregateMethod: storageflux.CountKind,
 			}, newAlloc())
 		}},
-		{"ReadGroup/no-aggregate", func(ctx context.Context) (query.TableIterator, error) {
-			return reader.ReadGroup(ctx, query.ReadGroupSpec{
+		{"ReadGroup/no-aggregate", func(ctx context.Context) (influxdb.TableIterator, error) {
+			return reader.ReadGroup(ctx, influxdb.ReadGroupSpec{
 				ReadFilterSpec: reader.filterSpec(),
-				GroupMode:      query.GroupModeBy,
+				GroupMode:      influxdb.GroupModeBy,
 				GroupKeys:      []string{"_measurement"},
 			}, newAlloc())
 		}},
-		{"ReadWindowAggregate", func(ctx context.Context) (query.TableIterator, error) {
-			return reader.ReadWindowAggregate(ctx, query.ReadWindowAggregateSpec{
+		{"ReadWindowAggregate", func(ctx context.Context) (influxdb.TableIterator, error) {
+			return reader.ReadWindowAggregate(ctx, influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: reader.filterSpec(),
 				Window: execute.Window{
 					Every:  flux.ConvertDuration(30 * time.Second),
@@ -472,20 +465,20 @@ func TestStorageReader_CancelWithUnconsumedTable(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		read func(ctx context.Context) (query.TableIterator, error)
+		read func(ctx context.Context) (influxdb.TableIterator, error)
 	}{
-		{"ReadFilter", func(ctx context.Context) (query.TableIterator, error) {
+		{"ReadFilter", func(ctx context.Context) (influxdb.TableIterator, error) {
 			return reader.ReadFilter(ctx, reader.filterSpec(), newAlloc())
 		}},
-		{"ReadGroup", func(ctx context.Context) (query.TableIterator, error) {
-			return reader.ReadGroup(ctx, query.ReadGroupSpec{
+		{"ReadGroup", func(ctx context.Context) (influxdb.TableIterator, error) {
+			return reader.ReadGroup(ctx, influxdb.ReadGroupSpec{
 				ReadFilterSpec: reader.filterSpec(),
-				GroupMode:      query.GroupModeBy,
+				GroupMode:      influxdb.GroupModeBy,
 				GroupKeys:      []string{"_measurement"},
 			}, newAlloc())
 		}},
-		{"ReadWindowAggregate", func(ctx context.Context) (query.TableIterator, error) {
-			return reader.ReadWindowAggregate(ctx, query.ReadWindowAggregateSpec{
+		{"ReadWindowAggregate", func(ctx context.Context) (influxdb.TableIterator, error) {
+			return reader.ReadWindowAggregate(ctx, influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: reader.filterSpec(),
 				Window: execute.Window{
 					Every:  flux.ConvertDuration(30 * time.Second),
@@ -756,19 +749,19 @@ func TestStorageReader_CancelDuringDeferredConsume(t *testing.T) {
 	reader := NewMultiShardStorageReader(t, dur, setup)
 	defer reader.closeBounded(t)
 
-	reads := map[string]func(ctx context.Context) (query.TableIterator, error){
-		"ReadFilter": func(ctx context.Context) (query.TableIterator, error) {
+	reads := map[string]func(ctx context.Context) (influxdb.TableIterator, error){
+		"ReadFilter": func(ctx context.Context) (influxdb.TableIterator, error) {
 			return reader.ReadFilter(ctx, reader.filterSpec(), newAlloc())
 		},
-		"ReadGroup": func(ctx context.Context) (query.TableIterator, error) {
-			return reader.ReadGroup(ctx, query.ReadGroupSpec{
+		"ReadGroup": func(ctx context.Context) (influxdb.TableIterator, error) {
+			return reader.ReadGroup(ctx, influxdb.ReadGroupSpec{
 				ReadFilterSpec: reader.filterSpec(),
-				GroupMode:      query.GroupModeBy,
+				GroupMode:      influxdb.GroupModeBy,
 				GroupKeys:      []string{"_measurement"},
 			}, newAlloc())
 		},
-		"ReadWindowAggregate": func(ctx context.Context) (query.TableIterator, error) {
-			return reader.ReadWindowAggregate(ctx, query.ReadWindowAggregateSpec{
+		"ReadWindowAggregate": func(ctx context.Context) (influxdb.TableIterator, error) {
+			return reader.ReadWindowAggregate(ctx, influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: reader.filterSpec(),
 				Window: execute.Window{
 					Every:  flux.ConvertDuration(30 * time.Second),
