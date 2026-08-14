@@ -1433,6 +1433,9 @@ type KeyCursor struct {
 	// decrement through the size of seeks slice.
 	pos       int
 	ascending bool
+
+	// closed guards the release loop in Close so that it runs exactly once.
+	closed atomic.Bool
 }
 
 type location struct {
@@ -1507,7 +1510,23 @@ func newKeyCursor(ctx context.Context, fs *FileStore, key []byte, t int64, ascen
 }
 
 // Close removes all references on the cursor.
+//
+// Close is idempotent and safe to call concurrently. Without the guard, the
+// release loop below reads c.seeks and only afterwards clears it, so two callers
+// could both run it and Unref every location twice. That drives
+// TSMReader.refsWG negative, and because WaitGroup.Add decrements before it
+// panics, the reader is left permanently unusable: every later Ref or Unref on
+// it panics for the remaining life of the process.
+//
+// Callers are expected to close exactly once - this is a backstop, not a licence
+// to close from two places. It matters because every cursor wrapper in
+// storage/reads forwards Close by embedding, so any caller mistake at any
+// wrapper depth arrives here.
 func (c *KeyCursor) Close() {
+	if !c.closed.CompareAndSwap(false, true) {
+		return
+	}
+
 	// Remove all of our in-use references since we're done
 	for _, f := range c.seeks {
 		f.r.Unref()

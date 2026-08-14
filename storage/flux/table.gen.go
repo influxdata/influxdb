@@ -66,6 +66,17 @@ func (t *floatTable) Close() {
 	t.mu.Unlock()
 }
 
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *floatTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
+}
+
 func (t *floatTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -697,6 +708,17 @@ func (t *floatGroupTable) Close() {
 	t.mu.Unlock()
 }
 
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *floatGroupTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
+}
+
 func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
 	return t.do(f, t.advance)
 }
@@ -1039,6 +1061,17 @@ func (t *integerTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *integerTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
 }
 
 func (t *integerTable) Statistics() cursors.CursorStats {
@@ -1674,6 +1707,17 @@ func (t *integerGroupTable) Close() {
 	t.mu.Unlock()
 }
 
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *integerGroupTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
+}
+
 func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
 	return t.do(f, t.advance)
 }
@@ -2017,6 +2061,17 @@ func (t *unsignedTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *unsignedTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
 }
 
 func (t *unsignedTable) Statistics() cursors.CursorStats {
@@ -2650,6 +2705,17 @@ func (t *unsignedGroupTable) Close() {
 	t.mu.Unlock()
 }
 
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *unsignedGroupTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
+}
+
 func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
 	return t.do(f, t.advance)
 }
@@ -2992,6 +3058,17 @@ func (t *stringTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *stringTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
 }
 
 func (t *stringTable) Statistics() cursors.CursorStats {
@@ -3625,6 +3702,17 @@ func (t *stringGroupTable) Close() {
 	t.mu.Unlock()
 }
 
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *stringGroupTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
+}
+
 func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
 	return t.do(f, t.advance)
 }
@@ -3911,6 +3999,17 @@ func (t *booleanTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *booleanTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
 }
 
 func (t *booleanTable) Statistics() cursors.CursorStats {
@@ -4542,6 +4641,17 @@ func (t *booleanGroupTable) Close() {
 		t.gc = nil
 	}
 	t.mu.Unlock()
+}
+
+// abandon relinquishes a table the producer is giving up on before the
+// consumer has finished with it: it settles ownership with any in-flight
+// consumer, then closes the table. It is the only safe way to close such a
+// table; see (*table).awaitAbandoned for the ownership protocol. A table whose
+// consumer has already signalled completion via done is closed with Close
+// directly.
+func (t *booleanGroupTable) abandon(done <-chan struct{}) {
+	t.awaitAbandoned(done)
+	t.Close()
 }
 
 func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
