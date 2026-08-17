@@ -25,8 +25,8 @@ use iox_time::TimeProvider;
 use metric::Registry;
 use metrics::{AccessMetrics, SizeMetrics};
 use object_store::{
-    Error, GetOptions, GetRange, GetResult, GetResultPayload, ListResult, MultipartUpload,
-    ObjectMeta, ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path,
+    Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload, ObjectMeta,
+    ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path,
 };
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use tokio::sync::{
@@ -745,13 +745,12 @@ impl ObjectStore for MemCachedObjectStore {
             let GetOptions { range, .. } = options;
             let v = state.value().await?;
             let bytes = range
-                .map(|r| match r {
-                    GetRange::Bounded(range) => range,
-                    GetRange::Offset(start) => start..v.data.len() as u64,
-                    GetRange::Suffix(end) => 0..end,
-                })
-                .map(|r| check_range(r, v.data.len() as u64))
-                .transpose()?
+                .map(|r| r.as_range(v.data.len() as u64))
+                .transpose()
+                .map_err(|source| Error::Generic {
+                    store: STORE_NAME,
+                    source: Box::new(source),
+                })?
                 .map_or_else(
                     || v.data.clone(),
                     |r| {
