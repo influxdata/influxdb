@@ -42,7 +42,7 @@
   curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.5.0-0.rc.1_linux_amd64.tar.gz
   ```
 
-- _Note: release candidates do not require updates to `install_influxdb.sh`, Docker image
+- _Note: release candidates do not require updates to the install script, Docker image
   repository, or `apt`/`yum` repositories._
 
 ### Official Release Process
@@ -80,7 +80,9 @@
   curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.5.0_linux_amd64.tar.gz
   ```
 
-- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_OSS_VERSION`.
+- When satisfied, update `install_influxdb.sh` in
+  [influxdata/influxdb-install](https://github.com/influxdata/influxdb-install) to use the new
+  version for `INFLUXDB_OSS_VERSION`.
 
 - Once the above is complete, the official Docker image repository needs to be updated. See
   [Official Docker Image Repository](#official-docker-image-repository) for the steps required to
@@ -186,7 +188,9 @@ we released `3.1`.
   curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.0.2_linux_amd64.tar.gz
   ```
 
-- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION`
+- When satisfied, update `install_influxdb.sh` in
+  [influxdata/influxdb-install](https://github.com/influxdata/influxdb-install) to use the new
+  version for `INFLUXDB_VERSION`
 
 - Once the above is complete, the official Docker image repository needs to be updated. See
   [Official Docker Image Repository](#official-docker-image-repository) for the steps required to
