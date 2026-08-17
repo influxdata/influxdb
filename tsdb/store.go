@@ -1016,21 +1016,22 @@ func (s *Store) ShardInUse(shardID uint64) (bool, error) {
 
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
-	sh := s.Shard(shardID)
-	if sh == nil {
-		return nil
-	}
-
 	// Remove the shard from Store, so it's not returned to callers requesting
 	// shards. Also mark that this shard is currently being deleted in a separate
 	// map so that we do not have to retain the global store lock while deleting
-	// files.
+	// files. Look the shard up under the write lock so a concurrent delete
+	// cannot hand us a shard it already closed and removed.
 	s.mu.Lock()
 	if _, ok := s.pendingShardDeletes[shardID]; ok {
 		// We are already being deleted? This is possible if delete shard
 		// was called twice in sequence before the shard could be removed from
 		// the mapping.
 		// This is not an error because deleting a shard twice is not an error.
+		s.mu.Unlock()
+		return nil
+	}
+	sh, ok := s.shards[shardID]
+	if !ok {
 		s.mu.Unlock()
 		return nil
 	}
