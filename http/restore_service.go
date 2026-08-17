@@ -211,7 +211,7 @@ func (h *RestoreHandler) handleRestoreBucket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, bucketID, buf, false)
+	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, bucketID, buf, false, nil)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -306,7 +306,29 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		h.api.Err(w, r, err)
 		return
 	}
-	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, target.ID, rawDbi, outcome == restoredBucketReplaced)
+	// Bring the bucket's own metadata (description, retention) in line with
+	// the backup only once the replacement commits, which for a staged replace
+	// happens after the client uploads every shard. Applying it earlier would
+	// hand the live bucket the backup's retention settings while its old data
+	// still serves, letting the retention service delete shard groups if the
+	// restore is then cancelled. It runs outside this request, so a failure
+	// only logs: the bucket merely keeps its previous description and
+	// retention settings.
+	var onReplaceCommitted func()
+	if outcome == restoredBucketReplaced {
+		onReplaceCommitted = func() {
+			if _, err := h.BucketService.UpdateBucket(context.Background(), target.ID, influxdb.BucketUpdate{
+				Description:        &bkt.Description,
+				RetentionPeriod:    &bkt.RetentionPeriod,
+				ShardGroupDuration: &bkt.ShardGroupDuration,
+			}); err != nil {
+				h.Logger.Warn("Failed to update replaced bucket's metadata to match the backup",
+					zap.String("bucket_id", target.ID.String()), zap.Error(err))
+			}
+		}
+	}
+
+	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, target.ID, rawDbi, outcome == restoredBucketReplaced, onReplaceCommitted)
 	if err != nil {
 		if outcome == restoredBucketCreated {
 			h.Logger.Warn("Cleaning up after failed bucket-restore", zap.String("bucket_id", target.ID.String()))
@@ -317,22 +339,6 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		}
 		h.api.Err(w, r, err)
 		return
-	}
-
-	if outcome == restoredBucketReplaced {
-		// Bring the bucket's own metadata (description, retention) in line with
-		// the backup. The shard-data swap itself stays staged until the client
-		// finishes uploading every shard. Failing the request here would abort
-		// those uploads, so a failure only logs: the bucket merely keeps its
-		// previous description and retention settings.
-		if _, err := h.BucketService.UpdateBucket(ctx, target.ID, influxdb.BucketUpdate{
-			Description:        &bkt.Description,
-			RetentionPeriod:    &bkt.RetentionPeriod,
-			ShardGroupDuration: &bkt.ShardGroupDuration,
-		}); err != nil {
-			h.Logger.Warn("Failed to update replaced bucket's metadata to match the backup",
-				zap.String("bucket_id", target.ID.String()), zap.Error(err))
-		}
 	}
 
 	res := influxdb.RestoredBucketMappings{

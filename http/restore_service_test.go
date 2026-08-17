@@ -25,8 +25,13 @@ type restoreServiceMock struct {
 	restoreBucketFn func(ctx context.Context, id platform.ID, dbInfo []byte, replace bool) (map[uint64]uint64, error)
 }
 
-func (s *restoreServiceMock) RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte, replace bool) (map[uint64]uint64, error) {
-	return s.restoreBucketFn(ctx, id, dbInfo, replace)
+func (s *restoreServiceMock) RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte, replace bool, onReplaceCommitted func()) (map[uint64]uint64, error) {
+	m, err := s.restoreBucketFn(ctx, id, dbInfo, replace)
+	// Mimic the engine: the commit hook runs only when a replace succeeds.
+	if err == nil && replace && onReplaceCommitted != nil {
+		onReplaceCommitted()
+	}
+	return m, err
 }
 
 func TestRestoreBucketMetadata_OnConflict(t *testing.T) {

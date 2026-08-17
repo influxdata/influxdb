@@ -444,7 +444,11 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	return nil
 }
 
-func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, replace bool) (map[uint64]uint64, error) {
+// RestoreBucket restores a bucket's shard metadata. When replace is true the
+// bucket's previous contents are replaced once the restore commits, and
+// onReplaceCommitted (if non-nil) is invoked after that commit; for a staged
+// replace this only happens once every restored shard has been uploaded.
+func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, replace bool, onReplaceCommitted func()) (map[uint64]uint64, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -517,7 +521,7 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 	// old-shard deletion wait until every shard upload has landed, so a
 	// failed or cancelled restore leaves the existing bucket intact.
 	if replace && len(createdShardIDs) > 0 {
-		e.stageBucketReplace(id, newDBI, createdShardIDs)
+		e.stageBucketReplace(id, newDBI, createdShardIDs, onReplaceCommitted)
 		return shardIDMap, nil
 	}
 
@@ -559,6 +563,11 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 		}
 	}
 
+	// A replace with nothing to upload commits immediately.
+	if replace && onReplaceCommitted != nil {
+		onReplaceCommitted()
+	}
+
 	return shardIDMap, nil
 }
 
@@ -569,11 +578,12 @@ type stagedBucketReplace struct {
 	newDBI   meta.DatabaseInfo
 	shardIDs []uint64
 	pending  map[uint64]struct{}
+	onCommit func()
 }
 
 // stageBucketReplace records a bucket replace awaiting its shard uploads,
 // dropping any earlier staged replace of the same bucket that never finished.
-func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, shardIDs []uint64) {
+func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, shardIDs []uint64, onCommit func()) {
 	e.stagedMu.Lock()
 	defer e.stagedMu.Unlock()
 
@@ -593,6 +603,7 @@ func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, sh
 		newDBI:   newDBI,
 		shardIDs: shardIDs,
 		pending:  make(map[uint64]struct{}, len(shardIDs)),
+		onCommit: onCommit,
 	}
 	for _, sid := range shardIDs {
 		st.pending[sid] = struct{}{}
@@ -605,31 +616,33 @@ func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, sh
 }
 
 // completeStagedShard marks a staged shard's upload as done and, once the last
-// upload lands, commits the deferred metadata swap and old-shard deletion.
-func (e *Engine) completeStagedShard(shardID uint64) error {
+// upload lands, commits the deferred metadata swap and old-shard deletion. It
+// returns the staged replace's commit hook for the caller to run outside the
+// staging lock.
+func (e *Engine) completeStagedShard(shardID uint64) (func(), error) {
 	e.stagedMu.Lock()
 	defer e.stagedMu.Unlock()
 
 	st, ok := e.stagedShards[shardID]
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	delete(st.pending, shardID)
 	if len(st.pending) > 0 {
-		return nil
+		return nil, nil
 	}
 
 	if err := e.finalizeStagedReplace(st); err != nil {
 		// Re-pend the shard so a retried upload can trigger the swap again.
 		st.pending[shardID] = struct{}{}
-		return err
+		return nil, err
 	}
 
 	delete(e.stagedReplaces, st.bucketID)
 	for _, sid := range st.shardIDs {
 		delete(e.stagedShards, sid)
 	}
-	return nil
+	return st.onCommit, nil
 }
 
 // finalizeStagedReplace swaps the bucket's metadata to the restored shards and
@@ -685,7 +698,14 @@ func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) 
 	if err := e.tsdbStore.RestoreShard(ctx, shardID, r); err != nil {
 		return err
 	}
-	return e.completeStagedShard(shardID)
+	onCommit, err := e.completeStagedShard(shardID)
+	if err != nil {
+		return err
+	}
+	if onCommit != nil {
+		onCommit()
+	}
+	return nil
 }
 
 // SeriesCardinality returns the number of series in the engine.

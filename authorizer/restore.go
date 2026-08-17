@@ -34,14 +34,14 @@ func (b RestoreService) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	return b.s.RestoreKVStore(ctx, r)
 }
 
-func (b RestoreService) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte, replace bool) (shardIDMap map[uint64]uint64, err error) {
+func (b RestoreService) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte, replace bool, onReplaceCommitted func()) (shardIDMap map[uint64]uint64, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
 		return nil, err
 	}
-	return b.s.RestoreBucket(ctx, id, dbi, replace)
+	return b.s.RestoreBucket(ctx, id, dbi, replace, onReplaceCommitted)
 }
 
 func (b RestoreService) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error {
