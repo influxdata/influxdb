@@ -37,7 +37,7 @@ cargo build -p influxdb3 --profile <profile>
 This will build the binary and place it in the `target` folder in your working directory, e.g.,
 `target/<profile>/influxdb3`.
 
-You can then prfile the `influxdb3` server, or whichever command, using the fully-qualified path
+You can then profile the `influxdb3` server, or whichever command, using the fully-qualified path
 and the profiling tools of your choice. For example,
 
 ```
