@@ -34,11 +34,6 @@ pub struct SystemResourceIdentifier(u16);
 
 #[derive(Debug, Clone)]
 pub enum Subject {
-    /// A request authenticated by a trusted cluster-internal transport.
-    ///
-    /// This is only installed by server-side internode routing after mTLS or
-    /// internode JWT authentication, and therefore has unrestricted access.
-    Internode,
     Token(TokenId),
     User {
         user_id: UserId,
@@ -49,7 +44,6 @@ pub enum Subject {
 impl std::fmt::Display for Subject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Subject::Internode => write!(f, "internode"),
             Subject::Token(_) => write!(f, "token"),
             Subject::User { .. } => write!(f, "user"),
         }

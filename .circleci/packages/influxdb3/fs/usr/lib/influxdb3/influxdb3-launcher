@@ -49,7 +49,7 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         # Datafusion
         "num-datafusion-threads": "INFLUXDB3_DATAFUSION_NUM_THREADS",
         # IO
-        "num-io-threads": "INFLUXDB3_IO_NUM_THREADS",
+        "num-io-threads": "INFLUXDB3_NUM_IO_THREADS",
         # Object storage
         "data-dir": "INFLUXDB3_DB_DIR",
         # AWS (AWS_ prefix, not INFLUXDB3_)
@@ -114,14 +114,14 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "compaction-multipliers": "INFLUXDB3_ENTERPRISE_COMPACTION_MULTIPLIERS",
         "compaction-row-limit": "INFLUXDB3_ENTERPRISE_COMPACTION_ROW_LIMIT",
         # Last Value & Distinct Value Caches
-        "preemptive-cache-age": "INFLUXDB3_ENTERPRISE_PREEMPTIVE_CACHE_AGE",
+        "preemptive-cache-age": "INFLUXDB3_PREEMPTIVE_CACHE_AGE",
         # Licensing
         "license-email": "INFLUXDB3_ENTERPRISE_LICENSE_EMAIL",
         "license-file": "INFLUXDB3_ENTERPRISE_LICENSE_FILE",
         "license-type": "INFLUXDB3_ENTERPRISE_LICENSE_TYPE",
         # Resource limits
         "catalog-sync-interval": "INFLUXDB3_ENTERPRISE_CATALOG_SYNC_INTERVAL",
-        "max-columns": "INFLUXDB3_ENTERPRISE_PACHA_TREE_MAX_COLUMNS",
+        "max-columns": "INFLUXDB3_MAX_TOTAL_COLUMNS",
         "num-database-limit": "INFLUXDB3_ENTERPRISE_NUM_DATABASE_LIMIT",
         "num-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TABLE_LIMIT",
         "num-total-columns-per-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TOTAL_COLUMNS_PER_TABLE_LIMIT",
