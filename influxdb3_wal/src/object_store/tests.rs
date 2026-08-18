@@ -872,6 +872,45 @@ async fn test_wal_file_removal_after_snapshot_worked_out_example() {
     }
 }
 
+#[test_log::test(tokio::test)]
+async fn test_replay_wal_period_skips_empty_sentinel_values() {
+    // Regression test for old, pre-existing WAL files (written before empty WriteBatches
+    // were skipped) that contain an empty batch: min/max timestamps are left at the fold
+    // sentinels (i64::MAX / i64::MIN). Replaying such a file used to panic inside
+    // WalPeriod::new's `assert!(min_time <= max_time)`.
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let clone = Arc::clone(&time_provider) as _;
+    let snapshot_tracker = SnapshotTracker::new(1, Gen1Duration::new_1m(), None);
+
+    let mut flush_buffer = FlushBuffer::new(
+        clone,
+        WalBuffer {
+            time_provider: Arc::clone(&time_provider) as _,
+            state: WalBufferState::AcceptingWrites,
+            wal_file_sequence_number: WalFileSequenceNumber(0),
+            op_limit: 10,
+            op_count: 0,
+            database_to_write_batch: Default::default(),
+            write_op_responses: vec![],
+            no_op: None,
+        },
+        snapshot_tracker,
+    );
+
+    // should not panic, and should not register a wal period for the empty file
+    flush_buffer.replay_wal_period(WalFileSequenceNumber::new(1), i64::MAX, i64::MIN);
+    assert_eq!(0, flush_buffer.snapshot_tracker.num_wal_periods());
+    // the wal buffer's sequence number should still advance past the replayed file
+    assert_eq!(
+        WalFileSequenceNumber::new(2),
+        flush_buffer.wal_buffer.wal_file_sequence_number
+    );
+
+    // a normal, non-empty period should still be tracked as usual
+    flush_buffer.replay_wal_period(WalFileSequenceNumber::new(2), 1, 10);
+    assert_eq!(1, flush_buffer.snapshot_tracker.num_wal_periods());
+}
+
 #[derive(Debug, Default)]
 struct TestNotifier {
     notified_writes: parking_lot::Mutex<Vec<Arc<WalContents>>>,
