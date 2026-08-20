@@ -66,6 +66,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::U64Gauge;
 use object_store::ObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
+use object_store_utils::SelfVerifyingCreateStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -1010,6 +1011,21 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
         .object_store_config
         .make_object_store_with_metrics(&metrics)
         .map_err(Error::ObjectStoreParsing)?;
+
+    // The WAL tags its conditional creates so it can recognise its own object
+    // when a retried PUT collides with its own hidden success. This layer sits
+    // innermost so the read-back reaches the real store, not the cache. A
+    // backend that discards object metadata has nowhere to carry the tag, so it
+    // is left unwrapped and keeps the un-verified behaviour.
+    let object_store: Arc<dyn ObjectStore> = if config
+        .object_store_config
+        .object_store
+        .supports_object_metadata()
+    {
+        Arc::new(SelfVerifyingCreateStore::new(object_store, &metrics))
+    } else {
+        object_store
+    };
 
     // setup metrics'd object store:
     let object_store: Arc<dyn ObjectStore> = Arc::new(ObjectStoreMetrics::new(

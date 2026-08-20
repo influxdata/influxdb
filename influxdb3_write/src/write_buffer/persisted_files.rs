@@ -19,6 +19,11 @@ use parking_lot::RwLock;
 type DatabaseToTables = HashMap<DbId, TableToFiles>;
 type TableToFiles = HashMap<TableId, Vec<ParquetFile>>;
 
+/// Put parquet files in the descending min_time order the query path expects.
+pub fn sort_by_min_time_desc(files: &mut [ParquetFile]) {
+    files.sort_by_key(|f| std::cmp::Reverse(f.min_time));
+}
+
 #[derive(Debug, Default)]
 pub struct PersistedFiles {
     inner: RwLock<Inner>,
@@ -168,20 +173,32 @@ impl PersistedFiles {
         table_id: TableId,
         filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile> {
+        let mut files = self.get_files_filtered_unsorted(db_id, table_id, filter);
+        sort_by_min_time_desc(&mut files);
+        files
+    }
+
+    /// Get the list of files for a given database and table, using the provided filter to filter
+    /// results, in whatever order the index holds them.
+    pub fn get_files_filtered_unsorted(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &ChunkFilter<'_>,
+    ) -> Vec<ParquetFile> {
         let inner = self.inner.read();
-        let mut files = inner
+        inner
             .files
             .get(&db_id)
             .and_then(|tables| tables.get(&table_id))
-            .cloned()
+            .map(|files| {
+                files
+                    .iter()
+                    .filter(|file| filter.test_time_stamp_min_max(file.min_time, file.max_time))
+                    .cloned()
+                    .collect()
+            })
             .unwrap_or_default()
-            .into_iter()
-            .filter(|file| filter.test_time_stamp_min_max(file.min_time, file.max_time))
-            .collect::<Vec<_>>();
-
-        files.sort_by_key(|f| std::cmp::Reverse(f.min_time));
-
-        files
     }
 
     /// Remove files that are marked for deletion or that violate their retention period.
@@ -190,7 +207,7 @@ impl PersistedFiles {
         catalog: Arc<Catalog>,
     ) -> SerdeVecMap<DbId, DatabaseTables> {
         let mut removed: SerdeVecMap<DbId, DatabaseTables> = SerdeVecMap::new();
-        let mut removed_paths: HashSet<String> = HashSet::new();
+        let mut removed_paths: HashSet<Arc<str>> = HashSet::new();
         let mut size = 0;
         let mut row_count = 0;
 
@@ -211,7 +228,7 @@ impl PersistedFiles {
                     .entry(table_id)
                     .or_default()
                     .push(file.clone());
-                removed_paths.insert(file.path.clone());
+                removed_paths.insert(Arc::clone(&file.path));
             };
 
             let guard = self.inner.read();

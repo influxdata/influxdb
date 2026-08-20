@@ -175,12 +175,17 @@ impl TableBuffer {
         let mut snapshot_chunks = Vec::new();
         for chunk_time in keys_to_remove {
             let chunks = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
-            for chunk in chunks {
+            // A chunk_time can yield several chunks (a string/tag column crossing
+            // the Arrow varchar limit splits one). The ordinal makes each chunk
+            // individually addressable, both for its parquet path and for
+            // `remove_snapshotting_chunk` once that parquet file exists.
+            for (chunk_ordinal, chunk) in chunks.into_iter().enumerate() {
                 let timestamp_min_max = chunk.timestamp_min_max();
                 let (schema, record_batch) = chunk.into_schema_record_batch(Arc::clone(&table_def));
 
                 snapshot_chunks.push(SnapshotChunk {
                     chunk_time,
+                    chunk_ordinal: chunk_ordinal as u32,
                     timestamp_min_max,
                     record_batch,
                     schema,
@@ -192,6 +197,28 @@ impl TableBuffer {
         self.snapshotting_chunks.clone()
     }
 
+    /// Drop a single snapshotting chunk, identified by the `chunk_time` /
+    /// `chunk_ordinal` pair [`TableBuffer::snapshot`] assigned it.
+    ///
+    /// Callers persist the chunks of one snapshot concurrently and must drop
+    /// each chunk only once its own parquet file is queryable — a chunk is
+    /// served from `snapshotting_chunks` until then, and from the parquet file
+    /// after, so dropping it early makes those rows briefly invisible to
+    /// queries.
+    pub fn remove_snapshotting_chunk(&mut self, chunk_time: i64, chunk_ordinal: u32) {
+        if let Some(index) = self.snapshotting_chunks.iter().position(|chunk| {
+            chunk.chunk_time == chunk_time && chunk.chunk_ordinal == chunk_ordinal
+        }) {
+            self.snapshotting_chunks.swap_remove(index);
+        }
+    }
+
+    /// Drop every snapshotting chunk at once.
+    ///
+    /// Only correct for a caller that has already made the whole table's
+    /// snapshot queryable elsewhere — one that registers every parquet file of
+    /// the snapshot before clearing. A caller that persists chunk by chunk
+    /// wants [`TableBuffer::remove_snapshotting_chunk`].
     pub fn clear_snapshots(&mut self) {
         self.snapshotting_chunks.clear();
     }
@@ -200,6 +227,10 @@ impl TableBuffer {
 #[derive(Debug, Clone)]
 pub struct SnapshotChunk {
     pub(crate) chunk_time: i64,
+    /// Position of this chunk among the chunks sharing its `chunk_time`,
+    /// assigned by [`TableBuffer::snapshot`]. Identifies the chunk for its
+    /// parquet path and for [`TableBuffer::remove_snapshotting_chunk`].
+    pub(crate) chunk_ordinal: u32,
     pub(crate) timestamp_min_max: TimestampMinMax,
     pub(crate) record_batch: RecordBatch,
     pub(crate) schema: Schema,

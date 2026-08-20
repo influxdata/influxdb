@@ -696,7 +696,7 @@ impl TableIndexCache {
 
             // Delete each parquet file
             for parquet_file in index.parquet_files().await {
-                let path = ObjPath::from(parquet_file.path.as_str());
+                let path = ObjPath::from(parquet_file.path.as_ref());
                 debug!(
                     path = %path,
                     "Deleting parquet file"
@@ -897,7 +897,7 @@ impl TableIndexCache {
 
         // Delete expired parquet files from object store
         for file in &expired_files {
-            let path = ObjPath::from(file.path.as_str());
+            let path = ObjPath::from(file.path.as_ref());
             debug!(
                 path = %path,
                 max_time = file.max_time,

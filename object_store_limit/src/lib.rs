@@ -23,6 +23,18 @@ use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
 
+/// Marker extension that exempts one operation from the concurrency limit.
+///
+/// Insert into [`GetOptions::extensions`] / [`PutOptions::extensions`] and
+/// [`LimitObjectStore`] executes that call without acquiring a permit. For
+/// small, deadline-bearing control-plane operations (e.g. the compactor's
+/// primary-lease renewal): permits are FIFO and a `get`'s permit is held for
+/// the whole life of the returned stream, so a data-plane backlog can starve
+/// such an operation past its deadline. Ops carrying this marker must stay
+/// rare and tiny; they are invisible to the semaphore's utilisation metrics.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BypassLimit;
+
 /// Store wrapper that limits the maximum number of concurrent object store
 /// operations via an [`InstrumentedAsyncSemaphore`], and reports utilisation
 /// through the [`AsyncSemaphoreMetrics`] registered with the metric registry.
@@ -32,6 +44,9 @@ use tracker::{
 ///
 /// For streaming responses (`get`, `list`), the permit is held for the entire
 /// lifetime of the returned stream.
+///
+/// Operations whose options carry the [`BypassLimit`] extension skip the
+/// semaphore entirely (see its docs for when that is appropriate).
 #[derive(Debug)]
 pub struct LimitObjectStore {
     inner: Arc<dyn ObjectStore>,
@@ -100,6 +115,9 @@ impl ObjectStore for LimitObjectStore {
         payload: PutPayload,
         opts: PutOptions,
     ) -> Result<PutResult> {
+        if opts.extensions.get::<BypassLimit>().is_some() {
+            return self.inner.put_opts(location, payload, opts).await;
+        }
         let _permit = self.acquire().await;
         self.inner.put_opts(location, payload, opts).await
     }
@@ -134,6 +152,9 @@ impl ObjectStore for LimitObjectStore {
     }
 
     async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
+        if options.extensions.get::<BypassLimit>().is_some() {
+            return self.inner.get_opts(location, options).await;
+        }
         let permit = self.acquire().await;
         let r = self.inner.get_opts(location, options).await?;
         Ok(permit_get_result(r, permit))

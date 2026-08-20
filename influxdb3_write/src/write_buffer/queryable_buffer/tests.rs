@@ -478,7 +478,7 @@ async fn split_chunks_persist_to_distinct_paths() {
     // the shared path violated).
     for f in &files {
         let head = object_store
-            .head(&object_store::path::Path::from(f.path.as_str()))
+            .head(&object_store::path::Path::from(f.path.as_ref()))
             .await
             .expect("persisted object exists");
         assert_eq!(
@@ -487,4 +487,261 @@ async fn split_chunks_persist_to_distinct_paths() {
             f.path
         );
     }
+}
+
+/// An object store that blocks one parquet path until the test opens its gate.
+#[derive(Debug)]
+struct GatedParquetPutStore {
+    inner: Arc<dyn ObjectStore>,
+    gated_path_substr: &'static str,
+    gate_open: tokio::sync::watch::Receiver<bool>,
+    gated_put_started: tokio::sync::watch::Sender<bool>,
+}
+
+impl GatedParquetPutStore {
+    fn new(
+        inner: Arc<dyn ObjectStore>,
+        gated_path_substr: &'static str,
+    ) -> (
+        Arc<Self>,
+        tokio::sync::watch::Sender<bool>,
+        tokio::sync::watch::Receiver<bool>,
+    ) {
+        let (gate_open_tx, gate_open_rx) = tokio::sync::watch::channel(false);
+        let (gated_put_started_tx, gated_put_started_rx) = tokio::sync::watch::channel(false);
+        (
+            Arc::new(Self {
+                inner,
+                gated_path_substr,
+                gate_open: gate_open_rx,
+                gated_put_started: gated_put_started_tx,
+            }),
+            gate_open_tx,
+            gated_put_started_rx,
+        )
+    }
+}
+
+impl std::fmt::Display for GatedParquetPutStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GatedParquetPutStore({})", self.gated_path_substr)
+    }
+}
+
+#[async_trait]
+impl ObjectStore for GatedParquetPutStore {
+    async fn put_opts(
+        &self,
+        location: &object_store::path::Path,
+        payload: object_store::PutPayload,
+        opts: object_store::PutOptions,
+    ) -> object_store::Result<object_store::PutResult> {
+        if location.as_ref().contains(self.gated_path_substr) {
+            let _ = self.gated_put_started.send(true);
+            let _ = self.gate_open.clone().wait_for(|open| *open).await;
+        }
+        self.inner.put_opts(location, payload, opts).await
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        location: &object_store::path::Path,
+        opts: object_store::PutMultipartOptions,
+    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+        self.inner.put_multipart_opts(location, opts).await
+    }
+
+    async fn get_opts(
+        &self,
+        location: &object_store::path::Path,
+        options: object_store::GetOptions,
+    ) -> object_store::Result<object_store::GetResult> {
+        self.inner.get_opts(location, options).await
+    }
+
+    async fn delete(&self, location: &object_store::path::Path) -> object_store::Result<()> {
+        self.inner.delete(location).await
+    }
+
+    fn list(
+        &self,
+        prefix: Option<&object_store::path::Path>,
+    ) -> futures_util::stream::BoxStream<'static, object_store::Result<object_store::ObjectMeta>>
+    {
+        self.inner.list(prefix)
+    }
+
+    async fn list_with_delimiter(
+        &self,
+        prefix: Option<&object_store::path::Path>,
+    ) -> object_store::Result<object_store::ListResult> {
+        self.inner.list_with_delimiter(prefix).await
+    }
+
+    async fn copy(
+        &self,
+        from: &object_store::path::Path,
+        to: &object_store::path::Path,
+    ) -> object_store::Result<()> {
+        self.inner.copy(from, to).await
+    }
+
+    async fn copy_if_not_exists(
+        &self,
+        from: &object_store::path::Path,
+        to: &object_store::path::Path,
+    ) -> object_store::Result<()> {
+        self.inner.copy_if_not_exists(from, to).await
+    }
+}
+
+/// Pin the snapshot handoff invariant at the production call site: when one
+/// parquet job finishes while its sibling is still blocked, every row must be
+/// queryable from either the newly registered file or the snapshotting buffer.
+#[tokio::test]
+async fn snapshot_handoff_keeps_sibling_chunks_queryable() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    // The second row is in the 00:01 Gen1 chunk; hold that parquet PUT while
+    // the 00:00 chunk finishes its handoff.
+    let (gated_store, gate_open, mut gated_put_started) =
+        GatedParquetPutStore::new(Arc::clone(&inner), "/1970-01-01/00-01/");
+    let object_store: Arc<dyn ObjectStore> = gated_store;
+    let metrics = Arc::new(metric::Registry::default());
+    let parquet_store =
+        ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+    let exec = Arc::new(Executor::new_with_config_and_executor(
+        ExecutorConfig {
+            target_query_partitions: NonZeroUsize::new(1).unwrap(),
+            object_stores: [&parquet_store]
+                .into_iter()
+                .map(|store| (store.id(), Arc::clone(store.object_store())))
+                .collect(),
+            metric_registry: Arc::clone(&metrics),
+            mem_pool_size: 1024 * 1024 * 1024,
+            per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+            heap_memory_limit: None,
+        },
+        DedicatedExecutor::new_testing(),
+    ));
+    let runtime_env = exec.new_context().inner().runtime_env();
+    register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+    register_current_runtime_for_io();
+
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let catalog = Arc::new(
+        Catalog::new(
+            "hosta",
+            Arc::clone(&inner),
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        )
+        .await
+        .unwrap(),
+    );
+    let persister = Arc::new(Persister::new(
+        Arc::clone(&object_store),
+        "hosta",
+        Arc::clone(&time_provider) as _,
+        None,
+    ));
+    let time_provider: Arc<dyn TimeProvider> = time_provider;
+    let queryable_buffer = QueryableBuffer::new(QueryableBufferArgs {
+        executor: Arc::clone(&exec),
+        catalog: Arc::clone(&catalog),
+        persister,
+        last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap(),
+        distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap(),
+        persisted_files: Arc::new(PersistedFiles::new(None)),
+        parquet_cache: None,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(2).unwrap(),
+    });
+
+    let writer = TestWriter::new_with_catalog(Arc::clone(&catalog));
+    let write_batch = writer
+        .write_lp_to_write_batch("foo,tag=a value=1i 1\nfoo,tag=b value=2i 60000000001", 0)
+        .await;
+    let db_schema = catalog.db_schema(TestWriter::DB_NAME).unwrap();
+    let table_def = db_schema.table_definition("foo").unwrap();
+    let snapshot_details = SnapshotDetails {
+        snapshot_sequence_number: SnapshotSequenceNumber::new(1),
+        end_time_marker: 120_000_000_000,
+        first_wal_sequence_number: WalFileSequenceNumber::new(1),
+        last_wal_sequence_number: WalFileSequenceNumber::new(1),
+        forced: false,
+    };
+    let wal_contents = influxdb3_wal::create::wal_contents_with_snapshot(
+        (1, 60_000_000_001, 1),
+        [influxdb3_wal::create::write_batch_op(write_batch)],
+        snapshot_details,
+    );
+    let snapshot_done = queryable_buffer
+        .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
+        .await;
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        gated_put_started
+            .wait_for(|started| *started)
+            .await
+            .unwrap();
+        loop {
+            if queryable_buffer
+                .persisted_files
+                .get_files(db_schema.id, table_def.table_id)
+                .len()
+                == 1
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("one parquet job should finish while its sibling is gated");
+
+    let ctx = exec.new_context();
+    let chunks = queryable_buffer
+        .get_table_chunks(
+            Arc::clone(&db_schema),
+            Arc::clone(&table_def),
+            &ChunkFilter::default(),
+            None,
+            &ctx.inner().state(),
+        )
+        .unwrap();
+    let files = queryable_buffer
+        .persisted_files
+        .get_files(db_schema.id, table_def.table_id);
+    let buffered_rows: usize = chunks
+        .iter()
+        .map(|chunk| {
+            chunk
+                .as_any()
+                .downcast_ref::<BufferChunk>()
+                .expect("snapshotting chunk should be in memory")
+                .batches
+                .iter()
+                .map(|batch| batch.num_rows())
+                .sum::<usize>()
+        })
+        .sum();
+    let persisted_rows = files
+        .iter()
+        .map(|file| file.row_count as usize)
+        .sum::<usize>();
+    assert_eq!(1, buffered_rows, "the gated sibling must remain buffered");
+    assert_eq!(1, persisted_rows, "the completed chunk must be registered");
+    assert_eq!(2, buffered_rows + persisted_rows, "no rows may disappear");
+
+    gate_open.send(true).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), snapshot_done)
+        .await
+        .expect("snapshot should finish after the gate opens")
+        .unwrap();
 }

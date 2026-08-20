@@ -29,7 +29,7 @@ fn test_overall_counts() {
     let parquet_files_1 = vec![
         ParquetFile {
             id: ParquetFileId::from(1),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,
@@ -38,7 +38,7 @@ fn test_overall_counts() {
         },
         ParquetFile {
             id: ParquetFileId::from(2),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,
@@ -73,7 +73,7 @@ fn test_overall_counts() {
     let parquet_files_2 = vec![
         ParquetFile {
             id: ParquetFileId::from(4),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,
@@ -82,7 +82,7 @@ fn test_overall_counts() {
         },
         ParquetFile {
             id: ParquetFileId::from(5),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,
@@ -126,7 +126,7 @@ fn test_overall_counts_zero() {
     let parquet_files_1 = vec![
         ParquetFile {
             id: ParquetFileId::from(1),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,
@@ -135,7 +135,7 @@ fn test_overall_counts_zero() {
         },
         ParquetFile {
             id: ParquetFileId::from(2),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,
@@ -154,7 +154,7 @@ fn test_overall_counts_zero() {
     let parquet_files_2 = vec![
         ParquetFile {
             id: ParquetFileId::from(4),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,
@@ -163,7 +163,7 @@ fn test_overall_counts_zero() {
         },
         ParquetFile {
             id: ParquetFileId::from(5),
-            path: "some_path".to_string(),
+            path: "some_path".into(),
             size_bytes: 100_000,
             row_count: 200,
             chunk_time: 1123456789,

@@ -11,6 +11,171 @@ use iox_time::{MockProvider, Time};
 use object_store::memory::InMemory;
 
 #[tokio::test]
+async fn rejected_over_limit_line_creates_no_schema() {
+    let catalog = Catalog::new_in_memory_with_limits(
+        "test",
+        influxdb3_catalog::catalog::CatalogLimits::new(10, 100, 5),
+    )
+    .await
+    .unwrap();
+    let database_name = DatabaseName::new("test").unwrap();
+    // 1 tag + 8 fields projects to 9 columns against a limit of 5.
+    let lp = "cpu,host=a f1=1,f2=1,f3=1,f4=1,f5=1,f6=1,f7=1,f8=1 1000";
+    let result = WriteValidator::initialize(database_name.clone(), Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            lp,
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Auto,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+    assert_eq!(result.errors.len(), 1);
+    assert!(
+        result.errors[0].error_message.contains("9 columns"),
+        "error should report the projected column count, got: {}",
+        result.errors[0].error_message
+    );
+    // The rejected line must not have created the table or any columns.
+    assert!(
+        catalog
+            .db_schema("test")
+            .unwrap()
+            .table_definition("cpu")
+            .is_none()
+    );
+
+    // An existing table's schema stays unchanged when an over-limit line is
+    // rejected.
+    let result = WriteValidator::initialize(database_name.clone(), Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            "cpu,host=a f1=1 1000",
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Auto,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+    assert!(result.errors.is_empty());
+    let columns_before = catalog
+        .db_schema("test")
+        .unwrap()
+        .table_definition("cpu")
+        .unwrap()
+        .num_columns();
+    let result = WriteValidator::initialize(database_name, Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            lp,
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Auto,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+    assert_eq!(result.errors.len(), 1);
+    let columns_after = catalog
+        .db_schema("test")
+        .unwrap()
+        .table_definition("cpu")
+        .unwrap()
+        .num_columns();
+    assert_eq!(columns_before, columns_after);
+}
+
+#[tokio::test]
+async fn rejected_type_conflict_line_creates_no_schema() {
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
+    let database_name = DatabaseName::new("test").unwrap();
+    let result = WriteValidator::initialize(database_name.clone(), Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            "cpu f1=1.0 1000",
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Second,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+    assert!(result.errors.is_empty());
+
+    // f1 exists as a float; the string value rejects the line, and the line's
+    // other new columns must not be created.
+    let result = WriteValidator::initialize(database_name, Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            "cpu,newtag=x f9=9,f1=\"s\" 1000",
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Second,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+    assert_eq!(result.errors.len(), 1);
+    let table = catalog
+        .db_schema("test")
+        .unwrap()
+        .table_definition("cpu")
+        .unwrap();
+    assert!(
+        !table.column_exists("newtag") && !table.column_exists("f9"),
+        "rejected line must not create columns"
+    );
+}
+
+#[tokio::test]
+async fn rejected_bad_timestamp_line_creates_no_schema() {
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
+    let database_name = DatabaseName::new("test").unwrap();
+    // Seconds precision overflows to_nanos for this timestamp.
+    let result = WriteValidator::initialize(database_name, Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            "cpu,t1=a f1=1 100000000000000",
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Second,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+    assert_eq!(result.errors.len(), 1);
+    assert!(
+        catalog
+            .db_schema("test")
+            .unwrap()
+            .table_definition("cpu")
+            .is_none(),
+        "rejected line must not create the table"
+    );
+}
+
+#[tokio::test]
 async fn write_validator_v1() -> Result<(), Error> {
     let node_id = Arc::from("sample-host-id");
     let obj_store = Arc::new(InMemory::new());
