@@ -2112,6 +2112,66 @@ mod limits {
         txn.check_write_column_limits("cpu", &incoming_tags, &incoming_fields)
             .expect("duplicate keys within a line should count once toward the limit");
     }
+
+    #[tokio::test]
+    async fn check_write_column_limits_projects_for_nonexistent_table() {
+        let catalog = catalog_with_limits(CatalogLimits::new(10, 100, 5));
+        let mut txn = catalog.begin_database_transaction("db1").unwrap();
+        // No table created: every unique incoming column is new.
+        let incoming_tags = ["tag1", "tag2"];
+        let incoming_fields = ["field1", "field2", "field3", "field4"];
+        let err = txn
+            .check_write_column_limits("cpu", &incoming_tags, &incoming_fields)
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CatalogError::TooManyColumns {
+                    ref table_name,
+                    attempted: 6,
+                    limit: 5,
+                } if table_name.inner() == "cpu"
+            ),
+            "expected projected TooManyColumns for a table that doesn't exist yet, got {err:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn check_projected_column_counts() {
+        let catalog = catalog_with_limits(CatalogLimits::new(10, 100, 5));
+        let mut txn = catalog.begin_database_transaction("db1").unwrap();
+        // Nonexistent table: every counted column is new.
+        txn.check_new_table_column_counts("cpu", 1, 4).unwrap();
+        let err = txn.check_new_table_column_counts("cpu", 1, 5).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CatalogError::TooManyColumns {
+                    attempted: 6,
+                    limit: 5,
+                    ..
+                }
+            ),
+            "expected projected TooManyColumns, got {err:?}",
+        );
+        // Existing columns count toward the projection.
+        let tx = txn.table_tx_or_create("cpu").unwrap();
+        tx.tag_or_create("t0").unwrap();
+        tx.tag_or_create("t1").unwrap();
+        tx.check_projected_column_counts(1, 2).unwrap();
+        let err = tx.check_projected_column_counts(1, 3).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CatalogError::TooManyColumns {
+                    attempted: 6,
+                    limit: 5,
+                    ..
+                }
+            ),
+            "expected projected TooManyColumns, got {err:?}",
+        );
+    }
 }
 // ---------------------------------------------------------------------------
 // Write-path feature-level gate

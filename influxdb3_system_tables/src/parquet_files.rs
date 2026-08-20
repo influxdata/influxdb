@@ -57,18 +57,24 @@ impl IoxSystemTable for ParquetFilesTable {
         let table_name = find_table_name_in_filter(filters);
 
         let parquet_files = if let Some(table_name) = table_name {
+            // `table_name` is an untrusted value from the query's WHERE clause, and the database can
+            // be dropped between this table's construction and the scan. Either miss resolves to
+            // `None` and must yield zero rows, not a panic.
             let table_id = self
                 .buffer
                 .catalog()
                 .db_schema_by_id(&self.db_id)
-                .expect("db exists")
-                .table_name_to_id(Arc::clone(&table_name))
-                .expect("table exists");
-            self.buffer
-                .parquet_files(self.db_id, table_id)
-                .into_iter()
-                .map(|file| (Arc::clone(&table_name), file))
-                .collect()
+                .and_then(|db| db.table_name_to_id(Arc::clone(&table_name)));
+            match table_id {
+                Some(table_id) => self
+                    .buffer
+                    .parquet_files(self.db_id, table_id)
+                    .into_iter()
+                    .map(|file| (Arc::clone(&table_name), file))
+                    .take(limit)
+                    .collect(),
+                None => vec![],
+            }
         } else {
             self.buffer
                 .catalog()

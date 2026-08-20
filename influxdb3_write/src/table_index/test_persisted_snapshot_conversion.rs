@@ -12,7 +12,7 @@ struct CreateTestParquetFileArgs {
     /// Optional file ID; if None, a new ID will be generated
     file_id: Option<ParquetFileId>,
     /// The path for the parquet file
-    path: Option<String>,
+    path: Option<Arc<str>>,
     /// Size in bytes (default: 100)
     size_bytes: Option<u64>,
     /// Number of rows (default: 10,000)
@@ -27,7 +27,7 @@ fn create_test_parquet_file(args: CreateTestParquetFileArgs) -> ParquetFile {
     let time_offset = args.time_offset_minutes;
     ParquetFile {
         id: args.file_id.unwrap_or_default(),
-        path: args.path.unwrap_or_else(|| "whatever".to_string()),
+        path: args.path.unwrap_or_else(|| "whatever".into()),
         size_bytes: args.size_bytes.unwrap_or(100),
         row_count: args.row_count.unwrap_or(10_000),
         chunk_time: time_offset * MINUTE_NS,

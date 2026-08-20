@@ -77,6 +77,7 @@ regex.workspace = true
 [dev-dependencies]
 # Core Crates
 arrow_util = { path = "../core/arrow_util" }
+object_store_utils = { path = "../object_store_utils", features = ["test-helpers"] }
 query_functions = { path = "../core/query_functions" }
 test_helpers = { path = "../core/test_helpers" }
 influxdb3_catalog = { path = "../influxdb3_catalog", features = [ "test_helpers" ] }

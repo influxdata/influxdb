@@ -412,3 +412,89 @@ async fn test_chunk_splits_on_large_tag_payload() {
     let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
     assert_eq!(total_rows, 3);
 }
+
+/// A snapshot's chunks are persisted concurrently, and each job hands its own
+/// chunk over to its parquet file. Dropping a chunk is therefore per chunk, not
+/// per table: a chunk is served from `snapshotting_chunks` until its own file
+/// exists and from that file afterwards, so evicting the whole table when the
+/// first job finishes makes every sibling chunk — whole gen1 chunk_times —
+/// briefly invisible to queries.
+#[tokio::test]
+async fn test_remove_snapshotting_chunk_leaves_the_other_chunks_queryable() {
+    // 30-byte strings against a 100-byte cap, so chunk_time 0 splits in two and
+    // the ordinal has to distinguish them.
+    let _guard = VarColMaxGuard::new(100);
+
+    let writer = TestWriter::new().await;
+    let rows1 = writer
+        .write_to_rows("tbl,tag=a val=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" 1", 0)
+        .await;
+    let rows2 = writer
+        .write_to_rows("tbl,tag=b val=\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" 2", 0)
+        .await;
+    let rows3 = writer
+        .write_to_rows("tbl,tag=c val=\"cccccccccccccccccccccccccccccc\" 3", 0)
+        .await;
+    let rows4 = writer
+        .write_to_rows("tbl,tag=d val=\"dddddddddddddddddddddddddddddd\" 4", 0)
+        .await;
+    let table_def = writer.db_schema().table_definition("tbl").unwrap();
+
+    let mut table_buffer = TableBuffer::new();
+    // chunk_time 0: rows1-3 fill the first chunk, rows4 opens a second one.
+    table_buffer.buffer_chunk(0, &rows1);
+    table_buffer.buffer_chunk(0, &rows2);
+    table_buffer.buffer_chunk(0, &rows3);
+    table_buffer.buffer_chunk(0, &rows4);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 2);
+    // chunk_time 10: one chunk, the sibling gen1 block.
+    table_buffer.buffer_chunk(10, &rows1);
+
+    let snapshot_chunks = table_buffer.snapshot(Arc::clone(&table_def), i64::MAX);
+    assert_eq!(
+        vec![(0, 0), (0, 1), (10, 0)],
+        snapshot_chunks
+            .iter()
+            .map(|c| (c.chunk_time, c.chunk_ordinal))
+            .collect::<Vec<_>>(),
+        "snapshot assigns each chunk an ordinal within its chunk_time"
+    );
+
+    let queryable_rows = |buffer: &TableBuffer| -> Vec<(i64, usize)> {
+        let batches = buffer
+            .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
+            .unwrap();
+        let mut counts: Vec<(i64, usize)> = batches
+            .into_iter()
+            .map(|(chunk_time, (_, rbs))| {
+                (
+                    chunk_time,
+                    rbs.iter().map(|rb| rb.num_rows()).sum::<usize>(),
+                )
+            })
+            .collect();
+        counts.sort();
+        counts
+    };
+
+    assert_eq!(vec![(0, 4), (10, 1)], queryable_rows(&table_buffer));
+
+    // The first job finishes: only its chunk goes, the rest stay queryable.
+    table_buffer.remove_snapshotting_chunk(0, 0);
+    assert_eq!(
+        vec![(0, 1), (10, 1)],
+        queryable_rows(&table_buffer),
+        "the split sibling at chunk_time 0 and the chunk at chunk_time 10 are \
+         still being persisted and must remain queryable"
+    );
+
+    table_buffer.remove_snapshotting_chunk(10, 0);
+    assert_eq!(vec![(0, 1)], queryable_rows(&table_buffer));
+
+    // An ordinal that no longer matches anything is a no-op, not a table wipe.
+    table_buffer.remove_snapshotting_chunk(0, 7);
+    assert_eq!(vec![(0, 1)], queryable_rows(&table_buffer));
+
+    table_buffer.remove_snapshotting_chunk(0, 1);
+    assert!(queryable_rows(&table_buffer).is_empty());
+}

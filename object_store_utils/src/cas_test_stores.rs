@@ -5,27 +5,82 @@ use std::sync::Arc;
 
 use object_store::ObjectStore;
 
+/// Which error a lost response surfaces as. A `PutMode::Create` collision
+/// reaches the caller as `AlreadyExists`; `PutMode::Update` as `Precondition`;
+/// a dropped connection on a committed write as `Generic`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LostResponseError {
+    Precondition,
+    AlreadyExists,
+    Generic,
+}
+
 /// Store wrapper simulating an ambiguous conditional-put success: the write
-/// lands on the inner store, but the caller receives `Precondition` — as
-/// happens when the client's internal retry layer re-sends a PUT whose
-/// response was lost and collides with its own earlier success.
+/// lands on the inner store, but the caller receives a failure — as happens
+/// when the client's internal retry layer re-sends a PUT whose response was
+/// lost and collides with its own earlier success.
 #[derive(Debug)]
 pub struct LostResponseStore {
     inner: Arc<dyn ObjectStore>,
-    lose_next_put_response: std::sync::atomic::AtomicBool,
+    lose_next_put_response: std::sync::Mutex<Option<LostResponseError>>,
+    collision_shape: std::sync::Mutex<Option<LostResponseError>>,
+    last_get: std::sync::Mutex<Option<(Option<object_store::GetRange>, bool)>>,
+}
+
+/// The error a lost response, or a reshaped collision, surfaces as.
+fn lost_response_error(
+    error: LostResponseError,
+    location: &object_store::path::Path,
+) -> object_store::Error {
+    match error {
+        LostResponseError::Precondition => object_store::Error::Precondition {
+            path: location.to_string(),
+            source: "simulated lost response + retry collision".into(),
+        },
+        LostResponseError::AlreadyExists => object_store::Error::AlreadyExists {
+            path: location.to_string(),
+            source: "simulated lost response + retry collision".into(),
+        },
+        LostResponseError::Generic => object_store::Error::Generic {
+            store: "LostResponseStore",
+            source: "simulated lost response on a committed write".into(),
+        },
+    }
 }
 
 impl LostResponseStore {
     pub fn new(inner: Arc<dyn ObjectStore>) -> Self {
         Self {
             inner,
-            lose_next_put_response: std::sync::atomic::AtomicBool::new(false),
+            lose_next_put_response: std::sync::Mutex::new(None),
+            collision_shape: std::sync::Mutex::new(None),
+            last_get: std::sync::Mutex::new(None),
         }
     }
 
+    /// Report every `PutMode::Create` collision as `error`, as Azure does when
+    /// an `If-None-Match: *` put comes back 412 rather than 409.
+    pub fn report_collisions_as(&self, error: LostResponseError) {
+        *self.collision_shape.lock().expect("lock not poisoned") = Some(error);
+    }
+
+    /// The `range` and `head` of the most recent `get_opts`, for pinning the
+    /// shape of a read-back.
+    pub fn last_get(&self) -> Option<(Option<object_store::GetRange>, bool)> {
+        self.last_get.lock().expect("lock not poisoned").clone()
+    }
+
+    /// Lose the next put response as a `Precondition`, the shape a
+    /// `PutMode::Update` collision takes.
     pub fn lose_next_put_response(&self) {
-        self.lose_next_put_response
-            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.lose_next_put_response_with(LostResponseError::Precondition);
+    }
+
+    pub fn lose_next_put_response_with(&self, error: LostResponseError) {
+        *self
+            .lose_next_put_response
+            .lock()
+            .expect("lock not poisoned") = Some(error);
     }
 }
 
@@ -43,18 +98,24 @@ impl ObjectStore for LostResponseStore {
         payload: object_store::PutPayload,
         opts: object_store::PutOptions,
     ) -> object_store::Result<object_store::PutResult> {
-        let result = self.inner.put_opts(location, payload, opts).await?;
-        if self
+        let result = match self.inner.put_opts(location, payload, opts).await {
+            Ok(result) => result,
+            Err(e @ object_store::Error::AlreadyExists { .. }) => {
+                let shape = *self.collision_shape.lock().expect("lock not poisoned");
+                return Err(shape.map_or(e, |shape| lost_response_error(shape, location)));
+            }
+            Err(e) => return Err(e),
+        };
+        // The write landed, but the caller sees the failure its own retry got.
+        let taken = self
             .lose_next_put_response
-            .swap(false, std::sync::atomic::Ordering::SeqCst)
-        {
-            // The write landed, but the caller sees the 412 its own retry got.
-            return Err(object_store::Error::Precondition {
-                path: location.to_string(),
-                source: "simulated lost response + retry collision".into(),
-            });
+            .lock()
+            .expect("lock not poisoned")
+            .take();
+        match taken {
+            Some(error) => Err(lost_response_error(error, location)),
+            None => Ok(result),
         }
-        Ok(result)
     }
 
     async fn put_multipart_opts(
@@ -70,6 +131,8 @@ impl ObjectStore for LostResponseStore {
         location: &object_store::path::Path,
         options: object_store::GetOptions,
     ) -> object_store::Result<object_store::GetResult> {
+        *self.last_get.lock().expect("lock not poisoned") =
+            Some((options.range.clone(), options.head));
         self.inner.get_opts(location, options).await
     }
 

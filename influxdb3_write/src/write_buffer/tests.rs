@@ -1482,7 +1482,7 @@ async fn test_parquet_cache() {
     // get the path for the created parquet file:
     let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
     assert_eq!(1, persisted_files.len());
-    let path = ObjPath::from(persisted_files[0].path.as_str());
+    let path = ObjPath::from(persisted_files[0].path.as_ref());
 
     // check the number of requests to that path before making a query:
     // there should be no get request, made by the cache oracle:
@@ -1591,7 +1591,7 @@ async fn test_no_parquet_cache() {
     // get the path for the created parquet file:
     let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
     assert_eq!(1, persisted_files.len());
-    let path = ObjPath::from(persisted_files[0].path.as_str());
+    let path = ObjPath::from(persisted_files[0].path.as_ref());
 
     // check the number of requests to that path before making a query:
     // there should be no get or get_range requests since nothing has asked for this file yet:
@@ -2315,7 +2315,7 @@ async fn test_query_path_parquet_cache() {
         .persisted_files()
         .get_files(DbId::from(1), TableId::from(0));
     assert_eq!(1, persisted_files.len());
-    let path = ObjPath::from(persisted_files[0].path.as_str());
+    let path = ObjPath::from(persisted_files[0].path.as_ref());
 
     let batches = write_buffer
         .get_record_batches_unchecked(db_name, "temp", &ctx)

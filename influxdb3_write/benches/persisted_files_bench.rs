@@ -31,7 +31,7 @@ fn create_parquet_file(idx: usize, prefix: &str) -> ParquetFile {
     let min_time = idx as i64 * 1000;
     ParquetFile {
         id: ParquetFileId::new(),
-        path: format!("/db/table/{prefix}_{idx:08}.parquet"),
+        path: format!("/db/table/{prefix}_{idx:08}.parquet").into(),
         size_bytes: 1024,
         row_count: 100,
         chunk_time: min_time,

@@ -8,7 +8,7 @@ use std::sync::Arc;
 fn create_test_file(id: ParquetFileId, size_bytes: u64, row_count: u64) -> ParquetFile {
     ParquetFile {
         id,
-        path: format!("test/{:?}.parquet", id),
+        path: format!("test/{:?}.parquet", id).into(),
         size_bytes,
         row_count,
         chunk_time: 0,

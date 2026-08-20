@@ -582,7 +582,7 @@ impl WriteBufferImpl {
         let span_ctx = ctx.span_ctx().map(|span| span.child("table_chunks"));
         let mut recorder = SpanRecorder::new(span_ctx);
 
-        let mut chunks = self.buffer.get_table_chunks(
+        let (mut chunks, parquet_files) = self.buffer.get_table_chunks_and_parquet_files(
             Arc::clone(&db_schema),
             Arc::clone(&table_def),
             filter,
@@ -595,9 +595,6 @@ impl WriteBufferImpl {
             MetaValue::Int(num_chunks_from_buffer as i64),
         );
 
-        let parquet_files =
-            self.persisted_files
-                .get_files_filtered(db_schema.id, table_def.table_id, filter);
         let num_parquet_files_needed = parquet_files.len();
         recorder.set_metadata(
             "parquet_files",
@@ -696,7 +693,7 @@ pub fn cache_parquet_files<T: AsRef<ParquetFile>>(
                 // cache might be handy for this case.
                 let f: &ParquetFile = file.borrow().as_ref();
                 let (cache_req, receiver) = CacheRequest::create_eventual_mode_cache_request(
-                    ObjPath::from(f.path.as_str()),
+                    ObjPath::from(f.path.as_ref()),
                     Some(f.timestamp_min_max()),
                 );
                 parquet_cache.register(cache_req);

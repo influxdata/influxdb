@@ -1,7 +1,7 @@
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
-use crate::write_buffer::persisted_files::PersistedFiles;
+use crate::write_buffer::persisted_files::{PersistedFiles, sort_by_min_time_desc};
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot, PersistedSnapshotVersion};
 use anyhow::Context;
@@ -36,6 +36,9 @@ use std::time::Duration;
 use tokio::sync::Semaphore;
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
+
+/// The buffer chunks and persisted parquet files for a single table.
+pub type TableChunksAndFiles = (Vec<Arc<dyn QueryChunk>>, Vec<ParquetFile>);
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
@@ -96,7 +99,10 @@ impl QueryableBuffer {
         }
     }
 
-    pub fn get_table_chunks(
+    /// The buffer chunks for a table. Callers that also need the persisted files must use
+    /// [`Self::get_table_chunks_and_parquet_files`], which reads both under one lock.
+    #[cfg(test)]
+    pub(crate) fn get_table_chunks(
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
@@ -104,9 +110,46 @@ impl QueryableBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let influx_schema = table_def.influx_schema();
-
         let buffer = self.buffer.read();
+        Self::table_chunks_locked(&buffer, &db_schema, table_def, buffer_filter)
+    }
+
+    /// The buffer chunks and the persisted parquet files for a table, read under one
+    /// acquisition of the buffer lock.
+    ///
+    /// A persist job swaps the two under a single buffer write guard. Reading them separately
+    /// can return the snapshotted rows twice.
+    pub fn get_table_chunks_and_parquet_files(
+        &self,
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        buffer_filter: &ChunkFilter<'_>,
+        _projection: Option<&Vec<usize>>,
+        _ctx: &dyn Session,
+    ) -> Result<TableChunksAndFiles, DataFusionError> {
+        let table_id = table_def.table_id;
+        let (chunks, mut parquet_files) = {
+            let buffer = self.buffer.read();
+            let chunks = Self::table_chunks_locked(&buffer, &db_schema, table_def, buffer_filter)?;
+            let parquet_files = self.persisted_files.get_files_filtered_unsorted(
+                db_schema.id,
+                table_id,
+                buffer_filter,
+            );
+            (chunks, parquet_files)
+        };
+        sort_by_min_time_desc(&mut parquet_files);
+
+        Ok((chunks, parquet_files))
+    }
+
+    fn table_chunks_locked(
+        buffer: &BufferState,
+        db_schema: &DatabaseSchema,
+        table_def: Arc<TableDefinition>,
+        buffer_filter: &ChunkFilter<'_>,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let influx_schema = table_def.influx_schema();
 
         let Some(db_buffer) = buffer.db_to_table.get(&db_schema.id) else {
             return Ok(vec![]);
@@ -205,12 +248,11 @@ impl QueryableBuffer {
                     // (table_buffer::buffer_chunk). Each chunk needs a distinct path:
                     // with a shared path the persist jobs race, the last PUT wins the
                     // object, and every job's size is recorded — stale records that
-                    // fail reads with "Corrupt footer".
-                    let mut chunk_ordinals: HashMap<i64, u32> = HashMap::new();
+                    // fail reads with "Corrupt footer". `snapshot` assigns the
+                    // ordinal, so one value both names the path and identifies the
+                    // chunk when the finished job hands it over to that file.
                     for chunk in snapshot_chunks {
-                        let ordinal_ref = chunk_ordinals.entry(chunk.chunk_time).or_insert(0);
-                        let chunk_ordinal = *ordinal_ref;
-                        *ordinal_ref += 1;
+                        let chunk_ordinal = chunk.chunk_ordinal;
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
                         let persist_job = PersistJob {
@@ -218,6 +260,7 @@ impl QueryableBuffer {
                             table_id: *table_id,
                             table_name: Arc::clone(&table_name),
                             chunk_time: chunk.chunk_time,
+                            chunk_ordinal,
                             path: ParquetFilePath::new_with_chunk_ordinal(
                                 self.persister.node_identifier_prefix(),
                                 database_id.get(),
@@ -247,7 +290,7 @@ impl QueryableBuffer {
         for (_, tables) in &removed_files {
             for (_, files) in &tables.tables {
                 for file in files {
-                    let path = file.path.clone();
+                    let path = Arc::clone(&file.path);
                     let object_store = Arc::clone(&self.persister.object_store());
                     // We've removed the file from the PersistedFiles field.
                     // We'll store them as part of the snapshot so that other parts
@@ -257,7 +300,7 @@ impl QueryableBuffer {
                     // referenced anymore.
                     tokio::spawn(async move {
                         let mut retry_count = 0;
-                        let path = path.into();
+                        let path = Path::from(path.as_ref());
                         while retry_count <= 10 {
                             match object_store.delete(&path).await {
                                 Ok(()) => break,
@@ -325,10 +368,11 @@ impl QueryableBuffer {
 
                 set.spawn(async move {
                     let _permit = permit;
-                    let path = persist_job.path.to_string();
+                    let path: Arc<str> = persist_job.path.to_string().into();
                     let database_id = persist_job.database_id;
                     let table_id = persist_job.table_id;
                     let chunk_time = persist_job.chunk_time;
+                    let chunk_ordinal = persist_job.chunk_ordinal;
                     let min_time = persist_job.timestamp_min_max.min;
                     let max_time = persist_job.timestamp_min_max.max;
 
@@ -364,16 +408,22 @@ impl QueryableBuffer {
                     };
 
                     {
-                        // we can clear the buffer as we move on
+                        // Hand this chunk over from the buffer to its parquet file
+                        // under one lock, so it is queryable from one of the two at
+                        // every instant.
                         let mut buffer = buffer.write();
 
                         // add file first
                         persisted_files.add_persisted_file(&database_id, &table_id, &parquet_file);
-                        // then clear the buffer
+                        // then drop only the chunk that file covers. The sibling
+                        // chunks of this snapshot are still being written by the
+                        // other jobs in this set; a table-wide clear here would
+                        // evict them before their own parquet files exist and make
+                        // whole chunk_times briefly vanish from query results.
                         if let Some(db) = buffer.db_to_table.get_mut(&database_id)
                             && let Some(table) = db.get_mut(&table_id)
                         {
-                            table.clear_snapshots();
+                            table.remove_snapshotting_chunk(chunk_time, chunk_ordinal);
                         }
                     }
 
@@ -555,6 +605,9 @@ struct PersistJob {
     table_id: TableId,
     table_name: Arc<str>,
     chunk_time: i64,
+    /// Position among the chunks sharing `chunk_time`; assigned by
+    /// `TableBuffer::snapshot` and stored on its `SnapshotChunk`.
+    chunk_ordinal: u32,
     path: ParquetFilePath,
     batch: RecordBatch,
     schema: Schema,

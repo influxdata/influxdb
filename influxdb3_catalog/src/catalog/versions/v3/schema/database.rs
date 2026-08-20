@@ -177,12 +177,18 @@ impl DatabaseSchema {
         now: Time,
         table_id: &TableId,
     ) -> Option<Time> {
-        let table_value =
-            self.table_definition_by_id(table_id)
-                .and_then(|def| match def.retention_period {
-                    RetentionPeriod::Duration(d) => Some(d),
-                    RetentionPeriod::Indefinite => None,
-                });
+        self.retention_period_cutoff(now, Some(table_id))
+    }
+
+    /// Like [`get_retention_period_cutoff_ts_nanos`][Self::get_retention_period_cutoff_ts_nanos],
+    /// but for a table that may not exist yet (`None` → db-level retention).
+    pub fn retention_period_cutoff(&self, now: Time, table_id: Option<&TableId>) -> Option<Time> {
+        let table_value = table_id
+            .and_then(|table_id| self.table_definition_by_id(table_id))
+            .and_then(|def| match def.retention_period {
+                RetentionPeriod::Duration(d) => Some(d),
+                RetentionPeriod::Indefinite => None,
+            });
         let db_value = match self.retention_period {
             RetentionPeriod::Duration(d) => Some(d),
             RetentionPeriod::Indefinite => None,
