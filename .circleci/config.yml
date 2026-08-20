@@ -1,7 +1,6 @@
 version: "2.1"
 
 orbs:
-  aws-s3:    circleci/aws-s3@2.0.0
   terraform: circleci/terraform@2.1.0
 
 parameters:
@@ -557,6 +556,10 @@ jobs:
   publish-packages:
     docker:
       - image: cimg/python:3.6
+    environment:
+      # Newer awscli/boto3 send CRC32 checksum headers that Cloudflare R2
+      # rejects unless checksum calculation is limited to when required.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -564,13 +567,14 @@ jobs:
           name: Install AWS CLI
           command: |
             pip install awscli
-      - aws-s3/sync:
-          arguments:             --acl public-read
-          aws-region:            RELEASE_AWS_REGION
-          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
-          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
-          from:                  /tmp/workspace/artifacts
-          to:                    s3://dl.influxdata.com/influxdb/releases
+      - run:
+          name: Upload packages to R2
+          command: |
+            export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
+            export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
+            aws s3 sync /tmp/workspace/artifacts s3://dl-influxdata-com/influxdb/releases \
+              --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
+              --region auto
 
   build-docker-nightly:
     parameters:
@@ -905,29 +909,41 @@ jobs:
         type: string
     docker:
       - image: cimg/python:3.6
+    environment:
+      # Newer awscli/boto3 send CRC32 checksum headers that Cloudflare R2
+      # rejects unless checksum calculation is limited to when required.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
     steps:
       - attach_workspace:
           at: /tmp/workspace
+      - run:
+          name: Install AWS CLI
+          command: |
+            pip install awscli
       - when:
           condition:
             equal: [ << parameters.workflow >>, release ]
           steps:
-            - aws-s3/copy:
-                aws-region:            RELEASE_AWS_REGION
-                aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
-                aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
-                to:                    s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md
-                from:                  /tmp/workspace/CHANGELOG.md
+            - run:
+                name: Upload CHANGELOG to R2
+                command: |
+                  export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
+                  export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
+                  aws s3 cp /tmp/workspace/CHANGELOG.md "s3://dl-influxdata-com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md" \
+                    --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
+                    --region auto
       - when:
           condition:
             equal: [ << parameters.workflow >>, nightly ]
           steps:
-            - aws-s3/copy:
-                aws-region:            RELEASE_AWS_REGION
-                aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
-                aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
-                to:                    s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
-                from:                  /tmp/workspace/CHANGELOG.md
+            - run:
+                name: Upload CHANGELOG to R2
+                command: |
+                  export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
+                  export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
+                  aws s3 cp /tmp/workspace/CHANGELOG.md "s3://dl-influxdata-com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md" \
+                    --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
+                    --region auto
 
   check_package_deb_amd64:
     machine:
