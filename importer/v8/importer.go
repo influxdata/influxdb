@@ -12,9 +12,13 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb/services/httpd"
 )
 
-const batchSize = 5000
+const (
+	batchSize                     = 5000
+	maxLineProtocolRecordSize int = httpd.DefaultMaxBodySize
+)
 
 // Config is the config used to initialize a Importer importer
 type Config struct {
@@ -206,36 +210,44 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 	}
 }
 
+// Keep record framing aligned with models.scanLine.
 func readLineProtocolRecord(reader *bufio.Reader, line string) (string, error) {
 	var record strings.Builder
-	var fields, fieldValue, quoted bool
+	var fields, quoted bool
+	var equals, commas int
 
 	for {
+		if record.Len()+len(line) > maxLineProtocolRecordSize {
+			return "", fmt.Errorf("line protocol record exceeds %d byte limit", maxLineProtocolRecordSize)
+		}
 		record.WriteString(line)
-		for pos := 0; pos < len(line); pos++ {
-			if line[pos] == '\\' && pos+1 < len(line) {
-				pos++
+		for pos := 0; pos < len(line); {
+			if line[pos] == '\\' && pos+2 < len(line) {
+				pos += 2
 				continue
 			}
 			if line[pos] == ' ' {
 				fields = true
 			}
 			if fields {
-				if !quoted {
-					switch line[pos] {
-					case '=':
-						fieldValue = true
-					case ',':
-						fieldValue = false
-					}
-				}
-				if fieldValue && line[pos] == '"' {
+				if !quoted && line[pos] == '=' {
+					pos++
+					equals++
+					continue
+				} else if !quoted && line[pos] == ',' {
+					pos++
+					commas++
+					continue
+				} else if line[pos] == '"' && equals > commas {
+					pos++
 					quoted = !quoted
+					continue
 				}
 			}
 			if line[pos] == '\n' && !quoted {
 				return record.String(), nil
 			}
+			pos++
 		}
 
 		if len(line) == 0 || line[len(line)-1] != '\n' {

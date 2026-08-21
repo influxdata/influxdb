@@ -116,3 +116,25 @@ func TestReadLineProtocolRecord_UnbalancedQuote(t *testing.T) {
 		t.Fatalf("got %v, want unbalanced quotes", err)
 	}
 }
+
+func TestReadLineProtocolRecord_TrailingBackslash(t *testing.T) {
+	reader := bufio.NewReader(strings.NewReader("next value=2\n"))
+	record, err := readLineProtocolRecord(reader, "test value=first\\\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := record, "test value=first\\\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestReadLineProtocolRecord_SizeLimit(t *testing.T) {
+	_, err := readLineProtocolRecord(
+		bufio.NewReader(strings.NewReader(strings.Repeat("x", maxLineProtocolRecordSize))),
+		"test value=\"first line\n",
+	)
+	want := fmt.Sprintf("line protocol record exceeds %d byte limit", maxLineProtocolRecordSize)
+	if err == nil || err.Error() != want {
+		t.Fatalf("got %v, want %s", err, want)
+	}
+}
