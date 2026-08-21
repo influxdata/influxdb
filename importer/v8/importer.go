@@ -178,7 +178,7 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		line, err := scanner.ReadString(byte('\n'))
 		if err != nil && err != io.EOF {
 			return err
-		} else if err == io.EOF {
+		} else if err == io.EOF && len(line) == 0 {
 			// Call batchWrite one last time to flush anything out in the batch
 			i.batchWrite()
 			return nil
@@ -198,7 +198,58 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		i.batchAccumulator(line)
+		record, err := readLineProtocolRecord(scanner, line)
+		if err != nil {
+			return err
+		}
+		i.batchAccumulator(record)
+	}
+}
+
+func readLineProtocolRecord(reader *bufio.Reader, line string) (string, error) {
+	var record strings.Builder
+	var fields, fieldValue, quoted bool
+
+	for {
+		record.WriteString(line)
+		for pos := 0; pos < len(line); pos++ {
+			if line[pos] == '\\' && pos+1 < len(line) {
+				pos++
+				continue
+			}
+			if line[pos] == ' ' {
+				fields = true
+			}
+			if fields {
+				if !quoted {
+					switch line[pos] {
+					case '=':
+						fieldValue = true
+					case ',':
+						fieldValue = false
+					}
+				}
+				if fieldValue && line[pos] == '"' {
+					quoted = !quoted
+				}
+			}
+			if line[pos] == '\n' && !quoted {
+				return record.String(), nil
+			}
+		}
+
+		if len(line) == 0 || line[len(line)-1] != '\n' {
+			if quoted {
+				return "", fmt.Errorf("unbalanced quotes")
+			}
+			return record.String(), nil
+		}
+
+		var err error
+		line, err = reader.ReadString(byte('\n'))
+		if err != nil && err != io.EOF {
+			return "", err
+		}
 	}
 }
 
