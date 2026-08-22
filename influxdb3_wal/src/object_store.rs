@@ -106,7 +106,17 @@ impl WalObjectStore {
         num_wal_files_to_keep: u64,
         shutdown_token: CancellationToken,
     ) -> Self {
-        let wal_file_sequence_number = last_wal_sequence_number.unwrap_or_default().next();
+        let wal_file_sequence_number = {
+            let from_snapshot = last_wal_sequence_number.unwrap_or_default().next();
+            // Also consider the newest WAL file on disk. Corrupt (e.g. 0-byte) files
+            // are skipped during replay but still occupy their sequence number on the
+            // object store. Starting with a number <= any existing file would cause an
+            // AlreadyExists error on the first flush.
+            let from_disk = newest_wal_file_num(all_wal_file_paths)
+                .map(|n| n.next())
+                .unwrap_or(from_snapshot);
+            std::cmp::max(from_snapshot, from_disk)
+        };
         let oldest_wal_file_num = oldest_wal_file_num(all_wal_file_paths);
 
         Self {
@@ -203,6 +213,21 @@ impl WalObjectStore {
                         )),
                     ) if !fail_on_error => {
                         warn!(%error, %path, "Skipping corrupt WAL file");
+                        // Even though we skip the corrupt file, we must advance the
+                        // WAL file sequence number past it so that the next flush does
+                        // not attempt to write a file with the same number, which would
+                        // cause an AlreadyExists error and trigger a shutdown.
+                        if let Ok(skipped_seq) = WalFileSequenceNumber::try_from(&path) {
+                            let mut flush_buffer = self.flush_buffer.lock().await;
+                            if skipped_seq >= flush_buffer.wal_buffer.wal_file_sequence_number {
+                                flush_buffer.wal_buffer.wal_file_sequence_number =
+                                    skipped_seq.next();
+                                info!(
+                                    new_wal_file_sequence_number = %skipped_seq.next(),
+                                    "Advanced WAL file sequence number past corrupt file"
+                                );
+                            }
+                        }
                         continue;
                     }
                     (path, Err(error)) => {
@@ -564,6 +589,25 @@ fn oldest_wal_file_num(all_wal_file_paths: &[Path]) -> Option<WalFileSequenceNum
         ?file_name_with_path,
         ?wal_file_name,
         "file name path and wal file name"
+    );
+    WalFileSequenceNumber::from_str(wal_file_name).ok()
+}
+
+/// Returns the newest (highest) WAL file sequence number from the sorted list
+/// of WAL file paths. This is used to ensure the next WAL file number is always
+/// greater than any existing file on disk, including corrupt files that may be
+/// skipped during replay.
+fn newest_wal_file_num(all_wal_file_paths: &[Path]) -> Option<WalFileSequenceNumber> {
+    let file_name_with_path = all_wal_file_paths.last()?.filename()?;
+    let wal_file_name = file_name_with_path
+        .split("/")
+        .last()?
+        .split(".wal")
+        .next()?;
+    debug!(
+        ?file_name_with_path,
+        ?wal_file_name,
+        "newest wal file name path and wal file name"
     );
     WalFileSequenceNumber::from_str(wal_file_name).ok()
 }
