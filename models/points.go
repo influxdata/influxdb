@@ -1158,6 +1158,22 @@ func scanLine(buf []byte, i int) (int, []byte) {
 	return i, buf[start:i]
 }
 
+// ScanLine splits line protocol without breaking newlines inside quoted fields.
+func ScanLine(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	end, line := scanLine(data, 0)
+	if end < len(data) {
+		return end + 1, line, nil
+	}
+	if atEOF {
+		return len(data), line, nil
+	}
+	return 0, nil, nil
+}
+
 // scanTo returns the end position in buf and the next consecutive block
 // of bytes, starting from i and ending with stop byte, where stop byte
 // has not been escaped.

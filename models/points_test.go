@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -1839,6 +1840,25 @@ func TestParsePointsWithPrecision(t *testing.T) {
 		if got != test.exp {
 			t.Errorf("%s: ParsePoint() to string mismatch:\n got %v\n exp %v", test.name, got, test.exp)
 		}
+	}
+}
+
+func TestScanLine(t *testing.T) {
+	input := "cpu value=\"first\nsecond\" 1\nmem value=2i 2"
+	scanner := bufio.NewScanner(strings.NewReader(input))
+	scanner.Split(models.ScanLine)
+
+	var got []string
+	for scanner.Scan() {
+		got = append(got, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"cpu value=\"first\nsecond\" 1", "mem value=2i 2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 

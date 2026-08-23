@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/httpd"
 )
 
@@ -176,17 +177,13 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 	}
 }
 
-func (i *Importer) processDML(scanner *bufio.Reader) error {
+func (i *Importer) processDML(reader *bufio.Reader) error {
 	i.startTime = time.Now()
-	for {
-		line, err := scanner.ReadString(byte('\n'))
-		if err != nil && err != io.EOF {
-			return err
-		} else if err == io.EOF && len(line) == 0 {
-			// Call batchWrite one last time to flush anything out in the batch
-			i.batchWrite()
-			return nil
-		}
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(nil, maxLineProtocolRecordSize)
+	scanner.Split(models.ScanLine)
+	for scanner.Scan() {
+		line := scanner.Text()
 		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
 			i.batchWrite()
 			i.database = strings.TrimSpace(strings.Split(line, ":")[1])
@@ -202,67 +199,13 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		record, err := readLineProtocolRecord(scanner, line)
-		if err != nil {
-			return err
-		}
-		i.batchAccumulator(record)
+		i.batchAccumulator(line)
 	}
-}
-
-// Keep record framing aligned with models.scanLine.
-func readLineProtocolRecord(reader *bufio.Reader, line string) (string, error) {
-	var record strings.Builder
-	var fields, quoted bool
-	var equals, commas int
-
-	for {
-		if record.Len()+len(line) > maxLineProtocolRecordSize {
-			return "", fmt.Errorf("line protocol record exceeds %d byte limit", maxLineProtocolRecordSize)
-		}
-		record.WriteString(line)
-		for pos := 0; pos < len(line); {
-			if line[pos] == '\\' && pos+2 < len(line) {
-				pos += 2
-				continue
-			}
-			if line[pos] == ' ' {
-				fields = true
-			}
-			if fields {
-				if !quoted && line[pos] == '=' {
-					pos++
-					equals++
-					continue
-				} else if !quoted && line[pos] == ',' {
-					pos++
-					commas++
-					continue
-				} else if line[pos] == '"' && equals > commas {
-					pos++
-					quoted = !quoted
-					continue
-				}
-			}
-			if line[pos] == '\n' && !quoted {
-				return record.String(), nil
-			}
-			pos++
-		}
-
-		if len(line) == 0 || line[len(line)-1] != '\n' {
-			if quoted {
-				return "", fmt.Errorf("unbalanced quotes")
-			}
-			return record.String(), nil
-		}
-
-		var err error
-		line, err = reader.ReadString(byte('\n'))
-		if err != nil && err != io.EOF {
-			return "", err
-		}
+	if err := scanner.Err(); err != nil {
+		return err
 	}
+	i.batchWrite()
+	return nil
 }
 
 func (i *Importer) execute(command string) {
