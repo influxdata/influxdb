@@ -225,18 +225,18 @@ func (m *MockRestoreService) EXPECT() *MockRestoreServiceMockRecorder {
 }
 
 // RestoreBucket mocks base method.
-func (m *MockRestoreService) RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte) (map[uint64]uint64, error) {
+func (m *MockRestoreService) RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte, replace bool, onReplaceCommitted func()) (map[uint64]uint64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RestoreBucket", ctx, id, rpiData)
+	ret := m.ctrl.Call(m, "RestoreBucket", ctx, id, rpiData, replace, onReplaceCommitted)
 	ret0, _ := ret[0].(map[uint64]uint64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RestoreBucket indicates an expected call of RestoreBucket.
-func (mr *MockRestoreServiceMockRecorder) RestoreBucket(ctx, id, rpiData interface{}) *gomock.Call {
+func (mr *MockRestoreServiceMockRecorder) RestoreBucket(ctx, id, rpiData, replace, onReplaceCommitted interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreBucket", reflect.TypeOf((*MockRestoreService)(nil).RestoreBucket), ctx, id, rpiData)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreBucket", reflect.TypeOf((*MockRestoreService)(nil).RestoreBucket), ctx, id, rpiData, replace, onReplaceCommitted)
 }
 
 // RestoreKVStore mocks base method.

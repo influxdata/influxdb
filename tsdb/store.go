@@ -1016,15 +1016,11 @@ func (s *Store) ShardInUse(shardID uint64) (bool, error) {
 
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
-	sh := s.Shard(shardID)
-	if sh == nil {
-		return nil
-	}
-
 	// Remove the shard from Store, so it's not returned to callers requesting
 	// shards. Also mark that this shard is currently being deleted in a separate
 	// map so that we do not have to retain the global store lock while deleting
-	// files.
+	// files. Look the shard up under the write lock so a concurrent delete
+	// cannot hand us a shard it already closed and removed.
 	s.mu.Lock()
 	if _, ok := s.pendingShardDeletes[shardID]; ok {
 		// We are already being deleted? This is possible if delete shard
@@ -1034,7 +1030,17 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		s.mu.Unlock()
 		return nil
 	}
+	sh, ok := s.shards[shardID]
+	if !ok {
+		s.mu.Unlock()
+		return nil
+	}
 	delete(s.shards, shardID)
+	// Keep the tracker it may hold in-flight writes we must wait on.
+	epoch := s.epochs[shardID]
+	if epoch == nil {
+		epoch = newEpochTracker()
+	}
 	delete(s.epochs, shardID)
 	s.pendingShardDeletes[shardID] = struct{}{}
 
@@ -1042,12 +1048,47 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	// Determine if the shard contained any series that are not present in any
 	// other shards in the database.
 	shards := s.filterShards(byDatabase(db))
+	survivorEpochs := s.epochsForShards(shards)
 	s.mu.Unlock()
 
-	// Ensure the pending deletion flag is cleared on exit.
+	// Block new writes to the shard and wait for in-flight writes that
+	// retained it before the claim, so none can add series behind the
+	// index snapshot below.
+	waiter := epoch.WaitDelete(newGuard(influxql.MinTime, influxql.MaxTime, nil, nil))
+	defer waiter.Done()
+	waiter.Wait()
+
+	// Also pause writes to the database's surviving shards until the
+	// series-file cleanup is done, so a write cannot re-add a doomed series
+	// ID to a survivor after its index is snapshotted below, which would
+	// tombstone an ID that shard still references.
+	survivorWaiters := make([]epochWaiter, 0, len(shards))
+	for _, survivor := range shards {
+		if se := survivorEpochs[survivor.id]; se != nil {
+			survivorWaiters = append(survivorWaiters, se.WaitDelete(newGuard(influxql.MinTime, influxql.MaxTime, nil, nil)))
+		}
+	}
+	releaseSurvivors := func() {
+		for _, w := range survivorWaiters {
+			w.Done()
+		}
+		survivorWaiters = survivorWaiters[:0]
+	}
+	defer releaseSurvivors()
+	for _, w := range survivorWaiters {
+		w.Wait()
+	}
+
+	// Ensure the pending deletion flag is cleared on exit, restoring the
+	// shard to the store's maps if it was never closed.
+	restore := sh
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if restore != nil {
+			s.shards[shardID] = restore
+			s.epochs[shardID] = epoch
+		}
 		delete(s.pendingShardDeletes, shardID)
 	}()
 
@@ -1122,8 +1163,14 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		}
 	}
 
+	// The series file is consistent again; let writes to the surviving
+	// shards resume before the slow close and file removal below.
+	releaseSurvivors()
+
 	// The shard is being permanently removed. Close it first so the engine's
 	// background compaction goroutines stop, then delete its Prometheus series.
+	// Once closing begins the shard is no longer safe to restore.
+	restore = nil
 	if err := sh.CloseAndRemoveMetrics(); err != nil {
 		return err
 	}
@@ -1135,9 +1182,203 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return err
 	} else {
 		// Remove index type from the database on success
-		s.databases[db].removeIndexType(sh.IndexType())
+		s.mu.Lock()
+		if state := s.databases[db]; state != nil {
+			state.removeIndexType(sh.IndexType())
+		}
+		s.mu.Unlock()
 		return nil
 	}
+}
+
+// DeleteShardsByID removes the given shards from disk. It is equivalent to
+// calling DeleteShard for each ID, but determines which series have lost their
+// last remaining shard.
+func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
+	// Claim the shards, removing them from the store's maps so they are not
+	// returned to callers while their files are deleted, and skipping any
+	// already being deleted.
+	s.mu.Lock()
+	doomedByDB := make(map[string][]*Shard)
+	claimed := make([]uint64, 0, len(shardIDs))
+	restorable := make(map[uint64]*Shard, len(shardIDs))
+	// Keep the trackers they may hold in-flight writes later deletes must wait on.
+	epochs := make(map[uint64]*epochTracker, len(shardIDs))
+	for _, id := range shardIDs {
+		sh, ok := s.shards[id]
+		if !ok {
+			continue
+		}
+		if _, ok := s.pendingShardDeletes[id]; ok {
+			continue
+		}
+		delete(s.shards, id)
+		epoch := s.epochs[id]
+		if epoch == nil {
+			epoch = newEpochTracker()
+		}
+		epochs[id] = epoch
+		delete(s.epochs, id)
+		s.pendingShardDeletes[id] = struct{}{}
+		claimed = append(claimed, id)
+		restorable[id] = sh
+		doomedByDB[sh.Database()] = append(doomedByDB[sh.Database()], sh)
+	}
+	s.mu.Unlock()
+
+	// Block new writes to the claimed shards and wait for in-flight writes
+	// that retained them before the claim, so none can add series behind
+	// the index snapshots below.
+	waiters := make([]epochWaiter, 0, len(claimed))
+	for _, id := range claimed {
+		waiters = append(waiters, epochs[id].WaitDelete(newGuard(influxql.MinTime, influxql.MaxTime, nil, nil)))
+	}
+	defer func() {
+		for _, waiter := range waiters {
+			waiter.Done()
+		}
+	}()
+	for _, waiter := range waiters {
+		waiter.Wait()
+	}
+
+	// Ensure the pending deletion flags are cleared on exit
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		for id, sh := range restorable {
+			s.shards[id] = sh
+			s.epochs[id] = epochs[id]
+		}
+		for _, id := range claimed {
+			delete(s.pendingShardDeletes, id)
+		}
+	}()
+
+	for db, doomed := range doomedByDB {
+		// Union the series contained in the doomed shards, then subtract every
+		// series still present in one of the database's surviving shards; the
+		// remainder exists nowhere else and is dropped from the series file.
+		ss := NewSeriesIDSet()
+		for _, sh := range doomed {
+			index, err := sh.Index()
+			if err != nil {
+				return err
+			}
+			ss.Merge(index.SeriesIDSet())
+		}
+
+		s.mu.RLock()
+		survivors := s.filterShards(byDatabase(db))
+		survivorEpochs := s.epochsForShards(survivors)
+		s.mu.RUnlock()
+
+		// Pause writes to the database's surviving shards until the
+		// series-file cleanup is done, so a write cannot re-add a doomed
+		// series ID to a survivor after its index is snapshotted below,
+		// which would tombstone an ID that shard still references.
+		survivorWaiters := make([]epochWaiter, 0, len(survivors))
+		for _, survivor := range survivors {
+			if se := survivorEpochs[survivor.id]; se != nil {
+				survivorWaiters = append(survivorWaiters, se.WaitDelete(newGuard(influxql.MinTime, influxql.MaxTime, nil, nil)))
+			}
+		}
+		releaseSurvivors := func() {
+			for _, w := range survivorWaiters {
+				w.Done()
+			}
+			survivorWaiters = survivorWaiters[:0]
+		}
+		defer releaseSurvivors()
+		for _, w := range survivorWaiters {
+			w.Wait()
+		}
+
+		err := s.walkShards(survivors, func(sh *Shard) error {
+			index, err := sh.Index()
+			if err != nil {
+				s.Logger.Error("cannot find shard index", zap.Uint64("shard_id", sh.ID()), zap.Error(err))
+				return err
+			}
+			ss.Diff(index.SeriesIDSet())
+			return nil
+		})
+		if err != nil {
+			// We couldn't get the index for a shard. Rather than deleting series
+			// which may exist in that shard as well as in the doomed shards, we
+			// stop the deletion.
+			return err
+		}
+
+		if seriesCount := ss.Cardinality(); seriesCount > 0 {
+			const DeleteLogTrigger = 10_000
+			deleteStart := time.Now()
+			var deletedCount atomic.Uint64
+			partitionIDs := make(map[int]struct{}, SeriesFilePartitionN)
+			if sfile := s.seriesFile(db); sfile != nil {
+				ss.ForEach(func(id uint64) {
+					p, err := sfile.DeleteSeriesID(id, NoFlush)
+					if err != nil {
+						sfile.Logger.Error(
+							"cannot delete series",
+							zap.Uint64("series_id", id),
+							zap.String("series_file_path", sfile.Path()),
+							zap.Error(err))
+						return
+					}
+					partitionIDs[p.id] = struct{}{}
+					deleted := deletedCount.Add(1)
+
+					if deleted%DeleteLogTrigger == 0 {
+						s.Logger.Info(fmt.Sprintf("DeleteShards: %d series deleted", DeleteLogTrigger),
+							zap.String("db", db),
+							zap.String("series_file_path", sfile.Path()),
+							zap.Uint64("deleted", deleted),
+							zap.Uint64("remaining", seriesCount-deleted),
+							zap.Uint64("total", seriesCount),
+							zap.Duration("elapsed", time.Since(deleteStart)))
+					}
+				})
+
+				if err := sfile.FlushSegments(partitionIDs); err != nil {
+					sfile.Logger.Error(
+						"error while flushing a series file segment",
+						zap.String("series_file_path", sfile.Path()),
+						zap.Error(err))
+				}
+			}
+		}
+
+		// The series file is consistent again; let writes to the surviving
+		// shards resume before the slow close and file removal below.
+		releaseSurvivors()
+
+		for _, sh := range doomed {
+			// Once closing begins the shard is no longer safe to restore.
+			delete(restorable, sh.id)
+
+			// The shard is being permanently removed. Close it first so the
+			// engine's background compaction goroutines stop, then delete its
+			// Prometheus series.
+			if err := sh.CloseAndRemoveMetrics(); err != nil {
+				return err
+			}
+
+			// Remove the on-disk shard data.
+			if err := os.RemoveAll(sh.path); err != nil {
+				return err
+			} else if err := os.RemoveAll(sh.walPath); err != nil {
+				return err
+			}
+			s.mu.Lock()
+			if state := s.databases[db]; state != nil {
+				state.removeIndexType(sh.IndexType())
+			}
+			s.mu.Unlock()
+		}
+	}
+
+	return nil
 }
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
@@ -1889,11 +2130,13 @@ func (s *Store) WriteToShard(ctx context.Context, shardID uint64, points []model
 
 	epoch := s.epochs[shardID]
 
-	s.mu.RUnlock()
-
-	// enter the epoch tracker
+	// Enter the epoch tracker while still holding the store lock, so a
+	// delete claiming the shard cannot install its waiter before this write
+	// is registered. Guards are waited on after the lock is released.
 	guards, gen := epoch.StartWrite()
 	defer epoch.EndWrite(gen)
+
+	s.mu.RUnlock()
 
 	// wait for any guards before writing the points.
 	for _, guard := range guards {

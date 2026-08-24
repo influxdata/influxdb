@@ -182,8 +182,8 @@ func (t *TemporaryEngine) RestoreKVStore(ctx context.Context, r io.Reader) error
 	return t.engine.RestoreKVStore(ctx, r)
 }
 
-func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte) (map[uint64]uint64, error) {
-	return t.engine.RestoreBucket(ctx, id, dbi)
+func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte, replace bool, onReplaceCommitted func()) (map[uint64]uint64, error) {
+	return t.engine.RestoreBucket(ctx, id, dbi, replace, onReplaceCommitted)
 }
 
 func (t *TemporaryEngine) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {

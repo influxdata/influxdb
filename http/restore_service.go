@@ -69,6 +69,14 @@ const (
 	restoreBucketMetadataPath           = prefixRestore + "/bucketMetadata"
 )
 
+// Valid values for the onConflict query parameter of restoreBucketMetadataPath,
+// controlling what happens when the target bucket already exists.
+const (
+	onConflictError   = "error"
+	onConflictSkip    = "skip"
+	onConflictReplace = "replace"
+)
+
 // NewRestoreHandler creates a new handler at /api/v2/restore to receive restore requests.
 func NewRestoreHandler(b *RestoreBackend) *RestoreHandler {
 	h := &RestoreHandler{
@@ -203,7 +211,7 @@ func (h *RestoreHandler) handleRestoreBucket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, bucketID, buf)
+	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, bucketID, buf, false, nil)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -219,6 +227,20 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 	span, r := tracing.ExtractFromHTTPRequest(r, "RestoreHandler.handleRestoreBucketMetadata")
 	defer span.Finish()
 	ctx := r.Context()
+
+	onConflict := r.URL.Query().Get("onConflict")
+	switch onConflict {
+	case "":
+		onConflict = onConflictError
+	case onConflictError, onConflictSkip, onConflictReplace:
+	default:
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
+			Msg: fmt.Sprintf("invalid onConflict value %q, must be one of %q, %q, %q",
+				onConflict, onConflictError, onConflictSkip, onConflictReplace),
+		})
+		return
+	}
 
 	var b influxdb.BucketMetadataManifest
 	if err := h.api.DecodeJSON(r.Body, &b); err != nil {
@@ -238,8 +260,6 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		}
 	}
 
-	// Create the bucket - This will fail if the bucket already exists.
-	// TODO: Could we support restoring to an existing bucket?
 	var description string
 	if b.Description != nil {
 		description = *b.Description
@@ -258,8 +278,19 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		RetentionPeriod:    rp,
 		ShardGroupDuration: sgd,
 	}
-	if err := h.BucketService.CreateBucket(ctx, &bkt); err != nil {
+	target, outcome, err := h.createRestoredBucket(ctx, &bkt, onConflict)
+	if err != nil {
 		h.api.Err(w, r, err)
+		return
+	}
+	if outcome == restoredBucketSkipped {
+		// Skipped: respond with no shard mappings so the client has nothing to
+		// upload for this bucket, leaving the existing data untouched.
+		h.api.Respond(w, r, http.StatusOK, influxdb.RestoredBucketMappings{
+			ID:            target.ID,
+			Name:          target.Name,
+			ShardMappings: []influxdb.RestoredShardMapping{},
+		})
 		return
 	}
 
@@ -275,20 +306,44 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		h.api.Err(w, r, err)
 		return
 	}
-	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, bkt.ID, rawDbi)
+	// Bring the bucket's own metadata (description, retention) in line with
+	// the backup only once the replacement commits, which for a staged replace
+	// happens after the client uploads every shard. Applying it earlier would
+	// hand the live bucket the backup's retention settings while its old data
+	// still serves, letting the retention service delete shard groups if the
+	// restore is then cancelled. It runs outside this request, so a failure
+	// only logs: the bucket merely keeps its previous description and
+	// retention settings.
+	var onReplaceCommitted func()
+	if outcome == restoredBucketReplaced {
+		onReplaceCommitted = func() {
+			if _, err := h.BucketService.UpdateBucket(context.Background(), target.ID, influxdb.BucketUpdate{
+				Description:        &bkt.Description,
+				RetentionPeriod:    &bkt.RetentionPeriod,
+				ShardGroupDuration: &bkt.ShardGroupDuration,
+			}); err != nil {
+				h.Logger.Warn("Failed to update replaced bucket's metadata to match the backup",
+					zap.String("bucket_id", target.ID.String()), zap.Error(err))
+			}
+		}
+	}
+
+	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, target.ID, rawDbi, outcome == restoredBucketReplaced, onReplaceCommitted)
 	if err != nil {
-		h.Logger.Warn("Cleaning up after failed bucket-restore", zap.String("bucket_id", bkt.ID.String()))
-		if err2 := h.BucketService.DeleteBucket(ctx, bkt.ID); err2 != nil {
-			h.Logger.Error("Failed to clean up bucket after failed restore",
-				zap.String("bucket_id", bkt.ID.String()), zap.Error(err2))
+		if outcome == restoredBucketCreated {
+			h.Logger.Warn("Cleaning up after failed bucket-restore", zap.String("bucket_id", target.ID.String()))
+			if err2 := h.BucketService.DeleteBucket(ctx, target.ID); err2 != nil {
+				h.Logger.Error("Failed to clean up bucket after failed restore",
+					zap.String("bucket_id", target.ID.String()), zap.Error(err2))
+			}
 		}
 		h.api.Err(w, r, err)
 		return
 	}
 
 	res := influxdb.RestoredBucketMappings{
-		ID:            bkt.ID,
-		Name:          bkt.Name,
+		ID:            target.ID,
+		Name:          target.Name,
 		ShardMappings: make([]influxdb.RestoredShardMapping, 0, len(shardIDMap)),
 	}
 
@@ -296,7 +351,51 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		res.ShardMappings = append(res.ShardMappings, influxdb.RestoredShardMapping{OldId: old, NewId: new})
 	}
 
-	h.api.Respond(w, r, http.StatusCreated, res)
+	code := http.StatusCreated
+	if outcome != restoredBucketCreated {
+		code = http.StatusOK
+	}
+	h.api.Respond(w, r, code, res)
+}
+
+// restoredBucketOutcome reports how createRestoredBucket resolved the target
+// bucket of a metadata restore.
+type restoredBucketOutcome int
+
+const (
+	// restoredBucketCreated means the bucket did not exist and was created.
+	restoredBucketCreated restoredBucketOutcome = iota
+	// restoredBucketSkipped means the bucket exists and must be left untouched.
+	restoredBucketSkipped
+	// restoredBucketReplaced means the bucket exists and the restore should
+	// replace its contents, keeping its ID so tokens, DBRP mappings, and tasks
+	// referencing that ID keep working.
+	restoredBucketReplaced
+)
+
+// createRestoredBucket ensures the target bucket for a metadata restore exists,
+// applying the onConflict strategy when a bucket with the same name already
+// exists. The returned bucket is the restore target; the outcome tells the
+// caller how to proceed with it.
+func (h *RestoreHandler) createRestoredBucket(ctx context.Context, bkt *influxdb.Bucket, onConflict string) (*influxdb.Bucket, restoredBucketOutcome, error) {
+	if err := h.BucketService.CreateBucket(ctx, bkt); err != nil {
+		if onConflict == onConflictError || errors.ErrorCode(err) != errors.EConflict {
+			return nil, restoredBucketCreated, err
+		}
+		existing, err := h.BucketService.FindBucketByName(ctx, bkt.OrgID, bkt.Name)
+		if err != nil {
+			return nil, restoredBucketCreated, err
+		}
+		if onConflict == onConflictSkip {
+			h.Logger.Info("Restore: bucket already exists, skipping",
+				zap.String("bucket", bkt.Name))
+			return existing, restoredBucketSkipped, nil
+		}
+		h.Logger.Info("Restore: bucket already exists, replacing its contents",
+			zap.String("bucket", bkt.Name), zap.String("bucket_id", existing.ID.String()))
+		return existing, restoredBucketReplaced, nil
+	}
+	return bkt, restoredBucketCreated, nil
 }
 
 func manifestToDbInfo(m influxdb.BucketMetadataManifest) meta.DatabaseInfo {

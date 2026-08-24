@@ -2,8 +2,11 @@ package launcher_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	nethttp "net/http"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influx-cli/v2/clients/backup"
 	"github.com/influxdata/influx-cli/v2/clients/restore"
@@ -133,6 +136,108 @@ func runTestBackupRestore_Full(backupHashedTokens, restoreHashedTokens bool, t *
 		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00.000000006Z,200,f,m,v2` + "\r\n\r\n"
 	res2 := l2.FluxQueryOrFail(t, l2.Org, l2.Auth.Token, q2)
 	require.Equal(t, exp2, res2)
+}
+
+func TestBackupRestore_OnConflictReplace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	backupDir := t.TempDir()
+
+	// Boot a server, write some data, and take a backup.
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.StoreType = "bolt"
+		o.Testing = false
+		o.LogLevel = zap.InfoLevel
+	})
+	defer l.ShutdownOrFail(t, ctx)
+	l.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000\nm,k=v2 f=200i 946684800000000001")
+	l.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
+
+	// Write another point after the backup, then restore over the live bucket.
+	l.WritePointsOrFail(t, "m,k=v3 f=300i 946684800000000002")
+	l.RestoreOrFail(t, ctx, restore.Params{Path: backupDir, OnConflict: "replace"})
+
+	// The bucket must keep its ID so tokens, DBRP mappings, and tasks
+	// referencing it stay valid.
+	rbkt, err := l.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{Org: &l.Org.Name, Name: &l.Bucket.Name})
+	require.NoError(t, err)
+	require.Equal(t, l.Bucket.ID, rbkt.ID)
+
+	// The bucket's contents match the backup: the post-backup point is gone.
+	q := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
+	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v1` + "\r\n" +
+		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00.000000001Z,200,f,m,v2` + "\r\n\r\n"
+	res := l.FluxQueryOrFail(t, l.Org, l.Auth.Token, q)
+	require.Equal(t, exp, res)
+}
+
+func TestBackupRestore_ReplaceStagedUntilUploadsComplete(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	backupDir := t.TempDir()
+
+	// Boot a server, write some data, and take a backup.
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.StoreType = "bolt"
+		o.Testing = false
+		o.LogLevel = zap.InfoLevel
+	})
+	defer l.ShutdownOrFail(t, ctx)
+	l.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000")
+	l.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
+	l.WritePointsOrFail(t, "m,k=v2 f=200i 946684800000000001")
+
+	// Begin a replace restore but never upload the restored shards.
+	start := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	manifest := influxdb.BucketMetadataManifest{
+		OrganizationID:         l.Org.ID,
+		OrganizationName:       l.Org.Name,
+		BucketID:               l.Bucket.ID,
+		BucketName:             l.Bucket.Name,
+		DefaultRetentionPolicy: "autogen",
+		RetentionPolicies: []influxdb.RetentionPolicyManifest{{
+			Name:               "autogen",
+			ReplicaN:           1,
+			ShardGroupDuration: 7 * 24 * time.Hour,
+			ShardGroups: []influxdb.ShardGroupManifest{{
+				ID:        1,
+				StartTime: start,
+				EndTime:   start.Add(7 * 24 * time.Hour),
+				Shards:    []influxdb.ShardManifest{{ID: 1}},
+			}},
+		}},
+	}
+	body, err := json.Marshal(manifest)
+	require.NoError(t, err)
+
+	req := l.NewHTTPRequestOrFail(t, "POST", "/api/v2/restore/bucketMetadata?onConflict=replace", l.Auth.Token, string(body))
+	resp, err := nethttp.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, nethttp.StatusOK, resp.StatusCode)
+
+	var mappings influxdb.RestoredBucketMappings
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&mappings))
+	require.Equal(t, l.Bucket.ID, mappings.ID)
+	require.Len(t, mappings.ShardMappings, 1)
+
+	// The swap is staged until the shard uploads land, so the abandoned
+	// restore leaves the bucket's data untouched.
+	q := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
+	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v1` + "\r\n" +
+		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00.000000001Z,200,f,m,v2` + "\r\n\r\n"
+	require.Equal(t, exp, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, q))
+
+	// A full replace restore still succeeds after the abandoned attempt,
+	// dropping its staged shards and committing the backup's contents.
+	l.RestoreOrFail(t, ctx, restore.Params{Path: backupDir, OnConflict: "replace"})
+	exp = `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v1` + "\r\n\r\n"
+	require.Equal(t, exp, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, q))
 }
 
 func TestBackupRestore_Partial(t *testing.T) {

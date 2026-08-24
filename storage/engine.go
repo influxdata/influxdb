@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -14,6 +16,7 @@ import (
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
@@ -53,6 +56,11 @@ type Engine struct {
 
 	retentionService  *retention.Service
 	precreatorService *precreator.Service
+
+	// Bucket replaces staged by RestoreBucket, waiting for shard uploads.
+	stagedMu       sync.Mutex
+	stagedReplaces map[platform.ID]*stagedBucketReplace
+	stagedShards   map[uint64]*stagedBucketReplace
 
 	writePointsValidationEnabled bool
 
@@ -94,6 +102,7 @@ type MetaClient interface {
 	Restore(ctx context.Context, r io.Reader) error
 	Data() meta.Data
 	SetData(data *meta.Data) error
+	UpdateData(update func(data *meta.Data) error) error
 }
 
 type TSDBStore interface {
@@ -120,6 +129,9 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		path:      path,
 		tsdbStore: tsdb.NewStore(c.Data.Dir),
 		logger:    zap.NewNop(),
+
+		stagedReplaces: make(map[platform.ID]*stagedBucketReplace),
+		stagedShards:   make(map[uint64]*stagedBucketReplace),
 
 		writePointsValidationEnabled: true,
 	}
@@ -215,6 +227,8 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	if err := e.tsdbStore.Open(ctx); err != nil {
 		return err
 	}
+
+	e.cleanupStagedShards()
 
 	if err := e.retentionService.Open(ctx); err != nil {
 		return err
@@ -435,7 +449,11 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	return nil
 }
 
-func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) (map[uint64]uint64, error) {
+// RestoreBucket restores a bucket's shard metadata. When replace is true the
+// bucket's previous contents are replaced once the restore commits, and
+// onReplaceCommitted (if non-nil) is invoked after that commit; for a staged
+// replace this only happens once every restored shard has been uploaded.
+func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, replace bool, onReplaceCommitted func()) (map[uint64]uint64, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -450,52 +468,411 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) 
 	if err := newDBI.UnmarshalBinary(buf); err != nil {
 		return nil, err
 	}
-
-	data := e.metaClient.Data()
-	dbi := data.Database(id.String())
-	if dbi == nil {
-		return nil, fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
-	} else if len(newDBI.RetentionPolicies) != 1 {
+	if len(newDBI.RetentionPolicies) != 1 {
 		return nil, fmt.Errorf("bucket must have 1 retention policy; attempting to restore %d retention policies", len(newDBI.RetentionPolicies))
 	}
-
-	dbi.RetentionPolicies = newDBI.RetentionPolicies
-	dbi.ContinuousQueries = newDBI.ContinuousQueries
-
-	// Generate shard ID mapping.
-	shardIDMap := make(map[uint64]uint64)
 	rpi := newDBI.RetentionPolicies[0]
-	for j, sgi := range rpi.ShardGroups {
-		data.MaxShardGroupID++
-		rpi.ShardGroups[j].ID = data.MaxShardGroupID
 
-		for k := range sgi.Shards {
-			data.MaxShardID++
-			shardIDMap[sgi.Shards[k].ID] = data.MaxShardID
-			sgi.Shards[k].ID = data.MaxShardID
-			sgi.Shards[k].Owners = []meta.ShardOwner{}
+	// Reserve the new shard group and shard IDs in their own commit, so IDs
+	// handed out by concurrent shard-group creation cannot collide with the
+	// shards created below.
+	shardIDMap := make(map[uint64]uint64)
+	if err := e.metaClient.UpdateData(func(data *meta.Data) error {
+		if data.Database(id.String()) == nil {
+			return fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
 		}
-	}
 
-	// Update data.
-	if err := e.metaClient.SetData(&data); err != nil {
+		for j, sgi := range rpi.ShardGroups {
+			data.MaxShardGroupID++
+			rpi.ShardGroups[j].ID = data.MaxShardGroupID
+
+			for k := range sgi.Shards {
+				data.MaxShardID++
+				shardIDMap[sgi.Shards[k].ID] = data.MaxShardID
+				sgi.Shards[k].ID = data.MaxShardID
+				sgi.Shards[k].Owners = []meta.ShardOwner{}
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
-	// Create shards.
+	var newShardIDs []uint64
 	for _, sgi := range rpi.ShardGroups {
 		if sgi.Deleted() {
 			continue
 		}
-
 		for _, sh := range sgi.Shards {
-			if err := e.tsdbStore.CreateShard(ctx, dbi.Name, rpi.Name, sh.ID, true); err != nil {
-				return nil, err
+			newShardIDs = append(newShardIDs, sh.ID)
+		}
+	}
+
+	// A replace stays staged until every shard upload lands; stage before
+	// creating shard files so a crash mid-creation is cleaned up at startup.
+	var staged *stagedBucketReplace
+	if replace && len(newShardIDs) > 0 {
+		st, err := e.stageBucketReplace(id, newDBI, newShardIDs, onReplaceCommitted)
+		if err != nil {
+			return nil, err
+		}
+		staged = st
+	}
+
+	var createdShardIDs []uint64
+	rollbackShards := func() {
+		if len(createdShardIDs) > 0 {
+			if err := e.tsdbStore.DeleteShardsByID(createdShardIDs); err != nil {
+				// Keep the staged entry so a rerun or restart retries the cleanup.
+				e.logger.Warn("Failed to clean up shards after aborted restore",
+					zap.Uint64s("shard_ids", createdShardIDs), zap.Error(err))
+				return
+			}
+		}
+		// Unstage only after the files are gone; the manifest records them.
+		if staged != nil {
+			e.unstageBucketReplace(staged)
+		}
+	}
+	for _, sid := range newShardIDs {
+		if err := e.tsdbStore.CreateShard(ctx, id.String(), rpi.Name, sid, true); err != nil {
+			rollbackShards()
+			return nil, err
+		}
+		createdShardIDs = append(createdShardIDs, sid)
+	}
+
+	if staged != nil {
+		return shardIDMap, nil
+	}
+
+	// Commit the restored metadata. When replacing, collect the shards the
+	// bucket owns at commit time so their data can be removed afterward.
+	// Without replace, any pre-existing shard files are left orphaned on
+	// disk, preserving the behavior of the 2.0.x restore endpoint.
+	var replacedShardIDs []uint64
+	if err := e.metaClient.UpdateData(func(data *meta.Data) error {
+		dbi := data.Database(id.String())
+		if dbi == nil {
+			return fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
+		}
+
+		if replace {
+			replacedShardIDs = replacedShardIDs[:0]
+			for _, rpi := range dbi.RetentionPolicies {
+				for _, sgi := range rpi.ShardGroups {
+					for _, sh := range sgi.Shards {
+						replacedShardIDs = append(replacedShardIDs, sh.ID)
+					}
+				}
+			}
+		}
+
+		dbi.RetentionPolicies = newDBI.RetentionPolicies
+		dbi.ContinuousQueries = newDBI.ContinuousQueries
+		return nil
+	}); err != nil {
+		rollbackShards()
+		return nil, err
+	}
+
+	// Delete data for the replaced shards, only after the commit
+	if len(replacedShardIDs) > 0 {
+		if err := e.tsdbStore.DeleteShardsByID(replacedShardIDs); err != nil {
+			e.logger.Warn("Failed to delete replaced shards during restore",
+				zap.Uint64s("shard_ids", replacedShardIDs), zap.Error(err))
+		}
+	}
+
+	// A replace with nothing to upload commits immediately.
+	if replace && onReplaceCommitted != nil {
+		onReplaceCommitted()
+	}
+
+	return shardIDMap, nil
+}
+
+// stagedBucketReplace tracks a bucket replace whose restored shards exist but
+// whose metadata swap is deferred until every shard upload completes.
+type stagedBucketReplace struct {
+	bucketID platform.ID
+	newDBI   meta.DatabaseInfo
+	shardIDs []uint64
+	// replacedShardIDs: the bucket's pre-swap shards, recorded at commit time.
+	replacedShardIDs []uint64
+	pending          map[uint64]struct{}
+	onCommit         func()
+}
+
+// stageBucketReplace records a bucket replace awaiting its shard uploads,
+// dropping any earlier staged replace of the same bucket that never finished.
+func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, shardIDs []uint64, onCommit func()) (*stagedBucketReplace, error) {
+	e.stagedMu.Lock()
+	defer e.stagedMu.Unlock()
+
+	if prev, ok := e.stagedReplaces[id]; ok {
+		delete(e.stagedReplaces, prev.bucketID)
+		for _, sid := range prev.shardIDs {
+			delete(e.stagedShards, sid)
+		}
+		if err := e.tsdbStore.DeleteShardsByID(prev.shardIDs); err != nil {
+			e.logger.Warn("Failed to delete shards from an abandoned bucket replace",
+				zap.String("bucket_id", id.String()), zap.Uint64s("shard_ids", prev.shardIDs), zap.Error(err))
+		}
+	}
+
+	st := &stagedBucketReplace{
+		bucketID: id,
+		newDBI:   newDBI,
+		shardIDs: shardIDs,
+		pending:  make(map[uint64]struct{}, len(shardIDs)),
+		onCommit: onCommit,
+	}
+	for _, sid := range shardIDs {
+		st.pending[sid] = struct{}{}
+		e.stagedShards[sid] = st
+	}
+	e.stagedReplaces[id] = st
+	if err := e.writeStagedManifestLocked(); err != nil {
+		delete(e.stagedReplaces, id)
+		for _, sid := range shardIDs {
+			delete(e.stagedShards, sid)
+		}
+		return nil, fmt.Errorf("failed to persist staged restore manifest: %w", err)
+	}
+
+	e.logger.Info("Staged bucket replace; metadata swap deferred until all shard uploads complete",
+		zap.String("bucket_id", id.String()), zap.Int("pending_shards", len(shardIDs)))
+	return st, nil
+}
+
+// unstageBucketReplace drops a staged replace whose shard files are gone,
+// unless a newer replace of the same bucket has superseded it.
+func (e *Engine) unstageBucketReplace(st *stagedBucketReplace) {
+	e.stagedMu.Lock()
+	defer e.stagedMu.Unlock()
+
+	if e.stagedReplaces[st.bucketID] != st {
+		return
+	}
+	delete(e.stagedReplaces, st.bucketID)
+	for _, sid := range st.shardIDs {
+		delete(e.stagedShards, sid)
+	}
+	if err := e.writeStagedManifestLocked(); err != nil {
+		e.logger.Warn("Failed to rewrite staged restore manifest", zap.Error(err))
+	}
+}
+
+// stagedManifestPath returns the file recording staged replace shard IDs, so a
+// restart can clean up staged shards the in-memory maps no longer track.
+func (e *Engine) stagedManifestPath() string {
+	return filepath.Join(e.path, "staged-restores.json")
+}
+
+// writeStagedManifestLocked persists each staged replace's shard IDs
+// (staged plus any pre-swap replaced IDs). e.stagedMu must be held.
+func (e *Engine) writeStagedManifestLocked() error {
+	manifest := make(map[string][]uint64, len(e.stagedReplaces))
+	for id, st := range e.stagedReplaces {
+		ids := make([]uint64, 0, len(st.shardIDs)+len(st.replacedShardIDs))
+		ids = append(ids, st.shardIDs...)
+		ids = append(ids, st.replacedShardIDs...)
+		manifest[id.String()] = ids
+	}
+	return e.writeManifestFile(manifest)
+}
+
+// writeManifestFile durably writes the staged manifest, or removes it when empty.
+func (e *Engine) writeManifestFile(manifest map[string][]uint64) error {
+	path := e.stagedManifestPath()
+	if len(manifest) == 0 {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return fs.SyncDir(filepath.Dir(path))
+	}
+
+	buf, err := json.Marshal(manifest)
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(buf); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := fs.RenameFileWithReplacement(tmp, path); err != nil {
+		return err
+	}
+	return fs.SyncDir(filepath.Dir(path))
+}
+
+// cleanupStagedShards deletes manifest-listed shards from replaces that did not
+// commit before the process exited; shards the metadata references are kept.
+func (e *Engine) cleanupStagedShards() {
+	e.stagedMu.Lock()
+	defer e.stagedMu.Unlock()
+
+	// Reopening invalidates staged state tracked by a prior open.
+	e.stagedReplaces = make(map[platform.ID]*stagedBucketReplace)
+	e.stagedShards = make(map[uint64]*stagedBucketReplace)
+
+	path := e.stagedManifestPath()
+	buf, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return
+	} else if err != nil {
+		e.logger.Warn("Failed to read staged restore manifest", zap.Error(err))
+		return
+	}
+
+	var manifest map[string][]uint64
+	if err := json.Unmarshal(buf, &manifest); err != nil {
+		e.logger.Error("Removing corrupt staged restore manifest; shards from an interrupted restore may remain on disk",
+			zap.Error(err))
+		if err := os.Remove(path); err != nil {
+			e.logger.Warn("Failed to remove staged restore manifest", zap.Error(err))
+		}
+		return
+	}
+
+	inMeta := make(map[uint64]struct{})
+	for _, dbi := range e.metaClient.Data().Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				for _, sh := range sgi.Shards {
+					inMeta[sh.ID] = struct{}{}
+				}
 			}
 		}
 	}
 
-	return shardIDMap, nil
+	badShards := e.tsdbStore.GetBadShardList()
+	remaining := make(map[string][]uint64)
+	for bucketID, shardIDs := range manifest {
+		orphaned := make([]uint64, 0, len(shardIDs))
+		for _, sid := range shardIDs {
+			if _, ok := inMeta[sid]; !ok {
+				orphaned = append(orphaned, sid)
+			}
+		}
+		if len(orphaned) == 0 {
+			continue
+		}
+		e.logger.Info("Deleting staged shards from a bucket replace interrupted by shutdown",
+			zap.String("bucket_id", bucketID), zap.Uint64s("shard_ids", orphaned))
+		if err := e.tsdbStore.DeleteShardsByID(orphaned); err != nil {
+			e.logger.Warn("Failed to delete staged shards from an interrupted bucket replace",
+				zap.String("bucket_id", bucketID), zap.Uint64s("shard_ids", orphaned), zap.Error(err))
+		}
+		// Keep entries for shards that still exist (e.g. loaded as bad shards)
+		// so the next startup retries.
+		leftover := make([]uint64, 0, len(orphaned))
+		for _, sid := range orphaned {
+			if _, bad := badShards[sid]; bad || e.tsdbStore.Shard(sid) != nil {
+				leftover = append(leftover, sid)
+			}
+		}
+		if len(leftover) > 0 {
+			e.logger.Warn("Staged shards from an interrupted bucket replace could not be deleted; will retry next startup",
+				zap.String("bucket_id", bucketID), zap.Uint64s("shard_ids", leftover))
+			remaining[bucketID] = leftover
+		}
+	}
+
+	if err := e.writeManifestFile(remaining); err != nil {
+		e.logger.Warn("Failed to rewrite staged restore manifest", zap.Error(err))
+	}
+}
+
+// completeStagedShard marks a staged shard's upload as done; the last upload
+// commits the swap, returning the commit hook to run outside the staging lock.
+func (e *Engine) completeStagedShard(shardID uint64) (func(), error) {
+	e.stagedMu.Lock()
+	defer e.stagedMu.Unlock()
+
+	st, ok := e.stagedShards[shardID]
+	if !ok {
+		return nil, nil
+	}
+	delete(st.pending, shardID)
+	if len(st.pending) > 0 {
+		return nil, nil
+	}
+
+	if err := e.finalizeStagedReplace(st); err != nil {
+		// Re-pend the shard so a retried upload can trigger the swap again.
+		st.pending[shardID] = struct{}{}
+		return nil, err
+	}
+
+	delete(e.stagedReplaces, st.bucketID)
+	for _, sid := range st.shardIDs {
+		delete(e.stagedShards, sid)
+	}
+	// A stale manifest is harmless: startup keeps metadata-referenced shards.
+	if err := e.writeStagedManifestLocked(); err != nil {
+		e.logger.Warn("Failed to rewrite staged restore manifest", zap.Error(err))
+	}
+	return st.onCommit, nil
+}
+
+// finalizeStagedReplace swaps the bucket's metadata to the restored shards and
+// deletes the shards it previously owned. e.stagedMu must be held.
+func (e *Engine) finalizeStagedReplace(st *stagedBucketReplace) error {
+	var replacedShardIDs []uint64
+	if err := e.metaClient.UpdateData(func(data *meta.Data) error {
+		dbi := data.Database(st.bucketID.String())
+		if dbi == nil {
+			return fmt.Errorf("bucket dbi for %q not found during restore", st.newDBI.Name)
+		}
+
+		replacedShardIDs = replacedShardIDs[:0]
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				for _, sh := range sgi.Shards {
+					replacedShardIDs = append(replacedShardIDs, sh.ID)
+				}
+			}
+		}
+
+		// Persist the pre-swap IDs before the swap commits; crash cleanup needs them.
+		st.replacedShardIDs = replacedShardIDs
+		if err := e.writeStagedManifestLocked(); err != nil {
+			st.replacedShardIDs = nil
+			return fmt.Errorf("failed to persist staged restore manifest: %w", err)
+		}
+
+		dbi.RetentionPolicies = st.newDBI.RetentionPolicies
+		dbi.ContinuousQueries = st.newDBI.ContinuousQueries
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Delete data for the replaced shards, only after the commit
+	if len(replacedShardIDs) > 0 {
+		if err := e.tsdbStore.DeleteShardsByID(replacedShardIDs); err != nil {
+			e.logger.Warn("Failed to delete replaced shards during restore",
+				zap.Uint64s("shard_ids", replacedShardIDs), zap.Error(err))
+		}
+	}
+
+	e.logger.Info("Bucket replace committed after all shard uploads completed",
+		zap.String("bucket_id", st.bucketID.String()))
+	return nil
 }
 
 func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error {
@@ -509,7 +886,17 @@ func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) 
 		return ErrEngineClosed
 	}
 
-	return e.tsdbStore.RestoreShard(ctx, shardID, r)
+	if err := e.tsdbStore.RestoreShard(ctx, shardID, r); err != nil {
+		return err
+	}
+	onCommit, err := e.completeStagedShard(shardID)
+	if err != nil {
+		return err
+	}
+	if onCommit != nil {
+		onCommit()
+	}
+	return nil
 }
 
 // SeriesCardinality returns the number of series in the engine.

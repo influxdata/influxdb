@@ -627,6 +627,81 @@ func TestStore_DeleteShard(t *testing.T) {
 	}
 }
 
+func TestStore_DeleteShardsByID(t *testing.T) {
+
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		// Create three shards in db0 and one in db1.
+		for i, db := range []string{"db0", "db0", "db0", "db1"} {
+			id := uint64(i + 1)
+			if err := s.CreateShard(context.Background(), db, "rp0", id, true); err != nil {
+				return err
+			} else if sh := s.Shard(id); sh == nil {
+				return fmt.Errorf("expected shard %d", id)
+			}
+		}
+
+		// Series cpu,serverb=b and mem,serverc=a exist only in the two doomed
+		// shards; cpu,servera=a survives in shard 3.
+		s.MustWriteToShardString(1, "cpu,servera=a v=1", "cpu,serverb=b v=1")
+		s.MustWriteToShardString(2, "cpu,servera=a v=1", "mem,serverc=a v=1")
+		s.MustWriteToShardString(3, "cpu,servera=a v=1")
+		s.MustWriteToShardString(4, "cpu,serverb=b v=1")
+
+		// Remove both doomed shards in one call.
+		if err := s.DeleteShardsByID([]uint64{1, 2}); err != nil {
+			return err
+		}
+		if sh := s.Shard(1); sh != nil {
+			return fmt.Errorf("expected shard 1 to be deleted")
+		}
+		if sh := s.Shard(2); sh != nil {
+			return fmt.Errorf("expected shard 2 to be deleted")
+		}
+
+		// Only the series still owned by shard 3 remains in db0.
+		keys, err := s.TagKeys(context.Background(), nil, []uint64{3}, nil)
+		if err != nil {
+			return err
+		}
+		expKeys := []tsdb.TagKeys{{Measurement: "cpu", Keys: []string{"servera"}}}
+		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+			return fmt.Errorf("got keys %v, expected %v", got, exp)
+		}
+
+		// Series shared with db1 were not removed from db1's series file.
+		if keys, err = s.TagKeys(context.Background(), nil, []uint64{4}, nil); err != nil {
+			return err
+		}
+		expKeys = []tsdb.TagKeys{{Measurement: "cpu", Keys: []string{"serverb"}}}
+		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+			return fmt.Errorf("got keys %v, expected %v", got, exp)
+		}
+
+		// The store reopens cleanly with the deleted shards gone.
+		if err := s.Reopen(t); err != nil {
+			return err
+		}
+		if sh := s.Shard(1); sh != nil {
+			return fmt.Errorf("expected shard 1 to stay deleted after reopen")
+		}
+		if sh := s.Shard(3); sh == nil {
+			return fmt.Errorf("expected shard 3 to survive reopen")
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(t, index); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
 // Ensure the store can create a snapshot to a shard.
 func TestStore_CreateShardSnapShot(t *testing.T) {
 

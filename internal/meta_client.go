@@ -45,6 +45,7 @@ type MetaClientMock struct {
 	ShardGroupsByTimeRangeFn func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	ShardOwnerFn             func(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo)
 	TruncateShardGroupsFn    func(t time.Time) error
+	UpdateDataFn             func(update func(*meta.Data) error) error
 	UpdateRetentionPolicyFn  func(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	UpdateUserFn             func(name, password string) error
 	UserPrivilegeFn          func(username, database string) (*influxql.Privilege, error)
@@ -172,6 +173,9 @@ func (c *MetaClientMock) Users() []meta.UserInfo                  { return c.Use
 func (c *MetaClientMock) Open() error                { return c.OpenFn() }
 func (c *MetaClientMock) Data() meta.Data            { return c.DataFn() }
 func (c *MetaClientMock) SetData(d *meta.Data) error { return c.SetDataFn(d) }
+func (c *MetaClientMock) UpdateData(update func(*meta.Data) error) error {
+	return c.UpdateDataFn(update)
+}
 
 func (c *MetaClientMock) PrecreateShardGroups(from, to time.Time) error {
 	return c.PrecreateShardGroupsFn(from, to)
