@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -1840,6 +1842,21 @@ func TestParsePointsWithPrecision(t *testing.T) {
 			t.Errorf("%s: ParsePoint() to string mismatch:\n got %v\n exp %v", test.name, got, test.exp)
 		}
 	}
+}
+
+func TestScanLine(t *testing.T) {
+	input := "cpu value=\"first\nsecond\" 1\nmem value=2i 2"
+	scanner := bufio.NewScanner(strings.NewReader(input))
+	scanner.Split(models.ScanLine)
+
+	var got []string
+	for scanner.Scan() {
+		got = append(got, scanner.Text())
+	}
+	require.NoError(t, scanner.Err())
+
+	want := []string{"cpu value=\"first\nsecond\" 1", "mem value=2i 2"}
+	require.Equal(t, want, got)
 }
 
 func TestParsePointsWithPrecisionNoTime(t *testing.T) {

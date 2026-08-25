@@ -12,9 +12,14 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services/httpd"
 )
 
-const batchSize = 5000
+const (
+	batchSize                     = 5000
+	maxLineProtocolRecordSize int = httpd.DefaultMaxBodySize
+)
 
 // Config is the config used to initialize a Importer importer
 type Config struct {
@@ -172,17 +177,15 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 	}
 }
 
-func (i *Importer) processDML(scanner *bufio.Reader) error {
+func (i *Importer) processDML(reader *bufio.Reader) error {
 	i.startTime = time.Now()
-	for {
-		line, err := scanner.ReadString(byte('\n'))
-		if err != nil && err != io.EOF {
-			return err
-		} else if err == io.EOF {
-			// Call batchWrite one last time to flush anything out in the batch
-			i.batchWrite()
-			return nil
-		}
+	defer i.batchWrite()
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(nil, maxLineProtocolRecordSize)
+	scanner.Split(models.ScanLine)
+	for scanner.Scan() {
+		line := scanner.Text()
 		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
 			i.batchWrite()
 			i.database = strings.TrimSpace(strings.Split(line, ":")[1])
@@ -200,6 +203,10 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		}
 		i.batchAccumulator(line)
 	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (i *Importer) execute(command string) {
