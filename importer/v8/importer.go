@@ -179,6 +179,8 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 
 func (i *Importer) processDML(reader *bufio.Reader) error {
 	i.startTime = time.Now()
+	defer i.batchWrite()
+
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(nil, maxLineProtocolRecordSize)
 	scanner.Split(models.ScanLine)
@@ -204,7 +206,6 @@ func (i *Importer) processDML(reader *bufio.Reader) error {
 	if err := scanner.Err(); err != nil {
 		return err
 	}
-	i.batchWrite()
 	return nil
 }
 

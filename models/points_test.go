@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -1852,14 +1853,10 @@ func TestScanLine(t *testing.T) {
 	for scanner.Scan() {
 		got = append(got, scanner.Text())
 	}
-	if err := scanner.Err(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, scanner.Err())
 
 	want := []string{"cpu value=\"first\nsecond\" 1", "mem value=2i 2"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %q, want %q", got, want)
-	}
+	require.Equal(t, want, got)
 }
 
 func TestParsePointsWithPrecisionNoTime(t *testing.T) {

@@ -1,6 +1,8 @@
 package v8
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,7 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/iotest"
+	"time"
 
+	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/models"
 	th "github.com/influxdata/influxdb/pkg/testing/helper"
 	"github.com/stretchr/testify/require"
@@ -39,6 +44,40 @@ lllll\slash`)
 
 func TestImporter_UnterminatedFinalPoint(t *testing.T) {
 	testImportRecords(t, []string{"test value=1i 1"}, false)
+}
+
+func TestImporter_FlushesBatchOnReadError(t *testing.T) {
+	var received string
+	var serverErr error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			serverErr = err
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		received = string(body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	config := NewConfig()
+	config.URL = *serverURL
+	importer := NewImporter(config)
+	importer.client, err = client.NewClient(config.Config)
+	require.NoError(t, err)
+	importer.lastWrite = time.Now()
+
+	readErr := errors.New("read failed")
+	reader := bufio.NewReader(io.MultiReader(
+		strings.NewReader("test value=1i 1\n"),
+		iotest.ErrReader(readErr),
+	))
+	require.ErrorIs(t, importer.processDML(reader), readErr)
+	require.NoError(t, serverErr)
+	require.Equal(t, "test value=1i 1", received)
 }
 
 func testImportRecords(t *testing.T, records []string, trailingNewline bool) {
