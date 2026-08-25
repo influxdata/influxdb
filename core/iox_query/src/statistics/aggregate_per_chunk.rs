@@ -202,8 +202,17 @@ pub fn build_statistics_for_chunks(
             agg.update(&chunk.stats(), chunk.schema().as_arrow().as_ref());
 
             if let Some(schema) = chunk_order_only_schema.as_ref() {
-                let order = chunk.order().get();
-                let order = ScalarValue::from(order);
+                let (min_order, max_order, distinct_count) =
+                    if let Some(range) = chunk.row_order_range() {
+                        (
+                            ScalarValue::from(*range.start()),
+                            ScalarValue::from(*range.end()),
+                            Precision::Absent,
+                        )
+                    } else {
+                        let order = ScalarValue::from(chunk.order().get());
+                        (order.clone(), order, Precision::Exact(1))
+                    };
 
                 agg.update(
                     &DFStatistics {
@@ -211,9 +220,9 @@ pub fn build_statistics_for_chunks(
                         total_byte_size: Precision::Exact(0),
                         column_statistics: vec![ColumnStatistics {
                             null_count: Precision::Exact(0),
-                            max_value: Precision::Exact(order.clone()),
-                            min_value: Precision::Exact(order),
-                            distinct_count: Precision::Exact(1),
+                            max_value: Precision::Exact(max_order),
+                            min_value: Precision::Exact(min_order),
+                            distinct_count,
                             sum_value: Precision::Absent,
                         }],
                     },
@@ -710,6 +719,35 @@ mod test {
 
         let parquet_stats = build_statistics_for_chunks(&[parquet_chunk], &schema);
         assert_eq!(parquet_stats.column_statistics, expected_stats);
+    }
+
+    #[test]
+    fn test_row_order_range_stats() {
+        let schema: SchemaRef = SchemaBuilder::new()
+            .timestamp()
+            .influx_field(CHUNK_ORDER_COLUMN_NAME, InfluxFieldType::Integer)
+            .build()
+            .unwrap()
+            .into();
+        let chunk = Arc::new(
+            TestChunk::new("t")
+                .with_time_column_with_stats(Some(10), Some(20))
+                .with_row_count(5)
+                .with_order(9)
+                .with_row_order_range(5, 9),
+        );
+
+        let stats = build_statistics_for_chunks(&[chunk], &schema);
+        assert_eq!(
+            stats.column_statistics[1],
+            ColumnStatistics {
+                null_count: Precision::Absent,
+                max_value: Precision::Exact(ScalarValue::Int64(Some(9))),
+                min_value: Precision::Exact(ScalarValue::Int64(Some(5))),
+                distinct_count: Precision::Absent,
+                sum_value: Precision::Absent,
+            }
+        );
     }
 
     #[test]

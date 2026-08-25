@@ -23,6 +23,7 @@ use schema::{Projection, Schema, sort::SortKey};
 use std::{
     any::Any,
     fmt::Debug,
+    ops::RangeInclusive,
     sync::{Arc, LazyLock},
 };
 use trace::{ctx::SpanContext, span::Span};
@@ -100,6 +101,13 @@ pub trait QueryChunk: Debug + Send + Sync + 'static {
 
     /// Order of this chunk relative to other overlapping chunks.
     fn order(&self) -> ChunkOrder;
+
+    /// Inclusive row-order values for data emitted oldest-to-newest.
+    ///
+    /// Ranges must not overlap between chunks that can contain the same primary key.
+    fn row_order_range(&self) -> Option<RangeInclusive<i64>> {
+        None
+    }
 
     /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
     fn as_any(&self) -> &dyn Any;
