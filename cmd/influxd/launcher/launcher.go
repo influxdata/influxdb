@@ -163,6 +163,17 @@ type Launcher struct {
 	tasksReady        *check.ReadyGate
 	schedulerReady    *check.ReadyGate
 	startupProgress   *run.StartupProgressLogger
+
+	// readyGates maps a subsystem name to the ReadyGate registered under it,
+	// so failSubsystem can latch the gate belonging to a failing phase instead
+	// of registering a second /ready check with the same name. Populated by
+	// initReadyChecks; only the gated subsystems appear.
+	readyGates map[string]*check.ReadyGate
+
+	// failedSubsystem is the name of the first phase failSubsystem attributed
+	// a startup failure to, used only to notice a failure that reached no
+	// attribution at all. Written and read from run's goroutine.
+	failedSubsystem string
 }
 
 type stoppingScheduler interface {
@@ -228,9 +239,150 @@ func (m *Launcher) Done() <-chan struct{} {
 	return m.doneChan
 }
 
+// initReadyChecks creates every /ready check the launcher owns and registers
+// it on m.checkHandler, in the order it should appear. Call once, before any
+// subsystem starts, so /ready enumerates the full set of phases from the very
+// first probe rather than growing as startup proceeds.
+//
+// The gates are recorded in m.readyGates keyed by their own CheckName, which
+// is what makes failSubsystem unable to pair a subsystem name with another
+// subsystem's gate. m.startupProgress is deliberately not a gate: it owns
+// SubsystemShards and latches its own failure through Finish.
+func (m *Launcher) initReadyChecks() {
+	m.readyGates = make(map[string]*check.ReadyGate)
+	newGate := func(name string) *check.ReadyGate {
+		g := check.NewReadyGate(name)
+		m.readyGates[name] = g
+		m.checkHandler.AddNamedReadyCheck(g)
+		return g
+	}
+
+	m.kvReady = newGate(SubsystemKV)
+	m.sqliteReady = newGate(SubsystemSQLite)
+	m.engineReady = newGate(SubsystemEngine)
+	m.replicationsReady = newGate(SubsystemReplications)
+	m.queryReady = newGate(SubsystemQuery)
+	m.tasksReady = newGate(SubsystemTasks)
+	m.schedulerReady = newGate(SubsystemTaskScheduler)
+
+	m.startupProgress = run.NewStartupProgressLogger(
+		SubsystemShards,
+		m.log.With(zap.String("service", "startup-progress")))
+	m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker())
+	m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker())
+}
+
+// failSubsystem records err as the initialization failure of the subsystem
+// named name and returns err unchanged, for the caller to return from run.
+//
+// It logs msg — the message the call site used to log itself, so log-based
+// alerting keeps matching — with the subsystem name attached, and publishes
+// "msg: err" as the message of a /health check named for the failing phase.
+// The returned error is not wrapped, so influxd's exit message is unchanged.
+// Any fields the call site logged alongside the error are passed through.
+//
+// On /ready, a subsystem that owns a ReadyGate has that gate latched, so the
+// entry already registered for it carries the reason instead of a bare
+// check.MsgNotReady. A subsystem with no gate — one that runs after every gate
+// has fired — gets a failing /ready check registered for it, which is what
+// stops /ready reporting "ready" through a late startup failure.
+//
+// The no-duplicate-names invariant: every subsystem that registers a health
+// check of its own does so only after it is fully up (bolt, sqlite, query,
+// task-scheduler, influxql), and every error site for that subsystem precedes
+// that registration, so a subsystem's failure check and its normal check are
+// mutually exclusive by construction. check.Check holds health checks in an
+// append-only slice with no name map: nothing but this ordering enforces it.
+func (m *Launcher) failSubsystem(name, msg string, err error, fields ...zap.Field) error {
+	m.log.Error(msg, append([]zap.Field{zap.String("subsystem", name), zap.Error(err)}, fields...)...)
+
+	if m.failedSubsystem == "" {
+		m.failedSubsystem = name
+	}
+
+	// The checkers below are read from an HTTP handler long after this call
+	// site returned. Build the detail with fmt.Errorf so its message is
+	// precomputed and check.Error can never call Error() on a moving target.
+	detail := fmt.Errorf("%s: %w", msg, err)
+
+	// m.checkHandler does not exist until partway into run. The sites that
+	// precede it also precede runHTTP, so there is no listener to observe
+	// what they would have registered.
+	if m.checkHandler == nil {
+		return err
+	}
+
+	m.checkHandler.AddNamedHealthCheck(check.Named(name, check.ErrCheck(func() error { return detail })))
+	if gate, ok := m.readyGates[name]; ok {
+		gate.Fail(detail)
+	} else {
+		m.checkHandler.AddNamedReadyCheck(check.Named(name, check.ErrCheck(func() error { return detail })))
+	}
+	return err
+}
+
+// failUnreachedGates latches every ready gate that never fired, so /ready
+// reports that the phase was never reached rather than a bare
+// check.MsgNotReady. Call it only when run is returning an error: that is the
+// point at which "has not become ready yet" and "will never become ready"
+// stop being the same statement, and check.MsgNotReady only ever meant the
+// first one.
+//
+// It exists because the gate that failed is not usually the only gate left
+// hanging. A failure at the SQL migrations latches sqlite and leaves engine,
+// query, tasks and task-scheduler all reading "not ready" forever, which
+// reads as a server still working through startup. Afterwards exactly one
+// entry carries a reason, the ones that came up still say so, and the rest say
+// they never got their turn.
+//
+// A gate reporting StatusPass is skipped. Its subsystem genuinely started, and
+// ReadyGate.Fail outranks Ready, so sweeping it would report a working
+// subsystem as failed. The gate carrying the real reason needs no such guard:
+// Fail keeps the first error, so it survives this regardless of ordering.
+//
+// m.startupProgress is not a ReadyGate and is not swept, so on a failure
+// before engine.Open the shards entry goes on reporting shard-loading
+// progress. See the startup failure checks section of HEALTH_READY.md.
+func (m *Launcher) failUnreachedGates(ctx context.Context) {
+	// m.failedSubsystem is empty when a failure reached no attribution at all;
+	// the caller has already warned about that, and naming no phase is better
+	// than naming an empty one.
+	notReached := errors.New("not reached: startup failed")
+	if m.failedSubsystem != "" {
+		notReached = fmt.Errorf("not reached: startup failed at %s", m.failedSubsystem)
+	}
+
+	// Ranging a nil map is a no-op, which covers the sites that fail before
+	// initReadyChecks has run.
+	for _, gate := range m.readyGates {
+		if gate.Check(ctx).Status() == check.StatusPass {
+			continue
+		}
+		gate.Fail(notReached)
+	}
+}
+
 func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
+
+	// Every failure path below is expected to go through failSubsystem, so
+	// that /health and /ready name the phase that failed. A return that skips
+	// it leaves the endpoints saying nothing useful; say so in the log rather
+	// than let it pass silently.
+	//
+	// This is also where the gates that never fired are closed out. It runs on
+	// every failure path there is, including any added later, which per-site
+	// calls would not.
+	defer func() {
+		if err == nil {
+			return
+		}
+		if m.failedSubsystem == "" {
+			m.log.Warn("Startup failed without subsystem attribution", zap.Error(err))
+		}
+		m.failUnreachedGates(ctx)
+	}()
 
 	ctx, m.cancel = context.WithCancel(ctx)
 	m.doneChan = ctx.Done()
@@ -265,9 +417,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		if len(opts.FeatureFlags) > 0 {
 			f, err := overrideflagger.Make(opts.FeatureFlags, feature.ByKey)
 			if err != nil {
-				m.log.Error("Failed to configure feature flag overrides",
-					zap.Error(err), zap.Any("overrides", opts.FeatureFlags))
-				return err
+				return m.failSubsystem(SubsystemFlagger, "Failed to configure feature flag overrides", err,
+					zap.Any("overrides", opts.FeatureFlags))
 			}
 			m.log.Info("Running with feature flag overrides", zap.Any("overrides", opts.FeatureFlags))
 			m.flagger = f
@@ -275,7 +426,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 
 	if err := m.writePIDFile(opts.PIDFile, opts.OverwritePIDFile); err != nil {
-		return fmt.Errorf("error writing PIDFile %q: %w", opts.PIDFile, err)
+		// The wrap is what influxd prints, so it stays the returned error.
+		return m.failSubsystem(SubsystemPIDFile, "Failed writing PID file",
+			fmt.Errorf("error writing PIDFile %q: %w", opts.PIDFile, err))
 	}
 
 	// Bring up /health and /ready early so k8s probes have a responsive
@@ -291,8 +444,22 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// Fold --hardening-enabled's implications into the individual options,
 	// which is what NewConfigHandler below reports and what everything past
 	// this point reads. An option the operator set for themselves survives;
-	// see applyHardeningImplications.
+	// see applyHardeningImplications. The CLI has already done this in PreRunE
+	// -- print-config needs it too, and shares the path -- so this call covers
+	// callers that build an InfluxdOpts and invoke run directly, and is
+	// otherwise a no-op.
 	opts.applyHardeningImplications()
+	if opts.HardeningEnabled && !opts.HealthAuthEnabled {
+		// The operator asked for hardening and then supplied a value of their
+		// own for health auth, so the implication stood down. That is
+		// supported, and deliberately so -- the reduced bodies can break
+		// monitoring that parses them -- but "I turned hardening on" is not the
+		// same claim as "I know /health serves startup error text, filesystem
+		// paths and vault addresses to anyone who can reach the port". Say so
+		// once, at startup, rather than let the gap live only in a config file.
+		m.log.Warn("Hardening is enabled but health auth is not: /health and /ready serve full check detail, including startup error messages, to unauthenticated callers",
+			zap.String("flag", healthAuthEnabledFlag))
+	}
 	// Set before runHTTP so it is in place for the very first request.
 	m.checkHandler.SetHealthAuthRequired(opts.HealthAuthEnabled)
 	if opts.HealthAuthEnabled {
@@ -302,25 +469,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		// rejected credential. The matching line is at SetCredentialResolver.
 		m.log.Info("Check detail on /health and /ready requires operator permissions; until the authorization store opens, both report check names and statuses without messages")
 	}
-	m.kvReady = check.NewReadyGate(SubsystemKV)
-	m.sqliteReady = check.NewReadyGate(SubsystemSQLite)
-	m.engineReady = check.NewReadyGate(SubsystemEngine)
-	m.replicationsReady = check.NewReadyGate(SubsystemReplications)
-	m.queryReady = check.NewReadyGate(SubsystemQuery)
-	m.tasksReady = check.NewReadyGate(SubsystemTasks)
-	m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
-	m.startupProgress = run.NewStartupProgressLogger(
-		SubsystemShards,
-		m.log.With(zap.String("service", "startup-progress")))
-	m.checkHandler.AddNamedReadyCheck(m.kvReady)
-	m.checkHandler.AddNamedReadyCheck(m.sqliteReady)
-	m.checkHandler.AddNamedReadyCheck(m.engineReady)
-	m.checkHandler.AddNamedReadyCheck(m.replicationsReady)
-	m.checkHandler.AddNamedReadyCheck(m.queryReady)
-	m.checkHandler.AddNamedReadyCheck(m.tasksReady)
-	m.checkHandler.AddNamedReadyCheck(m.schedulerReady)
-	m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker())
-	m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker())
+	m.initReadyChecks()
 
 	// Under NoTasks the tasks subsystem and scheduler never start; pre-fire
 	// their gates so /ready does not block forever waiting on subsystems
@@ -338,7 +487,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// the listener is closed before subsystems are torn down.
 	defer registerCloser()
 	if err != nil {
-		return err
+		return m.failSubsystem(SubsystemHTTPServer, "Failed starting HTTP server", err)
 	}
 
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
@@ -351,6 +500,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// work the resolver itself depends on.
 	procID, err := m.openMetaStores(ctx, opts)
 	if err != nil {
+		// Attributed at the failing site inside openMetaStores, which knows
+		// which of its phases failed.
 		return err
 	}
 
@@ -378,8 +529,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		authStoreLogger := m.log.With(zap.String("store", "auth"))
 		authStore, err := authorization.NewStore(ctx, m.kvStore, opts.UseHashedTokens, authorization.WithAuthorizationHashVariantName(hasherVariantName), authorization.WithLogger(authStoreLogger))
 		if err != nil {
-			m.log.Error("Failed creating new authorization store", zap.Error(err), zap.Bool("UseHashedTokens", opts.UseHashedTokens), zap.String("hasherVariant", hasherVariantName))
-			return err
+			return m.failSubsystem(SubsystemAuthorization, "Failed creating new authorization store", err,
+				zap.Bool("UseHashedTokens", opts.UseHashedTokens), zap.String("hasherVariant", hasherVariantName))
 		}
 		authSvc = authorization.NewService(authStore, ts)
 	}
@@ -397,7 +548,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// widens the window in which no caller, operator included, can see more
 	// than check names and statuses.
 	m.checkHandler.SetCredentialResolver(
-		newHealthCredentialResolver(httpLogger, authSvc, ts.UserService, nil))
+		newHealthCredentialResolver(httpLogger, authSvc, ts.UndecoratedUserService(), nil))
 	if opts.HealthAuthEnabled {
 		m.log.Info("Check detail on /health and /ready now gated on operator permissions",
 			zap.String("credentials", "token"))
@@ -408,6 +559,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// a ping that times out under migration load would flip /health to 503 and
 	// invite an orchestrator to restart a server that is migrating correctly.
 	if err := m.migrateSQLStore(ctx, opts); err != nil {
+		// Attributed inside migrateSQLStore.
 		return err
 	}
 	m.checkHandler.AddNamedHealthCheck(m.sqlStore)
@@ -434,8 +586,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	secretStore, err := secret.NewStore(m.kvStore)
 	if err != nil {
-		m.log.Error("Failed creating new secret store", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemSecrets, "Failed creating new secret store", err)
 	}
 
 	var secretSvc platform.SecretService = secret.NewMetricService(m.reg, secret.NewLogger(m.log.With(zap.String("service", "secret")), secret.NewService(secretStore)))
@@ -448,20 +599,17 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
 		svc, err := vault.NewSecretService(vault.WithConfig(opts.VaultConfig))
 		if err != nil {
-			m.log.Error("Failed initializing vault secret service", zap.Error(err))
-			return err
+			return m.failSubsystem(SubsystemSecrets, "Failed initializing vault secret service", err)
 		}
 		secretSvc = svc
 	default:
 		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", opts.SecretStore)
-		m.log.Error("Failed setting secret service", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemSecrets, "Failed setting secret service", err)
 	}
 
 	metaClient := meta.NewClient(meta.NewConfig(), m.kvStore)
 	if err := metaClient.Open(); err != nil {
-		m.log.Error("Failed to open meta client", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemMetaClient, "Failed to open meta client", err)
 	}
 
 	if opts.Testing {
@@ -473,9 +621,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.flushers = append(m.flushers, engine)
 		m.engine = engine
 	} else {
-		// check for 2.x data / state from a prior 2.x
+		// check for 2.x data / state from a prior 2.x. The message stays
+		// neutral: checkForPriorVersion returns either a bucket-read failure
+		// or an incompatible-version error, and it logs which one itself.
 		if err := checkForPriorVersion(ctx, m.log, opts.BoltPath, opts.EnginePath, ts.BucketService, metaClient); err != nil {
-			os.Exit(1)
+			return m.failSubsystem(SubsystemEngine, "Prior version check failed", err)
 		}
 
 		m.engine = storage.NewEngine(
@@ -493,8 +643,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// latches into a terminal Fail that surfaces the error.
 	m.startupProgress.Finish(err)
 	if err != nil {
-		m.log.Error("Failed to open engine", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemEngine, "Failed to open engine", err)
 	}
 	m.engineReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
@@ -527,8 +676,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(replicationsMetrics.PrometheusCollectors()...)
 
 	if err = replicationSvc.Open(ctx); err != nil {
-		m.log.Error("Failed to open replications service", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemReplications, "Failed to open replications service", err)
 	}
 	m.replicationsReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
@@ -560,8 +708,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		influxdb.WithURLValidator(urlValidator),
 	)
 	if err != nil {
-		m.log.Error("Failed to get query controller dependencies", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemQuery, "Failed to get query controller dependencies", err)
 	}
 
 	dependencyList := []flux.Dependency{deps}
@@ -580,8 +727,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		FluxLogEnabled:                  opts.FluxLogEnabled,
 	}, m.log.With(zap.String("service", "storage-reads")))
 	if err != nil {
-		m.log.Error("Failed to create query controller", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemQuery, "Failed to create query controller", err)
 	}
 	m.queryReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
@@ -618,7 +764,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 		err = executor.LoadExistingScheduleRuns(ctx)
 		if err != nil {
-			m.log.Fatal("could not load existing scheduled runs", zap.Error(err))
+			return m.failSubsystem(SubsystemTasks, "could not load existing scheduled runs", err)
 		}
 		m.executor = executor
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
@@ -642,10 +788,13 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 						zap.Error(err))
 				}),
 			)
-			sch = treeSch
+			// Assign only after the error check: on failure treeSch is a nil
+			// *TreeScheduler, and assigning it would leave sch a non-nil
+			// stoppingScheduler wrapping nil.
 			if err != nil {
-				m.log.Fatal("could not start task scheduler", zap.Error(err))
+				return m.failSubsystem(SubsystemTaskScheduler, "could not start task scheduler", err)
 			}
+			sch = treeSch
 			m.closers = append(m.closers, labeledCloser{
 				label: SubsystemTaskScheduler,
 				closer: func(context.Context) error {
@@ -733,7 +882,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
 		notificationRuleSvc, err = ruleservice.New(m.log, m.kvStore, m.kvService, ts.OrganizationService, notificationEndpointSvc)
 		if err != nil {
-			return err
+			return m.failSubsystem(SubsystemNotificationRules, "Failed creating notification rule store", err)
 		}
 
 		// tasks service notification middleware which keeps task service up to date
@@ -748,8 +897,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	scraperScheduler, err := gather.NewScheduler(m.log.With(zap.String("service", "scraper")), 100, 10, scraperTargetSvc, pointsWriter, 10*time.Second)
 	if err != nil {
-		m.log.Error("Failed to create scraper subscriber", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemScraper, "Failed to create scraper subscriber", err)
 	}
 	m.closers = append(m.closers, labeledCloser{
 		label: SubsystemScraper,
@@ -760,15 +908,21 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	})
 
 	var sessionSvc platform.SessionService
+	// healthSessionSvc is the same session service without the metrics and
+	// logging middleware, for the /health and /ready credential resolver; see
+	// newHealthCredentialResolver. It must be the instance the decorated chain
+	// wraps rather than a second one, since the session store is in-memory and
+	// a separate instance would find no sessions at all.
+	var healthSessionSvc platform.SessionService
 	{
-		sessionSvc = session.NewService(
+		healthSessionSvc = session.NewService(
 			session.NewStorage(inmem.NewSessionStore()),
 			ts.UserService,
 			ts.UserResourceMappingService,
 			authSvc,
 			session.WithSessionLength(time.Duration(opts.SessionLength)*time.Minute),
 		)
-		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
+		sessionSvc = session.NewSessionMetrics(m.reg, healthSessionSvc)
 		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
 	}
 
@@ -776,8 +930,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	{
 		labelsStore, err := label.NewStore(m.kvStore)
 		if err != nil {
-			m.log.Error("Failed creating new labels store", zap.Error(err))
-			return err
+			return m.failSubsystem(SubsystemLabels, "Failed creating new labels store", err)
 		}
 		labelSvc = label.NewService(labelsStore)
 	}
@@ -806,8 +959,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	{
 		authStore, err := authv1.NewStore(m.kvStore)
 		if err != nil {
-			m.log.Error("Failed creating new authorization store", zap.Error(err))
-			return err
+			return m.failSubsystem(SubsystemAuthorizationV1, "Failed creating new authorization store", err)
 		}
 
 		authSvcV1 = authv1.NewService(authStore, ts, authv1.WithPasswordChecking(opts.StrongPasswords))
@@ -911,7 +1063,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// Replace the token-only resolver installed during startup now that the
 	// session service exists, so a UI session can read check detail too.
 	m.checkHandler.SetCredentialResolver(
-		newHealthCredentialResolver(httpLogger, authSvc, ts.UserService, sessionSvc))
+		newHealthCredentialResolver(httpLogger, authSvc, ts.UndecoratedUserService(), healthSessionSvc))
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
@@ -1059,7 +1211,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	configHandler, err := http.NewConfigHandler(m.log.With(zap.String("handler", "config")), opts.BindCliOpts())
 	if err != nil {
-		return err
+		return m.failSubsystem(SubsystemAPI, "Failed creating config handler", err)
 	}
 
 	platformHandler := http.NewPlatformHandler(
@@ -1233,8 +1385,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		boltClient.Path = opts.BoltPath
 
 		if err := boltClient.Open(ctx); err != nil {
-			m.log.Error("Failed opening bolt", zap.Error(err))
-			return "", err
+			return "", m.failSubsystem(SubsystemKV, "Failed opening bolt", err)
 		}
 		m.reg.MustRegister(boltClient)
 		procID = boltClient.ID().String()
@@ -1259,22 +1410,19 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		}
 		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
-			m.log.Error("Failed opening sqlite store", zap.Error(err))
-			return "", err
+			return "", m.failSubsystem(SubsystemSQLite, "Failed opening sqlite store", err)
 		}
 
 	case MemoryStore:
 		kvStore = inmem.NewKVStore()
 		sqlStore, err = sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
-			m.log.Error("Failed opening sqlite store", zap.Error(err))
-			return "", err
+			return "", m.failSubsystem(SubsystemSQLite, "Failed opening sqlite store", err)
 		}
 
 	default:
 		err := fmt.Errorf("unknown store type %s; expected disk or memory", opts.StoreType)
-		m.log.Error("Failed opening metadata store", zap.Error(err))
-		return "", err
+		return "", m.failSubsystem(SubsystemMetaStore, "Failed opening metadata store", err)
 	}
 
 	m.closers = append(m.closers, labeledCloser{
@@ -1297,15 +1445,13 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		all.Migrations[:]...,
 	)
 	if err != nil {
-		m.log.Error("Failed to initialize kv migrator", zap.Error(err))
-		return "", err
+		return "", m.failSubsystem(SubsystemMetaStore, "Failed to initialize kv migrator", err)
 	}
 	if persistentStore(opts) {
 		kvMigrator.SetBackupPath(preMigrationBackupPath(opts.BoltPath))
 	}
 	if err := kvMigrator.Up(ctx); err != nil {
-		m.log.Error("Failed to apply KV migrations", zap.Error(err))
-		return "", err
+		return "", m.failSubsystem(SubsystemMetaStore, "Failed to apply KV migrations", err)
 	}
 	m.kvReady.Ready()
 
@@ -1328,8 +1474,7 @@ func (m *Launcher) migrateSQLStore(ctx context.Context, opts *InfluxdOpts) error
 		sqlMigrator.SetBackupPath(preMigrationBackupPath(opts.SqLitePath))
 	}
 	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
-		m.log.Error("Failed to apply SQL migrations", zap.Error(err))
-		return err
+		return m.failSubsystem(SubsystemSQLite, "Failed to apply SQL migrations", err)
 	}
 	m.sqliteReady.Ready()
 	return nil
@@ -1592,6 +1737,16 @@ func (m *Launcher) SessionService() platform.SessionService {
 // sessionSvc may be nil, which it is for the token-only resolver installed
 // during startup; cookie-bearing callers are simply unresolvable until the full
 // resolver replaces it.
+//
+// Pass userSvc and sessionSvc UNDECORATED -- without the metrics and logging
+// middleware the rest of the server uses. Identifying the caller behind a probe
+// is not that caller using InfluxDB, and recording it as though it were makes
+// the two indistinguishable afterwards: a monitor polling every ten seconds is
+// six find_user_by_id calls a minute, forever, in the same counters and the
+// same log an operator reads to see what real users are doing. It is the
+// steadiness that does the damage -- the probe traffic is constant, so it does
+// not look like noise, it looks like a user. authSvc has no middleware to
+// strip, and its token lookup reads only the authorization store.
 func newHealthCredentialResolver(
 	log *zap.Logger,
 	authSvc platform.AuthorizationService,

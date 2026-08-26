@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -177,6 +178,65 @@ func TestLauncher_HealthAuth_HardeningOptOut(t *testing.T) {
 	require.Truef(t, ok, "expected a config object, got %#v", cfg["config"])
 	assert.Equal(t, false, config["health-auth-enabled"])
 	assert.Equal(t, true, config["hardening-enabled"])
+}
+
+// userFindByIDCalls reports the tenant user service's find_user_by_id counter,
+// which is the metric the credential resolver would move if it were wired to
+// the decorated user service. The counter vector has no children until the
+// first call, so an absent family is zero rather than a failure.
+func userFindByIDCalls(t *testing.T, l *launcher.TestLauncher) float64 {
+	t.Helper()
+	m := promtest.FindMetric(
+		promtest.MustGather(t, l.Registry()),
+		"service_user_new_call_total",
+		map[string]string{"method": "find_user_by_id"},
+	)
+	if m == nil {
+		return 0
+	}
+	return m.GetCounter().GetValue()
+}
+
+// TestLauncher_HealthAuth_ProbesAreNotUserActivity pins that identifying the
+// caller behind a probe is not recorded as that caller using InfluxDB.
+//
+// Resolving a credential looks the owning user up, to reject one that has been
+// made inactive. Through the decorated tenant service that lookup lands in the
+// same counter and the same log as a user actually doing something -- and probe
+// traffic is constant, so it does not read as noise on a dashboard, it reads as
+// a user. The resolver is therefore given the undecorated services.
+//
+// The control at the end is the point of the test: it proves the counter is
+// wired and would have caught the regression, rather than sitting at zero for
+// some unrelated reason and passing whatever the resolver does.
+func TestLauncher_HealthAuth_ProbesAreNotUserActivity(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.HealthAuthEnabled = true
+	})
+	defer l.ShutdownOrFail(t, ctx)
+
+	// An operator token, so resolution runs all the way through the user
+	// lookup rather than stopping at a rejected credential.
+	before := userFindByIDCalls(t, l)
+	const probes = 5
+	for range probes {
+		status, body := getCheckEndpoint(t, l, "/health", l.Auth.Token)
+		require.Equal(t, nethttp.StatusOK, status)
+		require.Contains(t, body, "version", "the probe was not resolved as an operator")
+
+		status, _ = getCheckEndpoint(t, l, "/ready", l.Auth.Token)
+		require.Equal(t, nethttp.StatusOK, status)
+	}
+	after := userFindByIDCalls(t, l)
+	assert.Equal(t, before, after,
+		"%d credentialed probes of /health and /ready registered as user activity", probes)
+
+	// Control: the same token through a normal API handler, whose
+	// AuthenticationHandler holds the decorated service, does move the counter.
+	status, _ := getCheckEndpoint(t, l, "/api/v2/config", l.Auth.Token)
+	require.Equal(t, nethttp.StatusOK, status)
+	assert.Greater(t, userFindByIDCalls(t, l), after,
+		"the counter did not move for a real API call either, so this test proves nothing")
 }
 
 // The flag-off case is pinned by TestLauncher_HealthEndpoint, which already

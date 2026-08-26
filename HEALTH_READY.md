@@ -74,6 +74,15 @@ because check messages carry raw error text — filesystem paths,
 permission errors, shard ids — which is not appropriate to publish to an
 unauthenticated caller in a hardened deployment.
 
+This applies with particular force to the [startup failure
+checks](#startup-failure-checks): the message of a failed init phase is
+the error that phase produced verbatim, which can name a bolt or sqlite
+path, a vault address, or a migration that failed. **With health auth
+left at its default (off), those messages are readable by any
+unauthenticated caller that can reach the port.** They are not truncated
+or sanitized — a startup failure an operator cannot read the cause of is
+the problem these checks exist to fix.
+
 ### Opting out under `--hardening-enabled`
 
 `--hardening-enabled` turns on every hardening feature, this one
@@ -88,6 +97,20 @@ The same works from `INFLUXD_HEALTH_AUTH_ENABLED=false` or from
 `health-auth-enabled: false` in the config file. What matters is that the
 option is named somewhere, not where — an option left at its default is
 what `--hardening-enabled` is allowed to imply.
+
+Because "named anywhere" counts, `influxd print-config` resolves the
+implication before printing, so a hardened server prints
+`health-auth-enabled: true`. That matters for the documented workflow of
+redirecting `print-config` into a config file: every key it prints
+becomes a key you have named, so printing the *unresolved* default would
+turn the next start into a silent opt-out. Whichever way you resolved
+it, the printed config is a fixed point — start from it and you get the
+same server back.
+
+When hardening is on and health auth is off, `influxd` logs a warning at
+startup naming what is ungated. Seeing it means the opt-out is in effect;
+if you did not intend one, check your config file for a
+`health-auth-enabled` key left over from a `print-config` dump.
 
 This escape hatch exists because dropping `--hardening-enabled` is not a
 substitute: the flux/pkger IP validator it enables has no per-feature
@@ -118,10 +141,17 @@ and — once something is actually failing — which check it was:
 † **Rejected** means a credential was resolved and found wanting — or
 none was presented, which is every credential-free probe.
 **Unidentifiable** means the handler could not ask at all: the
-[startup window](#the-startup-window), a
-[wedged KV store](#behavior-when-the-kv-store-is-wedged), or a saturated
-resolution cap. Not being able to ask is not the caller's doing, so it
+[startup window](#the-startup-window) or a
+[wedged KV store](#behavior-when-the-kv-store-is-wedged). Both are global
+server state that no caller can bring about, so not being able to ask
 releases the check names and statuses — never the messages.
+
+A [saturated resolution cap](#behavior-when-the-kv-store-is-wedged) is
+deliberately *not* one of them, and is answered as **rejected**: it is
+the one "could not ask" condition a caller can manufacture, by sending
+enough concurrent credential-bearing requests, and releasing more for it
+would let a flood grant itself the attribution while demoting the
+operator probe it crowds out.
 
 **A passing `/health` keeps its documented shape for everyone.** The
 aggregate is `pass`, so the `checks` array is just the list of
@@ -238,10 +268,11 @@ messages — the raw error text this flag exists to gate — need a
 credential, and getting one is what the guard is refusing to do. Read
 the `influxd` log for those.
 
-If you present an operator token and get a body with no messages in it,
-that is this guard or the startup window, not a credential problem. A
-bare `{"name","status"}` on a failing `/health` is the other case: a
-credential was resolved and rejected.
+If you present an operator token and get names and statuses but no
+messages, that is this guard or the startup window, not a credential
+problem. A bare `{"name","status"}` on a failing `/health` means your
+credential was resolved and rejected — or that the resolution cap below
+was saturated when your request arrived.
 
 **Concurrent resolutions are capped** (`maxInflightResolutions`, 8).
 The guard above is up to `DefaultProbeStaleness` late, so a store that
@@ -249,21 +280,54 @@ wedges just after its last successful probe still looks healthy for
 seconds, and any resolution begun in that window never returns.
 Uncapped, each one strands a goroutine and a bolt read transaction for
 the life of the process. Capped, the damage stops at 8 and every later
-request is answered from check state that reads no store at all. A
-request that cannot get a slot is answered like any other caller who
-could not be identified — names and statuses, no messages — never with
-a different status code.
+request is answered from check state that reads no store at all.
+
+**The resolution rate is capped too** (`maxResolutionsPerSecond`, 2, with
+a burst of 16). The concurrency cap above is the wrong quantity for this:
+eight slots turning over at bolt speed is thousands of reads a second.
+Resolving a token opens a bolt `View` whether or not the token is any
+good, so without a rate cap anyone who can reach the port can drive
+unbounded reads against the metadata store — through the one endpoint
+operators routinely exempt from the rate limiting that fronts everything
+else. The budget is per server, not per caller: the resource being
+protected is the store, and per-IP state is unbounded memory an anonymous
+caller controls.
+
+Credential-free requests spend neither a slot nor budget: the scheme
+probe runs first and needs no store, so a fleet of plain liveness probes
+cannot crowd out the credentialed operator probe these caps exist to
+protect. A credentialed request turned away by either cap is answered as
+**rejected** — `{"name","status"}`, no `checks` — never with a different
+status code. That costs an operator the attribution for as long as the
+condition lasts: for a genuinely wedged store, bounded by
+`DefaultProbeStaleness`, after which the guard above takes over and
+restores names and statuses for everyone; for a flood, as long as the
+flood runs. `influxd` logs a throttled warning while the budget is
+exhausted, which is the only way to tell a starved probe from a rejected
+credential — they produce the same body.
 
 ### Cost
 
 A caller presenting no credential costs nothing extra: the scheme probe
-fails before any store access. A token costs two bolt reads per request.
+fails before any store access. A valid token costs two bolt reads per
+request; an invalid one costs a single read, since the user lookup is
+only reached after the token resolves.
 A **session cookie is considerably more expensive** — session lookup
 recomputes the permission set on every request, which includes a full
 scan of the authorization bucket. Prefer tokens for automated polling.
 
 Session renewal is always disabled on this path, so polling `/health`
 with a browser session does not extend that session's lifetime.
+
+**Probes do not appear as user activity.** Identifying the caller behind
+a probe requires looking its user up, but the resolver holds the user
+and session services without the metrics and logging middleware the rest
+of the server uses. A credentialed probe therefore does not move
+`service_user_new_call_total` or `service_session_call_total` and writes
+no service log line. This is deliberate: probe traffic is constant, so
+recorded alongside real traffic it does not read as noise on a dashboard
+— it reads as a user, forever. The bolt reads above are still real; they
+are simply not attributed to anyone.
 
 ### Limitations
 
@@ -395,6 +459,67 @@ in-memory metadata (test mode).
 | `shards`          |     ✓     |      ✓      |
 
 Source of truth: `cmd/influxd/launcher/health_ready_test.go`.
+
+Every check above is registered *after* its subsystem is up, so a server
+that failed to reach that point has no entry for it. What it has instead
+is the failure check below.
+
+#### Startup failure checks
+
+When an initialization phase in `Launcher.run` fails, the launcher
+registers one additional health check named for that phase, whose
+message is `"<what was being done>: <error>"`. It is the only entry that
+subsystem will have — the normal check for it is never reached — so a
+name appears at most once in `checks[]`.
+
+The phases that can appear, beyond the subsystem names already listed:
+
+| Check name            | Failing phase                                  |
+|-----------------------|------------------------------------------------|
+| `feature-flags`       | `--feature-flags` overrides could not be parsed |
+| `pidfile`             | PID file could not be written                  |
+| `http-server`         | listener could not be bound                    |
+| `meta-store`          | KV migrations, or an unknown `--store` value   |
+| `authorization`       | authorization store could not be opened        |
+| `authorization-v1`    | v1 authorization store could not be opened     |
+| `secrets`             | secret store, vault service, or unknown `--secret-store` |
+| `meta-client`         | meta client could not be opened                |
+| `engine`              | prior-version check, or `engine.Open`          |
+| `replications`        | replication service could not be opened        |
+| `notification-rules`  | notification rule store could not be created   |
+| `scraper`             | scraper scheduler could not be created         |
+| `labels`              | label store could not be created               |
+| `api`                 | config handler could not be created            |
+
+`feature-flags` and `pidfile` run before the HTTP listener exists, and
+`http-server` *is* the listener failing to bind, so none of those three
+can be served to a probe: their failures reach the log only. They are
+listed for completeness.
+
+`meta-store` rather than `bolt` names the KV migrations and the
+unknown-store-type case because those run for every `--store` value: a
+migration failure under `--store=memory` is not a bolt problem, and
+there is no bolt file to go and look at. `bolt` names the bolt client
+open, which happens only on disk.
+
+Note that an `engine` failure produces two failing entries on **`/ready`**
+— `engine` and `shards` — because the startup progress logger latches its
+terminal failure into its ready gate. The top-level `message` names
+`engine`, which sorts first.
+
+**`/health` gets only the `engine` entry.** The progress logger exposes two
+different checks under the one name `shards`, and only the `/ready` one is
+driven by `Finish(err)`. The `/health` one reports the errors accumulated
+from *individual* shards, and an `engine.Open` that fails before any shard
+is loaded has accumulated none — so `shards` reads `"pass"` on `/health`
+even while the same name reads `"fail"` on `/ready`. Do not write a
+monitoring rule that looks for a failing `shards` on `/health` to detect an
+engine problem; look for `engine`. See [`shards`](#shards) for the
+`/health` semantics and [`shards` ready
+states](#shards-ready-states-progressive) for the `/ready` ones.
+
+Source of truth: `Launcher.failSubsystem` and
+`cmd/influxd/launcher/subsystems.go`.
 
 #### `bolt`
 
@@ -539,8 +664,10 @@ Source: `http/check_handler.go`.
 ```
 
 Every unsignaled `ReadyGate` emits the default message `"not ready"`
-(`kit/check/helpers.go`). The `shards` gate emits different messages.
-See below.
+(`kit/check/helpers.go`) while startup is still running. A gate whose
+phase failed, or which startup never reached, reports why instead — see
+[Gates that failed](#gates-that-failed). The `shards` gate emits
+different messages. See below.
 
 ### Registered ready gates
 
@@ -564,6 +691,48 @@ Each gate is binary. A single `Ready()` call latches it to `"pass"` for
 the life of the process. During shutdown, the launcher calls `Unready()`
 on every gate it owns, so `/ready` returns `503` while InfluxDB shuts
 down those subsystems.
+
+### Gates that failed
+
+A gate whose phase failed is latched by `Fail(err)` instead, and reports
+that error's message in place of `"not ready"` for the rest of the
+process. `Fail` outranks both `Ready` and `Unready` and cannot be
+cleared: it says the phase will not complete, not that it has not
+completed yet. This is startup-only — a runtime degradation monitor must
+call `Unready`.
+
+A phase that fails *after* all eight gates have fired — the config
+handler, for instance — has no gate to latch, so the launcher registers
+a new failing entry named for that phase (see the [startup failure
+checks](#startup-failure-checks) table). Without it, `/ready` would go on
+reporting `"ready"` right up until the process exits.
+
+**Gates that were never reached are latched too.** When a startup phase
+fails, every gate after it is one that will never fire, and `"not ready"`
+— which means *not yet* — reads as a server still working through
+startup. Before `run` returns, it latches each gate still unfired with
+`"not reached: startup failed at <phase>"` (just `"not reached: startup
+failed"` if the failure reached no attribution at all). So a failed
+startup leaves `/ready` with exactly one entry carrying a reason, the
+subsystems that did start still passing, and the rest saying they never
+got their turn.
+
+Gates that already fired are skipped. `Fail` outranks `Ready`, so
+sweeping a passing gate would report a working subsystem as failed. And
+`Fail` keeps the first error, so the phase that actually failed keeps its
+own message rather than the generic one.
+
+One consequence worth expecting: a KV migration failure reports as *two*
+`/ready` entries, `meta-store` carrying the reason and `bolt` at
+`"not reached"`, because the bolt gate is fired by the migrations it
+never reached.
+
+`shards` is not a `ReadyGate` and is not swept. On a failure *before*
+`engine.Open` — a bad `--store` value, a failed SQL migration, an
+unreadable bolt file — it goes on reporting `"waiting for shard
+enumeration"` or a load percentage for the life of the process, which
+still reads as progress on a server that is on its way out. Read the
+entry that carries a reason, not this one.
 
 ### `shards` ready states (progressive)
 
@@ -835,6 +1004,44 @@ it's likely a cold-start dispatch and not a real wedge.
 **Action:** Look for blocked goroutines in the scheduler using the
 runtime profile or a stack dump.
 
+### `/health` 503 — a startup phase failed
+
+```json
+{
+  "status": "fail",
+  "message": "Failed to open engine: mkdir /var/lib/influxdb2/engine: permission denied",
+  "checks": [
+    { "name": "bolt",   "status": "pass" },
+    { "name": "engine", "status": "fail",
+      "message": "Failed to open engine: mkdir /var/lib/influxdb2/engine: permission denied" },
+    { "name": "shards", "status": "pass" },
+    { "name": "sqlite", "status": "pass" }
+  ]
+}
+```
+
+**Meaning:** Initialization failed at the named phase and the process is
+on its way out. The message is the error verbatim, prefixed by what was
+being attempted. The corresponding `/ready` entry carries the same
+message in place of `"not ready"`, and a phase with no gate of its own
+adds a new failing `/ready` entry (see [Gates that
+failed](#gates-that-failed)).
+
+Only the failing phase is named here. `shards` stays `"pass"` on
+`/health` — it reports per-shard load errors, and an engine that never
+opened loaded no shards — while the same gate reads `"fail"` on `/ready`
+with `"shard loading failed: …"` — see [`/ready` 503 — terminal shard load
+failure](#ready-503--terminal-shard-load-failure).
+
+**Action:** Read the message — it is the same error the log carries,
+with a `subsystem` field naming the phase. This state is terminal: the
+process exits rather than retrying, so an orchestrator restarting the
+container will hit the same failure until the underlying cause is fixed.
+
+**Note on timing:** `influxd` currently exits as soon as `run` returns,
+so a scraper may or may not catch the body before the listener closes.
+The log line is the reliable copy.
+
 ### `/health` 503 — sqlite not open
 
 ```json
@@ -925,12 +1132,18 @@ This document is derived from the implementation introduced in commit
   `instance` wildcard.
 - `cmd/influxd/launcher/cmd.go` — `--health-auth-enabled`,
   `--hardening-enabled`, and `applyHardeningImplications`, which lets an
-  explicitly-set `--health-auth-enabled` override the implication.
+  explicitly-set `--health-auth-enabled` override the implication;
+  `resolveOptions`, the `PreRunE` that applies it for the server and
+  `print-config` alike.
 - `cmd/influxd/launcher/launcher.go` — `openMetaStores` /
   `migrateSQLStore` and the credential-resolver install between them.
 - `kit/check/check.go` — status enum, aggregation rule.
 - `kit/check/freshness.go` — staleness model and stale-message format.
-- `kit/check/helpers.go` — `ReadyGate`, `DefaultProbeTimeout`.
+- `kit/check/helpers.go` — `ReadyGate` (including `Fail`),
+  `DefaultProbeTimeout`.
+- `cmd/influxd/launcher/launcher.go` — `failSubsystem` and
+  `initReadyChecks`, which produce the startup failure checks.
+- `cmd/influxd/launcher/subsystems.go` — the canonical check names.
 - `kit/check/response.go` — per-check JSON shape and `omitempty` rules.
 - `bolt/kv.go` — bolt probe and failure messages.
 - `sqlite/sqlite.go` — sqlite probe and failure messages.

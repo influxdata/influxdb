@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -141,7 +142,12 @@ func TestInfluxdOpts_ApplyHardeningImplications(t *testing.T) {
 // resolveOpts runs the real command wiring over args and returns the options it
 // produced, stopping short of RunE so no server starts. ParseFlags populates the
 // flag values and PreRunE records whether the operator named the flag, which is
-// the half of the answer the config file and environment cannot supply.
+// the half of the answer the config file and environment cannot supply, and then
+// applies the implication.
+//
+// Deliberately no applyHardeningImplications call of its own: PreRunE owns that
+// now, and doing it here as well would let these tests keep passing if the
+// wiring stopped doing it -- which is exactly the defect print-config had.
 func resolveOpts(t *testing.T, v *viper.Viper, args ...string) *InfluxdOpts {
 	t.Helper()
 	o := NewOpts(v)
@@ -149,7 +155,6 @@ func resolveOpts(t *testing.T, v *viper.Viper, args ...string) *InfluxdOpts {
 	require.NoError(t, err)
 	require.NoError(t, cmd.ParseFlags(args))
 	require.NoError(t, cmd.PreRunE(cmd, nil))
-	o.applyHardeningImplications()
 	return o
 }
 
@@ -211,6 +216,87 @@ func TestNewInfluxdCommand_HealthAuthOptOutFromEnv(t *testing.T) {
 	o := resolveOpts(t, viper.New(), "--hardening-enabled")
 	assert.False(t, o.HealthAuthEnabled)
 	assert.True(t, o.HealthAuthEnabledSet, "the environment supplied a value")
+}
+
+// printConfig runs the real print-config subcommand over args and returns the
+// YAML it wrote, which is what an operator redirects into a config file.
+func printConfig(t *testing.T, args ...string) string {
+	t.Helper()
+	o := NewOpts(viper.New())
+	cmd, err := newInfluxdCommand(context.Background(), o)
+	require.NoError(t, err)
+
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append([]string{"print-config"}, args...))
+	require.NoError(t, cmd.Execute())
+
+	// print-config carries a Deprecated notice, and cobra's OutOrStderr resolves
+	// to the writer SetOut installed, so the notice lands ahead of the YAML. A
+	// real operator redirecting stdout to a file does not get it; strip it here
+	// so the round trip below fails only for reasons about the options.
+	printed := out.String()
+	if notice, rest, found := strings.Cut(printed, "\n"); found && strings.HasPrefix(notice, "Command ") {
+		printed = rest
+	}
+	return printed
+}
+
+// TestPrintConfig_ReportsHardeningImplications pins that print-config resolves
+// the options the way the server does. print-config exists to answer "what would
+// the server do", and the implication is part of that answer.
+func TestPrintConfig_ReportsHardeningImplications(t *testing.T) {
+	t.Parallel()
+
+	got := printConfig(t, "--hardening-enabled")
+	assert.Contains(t, got, "health-auth-enabled: true",
+		"a hardened server gates check detail, so print-config must say so")
+}
+
+// TestPrintConfig_RoundTripPreservesHardening is the failure that makes the
+// above more than cosmetic. The documented workflow is to redirect print-config
+// into a config file, and every key it prints is then a key the operator has
+// "supplied" -- which is what suppresses the implication. Printing the resolved
+// value is what makes the round trip a fixed point instead of a silent downgrade
+// from a gated /health to an ungated one.
+func TestPrintConfig_RoundTripPreservesHardening(t *testing.T) {
+	t.Parallel()
+
+	printed := printConfig(t, "--hardening-enabled")
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+	require.NoError(t, v.ReadConfig(strings.NewReader(printed)))
+
+	// No --hardening-enabled on the command line this time: it is in the file,
+	// exactly as it would be for a server started from the printed config.
+	o := resolveOpts(t, v)
+	require.True(t, o.HardeningEnabled, "the printed config still asks for hardening")
+	assert.True(t, o.HealthAuthEnabled,
+		"a config file printed from a hardened server must still describe a hardened server")
+
+	// And the round trip is stable: printing the resolved options again yields
+	// the same answer rather than decaying one generation at a time.
+	assert.Contains(t, printed, "hardening-enabled: true")
+}
+
+// TestPrintConfig_RoundTripPreservesOptOut is the converse, and the reason the
+// fix is "print what was resolved" rather than "ignore the printed key": an
+// operator who opted out explicitly must still be opted out after a round trip.
+func TestPrintConfig_RoundTripPreservesOptOut(t *testing.T) {
+	t.Parallel()
+
+	printed := printConfig(t, "--hardening-enabled", "--health-auth-enabled=false")
+	assert.Contains(t, printed, "health-auth-enabled: false")
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+	require.NoError(t, v.ReadConfig(strings.NewReader(printed)))
+
+	o := resolveOpts(t, v)
+	require.True(t, o.HardeningEnabled)
+	assert.False(t, o.HealthAuthEnabled, "an explicit opt-out survives the round trip")
 }
 
 // TestNewInfluxdCommand_HealthAuthOptOutFromConfigFile covers the third source.

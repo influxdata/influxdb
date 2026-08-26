@@ -84,22 +84,45 @@ func newInfluxdCommand(ctx context.Context, o *InfluxdOpts) (*cobra.Command, err
 		if err := cli.BindOptions(o.Viper, c, cliOpts); err != nil {
 			return nil, err
 		}
-		// Flags are parsed by the time PreRunE fires, so this is the earliest
-		// point at which an explicit --health-auth-enabled=false on the command
-		// line is distinguishable from the flag sitting at its default.
-		c.PreRunE = func(c *cobra.Command, _ []string) error {
-			o.HealthAuthEnabledSet = o.HealthAuthEnabledSet || c.Flags().Changed(healthAuthEnabledFlag)
-			return nil
-		}
+		c.PreRunE = resolveOptions(o)
 	}
 	cmd.AddCommand(runCmd)
 	printCmd, err := NewInfluxdPrintConfigCommand(v, cliOpts)
 	if err != nil {
 		return nil, err
 	}
+	// print-config resolves the options the same way the server does, because
+	// reporting what the server would do is its entire purpose. Cobra does not
+	// inherit PreRunE from a parent command, so this cannot come from the loop
+	// above -- and without it print-config is not merely wrong about
+	// health-auth-enabled, it is a trap; see resolveOptions.
+	printCmd.PreRunE = resolveOptions(o)
 	cmd.AddCommand(printCmd)
 
 	return cmd, nil
+}
+
+// resolveOptions returns the PreRunE that finishes resolving o once the command
+// line has been parsed: it completes HealthAuthEnabledSet and folds
+// --hardening-enabled's implications into the individual options. Every command
+// that reads those options installs it -- the server and print-config alike.
+//
+// print-config especially. Printing health-auth-enabled: false for a hardened
+// server would be worse than merely wrong, because the documented workflow is to
+// redirect that output into a config file: doing so makes the key present, and a
+// present key is exactly what HealthAuthEnabledSet reads as "the operator
+// supplied a value". The printed false would come back as an explicit false and
+// suppress the implication for good, silently ungating /health and /ready detail
+// on a server still running with --hardening-enabled.
+func resolveOptions(o *InfluxdOpts) func(*cobra.Command, []string) error {
+	return func(c *cobra.Command, _ []string) error {
+		// Flags are parsed by the time PreRunE fires, so this is the earliest
+		// point at which an explicit --health-auth-enabled=false on the command
+		// line is distinguishable from the flag sitting at its default.
+		o.HealthAuthEnabledSet = o.HealthAuthEnabledSet || c.Flags().Changed(healthAuthEnabledFlag)
+		o.applyHardeningImplications()
+		return nil
+	}
 }
 
 func invalidFlags(v *viper.Viper) []string {
@@ -307,8 +330,11 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 }
 
 // applyHardeningImplications turns on the options --hardening-enabled implies,
-// leaving alone any option the operator supplied a value for. It is called by
-// Launcher.run, once, before anything reads the options it resolves.
+// leaving alone any option the operator supplied a value for. It is called from
+// the PreRunE that resolveOptions installs, before anything reads the options it
+// resolves, and again by Launcher.run to cover callers that build an
+// InfluxdOpts and invoke run directly. It is idempotent, which is what lets both
+// call it.
 //
 // --hardening-enabled means "every hardening feature", but an implication with
 // no way out is a trap when the feature changes an API contract:

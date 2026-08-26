@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+	"golang.org/x/time/rate"
 )
 
 // stubResolver is a CredentialResolver returning fixed results and counting
@@ -57,6 +59,22 @@ func authHandler(t *testing.T, perms []platform.Permission) (*HealthReadyHandler
 	r := &stubResolver{auth: mock.NewMockAuthorizer(false, perms)}
 	h.SetCredentialResolver(r)
 	return h, r
+}
+
+// doAuthRequest issues a request carrying a token, so that it reaches the
+// credential resolver at all. The value is never parsed -- every resolver in
+// this file is a stub -- but resolve probes for a credential before spending a
+// resolution slot, and a request carrying none is answered without consulting
+// the resolver. Any test whose subject is what a resolved credential decides
+// must use this rather than doRequest, which models the credential-free
+// liveness probe.
+func doAuthRequest(t *testing.T, h http.Handler, method, target string) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(method, target, nil)
+	SetToken("stub", req)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec.Result()
 }
 
 func decodeBody(t *testing.T, res *http.Response) map[string]any {
@@ -130,7 +148,7 @@ func TestHealthReadyHandler_Auth_PermissionMatrix(t *testing.T) {
 			h, resolver := authHandler(t, tt.perms)
 			h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
 
-			res := doRequest(t, h, http.MethodGet, "/health")
+			res := doAuthRequest(t, h, http.MethodGet, "/health")
 			defer closeBody(t, res)
 
 			// The status code must not depend on authorization: a liveness
@@ -165,10 +183,35 @@ func TestHealthReadyHandler_Auth_UnresolvableCredential(t *testing.T) {
 	h.SetCredentialResolver(&stubResolver{err: errors.New("token required")})
 	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
 
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
+	defer closeBody(t, res)
+
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+	got := decodeBody(t, res)
+	assert.Equal(t, "fail", got["status"])
+	assert.NotContains(t, got, "message")
+	assert.NotContains(t, got, "checks")
+}
+
+// TestHealthReadyHandler_Auth_NoCredentialSkipsResolution pins the other half of
+// that distinction: a caller presenting nothing is answered without the resolver
+// being consulted at all. The outcome is the same reduced body an unresolvable
+// credential gets, but it is reached without a store read and without occupying
+// one of the resolution slots -- which is what keeps a fleet of credential-free
+// liveness probes from crowding out the credentialed operator probe the slots
+// exist to bound. See HealthReadyHandler.resolve.
+func TestHealthReadyHandler_Auth_NoCredentialSkipsResolution(t *testing.T) {
+	h, resolver := authHandler(t, platform.OperPermissions())
+	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+
 	res := doRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+	assert.Equal(t, int64(0), resolver.called.Load(),
+		"a request with no credential has nothing to resolve")
+
+	// Answered as rejected, not as unidentifiable: no names, no statuses.
 	got := decodeBody(t, res)
 	assert.Equal(t, "fail", got["status"])
 	assert.NotContains(t, got, "message")
@@ -286,7 +329,7 @@ func TestHealthReadyHandler_Auth_StartupWindowClosesOnResolver(t *testing.T) {
 
 	get := func(t *testing.T) map[string]any {
 		t.Helper()
-		res := doRequest(t, h, http.MethodGet, "/health")
+		res := doAuthRequest(t, h, http.MethodGet, "/health")
 		defer closeBody(t, res)
 		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 		return decodeBody(t, res)
@@ -320,7 +363,7 @@ func TestHealthReadyHandler_Auth_ReadyDetailForOperator(t *testing.T) {
 	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"})
 	h.AddNamedReadyCheck(staticChecker{name: "kv", resp: check.NamedPass("kv")})
 
-	res := doRequest(t, h, http.MethodGet, "/ready")
+	res := doAuthRequest(t, h, http.MethodGet, "/ready")
 	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
@@ -362,7 +405,7 @@ func TestHealthReadyHandler_Auth_DependencyFailingSkipsResolution(t *testing.T) 
 	}
 	for path, wantChecks := range want {
 		t.Run(path, func(t *testing.T) {
-			res := doRequest(t, h, http.MethodGet, path)
+			res := doAuthRequest(t, h, http.MethodGet, path)
 			defer closeBody(t, res)
 
 			require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
@@ -392,12 +435,17 @@ func (b *blockingResolver) Authorize(*http.Request) (platform.Authorizer, error)
 }
 
 // TestHealthReadyHandler_Auth_ResolutionIsBounded pins the cap on concurrent
-// credential resolutions. The dependency guard is up to DefaultProbeStaleness
-// late, so a store that wedges just after its last successful probe still looks
-// healthy and resolutions begun in that window never return. Unbounded, each
-// one strands its own goroutine and bolt read transaction for the life of the
-// process; bounded, the damage stops at maxInflightResolutions and every later
-// request is answered immediately from check state that needs no store at all.
+// credential resolutions, and what a request that hits the cap is told. The
+// dependency guard is up to DefaultProbeStaleness late, so a store that wedges
+// just after its last successful probe still looks healthy and resolutions
+// begun in that window never return. Unbounded, each one strands its own
+// goroutine and bolt read transaction for the life of the process; bounded, the
+// damage stops at maxInflightResolutions and every later request is answered
+// immediately from check state that needs no store at all.
+//
+// Answered as rejected, specifically. The bound makes the pool exhaustible, and
+// a caller can exhaust it on purpose, so this is the one "could not ask"
+// condition that must not release more than a rejection does.
 func TestHealthReadyHandler_Auth_ResolutionIsBounded(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	h.SetHealthAuthRequired(true)
@@ -418,11 +466,14 @@ func TestHealthReadyHandler_Auth_ResolutionIsBounded(t *testing.T) {
 	// wedged View would. Release them however the test ends.
 	t.Cleanup(release)
 
+	// Credential-bearing, since a request with nothing to resolve never reaches
+	// the resolver and so cannot occupy a slot. That is also the shape of the
+	// threat: saturating the pool takes credentials, even garbage ones.
 	for range maxInflightResolutions {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res := doRequest(t, h, http.MethodGet, "/health")
+			res := doAuthRequest(t, h, http.MethodGet, "/health")
 			// assert, not require: FailNow off the test goroutine is illegal.
 			assert.NoError(t, res.Body.Close())
 		}()
@@ -433,13 +484,17 @@ func TestHealthReadyHandler_Auth_ResolutionIsBounded(t *testing.T) {
 		<-resolver.entered
 	}
 
-	res := doRequest(t, h, http.MethodGet, "/health")
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode,
 		"a saturated resolver must not change what a probe reads")
 	got := decodeBody(t, res)
 	closeBody(t, res)
-	assert.Equal(t, map[string]string{"kv": "fail"}, namesAndStatuses(t, got),
-		"a request that cannot get a slot was never asked, so it is not treated as rejected")
+	// Saturation is the one "could not ask" condition a caller can manufacture,
+	// so it must not release more than being asked and rejected does: enough
+	// concurrent credentialed requests would otherwise let a flood grant itself
+	// the subsystem attribution, and demote the operator probe it crowds out.
+	assert.NotContains(t, got, "checks",
+		"a saturated pool must not release what a rejected caller cannot have")
 	assert.NotContains(t, got, "message")
 
 	// Slots come back when a resolution returns -- the stranded ones never do,
@@ -447,10 +502,94 @@ func TestHealthReadyHandler_Auth_ResolutionIsBounded(t *testing.T) {
 	// permanently unable to identify anyone.
 	release()
 
-	res = doRequest(t, h, http.MethodGet, "/health")
+	res = doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
 	assert.Equal(t, "secret detail", decodeBody(t, res)["message"],
 		"an operator is identified again once the slots are free")
+}
+
+// TestHealthReadyHandler_Auth_OverBudgetIsAnsweredAsRejected pins what an
+// over-budget request is told. Resolving a token opens a bolt View whether or
+// not the token is any good, so the budget is what stops an anonymous caller
+// from driving unbounded reads against the metadata store through an endpoint
+// conventionally exempt from rate limiting. Like a saturated slot pool, running
+// out is caller-inducible, so it must not release more than a rejection does.
+//
+// The budget is replaced outright rather than drained, so nothing here depends
+// on how fast the test machine issues requests.
+func TestHealthReadyHandler_Auth_OverBudgetIsAnsweredAsRejected(t *testing.T) {
+	h, resolver := authHandler(t, platform.OperPermissions())
+	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	h.resolveBudget = rate.NewLimiter(0, 0) // never allows
+
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
+	defer closeBody(t, res)
+
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode,
+		"the status code never depends on the budget")
+	assert.Equal(t, int64(0), resolver.called.Load(),
+		"an over-budget request must not reach the store at all")
+
+	got := decodeBody(t, res)
+	assert.NotContains(t, got, "checks",
+		"over budget must not release what a rejected caller cannot have")
+	assert.NotContains(t, got, "message")
+}
+
+// TestHealthReadyHandler_Auth_ResolutionIsRateLimited is the wiring half: the
+// budget a real handler is built with actually bounds resolutions, rather than
+// the limiter sitting there unconsulted.
+//
+// Asserted as a range because the bucket refills while the loop runs. At
+// maxResolutionsPerSecond that is 2 tokens a second against a loop that takes
+// microseconds, so the exact count is resolutionBurst in practice; the range
+// keeps a slow or heavily loaded machine from turning that into a flake.
+func TestHealthReadyHandler_Auth_ResolutionIsRateLimited(t *testing.T) {
+	const extra = 8
+
+	h, resolver := authHandler(t, platform.OperPermissions())
+	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+
+	detailed := 0
+	rejected := 0
+	for range resolutionBurst + extra {
+		res := doAuthRequest(t, h, http.MethodGet, "/health")
+		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+		got := decodeBody(t, res)
+		closeBody(t, res)
+
+		if _, ok := got["message"]; ok {
+			detailed++
+			continue
+		}
+		rejected++
+		assert.NotContains(t, got, "checks")
+	}
+
+	assert.Positive(t, detailed, "the budget must let an operator through at all")
+	assert.LessOrEqual(t, detailed, resolutionBurst+extra/2,
+		"the budget must turn requests away well before the loop ends")
+	assert.Positive(t, rejected)
+	assert.Equal(t, int64(detailed), resolver.called.Load(),
+		"exactly the resolved requests reached the store")
+}
+
+// TestHealthReadyHandler_Auth_NoCredentialCostsNoBudget pins that the ordering
+// in resolve is cheapest-first. A credential-free liveness probe is most of this
+// endpoint's traffic; if it spent budget, a probe fleet could starve the
+// credentialed operator probe the budget exists to protect.
+func TestHealthReadyHandler_Auth_NoCredentialCostsNoBudget(t *testing.T) {
+	h, _ := authHandler(t, platform.OperPermissions())
+	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+
+	for range resolutionBurst * 4 {
+		closeBody(t, doRequest(t, h, http.MethodGet, "/health"))
+	}
+
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
+	defer closeBody(t, res)
+	assert.Equal(t, "secret detail", decodeBody(t, res)["message"],
+		"credential-free traffic must not have spent the operator's budget")
 }
 
 // TestHealthReadyHandler_Auth_StartupWindowSurvivesWedgedDependency pins the
@@ -478,7 +617,7 @@ func TestHealthReadyHandler_Auth_DependencyPassingAllowsResolution(t *testing.T)
 	h.SetAuthDependencyChecker(staticChecker{name: "kv", resp: check.NamedPass("kv")})
 	h.AddNamedHealthCheck(failingChecker{name: "engine", message: "secret detail"})
 
-	res := doRequest(t, h, http.MethodGet, "/health")
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
 
 	require.Equal(t, int64(1), resolver.called.Load())
@@ -531,7 +670,7 @@ func TestHealthReadyHandler_Auth_RedactedHealthWireFormat(t *testing.T) {
 				h.AddNamedHealthCheck(tt.checker)
 			}
 
-			res := doRequest(t, h, http.MethodGet, "/health")
+			res := doAuthRequest(t, h, http.MethodGet, "/health")
 			defer closeBody(t, res)
 
 			require.Equal(t, tt.code, res.StatusCode)
@@ -560,7 +699,7 @@ func TestHealthReadyHandler_Auth_PassingBodyKeepsDocumentedShape(t *testing.T) {
 	h.AddNamedHealthCheck(staticChecker{name: "kv", resp: check.NamedPass("kv")})
 	h.AddNamedHealthCheck(staticChecker{name: "task-scheduler", resp: check.NewBasicResponse("task-scheduler", check.StatusPass, "idle", nil)})
 
-	res := doRequest(t, h, http.MethodGet, "/health")
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
@@ -586,7 +725,7 @@ func TestHealthReadyHandler_Auth_PassingBodyOperatorGetsBuildInfo(t *testing.T) 
 	h, _ := authHandler(t, platform.OperPermissions())
 	h.AddNamedHealthCheck(staticChecker{name: "task-scheduler", resp: check.NewBasicResponse("task-scheduler", check.StatusPass, "next run in 12s", nil)})
 
-	res := doRequest(t, h, http.MethodGet, "/health")
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
@@ -611,7 +750,7 @@ func TestHealthReadyHandler_Auth_RedactedReady(t *testing.T) {
 	h, _ := authHandler(t, nil)
 	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"})
 
-	res := doRequest(t, h, http.MethodGet, "/ready")
+	res := doAuthRequest(t, h, http.MethodGet, "/ready")
 	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
