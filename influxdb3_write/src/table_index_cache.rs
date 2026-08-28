@@ -159,13 +159,13 @@ impl CachedTableIndex {
     async fn touch(&self) {
         let now = Instant::now();
         let last_accessed = now.duration_since(*TABLE_INDEX_CACHE_START_TIME);
-        let last_accessed = last_accessed.as_millis() as u64;
+        let last_accessed = last_accessed.as_nanos() as u64;
         self.inner
             .last_access_time_since_start_ns
             .store(last_accessed, Ordering::Relaxed);
     }
 
-    // Returns the length of time (ms) that this entry has been in the cache without being accessed.
+    // Returns the length of time (ns) that this entry has been in the cache without being accessed.
     //
     // We return this value to make code using this method less confusing when sorting.
     //
@@ -1073,7 +1073,10 @@ impl TableIndexCache {
         entries.sort_unstable_by_key(|(_, time)| *time);
 
         // Get the oldest entry's stale duration for logging
-        let oldest_stale_duration_ms = entries.last().map(|(_, duration)| *duration).unwrap_or(0);
+        let oldest_stale_duration_ms = entries
+            .last()
+            .map(|(_, duration)| duration / 1_000_000)
+            .unwrap_or(0);
 
         let to_remove: HashSet<_> = entries
             .into_iter()
