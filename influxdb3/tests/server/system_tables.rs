@@ -661,3 +661,154 @@ async fn test_nodes_table_filters_sensitive_params() {
         );
     }
 }
+
+#[tokio::test]
+async fn system_tables_scoped_to_queried_database() {
+    let server = TestServer::spawn().await;
+    let db1 = "db_alpha";
+    let db2 = "db_beta";
+
+    server
+        .write_lp_to_db(
+            db1,
+            "cpu,host=a usage=10\nmem,host=a usage=20",
+            Precision::Second,
+        )
+        .await
+        .expect("write to db_alpha");
+
+    server
+        .write_lp_to_db(
+            db2,
+            "disk,host=b usage=30\nnet,host=b usage=40\nswap,host=b usage=50",
+            Precision::Second,
+        )
+        .await
+        .expect("write to db_beta");
+
+    // Query system.tables from db1 — should only see db1's tables
+    {
+        let resp = server
+            .flight_sql_client(db1)
+            .await
+            .query("SELECT database_name, table_name FROM system.tables ORDER BY table_name")
+            .await
+            .unwrap();
+        let batches = collect_stream(resp).await;
+        assert_batches_sorted_eq!(
+            [
+                "+---------------+------------+",
+                "| database_name | table_name |",
+                "+---------------+------------+",
+                "| db_alpha      | cpu        |",
+                "| db_alpha      | mem        |",
+                "+---------------+------------+",
+            ],
+            &batches
+        );
+    }
+
+    // Query system.tables from db2 — should only see db2's tables
+    {
+        let resp = server
+            .flight_sql_client(db2)
+            .await
+            .query("SELECT database_name, table_name FROM system.tables ORDER BY table_name")
+            .await
+            .unwrap();
+        let batches = collect_stream(resp).await;
+        assert_batches_sorted_eq!(
+            [
+                "+---------------+------------+",
+                "| database_name | table_name |",
+                "+---------------+------------+",
+                "| db_beta       | disk       |",
+                "| db_beta       | net        |",
+                "| db_beta       | swap       |",
+                "+---------------+------------+",
+            ],
+            &batches
+        );
+    }
+}
+
+#[tokio::test]
+async fn system_tables_from_internal_returns_all_databases() {
+    let server = TestServer::spawn().await;
+    let db1 = "db_one";
+    let db2 = "db_two";
+
+    server
+        .write_lp_to_db(db1, "cpu,host=a usage=10", Precision::Second)
+        .await
+        .expect("write to db_one");
+
+    server
+        .write_lp_to_db(db2, "mem,host=b usage=20", Precision::Second)
+        .await
+        .expect("write to db_two");
+
+    // Query system.tables from _internal — should return tables from all databases
+    let resp = server
+        .flight_sql_client("_internal")
+        .await
+        .query("SELECT database_name, table_name FROM system.tables ORDER BY database_name, table_name")
+        .await
+        .unwrap();
+    let batches = collect_stream(resp).await;
+
+    // Collect results into a set of (database_name, table_name) pairs
+    let mut found_db1_cpu = false;
+    let mut found_db2_mem = false;
+    for batch in &batches {
+        let db_col = batch
+            .column_by_name("database_name")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<arrow::array::StringViewArray>()
+            .unwrap();
+        let table_col = batch
+            .column_by_name("table_name")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<arrow::array::StringViewArray>()
+            .unwrap();
+        for i in 0..batch.num_rows() {
+            let db = db_col.value(i);
+            let table = table_col.value(i);
+            if db == "db_one" && table == "cpu" {
+                found_db1_cpu = true;
+            }
+            if db == "db_two" && table == "mem" {
+                found_db2_mem = true;
+            }
+        }
+    }
+
+    assert!(
+        found_db1_cpu,
+        "Expected to find db_one.cpu in system.tables when queried from _internal"
+    );
+    assert!(
+        found_db2_mem,
+        "Expected to find db_two.mem in system.tables when queried from _internal"
+    );
+}
+
+#[tokio::test]
+async fn system_tables_nonexistent_database_returns_error() {
+    let server = TestServer::spawn().await;
+
+    let error = server
+        .flight_sql_client("nonexistent_db")
+        .await
+        .query("SELECT * FROM system.tables")
+        .await
+        .unwrap_err();
+
+    let error_msg = error.to_string();
+    assert!(
+        error_msg.contains("nonexistent_db"),
+        "Expected error to reference the missing database name, got: {error_msg}"
+    );
+}
