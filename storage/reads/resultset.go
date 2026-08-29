@@ -8,7 +8,7 @@ import (
 )
 
 type multiShardCursors interface {
-	createCursor(row SeriesRow) cursors.Cursor
+	createCursor(row SeriesRow) (cursors.Cursor, error)
 }
 
 type resultSet struct {
@@ -57,7 +57,7 @@ func (r *resultSet) Next() bool {
 	return true
 }
 
-func (r *resultSet) Cursor() cursors.Cursor {
+func (r *resultSet) Cursor() (cursors.Cursor, error) {
 	return r.arrayCursors.createCursor(r.seriesRow)
 }
 
