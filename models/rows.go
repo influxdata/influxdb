@@ -1,21 +1,24 @@
 package models
 
 import (
+	"slices"
 	"sort"
 )
 
 // Row represents a single row returned from the execution of a statement.
 type Row struct {
-	Name    string            `json:"name,omitempty"`
-	Tags    map[string]string `json:"tags,omitempty"`
-	Columns []string          `json:"columns,omitempty"`
-	Values  [][]interface{}   `json:"values,omitempty"`
-	Partial bool              `json:"partial,omitempty"`
+	Name         string            `json:"name,omitempty"`
+	Tags         map[string]string `json:"tags,omitempty"`
+	GroupingKeys []string          `json:"grouping_keys,omitempty"`
+	Columns      []string          `json:"columns,omitempty"`
+	Values       [][]interface{}   `json:"values,omitempty"`
+	Partial      bool              `json:"partial,omitempty"`
 }
 
 // SameSeries returns true if r contains values for the same series as o.
+// GroupingKeys are emitted sorted, so they can be compared element-wise.
 func (r *Row) SameSeries(o *Row) bool {
-	return r.tagsHash() == o.tagsHash() && r.Name == o.Name
+	return r.tagsHash() == o.tagsHash() && r.Name == o.Name && slices.Equal(r.GroupingKeys, o.GroupingKeys)
 }
 
 // tagsHash returns a hash of tag key/value pairs.

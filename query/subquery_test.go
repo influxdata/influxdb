@@ -364,6 +364,33 @@ func TestSubquery(t *testing.T) {
 				{Time: mustParseTime("2019-06-25T22:36:15.144253616Z").UnixNano(), Series: query.Series{Name: "testing"}, Values: []interface{}{float64(2), "a"}},
 			},
 		},
+		{
+			// The aggregate argument "year" names an active GROUP BY date_part
+			// dimension and no subquery column (the stored field is aliased away),
+			// so it is driven by datePartMap (computed from the row timestamp).
+			// This must produce grouped counts, not a panic in NewIteratorMapper.
+			// An unaliased subquery column "year" is rejected at compile time as
+			// shadowed (see TestCompile_Failures).
+			Name:      "GroupByDatePart_AggregateArgNamedAfterDatePart",
+			Statement: `SELECT count(year) FROM (SELECT year AS yr FROM cpu) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1972-01-01T00:00:00Z' GROUP BY date_part('year', time)`,
+			Fields:    map[string]influxql.DataType{"year": influxql.Float},
+			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
+				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {
+					if got, want := m.Name, "cpu"; got != want {
+						t.Errorf("unexpected source: got=%s want=%s", got, want)
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: mustParseTime("1970-03-01T00:00:00Z").UnixNano(), Value: 1, Aux: []interface{}{float64(1)}},
+						{Name: "cpu", Time: mustParseTime("1970-09-01T00:00:00Z").UnixNano(), Value: 2, Aux: []interface{}{float64(2)}},
+						{Name: "cpu", Time: mustParseTime("1971-06-01T00:00:00Z").UnixNano(), Value: 3, Aux: []interface{}{float64(3)}},
+					}}
+				}
+			},
+			Rows: []query.Row{
+				{Time: 0, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(2), int64(1970)}, GroupingKeys: map[string]struct{}{"year": {}}},
+				{Time: 0, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(1), int64(1971)}, GroupingKeys: map[string]struct{}{"year": {}}},
+			},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			shardMapper := ShardMapper{

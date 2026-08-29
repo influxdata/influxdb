@@ -3,6 +3,7 @@ package query
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/influxdata/influxql"
 )
@@ -34,6 +35,26 @@ type NullMap struct{}
 
 func (NullMap) Value(row *Row) interface{} { return nil }
 
+// datePartMap computes a GROUP BY date_part dimension value from a row's
+// timestamp. It is used when the source is a subquery: the date_part dimension
+// is not a real field of the subquery, so its int64 aux value must be derived
+// here from row.Time, mirroring what the TSM iterator appends for a measurement
+// source. The result feeds the existing DimensionGrouper / reduce path unchanged.
+type datePartMap struct {
+	expr DatePartExpr
+	loc  *time.Location
+}
+
+func (m datePartMap) Value(row *Row) interface{} {
+	v, ok := ExtractDatePartExpr(time.Unix(0, row.Time).In(LocationOrUTC(m.loc)), m.expr)
+	if !ok {
+		// Return nil rather than 0 so the grouper surfaces an explicit type
+		// error instead of silently grouping every row under value 0.
+		return nil
+	}
+	return v
+}
+
 func NewIteratorMapper(cur Cursor, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) Iterator {
 	if driver != nil {
 		switch driver := driver.(type) {
@@ -59,6 +80,11 @@ func NewIteratorMapper(cur Cursor, driver IteratorMap, fields []IteratorMap, opt
 			}
 		case TagMap:
 			return newStringIteratorMapper(cur, driver, fields, opt)
+		case datePartMap:
+			// A driver named after an active GROUP BY date_part dimension (e.g.
+			// count(year) under GROUP BY date_part('year', time)). The computed
+			// date part is always an int64, so drive an integer iterator.
+			return newIntegerIteratorMapper(cur, driver, fields, opt)
 		default:
 			panic(fmt.Sprintf("unable to create iterator mapper with driver expression type: %T", driver))
 		}
