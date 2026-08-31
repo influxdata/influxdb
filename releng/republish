@@ -3,11 +3,11 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Republishing is only ever appropriate for a full release tag. Release
-# candidates are excluded by the release workflow's tag filter and are not
-# published under influxdb/releases, so they are rejected here too. This is
-# the same expression used by 'release_filter' in .circleci/config.yml.
-TAG_REGEX='^v[[:digit:]]+(\.[[:digit:]]+)?(\.[[:digit:]]+)?$'
+# Republishing is only ever appropriate for a full release tag: major, minor
+# and patch are all required. Release candidates are excluded by the release
+# workflow's tag filter and are not published under influxdb/releases, so they
+# are rejected here too.
+TAG_REGEX='^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$'
 
 # The cross-container-tag parameter is interpolated into an "image:" line, not
 # into a shell command, so a bad value fails as an image pull rather than as

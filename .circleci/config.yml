@@ -40,8 +40,10 @@ commands:
             # This parameter names both the ref that gets built and the R2
             # directory that gets published to, and it can be supplied straight
             # from the CircleCI UI without going through releng/republish, so
-            # constrain it here too. Same expression as 'release_filter'.
-            if ! echo "${REF}" | grep -Eq '^v[0-9]+(\.[0-9]+)?(\.[0-9]+)?$' ; then
+            # constrain it here too. Major, minor and patch are all required,
+            # matching .circleci/scripts/get-version: a tag it does not match
+            # produces a "1.x-<short sha>" version instead of a release one.
+            if ! echo "${REF}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' ; then
               echo "release-ref '${REF}' is not a release tag" >&2
               exit 1
             fi
