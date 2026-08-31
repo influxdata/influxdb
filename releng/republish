@@ -182,8 +182,24 @@ done
 git fetch --quiet "${REMOTE}" "${BRANCH}" ||
   die "could not fetch '${BRANCH}' from ${REMOTE}; does that branch exist?"
 
-git show FETCH_HEAD:.circleci/config.yml 2>/dev/null | grep -q '^  republish:' ||
+# Read the branch's own configuration, not this checkout's: a pipeline
+# triggered against a branch runs that branch's config, and one that predates
+# republish support accepts the trigger and then silently runs no workflows.
+#
+# Matched without anchoring to a specific indent, so that reformatting the
+# config cannot turn a valid branch into a refusal. The parameter is checked
+# separately from the workflow because a branch could carry one without the
+# other, which would pass here and then fail during config processing.
+if ! branch_config="$(git show "FETCH_HEAD:.circleci/config.yml" 2>/dev/null)"
+then
+  die "branch '${BRANCH}' has no .circleci/config.yml"
+fi
+
+grep -Eq '^[[:space:]]*republish:' <<<"${branch_config}" ||
   die "branch '${BRANCH}' has no 'republish' workflow in .circleci/config.yml"
+
+grep -Eq '^[[:space:]]*release-ref:' <<<"${branch_config}" ||
+  die "branch '${BRANCH}' has no 'release-ref' parameter in .circleci/config.yml"
 
 ENDPOINT="https://circleci.com/api/v2/project/${PROJECT_SLUG}/pipeline"
 # cross-container-tag is omitted rather than sent empty, so that the branch's
@@ -258,13 +274,19 @@ then
 fi
 
 number="$(jq --raw-output '.number' <"${response}")"
+# The approval API is addressed by pipeline id, not by number, so print both
+# and save whoever approves a lookup.
+pipeline_id="$(jq --raw-output '.id' <"${response}")"
 
 cat <<EOF
 Triggered pipeline ${number}.
 
   https://app.circleci.com/pipelines/${PROJECT_VCS}/${PROJECT_ORG}/${PROJECT_REPO}/${number}
 
-The workflow stops at hold_publish. Before approving, confirm that the
-build_packages artifacts are named influxdb-${TAG#v}-* and that the digests
-file is influxdb.${TAG}.digests. Nothing reaches R2 until you approve.
+  pipeline id ${pipeline_id}
+
+The workflow stops at hold_publish. Before approving, confirm that every
+build_packages artifact carries the version ${TAG#v}, that none carries a
+"1.x-<short sha>" version, and that the digests file is
+influxdb.${TAG}.digests. Nothing reaches R2 until you approve.
 EOF
