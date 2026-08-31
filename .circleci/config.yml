@@ -30,8 +30,10 @@ commands:
       - checkout
       - run:
           name: Select source ref
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
           command: |
-            REF='<< pipeline.parameters.release-ref >>'
+            REF="${RELEASE_REF}"
             if [ -z "${REF}" ] ; then
               exit 0
             fi
@@ -64,6 +66,8 @@ jobs:
             - influxdb-cache-v2-{{ checksum "go.mod" }}
       - run:
           name: Get InfluxDB Version
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
           command: |
             # After checkout_source, HEAD is the release tag, so get-version
             # derives VERSION from it exactly as it does on a tag build.
@@ -78,10 +82,10 @@ jobs:
             # this job later sees the value a tag build would have set. BASH_ENV
             # is per job, so it does not carry to build_packages, sign_packages
             # or the publish jobs; those resolve it themselves.
-            if [ -n '<< pipeline.parameters.release-ref >>' ] ; then
+            if [ -n "${RELEASE_REF}" ] ; then
               {
                 printf 'export CIRCLE_SHA1=%s\n' "$(git rev-parse HEAD)"
-                printf 'export CIRCLE_TAG=%s\n'  '<< pipeline.parameters.release-ref >>'
+                printf 'export CIRCLE_TAG=%s\n'  "${RELEASE_REF}"
                 printf 'export CIRCLE_BRANCH=\n'
               } >>"${BASH_ENV}"
             fi
@@ -255,14 +259,17 @@ jobs:
       - checkout_source
       - attach_workspace:
           at: /tmp/workspace
-      - run: |
-          # .circleci/packages/config.yaml derives the package version from
-          # CIRCLE_TAG, which is unset on a branch triggered republish.
-          export CIRCLE_TAG="${CIRCLE_TAG:-<< pipeline.parameters.release-ref >>}"
+      - run:
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
+          command: |
+            # .circleci/packages/config.yaml derives the package version from
+            # CIRCLE_TAG, which is unset on a branch triggered republish.
+            export CIRCLE_TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
 
-          ( cd man ; make build ; gzip -9 ./*.1 )
+            ( cd man ; make build ; gzip -9 ./*.1 )
 
-          packager .circleci/packages/config.yaml
+            packager .circleci/packages/config.yaml
       - persist_to_workspace:
           root: .
           paths:
@@ -283,34 +290,37 @@ jobs:
             - fc:7b:6e:a6:38:7c:63:5a:13:be:cb:bb:fa:33:b3:3c
       - attach_workspace:
           at: /tmp/workspace
-      - run: |
-          # Names the digests file below. Unset on a branch triggered republish,
-          # where it would silently produce "influxdb..digests".
-          export CIRCLE_TAG="${CIRCLE_TAG:-<< pipeline.parameters.release-ref >>}"
+      - run:
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
+          command: |
+            # Names the digests file below. Unset on a branch triggered republish,
+            # where it would silently produce "influxdb..digests".
+            export CIRCLE_TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
 
-          for target in /tmp/workspace/packages/*
-          do
-            case "${target}"
-            in
-              # rsign is shipped on Alpine Linux which uses "busybox ash" instead
-              # of bash. ash is somewhat more posix compliant and is missing some
-              # extensions and niceties from bash.
-              *.deb|*.rpm|*.tar.gz|*.zip)
-                rsign "${target}"
-              ;;
-            esac
+            for target in /tmp/workspace/packages/*
+            do
+              case "${target}"
+              in
+                # rsign is shipped on Alpine Linux which uses "busybox ash" instead
+                # of bash. ash is somewhat more posix compliant and is missing some
+                # extensions and niceties from bash.
+                *.deb|*.rpm|*.tar.gz|*.zip)
+                  rsign "${target}"
+                ;;
+              esac
 
-            if [ -f "${target}" ]
-            then
-              # Since all artifacts are present, sign them here. This saves Circle
-              # credits over spinning up another instance just to separate out the
-              # checksum job.
-              sha256sum "${target}" >> "/tmp/workspace/packages/influxdb.${CIRCLE_TAG}.digests"
+              if [ -f "${target}" ]
+              then
+                # Since all artifacts are present, sign them here. This saves Circle
+                # credits over spinning up another instance just to separate out the
+                # checksum job.
+                sha256sum "${target}" >> "/tmp/workspace/packages/influxdb.${CIRCLE_TAG}.digests"
 
-              md5sum    "${target}" >"${target}.md5"
-              sha256sum "${target}" >"${target}.sha256"
-            fi
-          done
+                md5sum    "${target}" >"${target}.md5"
+                sha256sum "${target}" >"${target}.sha256"
+              fi
+            done
       - persist_to_workspace:
           root: /tmp/workspace
           paths:
@@ -468,8 +478,10 @@ jobs:
           steps:
             - run:
                 name: Upload CHANGELOG to R2
+                environment:
+                  RELEASE_REF: << pipeline.parameters.release-ref >>
                 command: |
-                  TAG="${CIRCLE_TAG:-<< pipeline.parameters.release-ref >>}"
+                  TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
                   if [ -z "${TAG}" ] ; then
                     echo 'no release tag resolved; refusing to upload' >&2
                     exit 1
@@ -508,8 +520,10 @@ jobs:
             pip install awscli
       - run:
           name: Upload packages to R2
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
           command: |
-            TAG="${CIRCLE_TAG:-<< pipeline.parameters.release-ref >>}"
+            TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
             # An empty tag would sync every package into the top of
             # influxdb/releases/, so fail closed rather than make a mess.
             if [ -z "${TAG}" ] ; then
@@ -532,9 +546,10 @@ jobs:
           at: /tmp/workspace
       - run:
           command: |
-            export CIRCLE_TAG="${CIRCLE_TAG:-<< pipeline.parameters.release-ref >>}"
+            export CIRCLE_TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
             slack
           environment:
+            RELEASE_REF:                << pipeline.parameters.release-ref >>
             SLACK_ARTIFACT_URL:         https://dl.influxdata.com/influxdb/releases
             SLACK_ARTIFACT_ROOT:        /tmp/workspace/packages
             SLACK_ARTIFACT_EXCLUDE_DIR: race
