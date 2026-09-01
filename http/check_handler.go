@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -431,6 +432,51 @@ func (h *HealthReadyHandler) AddNamedHealthCheck(nc check.NamedChecker) {
 // ReadyCheckNames returns the names of currently-registered ready checks
 // in registration order.
 func (h *HealthReadyHandler) ReadyCheckNames() []string { return h.check.ReadyCheckNames() }
+
+// msgFrozenAuthDep is the message carried by the auth dependency checker
+// FreezeChecks installs. Nothing renders it -- detail reads only the status --
+// but a checker that fails without saying why is a trap for the next reader.
+const msgFrozenAuthDep = "check set frozen: the store credentials resolve against is being closed"
+
+// frozenAuthDep is the auth dependency checker FreezeChecks installs over any
+// existing one. A package-level value rather than a closure per call: it is
+// immutable, and Check is invoked once per credentialed request for the rest
+// of the process's life.
+var frozenAuthDep = check.CheckerFunc(func(context.Context) check.Response {
+	return check.Fail(msgFrozenAuthDep)
+})
+
+// FreezeChecks makes /health and /ready serve a static snapshot of what they
+// report right now, for the rest of the process's life. See check.Check.Freeze:
+// the registered set and its order are unchanged, only the values are pinned.
+// No wire format changes -- /health still reports pass/fail, /ready still
+// reports "ready"/"starting", same status codes.
+//
+// It also retires the auth dependency checker, if one was installed. That
+// checker stands in for the store credential resolution reads (see
+// SetAuthDependencyChecker), and a caller freezing the checks is on its way to
+// closing that store, after which no caller can be identified at all. Pinning
+// it to fail is both true and the case detail already has a rule for -- "could
+// not ask who the caller is" yields detailNames -- and it makes the answer the
+// same for the whole frozen period. Left live it would instead answer detailNone
+// until the store's own probe aged out and only then detailNames, changing the
+// body's shape mid-window and starting at the least useful level.
+//
+// When no auth dependency checker was installed, none is installed here:
+// nothing was gated on one, the store may still be resolvable, and a failing
+// one would withhold detail an operator can legitimately have. That branch is
+// not a production path -- the launcher installs a checker for every real
+// (bolt) KV store and only skips it for the in-memory store, which is
+// test-only -- so on a real server this always retires a live checker.
+//
+// The load-then-store races nothing: the launcher installs at most one
+// checker, before it begins serving, and never removes one.
+func (h *HealthReadyHandler) FreezeChecks(ctx context.Context) {
+	h.check.Freeze(ctx)
+	if h.authDep.Load() != nil {
+		h.authDep.Store(&checkerHolder{frozenAuthDep})
+	}
+}
 
 // SetHandler installs the delegate handler used for any request that is not
 // /health or /ready. A nil next is ignored to prevent a nil delegate from

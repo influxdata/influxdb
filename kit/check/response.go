@@ -13,11 +13,59 @@ import (
 // {"name","status","message"?,"checks"?}. BasicResponse gets this for
 // free by embedding wireResponse; FreshnessResponse and renamedResponse
 // build the same shape explicitly in MarshalJSON.
+//
+// A stateful implementation should also implement Snapshotter, so callers
+// that need every field from one observation -- rendering, or freezing a
+// terminal report -- can take it without reading each accessor separately.
 type Response interface {
 	Name() string
 	Status() Status
 	Message() string
 	Checks() Responses
+}
+
+// Snapshotter is implemented by a Response that can render its entire state
+// from a single coherent read. A Response whose fields derive from mutable
+// state -- FreshnessResponse -- can otherwise report a torn combination, a
+// status taken from one observation and a message from the next, because the
+// four accessors each read independently.
+//
+// Implementations must return a BasicResponse whose own fields are fixed;
+// nested Checks may still be live, and snapshot recurses into them.
+type Snapshotter interface {
+	Snapshot() BasicResponse
+}
+
+// snapshot flattens r into a value whose fields are fixed at the moment of the
+// call, using Snapshot when r implements it and the four accessors otherwise,
+// and recursing into nested checks so no live Response survives inside the
+// result.
+//
+// Flattening matters wherever a Response outlives the thing it describes: a
+// *FreshnessResponse held by pointer goes on aging into a staleness failure
+// after its prober stops, so a set of them kept as-is would drift. Every
+// Response marshals to the same wire shape, so the flattened value renders
+// identical JSON to the one it replaces.
+func snapshot(r Response) BasicResponse {
+	if s, ok := r.(Snapshotter); ok {
+		b := s.Snapshot()
+		return NewBasicResponse(b.Name(), b.Status(), b.Message(), snapshotAll(b.Checks()))
+	}
+	return NewBasicResponse(r.Name(), r.Status(), r.Message(), snapshotAll(r.Checks()))
+}
+
+// snapshotAll flattens every element of rs. It returns nil for an empty input
+// so the result keeps the shape omitempty gives Checks: an absent field rather
+// than "checks":[].
+func snapshotAll(rs Responses) Responses {
+	if len(rs) == 0 {
+		return nil
+	}
+	out := make(Responses, len(rs))
+	for i, r := range rs {
+		out[i] = snapshot(r)
+	}
+	return out
 }
 
 // wireResponse is the on-the-wire JSON shape shared by every Response
