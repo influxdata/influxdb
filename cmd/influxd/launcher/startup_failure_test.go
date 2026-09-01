@@ -160,9 +160,9 @@ func fetchCheckDocuments(t *testing.T, l *launcher.TestLauncher) (health, ready 
 }
 
 // TestLauncher_StartupFailure_LingerServesFrozenAttribution is the end-to-end
-// shape of --startup-error-linger: a failed startup releases the PID file and
-// the store locks a restart needs, and goes on serving the report it had at the
-// moment of failure until the window closes.
+// shape of --startup-error-linger: a failed startup releases the store locks a
+// restart needs while retaining the PID file, and serves the failure report
+// until the window closes; final shutdown then releases the PID file.
 func TestLauncher_StartupFailure_LingerServesFrozenAttribution(t *testing.T) {
 	l := launcher.NewTestLauncherServer()
 
