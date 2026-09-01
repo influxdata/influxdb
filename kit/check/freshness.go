@@ -104,6 +104,9 @@ func (f *FreshnessResponse) Snapshot() BasicResponse {
 	if age := time.Since(s.at); age > f.staleness {
 		return NewBasicResponse(f.name, StatusFail, staleMessage(age, f.staleness), nil)
 	}
+if inner, ok := s.resp.(Snapshotter); ok {
+		return inner.Snapshot().WithName(f.name)
+	}
 	return NewBasicResponse(f.name, s.resp.Status(), s.resp.Message(), s.resp.Checks())
 }
 
