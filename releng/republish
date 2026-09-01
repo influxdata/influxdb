@@ -1,0 +1,324 @@
+#!/bin/bash
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# Republishing is only ever appropriate for a full release tag: major, minor
+# and patch are all required. Release candidates are excluded by the release
+# workflow's tag filter and are not published under influxdb/releases, so they
+# are rejected here too.
+TAG_REGEX='^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$'
+
+# The cross-container-tag parameter is interpolated into an "image:" line, not
+# into a shell command, so a bad value fails as an image pull rather than as
+# anything worse. Checked anyway, so that a typo is caught here instead of
+# several minutes into the pipeline. This is the OCI tag grammar.
+BUILDER_REGEX='^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$'
+
+PROJECT_VCS='github'
+PROJECT_ORG='influxdata'
+PROJECT_REPO='influxdb'
+PROJECT_SLUG="gh/${PROJECT_ORG}/${PROJECT_REPO}"
+R2_BUCKET='dl-influxdata-com'
+REMOTE='origin'
+
+# Branch supplying the CircleCI configuration. Derived from the tag unless -b
+# is given. The source that gets built comes from the tag, not from this
+# branch; only .circleci/config.yml is read from here.
+BRANCH=''
+
+# Cross builder image tag, overriding the branch's default. Empty means "use
+# whatever the branch config defaults to", which is the floating
+# 'go<version>-latest' tag. Republishing deliberately picks up a revised cross
+# builder: if a broken toolchain image is why the release needs republishing,
+# rebuilding against the image that produced the broken artifacts is the one
+# thing that cannot help. Set this when the opposite is wanted, to rebuild
+# against the same toolchain the original release used.
+CROSS_CONTAINER_TAG=''
+
+DRY_RUN=0
+ASSUME_YES=0
+
+usage()
+{
+cat <<'EOF'
+USAGE: republish -t TAG [OPTIONS]
+
+DESCRIPTION:
+  Triggers the "republish" CircleCI workflow, which rebuilds an existing
+  release tag from its own source and publishes the resulting packages to
+  Cloudflare R2.
+
+  Use this when a release pipeline built, signed and tested packages
+  successfully but failed before or during the publish step. It does not
+  move the tag and does not create a new version.
+
+  The pipeline pauses at a "hold_publish" approval gate covering both the
+  packages and the changelog. Nothing is written to R2 until someone approves
+  it in the CircleCI UI.
+
+OPTIONS:
+  -t TAG     Release tag to republish, e.g. "v1.13.0". Required.
+  -b BRANCH  Branch supplying .circleci/config.yml. This branch must already
+             contain the "republish" workflow. Defaults to the minor version
+             branch implied by the tag, e.g. "1.13" for v1.13.0. Releases are
+             only ever made from a minor version branch, never from
+             master-1.x, so the default is almost always correct.
+  -c TAG     Cross builder image tag, e.g. "go1.26.5-latest". Defaults to the
+             branch's own default, which floats: a republish picks up any
+             revision made to the toolchain image since the release was cut.
+             That is usually what is wanted, because a broken cross builder is
+             one of the reasons a release gets republished. Pass this to pin
+             the toolchain instead, either to rebuild against exactly what the
+             original release used or to avoid an image known to be bad.
+             Covers build_binaries, static_code_checks, fluxtest and the
+             unit_test jobs; the other job images are fixed in the config.
+  -y         Skip the interactive confirmation.
+  -n         Resolve and validate the tag and branch, print the request that
+             would be sent, and exit without contacting CircleCI. This still
+             reads from the git remote to resolve the tag and to check the
+             branch's configuration; it makes no other network access and
+             does not require CIRCLE_TOKEN.
+  -h         Displays this help text.
+
+ENVIRONMENT:
+  CIRCLE_TOKEN
+             CircleCI personal API token. Required unless -n is given.
+             Passed to curl over stdin so that it never appears in the
+             process table; do not pass it as a command line argument.
+EOF
+}
+
+die()
+{
+  printf 'republish: %s\n' "$1" >&2
+  exit 1
+}
+
+while getopts 't:b:c:ynh' opt
+do
+  case "${opt}"
+  in
+    t) TAG="${OPTARG}"                ;;
+    b) BRANCH="${OPTARG}"             ;;
+    c) CROSS_CONTAINER_TAG="${OPTARG}" ;;
+    y) ASSUME_YES=1                   ;;
+    n) DRY_RUN=1                      ;;
+    h) usage ; exit 0                 ;;
+    ?) usage ; exit 1                 ;;
+  esac
+done
+
+[[ ${TAG:-} ]] || { usage ; exit 1 ; }
+
+for tool in curl git jq
+do
+  command -v "${tool}" >/dev/null || die "${tool} is required but was not found"
+done
+
+[[ ${TAG} =~ ${TAG_REGEX} ]] ||
+  die "'${TAG}' is not a full release tag (expected something like v1.13.0)"
+
+[[ ! ${CROSS_CONTAINER_TAG} || ${CROSS_CONTAINER_TAG} =~ ${BUILDER_REGEX} ]] ||
+  die "'${CROSS_CONTAINER_TAG}' is not a valid image tag"
+
+# Releases are only ever made from a minor version branch, so the branch that
+# supplies the configuration is implied by the tag: v1.13.0 -> 1.13.
+if [[ ! ${BRANCH} ]]
+then
+  [[ ${TAG} =~ ^v([[:digit:]]+)\.([[:digit:]]+) ]] ||
+    die "cannot derive a release branch from '${TAG}'; pass -b"
+  BRANCH="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+# Resolve the tag on the remote rather than locally, so that the operator is
+# shown the commit CI will actually build. For an annotated tag the peeled
+# entry ("^{}") is the commit; for a lightweight tag it is absent.
+#
+# ls-remote reports two different situations differently: a non-zero status
+# when it cannot reach the remote at all, and success with no output when the
+# connection worked and the tag simply is not there. Capture it into a
+# variable rather than piping it straight into the read loop, whose exit
+# status would be the loop's and not git's. Collapsing the two into "tag does
+# not exist" would send whoever is running a release after the wrong problem,
+# because the usual cause is an expired credential.
+if ! remote_refs="$(git ls-remote --tags "${REMOTE}" \
+                      "refs/tags/${TAG}" "refs/tags/${TAG}^{}")"
+then
+  # git has already written its own diagnosis to stderr.
+  die "could not read tags from ${REMOTE}; see the error above"
+fi
+
+[[ ${remote_refs} ]] || die "tag '${TAG}' does not exist on ${REMOTE}"
+
+# A read loop rather than mapfile, so that the script runs under the bash 3.2
+# that ships with macOS.
+refs=()
+while IFS= read -r line
+do
+  refs+=("${line}")
+done <<<"${remote_refs}"
+
+COMMIT=''
+for ref in "${refs[@]}"
+do
+  case "${ref}"
+  in
+    *"refs/tags/${TAG}^{}") COMMIT="${ref%%$'\t'*}" ; break ;;
+    *"refs/tags/${TAG}")    COMMIT="${ref%%$'\t'*}"        ;;
+  esac
+done
+[[ ${COMMIT} ]] || die "could not resolve '${TAG}' to a commit"
+
+# A pipeline triggered against a branch runs that branch's configuration. If
+# the branch predates the republish workflow the trigger is accepted and then
+# silently does nothing, so check before spending anyone's time.
+# Same failure classes as the ls-remote above, but fetch reports both with a
+# non-zero status, so they cannot be told apart here. Connectivity has already
+# been demonstrated by the ls-remote, which makes a missing branch the likely
+# cause; word it as the likely cause rather than asserting it.
+git fetch --quiet "${REMOTE}" "${BRANCH}" ||
+  die "could not fetch '${BRANCH}' from ${REMOTE}; does that branch exist?"
+
+# Read the branch's own configuration, not this checkout's: a pipeline
+# triggered against a branch runs that branch's config, and one that predates
+# republish support accepts the trigger and then silently runs no workflows.
+#
+# Matched without anchoring to a specific indent, so that reformatting the
+# config cannot turn a valid branch into a refusal. The parameter is checked
+# separately from the workflow because a branch could carry one without the
+# other, which would pass here and then fail during config processing.
+if ! branch_config="$(git show "FETCH_HEAD:.circleci/config.yml" 2>/dev/null)"
+then
+  die "branch '${BRANCH}' has no .circleci/config.yml"
+fi
+
+grep -Eq '^[[:space:]]*republish:' <<<"${branch_config}" ||
+  die "branch '${BRANCH}' has no 'republish' workflow in .circleci/config.yml"
+
+grep -Eq '^[[:space:]]*release-ref:' <<<"${branch_config}" ||
+  die "branch '${BRANCH}' has no 'release-ref' parameter in .circleci/config.yml"
+
+# A commit can carry more than one release tag; this repository has two such
+# commits. get-version selects the highest, so the pipeline pins VERSION from
+# the requested tag to keep the artifacts self consistent, and check_release_tag
+# reports the situation in the UI. Say so here too, because this is the point at
+# which it is cheapest to pick the other tag instead.
+siblings=''
+while IFS= read -r line
+do
+  [[ ${line} ]] || continue
+  [[ ${line%%$'\t'*} == "${COMMIT}" ]] || continue
+  ref="${line#*$'\t'}"
+  ref="${ref%^\{\}}"
+  sibling="${ref#refs/tags/}"
+  [[ ${sibling} == "${TAG}" ]] && continue
+  [[ ${sibling} =~ ${TAG_REGEX} ]] || continue
+  case " ${siblings} " in
+    *" ${sibling} "*) ;;
+    *) siblings="${siblings}${siblings:+ }${sibling}" ;;
+  esac
+done <<<"$(git ls-remote --tags "${REMOTE}")"
+
+ENDPOINT="https://circleci.com/api/v2/project/${PROJECT_SLUG}/pipeline"
+# cross-container-tag is omitted rather than sent empty, so that the branch's
+# own default applies. Sending "" would resolve to an image with an empty tag.
+BODY="$(jq --null-input \
+           --arg branch "${BRANCH}" \
+           --arg tag    "${TAG}" \
+           --arg cross  "${CROSS_CONTAINER_TAG}" \
+           '{branch: $branch,
+             parameters: {workflow: "republish", "release-ref": $tag}}
+            | if $cross == ""
+              then .
+              else .parameters["cross-container-tag"] = $cross
+              end')"
+
+# Reported either way. The floating default is the interesting case, and it is
+# invisible unless it is named here.
+if [[ ${CROSS_CONTAINER_TAG} ]]
+then
+  BUILDER="${CROSS_CONTAINER_TAG} (pinned)"
+else
+  BUILDER="${BRANCH} default, floats (pass -c to pin)"
+fi
+
+cat <<EOF
+
+  tag         ${TAG}
+  commit      ${COMMIT}
+  config from ${BRANCH}
+  builder     ${BUILDER}
+  publishes   s3://${R2_BUCKET}/influxdb/releases/${TAG}
+
+EOF
+
+if [[ ${siblings} ]]
+then
+  cat >&2 <<EOF
+  WARNING  this commit is also tagged: ${siblings}
+           ${TAG} is superseded by a newer tag on the same commit, so
+           republishing it will publish artifacts that tag replaced.
+           Republish the newer tag instead unless this is deliberate.
+
+EOF
+fi
+
+if (( DRY_RUN ))
+then
+  printf 'POST %s\n%s\n' "${ENDPOINT}" "${BODY}"
+  exit 0
+fi
+
+[[ ${CIRCLE_TOKEN:-} ]] ||
+  die 'CIRCLE_TOKEN is not set; export a CircleCI personal API token'
+
+if (( ! ASSUME_YES ))
+then
+  read -r -p "Type the tag to confirm: " confirm
+  [[ ${confirm} == "${TAG}" ]] || die 'aborted'
+fi
+
+response="$(mktemp)"
+trap 'rm -f "${response}"' EXIT
+
+# The token is supplied through a curl config file on stdin. Passing it with
+# -H would expose it in the process table to every user on the host.
+status="$(curl --silent --show-error \
+               --request POST \
+               --header 'Content-Type: application/json' \
+               --data "${BODY}" \
+               --output "${response}" \
+               --write-out '%{http_code}' \
+               --config - \
+               "${ENDPOINT}" <<CURLRC
+header = "Circle-Token: ${CIRCLE_TOKEN}"
+CURLRC
+)"
+
+if [[ ${status} != 2?? ]]
+then
+  printf 'republish: CircleCI returned HTTP %s\n' "${status}" >&2
+  jq --raw-output '.message // .' <"${response}" >&2 || cat "${response}" >&2
+  exit 1
+fi
+
+number="$(jq --raw-output '.number' <"${response}")"
+# The approval API is addressed by pipeline id, not by number, so print both
+# and save whoever approves a lookup.
+pipeline_id="$(jq --raw-output '.id' <"${response}")"
+
+cat <<EOF
+Triggered pipeline ${number}.
+
+  https://app.circleci.com/pipelines/${PROJECT_VCS}/${PROJECT_ORG}/${PROJECT_REPO}/${number}
+
+  pipeline id ${pipeline_id}
+
+The workflow stops at hold_publish. Before approving, confirm that every
+build_packages artifact carries the version ${TAG#v}, that none carries a
+"1.x-<short sha>" version, and that the digests file is
+influxdb.${TAG}.digests. Nothing reaches R2 until you approve.
+EOF

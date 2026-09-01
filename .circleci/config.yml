@@ -10,6 +10,58 @@ parameters:
     type: string
     default: build
 
+  release-ref:
+    # Republish support. Set this to an existing release tag (e.g. "v1.13.0")
+    # together with 'workflow: republish' to rebuild and publish that tag using
+    # this file as it stands on the branch the pipeline is triggered from. Every
+    # job checks the tag out before building, so the artifacts are built from
+    # the tagged source even though the pipeline itself is branch triggered.
+    #
+    # That cuts both ways, and only this file comes from the branch: CircleCI
+    # reads config.yml from the triggering ref, but checkout_source then
+    # detaches to the tag, so every file a job reads off disk is the tag's --
+    # .circleci/scripts/get-version, .circleci/packages/,
+    # releng/packages/spec/ and scripts/ci/CHANGELOG_frozen.md. Only the
+    # commands written inline here carry a branch fix. If a release failed
+    # because of a bug in one of those, republishing re-runs the broken tagged
+    # copy; that needs a new tag instead.
+    #
+    # Leave empty for normal tag, push and nightly builds.
+    type: string
+    default: ""
+
+commands:
+  checkout_source:
+    description: |
+      Check out the source to build: the ref that triggered the pipeline, or
+      the release-ref tag when one was supplied.
+    steps:
+      - checkout
+      - run:
+          name: Select source ref
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
+          command: |
+            REF="${RELEASE_REF}"
+            if [ -z "${REF}" ] ; then
+              exit 0
+            fi
+            # This parameter names both the ref that gets built and the R2
+            # directory that gets published to, and it can be supplied straight
+            # from the CircleCI UI without going through releng/republish, so
+            # constrain it here too. Major, minor and patch are all required,
+            # matching .circleci/scripts/get-version: a tag it does not match
+            # produces a "1.x-<short sha>" version instead of a release one.
+            if ! echo "${REF}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' ; then
+              echo "release-ref '${REF}' is not a release tag" >&2
+              exit 1
+            fi
+            # CircleCI's checkout only fetches the triggering ref, so the tag
+            # is not guaranteed to be present in the clone.
+            git fetch --force --tags origin
+            git checkout --detach "refs/tags/${REF}"
+            git --no-pager log -1 --format='republishing %H (%s)'
+
 jobs:
   build_binaries:
     docker:
@@ -17,7 +69,7 @@ jobs:
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
+      - checkout_source
       - restore_cache:
           keys:
             # We save the cache from this one, so don't restore a cache with old junk and then save new stuff alongside.
@@ -25,8 +77,43 @@ jobs:
             - influxdb-cache-v2-{{ checksum "go.mod" }}
       - run:
           name: Get InfluxDB Version
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
           command: |
+            # After checkout_source, HEAD is the release tag, so get-version
+            # derives VERSION from it exactly as it does on a tag build.
             PREFIX=1.x .circleci/scripts/get-version
+
+            # A republish is triggered from a branch, so CIRCLE_SHA1 and
+            # CIRCLE_BRANCH describe that branch rather than the release. Stamp
+            # the binaries with the tagged commit and an empty branch, which is
+            # what a tag triggered pipeline produces.
+            #
+            # CIRCLE_TAG is exported for consistency, so that anything added to
+            # this job later sees the value a tag build would have set. BASH_ENV
+            # is per job, so it does not carry to build_packages, sign_packages
+            # or the publish jobs; those resolve it themselves.
+            if [ -n "${RELEASE_REF}" ] ; then
+              # VERSION is re-derived from the requested tag rather than left to
+              # get-version, which picks the *highest* release tag pointing at
+              # HEAD. That is right for a tag build but wrong here: republishing
+              # v1.9.0 from a commit also tagged v1.9.1 would stamp 1.9.1 into
+              # binaries that the packager names 1.9.0, because the packager
+              # reads CIRCLE_TAG. On a republish the requested tag is
+              # authoritative. check_release_tag reports the situation.
+              version="${RELEASE_REF#v}"
+              rest="${version#*.}"
+              {
+                printf 'export CIRCLE_SHA1=%s\n' "$(git rev-parse HEAD)"
+                printf 'export CIRCLE_TAG=%s\n'  "${RELEASE_REF}"
+                printf 'export CIRCLE_BRANCH=\n'
+                printf 'export VERSION=%s\n'     "${version}"
+                printf 'export MAJOR=%s\n'       "${version%%.*}"
+                printf 'export MINOR=%s\n'       "${rest%%.*}"
+                printf 'export PATCH=%s\n'       "${rest#*.}"
+                printf 'export RELEASE=1\n'
+              } >>"${BASH_ENV}"
+            fi
       - run:
           name: Build source tarball
           command: |
@@ -194,13 +281,20 @@ jobs:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
     steps:
-      - checkout
+      - checkout_source
       - attach_workspace:
           at: /tmp/workspace
-      - run: |
-          ( cd man ; make build ; gzip -9 ./*.1 )
+      - run:
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
+          command: |
+            # .circleci/packages/config.yaml derives the package version from
+            # CIRCLE_TAG, which is unset on a branch triggered republish.
+            export CIRCLE_TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
 
-          packager .circleci/packages/config.yaml
+            ( cd man ; make build ; gzip -9 ./*.1 )
+
+            packager .circleci/packages/config.yaml
       - persist_to_workspace:
           root: .
           paths:
@@ -221,30 +315,37 @@ jobs:
             - fc:7b:6e:a6:38:7c:63:5a:13:be:cb:bb:fa:33:b3:3c
       - attach_workspace:
           at: /tmp/workspace
-      - run: |
-          for target in /tmp/workspace/packages/*
-          do
-            case "${target}"
-            in
-              # rsign is shipped on Alpine Linux which uses "busybox ash" instead
-              # of bash. ash is somewhat more posix compliant and is missing some
-              # extensions and niceties from bash.
-              *.deb|*.rpm|*.tar.gz|*.zip)
-                rsign "${target}"
-              ;;
-            esac
+      - run:
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
+          command: |
+            # Names the digests file below. Unset on a branch triggered republish,
+            # where it would silently produce "influxdb..digests".
+            export CIRCLE_TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
 
-            if [ -f "${target}" ]
-            then
-              # Since all artifacts are present, sign them here. This saves Circle
-              # credits over spinning up another instance just to separate out the
-              # checksum job.
-              sha256sum "${target}" >> "/tmp/workspace/packages/influxdb.${CIRCLE_TAG}.digests"
+            for target in /tmp/workspace/packages/*
+            do
+              case "${target}"
+              in
+                # rsign is shipped on Alpine Linux which uses "busybox ash" instead
+                # of bash. ash is somewhat more posix compliant and is missing some
+                # extensions and niceties from bash.
+                *.deb|*.rpm|*.tar.gz|*.zip)
+                  rsign "${target}"
+                ;;
+              esac
 
-              md5sum    "${target}" >"${target}.md5"
-              sha256sum "${target}" >"${target}.sha256"
-            fi
-          done
+              if [ -f "${target}" ]
+              then
+                # Since all artifacts are present, sign them here. This saves Circle
+                # credits over spinning up another instance just to separate out the
+                # checksum job.
+                sha256sum "${target}" >> "/tmp/workspace/packages/influxdb.${CIRCLE_TAG}.digests"
+
+                md5sum    "${target}" >"${target}.md5"
+                sha256sum "${target}" >"${target}.sha256"
+              fi
+            done
       - persist_to_workspace:
           root: /tmp/workspace
           paths:
@@ -260,7 +361,7 @@ jobs:
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
+      - checkout_source
       - run:
           name: Test 64 bit packages install
           command: |
@@ -281,7 +382,7 @@ jobs:
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
+      - checkout_source
       - run: ./checkfmt.sh
       - run: ./generate.sh
       - run: go vet ./...
@@ -301,7 +402,7 @@ jobs:
       INFLUXDB_DATA_INDEX_VERSION: << parameters.data >>
       GORACE: halt_on_error=1
     steps:
-      - checkout
+      - checkout_source
       - restore_cache:
           keys:
             - influxdb-cache-v2-{{ checksum "go.mod" }}
@@ -357,20 +458,81 @@ jobs:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     steps:
-      - checkout
+      - checkout_source
       - run:
           name: Execute test
           command: ./test-flux.sh || exit 1
           no_output_timeout: 1500s
 
+  check_release_tag:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout_source
+      - run:
+          name: Check for sibling release tags
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
+          command: |
+            if [ -z "${RELEASE_REF}" ] ; then
+              echo 'no release-ref; nothing to check'
+              exit 0
+            fi
+
+            # A commit carrying more than one release tag usually means the
+            # newer tag supersedes the older, so republishing the older one is
+            # rarely what was intended. build_binaries pins VERSION from
+            # release-ref so the artifacts are at least self consistent; this
+            # job exists to put the situation in front of whoever approves
+            # hold_publish. It is a leaf: nothing requires it, so a failure
+            # here reports without blocking.
+            siblings=''
+            for tag in $(git tag --points-at HEAD)
+            do
+              [ "${tag}" = "${RELEASE_REF}" ] && continue
+              echo "${tag}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || continue
+              siblings="${siblings} ${tag}"
+            done
+
+            if [ -n "${siblings}" ] ; then
+              echo "The commit behind ${RELEASE_REF} also carries:${siblings}"
+              echo
+              echo "Republishing ${RELEASE_REF} will publish artifacts that a"
+              echo "newer tag on the same commit supersedes. If that is"
+              echo "intended, approve hold_publish as usual; this job does not"
+              echo "block it. If not, cancel the workflow and republish the"
+              echo "newer tag instead."
+              exit 1
+            fi
+
+            echo "${RELEASE_REF} is the only release tag on this commit"
+
   changelog:
     docker:
       - image: quay.io/influxdb/changelogger:d7093c409adedd8837ef51fa84be0d0f8319177a
     steps:
-      - checkout
+      - checkout_source
       - run:
           name: Generate Changelog
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
           command: |
+            # A republish is triggered from a branch, so CIRCLE_BRANCH and
+            # CIRCLE_SHA1 describe that branch rather than the release, and
+            # changelogger writes both into the CHANGELOG's first line. After
+            # checkout_source, HEAD is the release tag, so stamp the tagged
+            # commit and an empty branch, which is what a tag triggered
+            # pipeline produces. Everything below that line is generated from
+            # HEAD and so already matches.
+            #
+            # 'nightly' also runs this job, and leaves release-ref empty: its
+            # header names the nightly's branch, as it should.
+            if [ -n "${RELEASE_REF}" ] ; then
+              export CIRCLE_BRANCH=
+              CIRCLE_SHA1="$(git rev-parse HEAD)"
+              export CIRCLE_SHA1
+            fi
+
             PRODUCT=OSS changelogger
       - store_artifacts:
           path: changelog_artifacts/
@@ -402,10 +564,17 @@ jobs:
           steps:
             - run:
                 name: Upload CHANGELOG to R2
+                environment:
+                  RELEASE_REF: << pipeline.parameters.release-ref >>
                 command: |
+                  TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
+                  if [ -z "${TAG}" ] ; then
+                    echo 'no release tag resolved; refusing to upload' >&2
+                    exit 1
+                  fi
                   export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
                   export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
-                  aws s3 cp /tmp/workspace/changelog_artifacts/CHANGELOG.md "s3://dl-influxdata-com/influxdb/releases/<< pipeline.git.tag >>/CHANGELOG.<< pipeline.git.tag >>.md" \
+                  aws s3 cp /tmp/workspace/changelog_artifacts/CHANGELOG.md "s3://dl-influxdata-com/influxdb/releases/${TAG}/CHANGELOG.${TAG}.md" \
                     --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
                     --region auto
       - when:
@@ -437,10 +606,19 @@ jobs:
             pip install awscli
       - run:
           name: Upload packages to R2
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
           command: |
+            TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
+            # An empty tag would sync every package into the top of
+            # influxdb/releases/, so fail closed rather than make a mess.
+            if [ -z "${TAG}" ] ; then
+              echo 'no release tag resolved; refusing to sync' >&2
+              exit 1
+            fi
             export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
             export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
-            aws s3 sync /tmp/workspace/packages "s3://dl-influxdata-com/influxdb/releases/<< pipeline.git.tag >>" \
+            aws s3 sync /tmp/workspace/packages "s3://dl-influxdata-com/influxdb/releases/${TAG}" \
               --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
               --region auto
   slack:
@@ -453,8 +631,11 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - run:
-          command: slack
+          command: |
+            export CIRCLE_TAG="${CIRCLE_TAG:-${RELEASE_REF}}"
+            slack
           environment:
+            RELEASE_REF:                << pipeline.parameters.release-ref >>
             SLACK_ARTIFACT_URL:         https://dl.influxdata.com/influxdb/releases
             SLACK_ARTIFACT_ROOT:        /tmp/workspace/packages
             SLACK_ARTIFACT_EXCLUDE_DIR: race
@@ -473,6 +654,8 @@ release_filter: &release_filter
 
 workflows:
   version: 2.1
+  # Mirrored by the 'republish' workflow below. A job added here, or a
+  # dependency changed here, needs the same change there.
   release:
     when:
       equal: [ << pipeline.parameters.workflow >>, build ]
@@ -522,6 +705,78 @@ workflows:
           <<: *release_filter
           name: unit_test_race
           race: true
+  # Rebuilds and publishes an already-cut release tag whose original release
+  # pipeline failed after build_packages. Trigger it against a branch that
+  # carries a working publish configuration:
+  #
+  #   curl -X POST \
+  #     https://circleci.com/api/v2/project/gh/influxdata/influxdb/pipeline \
+  #     -H "Circle-Token: ${CIRCLE_TOKEN}" \
+  #     -H 'Content-Type: application/json' \
+  #     -d '{"branch":"1.13","parameters":{"workflow":"republish","release-ref":"v1.13.0"}}'
+  #
+  # The source is built from release-ref, not from the branch, so the only
+  # difference from the original release build is this file. Every other file
+  # the jobs read comes from the tag, including the scripts this one invokes;
+  # see the release-ref parameter for what that rules out.
+  #
+  # This workflow mirrors 'release' job for job, with two intended
+  # differences: the hold_publish approval gate, and check_release_tag, which
+  # only means anything when release-ref selects a tag and so has no place in
+  # 'release'. Keep the two in step: the
+  # test jobs are leaf nodes here exactly as they are in 'release', and if
+  # publishing is ever gated on them it needs gating in both.
+  republish:
+    when:
+      equal: [ << pipeline.parameters.workflow >>, republish ]
+    jobs:
+      - build_binaries
+      - build_packages:
+          requires:
+            - build_binaries
+      - sign_packages:
+          requires:
+            - build_packages
+      - test_pkgs_64bit:
+          requires:
+            - build_packages
+      - changelog
+      - check_release_tag
+      # One gate covering both publish paths. A changelog is published
+      # whenever packages are, so neither should go out without the other and
+      # a single approval covers both.
+      #
+      # This couples publish_packages to changelog, which 'release' does not
+      # do: there, a failed changelog job still lets packages publish without
+      # one. That is a gap in 'release' rather than a deliberate difference
+      # here, and belongs in the same fix as the ungated test jobs.
+      - hold_publish:
+          type: approval
+          requires:
+            - sign_packages
+            - changelog
+      - publish_packages:
+          requires:
+            - hold_publish
+      - publish_changelog:
+          workflow: release
+          requires:
+            - hold_publish
+      - slack:
+          requires:
+            - publish_packages
+      - static_code_checks
+      - fluxtest
+      - unit_test:
+          name: unit_test_inmem
+          data: inmem
+      - unit_test:
+          name: unit_test_tsi1
+          data: tsi1
+      - unit_test:
+          name: unit_test_race
+          race: true
+
   on_push:
     when:
       equal: [ << pipeline.parameters.workflow >>, build ]
