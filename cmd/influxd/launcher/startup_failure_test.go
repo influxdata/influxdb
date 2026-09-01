@@ -1,6 +1,7 @@
 package launcher_test
 
 import (
+	"errors"
 	nethttp "net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/check/checktest"
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/stretchr/testify/require"
 	bbolt "go.etcd.io/bbolt"
 )
@@ -121,6 +123,14 @@ func TestLauncher_StartupFailure_EngineOpen(t *testing.T) {
 
 	err := l.Run(t, ctx)
 	require.Error(t, err, "engine.Open must fail with a file in place of its directory")
+
+	// A path that is not the kind of object it was used as. Nothing tags this
+	// site: the ENOTDIR travels up inside the engine's own wrapping and
+	// exit.Classify reads it there, which is the property worth pinning --
+	// a fixed status at the call site could not tell this apart from the
+	// permission or out-of-space failures the same call can produce.
+	require.Equal(t, exit.CodeNoInput, exit.Code(err),
+		"a bad --engine-path must exit %s", exit.Name(exit.CodeNoInput))
 
 	assertEngineFailure(t, l)
 }
@@ -271,5 +281,84 @@ func TestLauncher_StartupFailure_PriorVersion(t *testing.T) {
 	err := l.Run(t, ctx)
 	require.Error(t, err, "the prior-version check must reject a _series directory")
 
+	// On-disk data this build cannot read. No restart fixes it -- an operator
+	// has to move the files -- so the status has to be one a supervisor can be
+	// configured to stop retrying on.
+	require.Equal(t, exit.CodeDataErr, exit.Code(err),
+		"an incompatible engine directory must exit %s", exit.Name(exit.CodeDataErr))
+
+	// And pinned once. checkForPriorVersion knew the category and said so, so
+	// run's deferred hook must leave the error alone rather than wrap it in a
+	// second layer carrying the same status: unwrapping the status has to reach
+	// the error the site built, not another copy of the status.
+	require.Equal(t, exit.CodeGeneric, exit.Code(errors.Unwrap(err)),
+		"the status must be pinned once, not layered")
+
 	assertEngineFailure(t, l)
+}
+
+// TestLauncher_StartupFailure_TLSKeyPair covers the one site that overrides the
+// classifier: a TLS pair the OS handed over intact but that will not parse is a
+// configuration error, while a pair the OS refused keeps whatever its errno
+// says. The two cases must not collapse into one status -- 78 is on the
+// non-restartable list in EXIT_CODES.md, and a path mistake is not the same
+// mistake as a corrupt certificate.
+func TestLauncher_StartupFailure_TLSKeyPair(t *testing.T) {
+	tests := []struct {
+		name string
+		// write returns the cert and key paths to start with.
+		write func(t *testing.T, dir string) (cert, key string)
+		want  int
+		// wantMsg keeps a case honest: every phase before runHTTP can fail with
+		// a status of its own, so the error has to be shown to come from the
+		// key pair and not from something earlier that happens to agree.
+		wantMsg string
+	}{
+		{
+			name: "unreadable path",
+			write: func(t *testing.T, dir string) (string, string) {
+				// A regular file where a directory belongs, so opening the
+				// cert underneath it fails with ENOTDIR rather than ENOENT --
+				// an errno no io/fs sentinel matches, which is what makes this
+				// the case worth pinning: only the errno table can place it.
+				blocker := filepath.Join(dir, "certs")
+				require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0600))
+				return filepath.Join(blocker, "influxd.crt"), filepath.Join(blocker, "influxd.key")
+			},
+			want:    exit.CodeNoInput,
+			wantMsg: "not a directory",
+		},
+		{
+			name: "unparseable pair",
+			write: func(t *testing.T, dir string) (string, string) {
+				cert := filepath.Join(dir, "influxd.crt")
+				key := filepath.Join(dir, "influxd.key")
+				require.NoError(t, os.WriteFile(cert, []byte("not a certificate"), 0600))
+				require.NoError(t, os.WriteFile(key, []byte("not a key"), 0600))
+				return cert, key
+			},
+			want:    exit.CodeConfig,
+			wantMsg: "PEM",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := launcher.NewTestLauncherServer()
+			cert, key := tt.write(t, l.Path)
+
+			defer func() { require.NoError(t, l.Shutdown(ctx)) }()
+
+			err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) {
+				o.HttpTLSCert = cert
+				o.HttpTLSKey = key
+			})
+			require.Error(t, err, "runHTTP must reject this key pair")
+			require.ErrorContains(t, err, tt.wantMsg,
+				"startup failed somewhere other than the key pair")
+			require.Equal(t, tt.want, exit.Code(err),
+				"a %s TLS pair must exit %s, got %s",
+				tt.name, exit.Name(tt.want), exit.Name(exit.Code(err)))
+		})
+	}
 }

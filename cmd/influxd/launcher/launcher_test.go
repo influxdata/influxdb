@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -225,8 +226,16 @@ func TestLauncher_PIDFile_Locked(t *testing.T) {
 		require.Equal(t, origSt.Mode(), curSt.Mode())
 	}()
 
+	// These two also guard exit.WithCode's contract, which the PID file path
+	// now depends on: pinning a status must leave both the sentinel reachable
+	// through errors.Is and the message byte-identical.
 	require.ErrorIs(t, err, launcher.ErrPIDFileExists)
 	require.ErrorContains(t, err, fmt.Sprintf("error writing PIDFile %q: PID file exists (possible unclean shutdown or another instance already running)", pidFilename))
+
+	// Either another influxd holds this directory or the last one left the file
+	// behind; restarting resolves neither.
+	require.Equal(t, exit.CodeUnavailable, exit.Code(err),
+		"a held PID file must exit %s", exit.Name(exit.CodeUnavailable))
 }
 
 func TestLauncher_PIDFile_Overwrite(t *testing.T) {

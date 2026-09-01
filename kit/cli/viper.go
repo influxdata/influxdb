@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
@@ -41,6 +42,34 @@ type Program struct {
 	Opts []Opt
 }
 
+// UsageArgs adapts a cobra positional-argument validator so that a violation
+// carries exit.CodeUsage.
+//
+// Cobra's SetFlagErrorFunc covers a bad flag but not a bad positional argument,
+// and both are the same mistake from an operator's point of view: the command
+// line is wrong and re-running it unchanged cannot help.
+func UsageArgs(validate cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		// exit.WithCode passes a nil error through, so the accepting case
+		// needs no guard here.
+		return exit.WithCode(exit.CodeUsage, validate(cmd, args))
+	}
+}
+
+// errEnvValue reports a value supplied through the environment that the option
+// it was destined for would not accept.
+//
+// The status is exit.CodeConfig rather than exit.CodeUsage: the command line is
+// not what is wrong, and the fix is to edit whatever exports the variable.
+// Reporting anything at all is the point -- these branches used to discard the
+// error, so INFLUXD_LOG_LEVEL=trace started the server at info and exited 0,
+// while --log-level=trace exits 64. An environment variable is one of the three
+// documented ways to set every one of these options.
+func errEnvValue(flag, value string, err error) error {
+	return exit.WithCode(exit.CodeConfig,
+		fmt.Errorf("invalid value %q for %q from the environment: %w", value, flag, err))
+}
+
 // NewCommand creates a new cobra command to be executed that respects env vars.
 //
 // Uses the upper-case version of the program's name as a prefix
@@ -50,7 +79,7 @@ type Program struct {
 func NewCommand(v *viper.Viper, p *Program) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:  p.Name,
-		Args: cobra.NoArgs,
+		Args: UsageArgs(cobra.NoArgs),
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return p.Run()
 		},
@@ -67,7 +96,10 @@ func NewCommand(v *viper.Viper, p *Program) (*cobra.Command, error) {
 	//  2. env vars
 	//	3. config file
 	if err := initializeConfig(v); err != nil {
-		return nil, fmt.Errorf("failed to load config file: %w", err)
+		// An unreadable or unparseable config file will read the same way on
+		// the next start, so the status marks it as configuration rather than
+		// as a generic failure a supervisor should retry.
+		return nil, exit.WithCode(exit.CodeConfig, fmt.Errorf("failed to load config file: %w", err))
 	}
 	if err := BindOptions(v, cmd, p.Opts); err != nil {
 		return nil, fmt.Errorf("failed to bind config options: %w", err)
@@ -315,7 +347,14 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 					if err != nil {
 						return fmt.Errorf("flag %q: cannot resolve Default of type %T: %w", o.Flag, o.Default, err)
 					}
-					_ = destP.Set(s)
+					// A Default the option itself rejects is a mistake in the
+					// option's definition, not in anything an operator did, so
+					// it stays an unclassified error like the cast failure
+					// above. Silently keeping the zero value instead would ship
+					// a flag whose documented default is not its actual one.
+					if err := destP.Set(s); err != nil {
+						return fmt.Errorf("flag %q: cannot apply Default %q: %w", o.Flag, s, err)
+					}
 				}
 			}
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
@@ -323,7 +362,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			}
 			if envVal != nil {
 				if s, err := cast.ToStringE(envVal); err == nil {
-					_ = destP.Set(s)
+					if err := destP.Set(s); err != nil {
+						return errEnvValue(o.Flag, s, err)
+					}
 				}
 			}
 
@@ -339,7 +380,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			}
 			if envVal != nil {
 				if s, err := cast.ToStringE(envVal); err == nil {
-					_ = (*destP).DecodeFromString(s)
+					if err := (*destP).DecodeFromString(s); err != nil {
+						return errEnvValue(o.Flag, s, err)
+					}
 				}
 			}
 
@@ -355,7 +398,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			}
 			if envVal != nil {
 				if s, err := cast.ToStringE(envVal); err == nil {
-					_ = (*destP).Set(s)
+					if err := (*destP).Set(s); err != nil {
+						return errEnvValue(o.Flag, s, err)
+					}
 				}
 			}
 

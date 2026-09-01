@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdata/influxdb/v2/kit/exit"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +42,25 @@ func (c *customFlag) Set(s string) error {
 func (c *customFlag) Type() string {
 	return "fancy-bool"
 }
+
+// strictFlag is a pflag.Value that rejects what it does not recognize, which
+// customFlag above cannot: its Set silently treats every unknown value as
+// "off". The real option types behave like this one -- toml.Duration and
+// toml.Size both refuse to parse garbage -- so a test for what BindOptions does
+// with a rejected value needs a Value that can reject.
+type strictFlag string
+
+func (s strictFlag) String() string { return string(s) }
+
+func (s *strictFlag) Set(v string) error {
+	if v != "yes" && v != "no" {
+		return fmt.Errorf("unrecognized value %q; expected yes or no", v)
+	}
+	*s = strictFlag(v)
+	return nil
+}
+
+func (s *strictFlag) Type() string { return "strict-bool" }
 
 func ExampleNewCommand() {
 	var monitorHost string
@@ -242,6 +263,73 @@ func Test_NewProgram(t *testing.T) {
 
 			t.Run(fmt.Sprintf("%s_%s", tt.name, writer.ext), fn)
 		}
+	}
+}
+
+// Test_EnvValueRejected covers a value supplied through the environment that
+// the option it sets will not accept.
+//
+// These branches used to discard the error: the server started on the default
+// and exited 0, so INFLUXD_LOG_LEVEL=trace logged at info and said nothing,
+// while --log-level=trace exits EX_USAGE. An environment variable is one of the
+// three documented ways to set every one of these options, and a wrong one has
+// to be as reportable as a wrong flag.
+func Test_EnvValueRejected(t *testing.T) {
+	tests := []struct {
+		name  string
+		env   string
+		value string
+		opt   func() Opt
+	}{
+		{
+			name:  "log level",
+			env:   "TEST_LOG_LEVEL",
+			value: "trace",
+			opt: func() Opt {
+				var level zapcore.Level
+				return Opt{DestP: &level, Flag: "log-level"}
+			},
+		},
+		{
+			name:  "id",
+			env:   "TEST_ORG_ID",
+			value: "not-an-id",
+			opt: func() Opt {
+				var id platform.ID
+				return Opt{DestP: &id, Flag: "org-id"}
+			},
+		},
+		{
+			// pflag.Value covers the option types that parse themselves --
+			// toml.Size and friends -- through a single branch.
+			name:  "pflag value",
+			env:   "TEST_CUSTOM",
+			value: "maybe",
+			opt: func() Opt {
+				var s strictFlag
+				return Opt{DestP: &s, Flag: "custom"}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer setEnvVar(tt.env, tt.value)()
+
+			program := &Program{
+				Name: "test",
+				Opts: []Opt{tt.opt()},
+				Run:  func() error { return nil },
+			}
+
+			_, err := NewCommand(viper.New(), program)
+			require.Error(t, err, "a value the option rejects must not be discarded")
+			require.Equal(t, exit.CodeConfig, exit.Code(err),
+				"an unusable environment value must exit %s: the fix is to edit "+
+					"whatever exports it, so a supervisor set to stop retrying on a "+
+					"config error must not restart into it", exit.Name(exit.CodeConfig))
+			require.ErrorContains(t, err, tt.value, "the message must name the value")
+		})
 	}
 }
 

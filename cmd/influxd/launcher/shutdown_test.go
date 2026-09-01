@@ -3,11 +3,14 @@ package launcher
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -144,6 +147,98 @@ func TestLauncher_ShutdownAccumulatesErrors(t *testing.T) {
 	require.Equal(t, err.Error(), again.Error(),
 		"a repeat call must report the same accumulated error")
 	require.Len(t, order, 2, "a repeat call must run nothing")
+}
+
+// TestExitError covers how cmdRunE turns what startup and teardown reported
+// into one error and one exit status. A clean stop stays 0 — that is what keeps
+// `systemctl stop` from reading as a failure under Restart=on-failure — and a
+// startup failure keeps deciding the status even when teardown failed too.
+func TestExitError(t *testing.T) {
+	t.Parallel()
+
+	runErr := exit.WithCode(exit.CodeDataErr, errors.New("incompatible InfluxDB version"))
+	serr := errors.New("failed to shut down server")
+
+	tests := []struct {
+		name   string
+		runErr error
+		serr   error
+		want   int
+	}{
+		{
+			name: "clean startup and clean stop",
+			want: exit.CodeOK,
+		},
+		{
+			name:   "startup failed",
+			runErr: runErr,
+			want:   exit.CodeDataErr,
+		},
+		{
+			// Both arms are reported, but the reason the server never came up
+			// is the one an operator has to act on.
+			name:   "startup failed and teardown failed",
+			runErr: runErr,
+			serr:   serr,
+			want:   exit.CodeDataErr,
+		},
+		{
+			// The dirty stop: the server ran, and only teardown went wrong.
+			// Nothing pinned this error, so exitError is what classifies it.
+			// fs.ErrPermission rather than a raw errno so the expectation holds
+			// on Windows too, where the errno values differ.
+			name: "clean startup, teardown failed",
+			serr: fmt.Errorf("failed to shut down server: %w", fs.ErrPermission),
+			want: exit.CodeNoPerm,
+		},
+		{
+			name: "clean startup, teardown failed for no OS reason",
+			serr: serr,
+			want: exit.CodeSoftware,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := exitError(tt.runErr, tt.serr)
+			require.Equal(t, tt.want, exit.Code(err),
+				"expected %s", exit.Name(tt.want))
+
+			if tt.runErr == nil && tt.serr == nil {
+				require.NoError(t, err)
+				return
+			}
+			// Both arms stay individually matchable whichever one set the
+			// status: a caller inspecting the error must not have to choose.
+			if tt.runErr != nil {
+				require.ErrorIs(t, err, tt.runErr)
+			}
+			if tt.serr != nil {
+				require.ErrorIs(t, err, tt.serr)
+			}
+		})
+	}
+}
+
+// TestLauncher_ShutdownErrorStaysClassifiable pins that the wrapping Shutdown
+// applies — fmt.Errorf around an errors.Join of every closer failure — leaves
+// the underlying cause reachable. exitError classifies that error on the dirty
+// stop path, so a cause buried by the accumulation would silently become
+// EX_SOFTWARE.
+func TestLauncher_ShutdownErrorStaysClassifiable(t *testing.T) {
+	ctx := context.Background()
+	m := newShutdownLauncher(t)
+
+	var order []string
+	recordCloser(m, &order, SubsystemKV, fmt.Errorf("close bolt: %w", fs.ErrPermission))
+
+	err := m.Shutdown(ctx)
+	require.Error(t, err)
+	require.Equal(t, exit.CodeNoPerm, exit.Classify(err),
+		"Shutdown's wrapping must not hide the cause from exit.Classify")
+	require.Equal(t, exit.CodeNoPerm, exit.Code(exitError(nil, err)))
 }
 
 // TestLauncher_HoldForStartupError_NoWait covers every case in which the hold
