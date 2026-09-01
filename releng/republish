@@ -201,6 +201,27 @@ grep -Eq '^[[:space:]]*republish:' <<<"${branch_config}" ||
 grep -Eq '^[[:space:]]*release-ref:' <<<"${branch_config}" ||
   die "branch '${BRANCH}' has no 'release-ref' parameter in .circleci/config.yml"
 
+# A commit can carry more than one release tag; this repository has two such
+# commits. get-version selects the highest, so the pipeline pins VERSION from
+# the requested tag to keep the artifacts self consistent, and check_release_tag
+# reports the situation in the UI. Say so here too, because this is the point at
+# which it is cheapest to pick the other tag instead.
+siblings=''
+while IFS= read -r line
+do
+  [[ ${line} ]] || continue
+  [[ ${line%%$'\t'*} == "${COMMIT}" ]] || continue
+  ref="${line#*$'\t'}"
+  ref="${ref%^\{\}}"
+  sibling="${ref#refs/tags/}"
+  [[ ${sibling} == "${TAG}" ]] && continue
+  [[ ${sibling} =~ ${TAG_REGEX} ]] || continue
+  case " ${siblings} " in
+    *" ${sibling} "*) ;;
+    *) siblings="${siblings}${siblings:+ }${sibling}" ;;
+  esac
+done <<<"$(git ls-remote --tags "${REMOTE}")"
+
 ENDPOINT="https://circleci.com/api/v2/project/${PROJECT_SLUG}/pipeline"
 # cross-container-tag is omitted rather than sent empty, so that the branch's
 # own default applies. Sending "" would resolve to an image with an empty tag.
@@ -233,6 +254,17 @@ cat <<EOF
   publishes   s3://${R2_BUCKET}/influxdb/releases/${TAG}
 
 EOF
+
+if [[ ${siblings} ]]
+then
+  cat >&2 <<EOF
+  WARNING  this commit is also tagged: ${siblings}
+           ${TAG} is superseded by a newer tag on the same commit, so
+           republishing it will publish artifacts that tag replaced.
+           Republish the newer tag instead unless this is deliberate.
+
+EOF
+fi
 
 if (( DRY_RUN ))
 then

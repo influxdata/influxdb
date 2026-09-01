@@ -85,10 +85,24 @@ jobs:
             # is per job, so it does not carry to build_packages, sign_packages
             # or the publish jobs; those resolve it themselves.
             if [ -n "${RELEASE_REF}" ] ; then
+              # VERSION is re-derived from the requested tag rather than left to
+              # get-version, which picks the *highest* release tag pointing at
+              # HEAD. That is right for a tag build but wrong here: republishing
+              # v1.9.0 from a commit also tagged v1.9.1 would stamp 1.9.1 into
+              # binaries that the packager names 1.9.0, because the packager
+              # reads CIRCLE_TAG. On a republish the requested tag is
+              # authoritative. check_release_tag reports the situation.
+              version="${RELEASE_REF#v}"
+              rest="${version#*.}"
               {
                 printf 'export CIRCLE_SHA1=%s\n' "$(git rev-parse HEAD)"
                 printf 'export CIRCLE_TAG=%s\n'  "${RELEASE_REF}"
                 printf 'export CIRCLE_BRANCH=\n'
+                printf 'export VERSION=%s\n'     "${version}"
+                printf 'export MAJOR=%s\n'       "${version%%.*}"
+                printf 'export MINOR=%s\n'       "${rest%%.*}"
+                printf 'export PATCH=%s\n'       "${rest#*.}"
+                printf 'export RELEASE=1\n'
               } >>"${BASH_ENV}"
             fi
       - run:
@@ -441,6 +455,49 @@ jobs:
           command: ./test-flux.sh || exit 1
           no_output_timeout: 1500s
 
+  check_release_tag:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout_source
+      - run:
+          name: Check for sibling release tags
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
+          command: |
+            if [ -z "${RELEASE_REF}" ] ; then
+              echo 'no release-ref; nothing to check'
+              exit 0
+            fi
+
+            # A commit carrying more than one release tag usually means the
+            # newer tag supersedes the older, so republishing the older one is
+            # rarely what was intended. build_binaries pins VERSION from
+            # release-ref so the artifacts are at least self consistent; this
+            # job exists to put the situation in front of whoever approves
+            # hold_publish. It is a leaf: nothing requires it, so a failure
+            # here reports without blocking.
+            siblings=''
+            for tag in $(git tag --points-at HEAD)
+            do
+              [ "${tag}" = "${RELEASE_REF}" ] && continue
+              echo "${tag}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || continue
+              siblings="${siblings} ${tag}"
+            done
+
+            if [ -n "${siblings}" ] ; then
+              echo "The commit behind ${RELEASE_REF} also carries:${siblings}"
+              echo
+              echo "Republishing ${RELEASE_REF} will publish artifacts that a"
+              echo "newer tag on the same commit supersedes. If that is"
+              echo "intended, approve hold_publish as usual; this job does not"
+              echo "block it. If not, cancel the workflow and republish the"
+              echo "newer tag instead."
+              exit 1
+            fi
+
+            echo "${RELEASE_REF} is the only release tag on this commit"
+
   changelog:
     docker:
       - image: quay.io/influxdb/changelogger:d7093c409adedd8837ef51fa84be0d0f8319177a
@@ -634,8 +691,10 @@ workflows:
   # The source is built from release-ref, not from the branch, so the only
   # difference from the original release build is the CI configuration.
   #
-  # This workflow mirrors 'release' job for job, and the only intended
-  # difference is the hold_publish approval gate. Keep the two in step: the
+  # This workflow mirrors 'release' job for job, with two intended
+  # differences: the hold_publish approval gate, and check_release_tag, which
+  # only means anything when release-ref selects a tag and so has no place in
+  # 'release'. Keep the two in step: the
   # test jobs are leaf nodes here exactly as they are in 'release', and if
   # publishing is ever gated on them it needs gating in both.
   republish:
@@ -653,6 +712,7 @@ workflows:
           requires:
             - build_packages
       - changelog
+      - check_release_tag
       # One gate covering both publish paths. A changelog is published
       # whenever packages are, so neither should go out without the other and
       # a single approval covers both.
