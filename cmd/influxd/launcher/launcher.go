@@ -10,8 +10,8 @@ import (
 	nethttp "net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -174,6 +174,21 @@ type Launcher struct {
 	// a startup failure to, used only to notice a failure that reached no
 	// attribution at all. Written and read from run's goroutine.
 	failedSubsystem string
+
+	// shutdownMu guards the closer list, the accumulated teardown state, and
+	// httpServing. Teardown runs in two phases on the startup-failure path --
+	// see shutdownSubsystems -- so a closer is consumed from m.closers as it
+	// runs rather than the whole teardown being gated by a single sync.Once.
+	shutdownMu sync.Mutex
+
+	// httpServing reports whether runHTTP bound a listener. Consulted by
+	// holdForStartupError: with no listener there is nothing to scrape, and
+	// waiting only delays the error. It is guarded rather than plain because
+	// run writes it from its own goroutine while holdForStartupError, which is
+	// exported to tests and is the only reader, is reachable from another.
+	httpServing  bool
+	shutdownErrs []error
+	shutdownDone bool
 }
 
 type stoppingScheduler interface {
@@ -206,20 +221,29 @@ func (m *Launcher) ReadyCheckNames() []string {
 	return m.checkHandler.ReadyCheckNames()
 }
 
-// Shutdown shuts down the HTTP server and waits for all services to clean up.
+// Shutdown closes whatever is left of the launcher and waits for all services
+// to clean up. It is the final teardown phase: after it returns, nothing the
+// launcher registered is still running.
+//
+// Every registered closer runs at most once across all calls, because each is
+// consumed as it runs. A caller that cannot tell whether the launcher was
+// already torn down — in whole, or in part via shutdownSubsystems — can call
+// Shutdown unconditionally without double-closing a store or reporting a
+// spurious error for already-released state. The returned error accumulates
+// every phase's closer failures, so a single call site reports the whole
+// teardown.
 func (m *Launcher) Shutdown(ctx context.Context) error {
-	var errs []string
-
-	// Shut down subsystems in the reverse order of their registration.
-	for i := len(m.closers); i > 0; i-- {
-		lc := m.closers[i-1]
-		m.log.Info("Stopping subsystem", zap.String("subsystem", lc.label))
-		if err := lc.closer(ctx); err != nil {
-			m.log.Error("Failed to stop subsystem", zap.String("subsystem", lc.label), zap.Error(err))
-			errs = append(errs, err.Error())
-		}
+	m.shutdownMu.Lock()
+	defer m.shutdownMu.Unlock()
+	if m.shutdownDone {
+		return m.shutdownError()
 	}
 
+	m.runClosers(ctx)
+
+	// Safe only here, and not in shutdownSubsystems: the HTTP serve goroutine
+	// is tracked in m.wg and returns only once the server closes, which the
+	// closer above has now done.
 	m.wg.Wait()
 
 	// N.B. We ignore any errors here because Sync is known to fail with EINVAL
@@ -229,10 +253,204 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 	// See: https://github.com/uber-go/zap/issues/328
 	_ = m.log.Sync()
 
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to shut down server: [%s]", strings.Join(errs, ","))
+	m.shutdownDone = true
+	return m.shutdownError()
+}
+
+// shutdownSubsystems runs every registered closer except the two that describe
+// the process itself — the HTTP server's and the PID file's — releasing the
+// bolt flock, the sqlite file and the engine directory while leaving the
+// listener, and so /health and /ready, serving. It is the first of the two
+// teardown phases used by holdForStartupError; Shutdown is the second and
+// releases both of the ones kept here.
+//
+// The PID file is retained deliberately, and not merely as a companion to the
+// listener. It is the interlock that stops a second influxd starting against
+// the same data directory, and this process is still running and still holding
+// its port: releasing it early would let a concurrent start past the check that
+// exists to catch exactly this, only to fail it on "address already in use" —
+// a worse error, naming the wrong cause. A PID file must describe a live
+// process for as long as the process is alive.
+//
+// It deliberately does not wait on m.wg. The HTTP serve goroutine is tracked
+// there and returns only once the server closes, so waiting here would block
+// for exactly as long as the listener is retained.
+func (m *Launcher) shutdownSubsystems(ctx context.Context) error {
+	m.shutdownMu.Lock()
+	defer m.shutdownMu.Unlock()
+	if m.shutdownDone {
+		return m.shutdownError()
 	}
-	return nil
+
+	m.runClosers(ctx, SubsystemHTTPServer, SubsystemPIDFile)
+	return m.shutdownError()
+}
+
+// runClosers runs the registered closers in reverse registration order,
+// skipping any whose label is in keep, and records each failure. The closers
+// it is about to run are removed from m.closers before any of them run, so no
+// closer can run twice even if one panics. The kept closers stay in
+// registration order, so a later phase still tears down in reverse.
+//
+// Caller must hold shutdownMu.
+func (m *Launcher) runClosers(ctx context.Context, keep ...string) {
+	kept := make([]labeledCloser, 0, len(keep))
+	pending := make([]labeledCloser, 0, len(m.closers))
+	for _, lc := range m.closers {
+		if slices.Contains(keep, lc.label) {
+			kept = append(kept, lc)
+			continue
+		}
+		pending = append(pending, lc)
+	}
+	m.closers = kept
+
+	// Shut down subsystems in the reverse order of their registration.
+	for i := len(pending); i > 0; i-- {
+		lc := pending[i-1]
+		m.log.Info("Stopping subsystem", zap.String("subsystem", lc.label))
+		if err := lc.closer(ctx); err != nil {
+			m.log.Error("Failed to stop subsystem", zap.String("subsystem", lc.label), zap.Error(err))
+			m.shutdownErrs = append(m.shutdownErrs, fmt.Errorf("%s: %w", lc.label, err))
+		}
+	}
+}
+
+// shutdownError renders the closer failures accumulated across every teardown
+// phase run so far. errors.Join rather than a flattened message: every failure
+// stays reachable through errors.Is and errors.As, and each one already names
+// the subsystem it came from. Caller must hold shutdownMu.
+func (m *Launcher) shutdownError() error {
+	if len(m.shutdownErrs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("failed to shut down server: %w", errors.Join(m.shutdownErrs...))
+}
+
+// freezeChecks pins /health and /ready to the report they serve right now, so
+// the teardown that follows cannot rewrite it. This is the whole reason the
+// freeze exists rather than an optimization: sqlite.SqlStore.Check pings a
+// closed handle, and bolt.KVStore.Check ages into "stale: last probe ..." once
+// its prober stops. check.Responses sorts failures first and then by name, and
+// /health's top-level message is the first of them, so a closed bolt would
+// outrank and mask the engine failure the hold exists to publish.
+//
+// The freeze is bounded at two levels, and the distinction between them is
+// load-bearing. check.Check.Freeze gives every probe a context of its own,
+// bounded at check.DefaultProbeTimeout, so a wedged subsystem holds the process
+// open for the length of its own probe and no longer -- that is what stops an
+// early slow checker leaving the rest to snapshot as failed probes, which,
+// since failures sort ahead of passes by name, could outrank and mask the very
+// attribution this freeze is taken to preserve. freezeTimeout then caps the sum
+// as a backstop, sized so a healthy freeze never reaches it.
+func (m *Launcher) freezeChecks(ctx context.Context) {
+	// m.httpServing implies m.checkHandler is non-nil: the handler is built
+	// before runHTTP is called, so a bound listener means both exist. No guard
+	// here would ever fire.
+	ctx, cancel := context.WithTimeout(ctx, freezeTimeout)
+	defer cancel()
+	m.checkHandler.FreezeChecks(ctx)
+}
+
+// setHTTPServing records that runHTTP bound a listener, so a failure from here
+// on has somewhere to be read from.
+func (m *Launcher) setHTTPServing() {
+	m.shutdownMu.Lock()
+	defer m.shutdownMu.Unlock()
+	m.httpServing = true
+}
+
+// httpIsServing reports whether runHTTP bound a listener. It takes and releases
+// shutdownMu, so a caller must not already hold it -- holdForStartupError reads
+// this before the phased teardown that acquires it.
+func (m *Launcher) httpIsServing() bool {
+	m.shutdownMu.Lock()
+	defer m.shutdownMu.Unlock()
+	return m.httpServing
+}
+
+// cappedLinger bounds d at maxStartupErrorLinger, warning when it has to.
+//
+// The cap is enforced here rather than on the option so that it cannot be
+// bypassed -- every path into the window goes through holdForStartupError --
+// and so print-config keeps reporting the configured value rather than a
+// rewritten one. The warning is the operator's only notice that the duration
+// they chose is not the duration they will get, and it names the flag so the
+// line is actionable on its own.
+func (m *Launcher) cappedLinger(d time.Duration) time.Duration {
+	if d <= maxStartupErrorLinger {
+		return d
+	}
+	m.log.Warn("Startup error linger exceeds the maximum; capping it",
+		zap.String("flag", startupErrorLingerFlag),
+		zap.Duration("requested", d),
+		zap.Duration("maximum", maxStartupErrorLinger))
+	return maxStartupErrorLinger
+}
+
+// holdForStartupError releases everything the failed process no longer needs
+// and then keeps /health and /ready scrapeable for d, so the startup error
+// latched by failSubsystem can be retrieved before the process exits.
+//
+// The check set is frozen first — see freezeChecks — and then teardown is
+// split around the wait. Every subsystem except the HTTP listener and the PID
+// file is closed before the process parks, so the bolt flock, the sqlite file
+// and the engine directory belong to the next run rather than to one that
+// already failed. The listener is what the wait needs; the PID file is what
+// keeps the next run from starting on top of this one while it still holds the
+// port (see shutdownSubsystems). The Shutdown that follows releases both.
+//
+// Non-check requests are unaffected: the delegate handler is installed as the
+// last statement of a successful run, so on this path there is none and they
+// still get the 503 "starting" body.
+//
+// It returns immediately, tearing nothing down and freezing nothing, when d is
+// non-positive or no listener was ever established: there is then nothing to
+// scrape, and the caller's Shutdown does the whole teardown in one phase
+// exactly as before. At the other end d is capped; see cappedLinger.
+//
+// The wait also ends when the launcher's context is done, which covers a
+// SIGINT and a serve goroutine that already gave up and cancelled. It is NOT
+// cut short by SIGTERM: influxd traps only os.Interrupt (see
+// kit/signals.WithStandardSignals), so a SIGTERM during the window kills the
+// process where it stands. Splitting the teardown is what limits the damage:
+// the file locks are already gone, and what is left behind is a stale PID file
+// — the same thing any uncatchable signal leaves behind at any other point in
+// the process's life, and what --overwrite-pid-file is for.
+//
+// ctx bounds the teardown at shutdownTimeout and the freeze at freezeTimeout,
+// not the wait. Pass the process context rather than the signal-wrapped one, so
+// a signal racing either neither truncates the teardown nor poisons the freeze.
+func (m *Launcher) holdForStartupError(ctx context.Context, d time.Duration) {
+	if d <= 0 || !m.httpIsServing() {
+		return
+	}
+	d = m.cappedLinger(d)
+	m.freezeChecks(ctx)
+
+	subsysCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+	// Failures are logged per subsystem by runClosers and accumulate into the
+	// error the caller's Shutdown returns, so there is nothing to report here.
+	_ = m.shutdownSubsystems(subsysCtx)
+	cancel()
+
+	m.log.Warn("Startup failed; serving /health and /ready before exiting",
+		zap.Duration(startupErrorLingerFlag, d), zap.Int("port", m.httpPort))
+
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-m.Done():
+	}
+
+	// Cancel the launcher context so the final Shutdown's m.wg.Wait() has the
+	// same precondition it has on the normal exit path, where cmdRunE reaches
+	// Shutdown only after <-l.Done(). Not load-bearing today — the serve
+	// goroutine returns when its closer shuts the server down, not on this
+	// cancel, and runReporter is the only other wg member and never starts on
+	// a failure path — so it is tidiness, not a fix.
+	m.cancel()
 }
 
 func (m *Launcher) Done() <-chan struct{} {
@@ -489,6 +707,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if err != nil {
 		return m.failSubsystem(SubsystemHTTPServer, "Failed starting HTTP server", err)
 	}
+	// A listener is bound, so a failure from here on has somewhere to be read
+	// from; see holdForStartupError.
+	m.setHTTPServing()
 
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(collectors.NewGoCollector())

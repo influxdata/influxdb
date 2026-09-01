@@ -5,10 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/check/checktest"
 	"github.com/stretchr/testify/require"
+	bbolt "go.etcd.io/bbolt"
 )
 
 // readyBody mirrors the JSON shape served by /ready. Its checks are populated
@@ -119,6 +123,135 @@ func TestLauncher_StartupFailure_EngineOpen(t *testing.T) {
 	require.Error(t, err, "engine.Open must fail with a file in place of its directory")
 
 	assertEngineFailure(t, l)
+}
+
+// failEngineOpen puts a regular file where the engine expects its directory, so
+// engine.Open fails with ENOTDIR well after runHTTP has a listener bound. It is
+// the same failure the two tests above force, hoisted because the linger tests
+// need it too.
+func failEngineOpen(t *testing.T, l *launcher.TestLauncher) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(l.Path, "engine"),
+		[]byte("not a directory"), 0600))
+}
+
+// fetchCheckDocuments returns the /health and /ready bodies with the values that
+// move on their own replaced by sentinels, so two captures taken a moment apart
+// can be compared for equality. See checktest.Normalize for which those are.
+//
+// The presence assertions stay here rather than moving into Normalize, which
+// masks only what it finds: /health carries neither field, so a Normalize that
+// required them could not serve both endpoints. That /ready reports them at all
+// is this endpoint's contract, and worth failing on.
+func fetchCheckDocuments(t *testing.T, l *launcher.TestLauncher) (health, ready map[string]any) {
+	t.Helper()
+
+	health = make(map[string]any)
+	status := httpGetJSON(t, l.URL().String()+"/health", "", &health)
+	require.Equal(t, nethttp.StatusServiceUnavailable, status)
+
+	ready = make(map[string]any)
+	status = httpGetJSON(t, l.URL().String()+"/ready", "", &ready)
+	require.Equal(t, nethttp.StatusServiceUnavailable, status)
+	require.Contains(t, ready, checktest.FieldStarted)
+	require.Contains(t, ready, checktest.FieldUp)
+
+	return checktest.Normalize(t, health), checktest.Normalize(t, ready)
+}
+
+// TestLauncher_StartupFailure_LingerServesFrozenAttribution is the end-to-end
+// shape of --startup-error-linger: a failed startup releases the store locks a
+// restart needs while retaining the PID file, and serves the failure report
+// until the window closes; final shutdown then releases the PID file.
+func TestLauncher_StartupFailure_LingerServesFrozenAttribution(t *testing.T) {
+	l := launcher.NewTestLauncherServer()
+
+	// Outside l.Path: TestLauncher.Shutdown removes that tree wholesale, which
+	// would make "the PID file is gone" pass without the teardown doing
+	// anything at all.
+	pidFile := filepath.Join(t.TempDir(), "influxd.pid")
+	failEngineOpen(t, l)
+
+	defer func() { require.NoError(t, l.Shutdown(ctx)) }()
+
+	err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) { o.PIDFile = pidFile })
+	require.Error(t, err, "engine.Open must fail with a file in place of its directory")
+	require.FileExists(t, pidFile, "run must have written the PID file before failing")
+
+	assertEngineFailure(t, l)
+	healthBefore, readyBefore := fetchCheckDocuments(t, l)
+
+	// A window long enough that nothing but the cancel below can end it.
+	held := make(chan struct{})
+	go func() {
+		defer close(held)
+		l.HoldForStartupError(ctx, time.Hour)
+	}()
+
+	// Phase 1 has run once the bolt flock is released: it belongs to the next
+	// run, not to this one. The endpoints are still answering at that point,
+	// which is the whole property under test -- the state a restart needs is
+	// released while the report stays readable. A live handle makes Open block
+	// for the timeout and fail, so this polls rather than asserting once.
+	boltPath := filepath.Join(l.Path, bolt.DefaultFilename)
+	require.Eventually(t, func() bool {
+		db, err := bbolt.Open(boltPath, 0600, &bbolt.Options{Timeout: 10 * time.Millisecond})
+		if err != nil {
+			return false
+		}
+		return db.Close() == nil
+	}, 30*time.Second, 10*time.Millisecond,
+		"the bolt flock was not released while the endpoints were still up")
+
+	// The PID file is not released with it, and that asymmetry is the point.
+	// This process is still running and still holding its port, so the
+	// interlock that keeps a second influxd off this directory has to outlive
+	// the window: released here, a concurrent start would get past the check
+	// that exists to catch exactly this and fail on "address already in use"
+	// instead -- a worse error, naming the wrong cause.
+	require.FileExists(t, pidFile,
+		"the PID file was released while the process still held the port")
+
+	healthAfter, readyAfter := fetchCheckDocuments(t, l)
+	require.Equal(t, healthBefore, healthAfter,
+		"the frozen /health document changed after the stores were torn down")
+	require.Equal(t, readyBefore, readyAfter,
+		"the frozen /ready document changed after the stores were torn down")
+
+	l.CancelRun()
+	launcher.RequireReturnsWithin(t, 30*time.Second, func() { <-held })
+
+	// Phase 2 is what releases the PID file, and it runs on this path now.
+	require.NoError(t, l.Shutdown(ctx))
+	require.NoFileExists(t, pidFile)
+}
+
+// TestLauncher_StartupFailure_NoLingerTearsNothingDown pins the default. At
+// zero the hold does nothing at all — no freeze, no early teardown — and the
+// whole teardown belongs to Shutdown, exactly as before the flag existed.
+func TestLauncher_StartupFailure_NoLingerTearsNothingDown(t *testing.T) {
+	l := launcher.NewTestLauncherServer()
+
+	pidFile := filepath.Join(t.TempDir(), "influxd.pid")
+	failEngineOpen(t, l)
+
+	// Registered before the first assertion so a failing require cannot leak a
+	// running launcher. Shutdown is idempotent, so the explicit call below is
+	// still the one that proves the PID file is released.
+	defer func() { require.NoError(t, l.Shutdown(ctx)) }()
+
+	err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) { o.PIDFile = pidFile })
+	require.Error(t, err, "engine.Open must fail with a file in place of its directory")
+
+	launcher.RequireReturnsWithin(t, 5*time.Second, func() { l.HoldForStartupError(ctx, 0) })
+	require.FileExists(t, pidFile, "a zero linger must tear nothing down")
+	assertEngineFailure(t, l)
+
+	// Shutdown is what releases it, and cmdRunE now reaches Shutdown on this
+	// path — which it did not before, leaving the PID file for the next start
+	// to trip over.
+	require.NoError(t, l.Shutdown(ctx))
+	require.NoFileExists(t, pidFile)
 }
 
 // TestLauncher_StartupFailure_PriorVersion covers the prior-version check,
