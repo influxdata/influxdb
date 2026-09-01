@@ -38,6 +38,7 @@ import (
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/resource"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/kit/metric"
@@ -589,9 +590,22 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// it leaves the endpoints saying nothing useful; say so in the log rather
 	// than let it pass silently.
 	//
-	// This is also where the gates that never fired are closed out. It runs on
-	// every failure path there is, including any added later, which per-site
-	// calls would not.
+	// This is also where the gates that never fired are closed out, and where
+	// the process exit status is decided. It runs on every failure path there
+	// is, including any added later, which per-site calls would not.
+	//
+	// Pinning the status here rather than at the caller fixes the answer while
+	// this error is still alone. cmdRunE joins it with any teardown error, and
+	// exit.Code walks a joined tree: an unpinned classification made after the
+	// join could reach into the teardown arm and report its cause as the reason
+	// startup failed. It also keeps the status reachable from the test harness,
+	// which calls run directly.
+	//
+	// A site that already knew its own category pinned one on the way up, and
+	// such an error is left exactly as it is. Classifying it would return that
+	// same status -- exit.Classify honors a pin rather than guessing again --
+	// but pinning the answer a second time wraps the error in a layer nothing
+	// asked for, which changes what errors.Unwrap hands the next caller.
 	defer func() {
 		if err == nil {
 			return
@@ -600,6 +614,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.log.Warn("Startup failed without subsystem attribution", zap.Error(err))
 		}
 		m.failUnreachedGates(ctx)
+		if exit.Code(err) == exit.CodeGeneric {
+			err = exit.WithCode(exit.Classify(err), err)
+		}
 	}()
 
 	ctx, m.cancel = context.WithCancel(ctx)
@@ -824,7 +841,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		}
 		secretSvc = svc
 	default:
-		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", opts.SecretStore)
+		err := exit.WithCode(exit.CodeConfig,
+			fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", opts.SecretStore))
 		return m.failSubsystem(SubsystemSecrets, "Failed setting secret service", err)
 	}
 
@@ -1540,7 +1558,10 @@ func (m *Launcher) writePIDFile(pidFilename string, overwrite bool) error {
 			return fmt.Errorf("open file: %w", err)
 		}
 		if !overwrite {
-			return ErrPIDFileExists
+			// Either another influxd owns this data directory or the last one
+			// died without cleaning up. Restarting resolves neither, so the
+			// status says the resource is taken rather than that we failed.
+			return exit.WithCode(exit.CodeUnavailable, ErrPIDFileExists)
 		} else {
 			m.log.Warn("PID file already exists, attempting to overwrite", zap.String("pidFile", pidFilename))
 			pidFile, err = os.OpenFile(pidFilename, openFlags, pidMode)
@@ -1642,7 +1663,8 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		}
 
 	default:
-		err := fmt.Errorf("unknown store type %s; expected disk or memory", opts.StoreType)
+		err := exit.WithCode(exit.CodeConfig,
+			fmt.Errorf("unknown store type %s; expected disk or memory", opts.StoreType))
 		return "", m.failSubsystem(SubsystemMetaStore, "Failed opening metadata store", err)
 	}
 
@@ -1780,6 +1802,18 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 	if _, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey); err != nil {
 		log.Error("Failed to load x509 key pair", zap.String("cert-path", opts.HttpTLSCert), zap.String("key-path", opts.HttpTLSKey))
 		cleanupBeforeServe()
+		// A file the OS refused to hand over carries its own errno, which is
+		// more specific than anything this site knows; only a pair that was
+		// read intact and will not parse is a configuration error. Ask the
+		// classifier rather than re-check sentinels here: it has the whole
+		// errno table, so ENOTDIR (66), EMFILE (71) and EIO (74) keep their own
+		// categories instead of all being reported as "edit your config" -- a
+		// status EXIT_CODES.md's systemd recipe makes non-restartable.
+		// CodeSoftware is its answer for a cause it cannot place, which is what
+		// an unparseable pair looks like from underneath.
+		if exit.Classify(err) == exit.CodeSoftware {
+			err = exit.WithCode(exit.CodeConfig, err)
+		}
 		return registerCloser, err
 	}
 
@@ -1802,7 +1836,8 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		tlsMinVersion = tls.VersionTLS13
 	default:
 		cleanupBeforeServe()
-		return registerCloser, fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion)
+		return registerCloser, exit.WithCode(exit.CodeConfig,
+			fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion))
 	}
 
 	// nil uses the default cipher suite
@@ -1892,7 +1927,10 @@ func checkForPriorVersion(ctx context.Context, log *zap.Logger, boltPath string,
 
 	if hasErrors {
 		log.Error("Incompatible InfluxDB 2.0 version found. Move all files outside of engine_path before influxd will start.", zap.String("engine_path", enginePath))
-		return errors.New("incompatible InfluxDB version")
+		// The data on disk is not something this build can read, and no restart
+		// changes that -- an operator has to move the files. Say so in the exit
+		// status rather than let a supervisor retry forever.
+		return exit.WithCode(exit.CodeDataErr, errors.New("incompatible InfluxDB version"))
 	}
 
 	return nil

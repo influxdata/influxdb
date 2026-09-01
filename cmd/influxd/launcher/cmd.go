@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/pprof"
@@ -77,12 +78,16 @@ const shutdownTimeout = 2 * time.Second
 // resizing one must not silently resize the other.
 const freezeTimeout = 15 * time.Second
 
+// errInvalidFlags reports 1.x configuration keys found in a 2.x config file.
+// The status is exit.CodeConfig: the config file has to be edited, so a
+// supervisor configured to stop retrying on a configuration error will not
+// restart into the same failure.
 func errInvalidFlags(flags []string, configFile string) error {
-	return fmt.Errorf(
+	return exit.WithCode(exit.CodeConfig, fmt.Errorf(
 		"error: found flags from an InfluxDB 1.x configuration in config file at %s - see https://docs.influxdata.com/influxdb/latest/reference/config-options/ for flags supported on this version of InfluxDB: %s",
 		configFile,
 		strings.Join(flags, ","),
-	)
+	))
 }
 
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
@@ -124,7 +129,7 @@ func newInfluxdCommand(ctx context.Context, o *InfluxdOpts) (*cobra.Command, err
 	runCmd := &cobra.Command{
 		Use:  "run",
 		RunE: cmd.RunE,
-		Args: cobra.NoArgs,
+		Args: cli.UsageArgs(cobra.NoArgs),
 	}
 	for _, c := range []*cobra.Command{cmd, runCmd} {
 		setCmdDescriptions(c)
@@ -215,7 +220,17 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		}
 		logger, err := logconf.New(os.Stdout)
 		if err != nil {
-			return err
+			// Unreachable as the config above stands, and kept as a guard
+			// rather than dropped. Config.New fails only on a format it cannot
+			// encode, and Format is fixed to "auto" two lines up, which
+			// resolves to "console" or "logfmt"; Level is never validated here
+			// at all, having already been rejected by pflag on the command line
+			// (EX_USAGE) or by cli.BindOptions in the environment (EX_CONFIG).
+			// Should a format or level that does fail arrive later, it is a
+			// configured value an operator has to edit, which is what
+			// CodeConfig says -- and this is the one startup failure that never
+			// reaches Launcher.run, where every other status is pinned.
+			return exit.WithCode(exit.CodeConfig, err)
 		}
 		l.log = logger
 
@@ -243,21 +258,47 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		defer cancel()
 		serr := l.Shutdown(shutdownCtx)
 
-		// Join rather than pick a winner. runErr leads, so the exit code and
-		// the first line influxd prints are what they have always been, while a
-		// teardown failure stays reachable through errors.Is and errors.As
-		// instead of living only in the log -- which is what a caller inspecting
-		// the error, a test among them, has to work with. errors.Join returns
-		// nil when both are nil and the surviving error's own message when only
-		// one is, so neither single-error case changes at all; only a startup
-		// failure whose teardown ALSO failed gains a second line.
-		//
-		// No aggregate log line here: runClosers already logs every closer
-		// failure at Error with the subsystem that produced it, which is the
-		// same reasoning holdForStartupError documents for discarding the error
-		// from its own phase.
-		return errors.Join(runErr, serr)
+		return exitError(runErr, serr)
 	}
+}
+
+// exitError combines what startup and teardown reported into the single error
+// influxd exits on.
+//
+// Join rather than pick a winner. runErr leads, so the exit code and the first
+// line influxd prints are what they have always been, while a teardown failure
+// stays reachable through errors.Is and errors.As instead of living only in the
+// log -- which is what a caller inspecting the error, a test among them, has to
+// work with. errors.Join returns nil when both are nil and the surviving
+// error's own message when only one is, so neither single-error case changes at
+// all; only a startup failure whose teardown ALSO failed gains a second line.
+//
+// No aggregate log line here: runClosers already logs every closer failure at
+// Error with the subsystem that produced it, which is the same reasoning
+// holdForStartupError documents for discarding the error from its own phase.
+//
+// runErr arrives carrying an exit status, pinned by Launcher.run before it
+// could be joined with anything, and exit.Code takes the leftmost -- so a
+// startup failure decides the status even when teardown also failed. Only a
+// clean startup whose teardown then failed needs a status assigned here: a
+// signal that led to a successful shutdown still exits 0, and this is the sole
+// path on which a stop does not.
+//
+// That path is not exotic. shutdownTimeout gives in-flight requests two
+// seconds, and httpServer.Shutdown reports the deadline as its own error, so
+// stopping a server with a longer query still running lands here and exits
+// EX_TEMPFAIL rather than 0. It is the honest answer -- the requests were cut
+// off -- but it means an operator who signals a busy server should expect 75,
+// not treat it as a rare corner case. EXIT_CODES.md says so too.
+//
+// It is a function rather than the tail of cmdRunE because cmdRunE cannot be
+// called from a test -- fluxinit.FluxInit panics on a second call, and the
+// launcher test package has already made the first.
+func exitError(runErr, serr error) error {
+	if runErr == nil && serr != nil {
+		return exit.WithCode(exit.Classify(serr), serr)
+	}
+	return errors.Join(runErr, serr)
 }
 
 // InfluxdOpts captures all arguments for running the InfluxDB server.
