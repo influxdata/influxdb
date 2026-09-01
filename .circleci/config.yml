@@ -505,7 +505,25 @@ jobs:
       - checkout_source
       - run:
           name: Generate Changelog
+          environment:
+            RELEASE_REF: << pipeline.parameters.release-ref >>
           command: |
+            # A republish is triggered from a branch, so CIRCLE_BRANCH and
+            # CIRCLE_SHA1 describe that branch rather than the release, and
+            # changelogger writes both into the CHANGELOG's first line. After
+            # checkout_source, HEAD is the release tag, so stamp the tagged
+            # commit and an empty branch, which is what a tag triggered
+            # pipeline produces. Everything below that line is generated from
+            # HEAD and so already matches.
+            #
+            # 'nightly' also runs this job, and leaves release-ref empty: its
+            # header names the nightly's branch, as it should.
+            if [ -n "${RELEASE_REF}" ] ; then
+              export CIRCLE_BRANCH=
+              CIRCLE_SHA1="$(git rev-parse HEAD)"
+              export CIRCLE_SHA1
+            fi
+
             PRODUCT=OSS changelogger
       - store_artifacts:
           path: changelog_artifacts/
