@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/check/checktest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,6 +92,119 @@ func TestFreshnessResponse_JSONMarshalEmitsDerivedValues(t *testing.T) {
 		require.Equal(t, "fail", w.Status)
 		require.Regexp(t, `^stale: last probe .* ago \(threshold 50ms\)$`, w.Message)
 	})
+}
+
+// TestFreshnessResponse_Snapshot covers the three states Snapshot renders and
+// pins it against the accessors it replaces.
+func TestFreshnessResponse_Snapshot(t *testing.T) {
+	const staleness = 50 * time.Millisecond
+
+	t.Run("no probe", func(t *testing.T) {
+		f := NewFreshnessResponse("svc", staleness)
+		s := f.Snapshot()
+		require.Equal(t, "svc", s.Name())
+		require.Equal(t, StatusFail, s.Status())
+		require.Equal(t, msgNoProbe, s.Message())
+		require.Nil(t, s.Checks())
+	})
+
+	t.Run("fresh", func(t *testing.T) {
+		f := NewFreshnessResponse("svc", time.Second)
+		f.Update(NewBasicResponse("inner", StatusPass, "ok", Responses{NamedPass("nested")}))
+		s := f.Snapshot()
+		require.Equal(t, "svc", s.Name(), "the wrapper's name wins, not the probe's")
+		require.Equal(t, StatusPass, s.Status())
+		require.Equal(t, "ok", s.Message())
+		require.Len(t, s.Checks(), 1)
+		require.Equal(t, "nested", s.Checks()[0].Name())
+	})
+
+	t.Run("stale", func(t *testing.T) {
+		f := NewFreshnessResponse("svc", staleness)
+		f.Update(Pass())
+		time.Sleep(staleness + 50*time.Millisecond)
+
+		s := f.Snapshot()
+		require.Equal(t, StatusFail, s.Status())
+		require.Regexp(t, `^stale: last probe .* ago \(threshold 50ms\)$`, s.Message())
+		require.Nil(t, s.Checks(), "an aged-out snapshot reports no nested checks")
+	})
+
+	// A snapshot is a value: it does not age, which is what makes it safe to
+	// hold in a frozen check set.
+	t.Run("does not age", func(t *testing.T) {
+		f := NewFreshnessResponse("svc", staleness)
+		f.Update(Pass())
+		s := f.Snapshot()
+		time.Sleep(staleness + 50*time.Millisecond)
+		require.Equal(t, StatusFail, f.Status(), "the live response must age out")
+		require.Equal(t, StatusPass, s.Status())
+	})
+}
+
+// TestFreshnessResponse_MarshalMatchesSnapshot pins the MarshalJSON rewrite as
+// byte-compatible. MarshalJSON now marshals the BasicResponse Snapshot returns,
+// which reaches the wire shape through an embedded unexported struct whose
+// exported fields encoding/json promotes; this asserts that indirection emits
+// what the hand-built wireResponse did.
+func TestFreshnessResponse_MarshalMatchesSnapshot(t *testing.T) {
+	const staleness = 50 * time.Millisecond
+
+	for _, tc := range []struct {
+		name  string
+		build func() *FreshnessResponse
+	}{
+		{
+			name:  "no probe",
+			build: func() *FreshnessResponse { return NewFreshnessResponse("svc", staleness) },
+		},
+		{
+			name: "fresh with nested checks",
+			build: func() *FreshnessResponse {
+				f := NewFreshnessResponse("svc", time.Second)
+				f.Update(NewBasicResponse("inner", StatusPass, "ok", Responses{NamedFail("nested", "bad")}))
+				return f
+			},
+		},
+		{
+			name: "stale",
+			build: func() *FreshnessResponse {
+				f := NewFreshnessResponse("svc", staleness)
+				f.Update(Pass())
+				time.Sleep(staleness + 50*time.Millisecond)
+				return f
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := tc.build()
+			fromResponse, err := json.Marshal(f)
+			require.NoError(t, err)
+			fromSnapshot, err := json.Marshal(f.Snapshot())
+			require.NoError(t, err)
+			require.Equal(t,
+				checktest.NormalizeJSON(t, fromSnapshot),
+				checktest.NormalizeJSON(t, fromResponse))
+		})
+	}
+}
+
+// TestRenamedResponse_MarshalMatchesSnapshot covers the same rewrite for the
+// wrapper Rename puts around a stateful Response. A renamed FreshnessResponse
+// must render the new name over the inner state, from one observation.
+func TestRenamedResponse_MarshalMatchesSnapshot(t *testing.T) {
+	f := NewFreshnessResponse("inner", time.Second)
+	f.Update(Info("ok"))
+	r := Rename(f, "outer")
+
+	b, err := json.Marshal(r)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"name":"outer","status":"pass","message":"ok"}`, string(b))
+
+	s, ok := r.(Snapshotter)
+	require.True(t, ok, "a renamed Response must still offer a single coherent read")
+	require.Equal(t, "outer", s.Snapshot().Name())
+	require.Equal(t, StatusPass, s.Snapshot().Status())
 }
 
 // TestFreshnessResponse_ConcurrentUpdateAndRead exercises Update racing
