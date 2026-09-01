@@ -306,6 +306,42 @@ flood runs. `influxd` logs a throttled warning while the budget is
 exhausted, which is the only way to tell a starved probe from a rejected
 credential — they produce the same body.
 
+### Check detail during the window
+
+`--startup-error-linger` and `--health-auth-enabled` interact badly, and
+the interaction cannot be designed away. During the
+[linger window](#keeping-the-endpoints-alive-after-a-failed-startup) the
+store credentials are resolved against has been closed — releasing it is
+the point of closing everything but the listener before the wait — so no
+caller can be identified for the whole window. By the rule above, being
+unable to *ask* releases shape and never content: **every caller,
+including one presenting a valid operator token, sees check names and
+statuses with the messages stripped.**
+
+What an operator still gets is more than nothing. The `503` is correct,
+every check is named with its status, and exactly one `/health` entry is
+failing — the subsystems that came up read `pass`, and `shards` reads
+`pass` on an engine failure — so *which* phase failed is unambiguous.
+Only the reason string is withheld, and the log already carries it at
+`ERROR` with a `subsystem` field.
+
+There are three honest mitigations and no fourth:
+
+- Read the log for the reason; the endpoint tells you which subsystem.
+- The answer is at least consistent: the auth dependency checker is
+  retired at the moment of the freeze, so the body has the same shape
+  from the first request of the window to the last.
+- Run with health auth off if the message must be readable over HTTP —
+  accepting that it is then readable by anyone who can reach the port.
+
+Keeping the store open across the window would restore the detail, but it
+would re-hold the flock and the PID file that the split teardown exists
+to release, blocking the restart the operator is presumably attempting.
+
+Note that this is the existing policy applied consistently, not a new
+hole: a startup failure *before* the authorization store opens already
+reached the same reduced body, window or no window.
+
 ### Cost
 
 A caller presenting no credential costs nothing extra: the scheme probe
@@ -495,6 +531,13 @@ The phases that can appear, beyond the subsystem names already listed:
 `http-server` *is* the listener failing to bind, so none of those three
 can be served to a probe: their failures reach the log only. They are
 listed for completeness.
+
+Every other phase in the table registers its check on a listener that is
+already bound — but by default the process exits immediately afterwards,
+so nothing has time to scrape it.
+[`--startup-error-linger`](#keeping-the-endpoints-alive-after-a-failed-startup)
+is what makes these entries reachable by a monitoring system rather than
+only by an in-process test.
 
 `meta-store` rather than `bolt` names the KV migrations and the
 unknown-store-type case because those run for every `--store` value: a
@@ -777,6 +820,122 @@ With health auth enabled, this early phase is also the
 and the authorization store opens, no credential can be checked, and
 both endpoints report check names and statuses without their messages.
 
+**They stop serving when the process exits**, which on a failed startup
+is immediately — the listener is torn down microseconds after the
+failure is recorded. See
+[Keeping the endpoints alive after a failed startup](#keeping-the-endpoints-alive-after-a-failed-startup)
+for the flag that changes this.
+
+### Keeping the endpoints alive after a failed startup
+
+A startup failure is recorded on both endpoints (see [Startup failure
+checks](#startup-failure-checks)), and then the process exits and the
+listener goes with it. In practice a monitoring system never sees it:
+the body exists for microseconds. The log line is the reliable copy.
+
+`--startup-error-linger` keeps both endpoints answering for a fixed
+duration after a failed startup, so a scraper can retrieve which
+subsystem failed and why before the process goes away:
+
+```
+influxd --startup-error-linger=30s
+```
+
+| | default (`0`) | `--startup-error-linger=30s` |
+|---|---|---|
+| `/health` after a failed start | connection refused | `503`, frozen, naming the failing subsystem, for 30s |
+| `/ready` after a failed start | connection refused | `503` `"starting"`, frozen, per-gate reasons, for 30s |
+| bolt flock, sqlite, engine | released by process death | released **before** the window opens |
+| PID file | released by process death | **held** for the window, released on exit |
+| exit code and stderr | `1`, the startup error | unchanged |
+| `SIGINT` during the window | — | cuts the window short, then exits |
+
+The equivalent environment variable is
+`INFLUXD_STARTUP_ERROR_LINGER`, and the config file key is
+`startup-error-linger`. Any Go duration string works (`45s`, `1m`).
+
+**The value is capped at 30 minutes.** The window holds the HTTP port on
+a process that has already failed, and every supervisor that would
+restart it is waiting on that process to exit, so an unbounded value
+turns a failed start into an indefinite outage — a worse failure than the
+one the window exists to report. A larger value is accepted, capped, and
+logged at `WARN` naming the flag, the value you asked for and the one you
+got; `print-config` still reports what you configured.
+
+**Everything except the listener and the PID file is released before the
+wait begins.** The bolt flock, the sqlite file and the engine directory
+belong to the next run rather than to one that already failed, so a
+supervisor with `Restart=on-failure` is not blocked for the length of the
+window.
+
+The PID file is deliberately *not* released with them. It is the
+interlock that stops a second `influxd` starting against this data
+directory, and for the length of the window this process is still running
+and still holding its port — so releasing it would let a concurrent start
+past the check that exists to catch exactly this, only to fail it later
+on `listen tcp: address already in use`, which names the wrong cause. A
+PID file describes a live process for as long as the process is alive.
+It is removed by the final teardown, after the listener closes.
+
+One exception, which predates this flag: an engine that failed partway
+through `Open` registers no closer, so it is not closed here either.
+Nothing holds a lock on it in that state.
+
+**The report is frozen at the moment of failure.** Tearing a subsystem
+down makes its own check start failing — a closed sqlite handle fails its
+ping, and the `bolt` prober's last result ages into `"stale: last probe
+…"` — and because failing checks sort first and `/health`'s top-level
+`message` is the first of them, a closed `bolt` would otherwise outrank
+and mask the `engine` failure the window exists to publish. So the whole
+check set is snapshotted before any teardown runs and served unchanged
+for the rest of the process's life.
+
+What is frozen is the *check set*, not the whole envelope. Two `/health`
+scrapes 30 seconds apart return byte-identical documents: every field it
+carries — `status`, `message`, `checks`, `version`, `commit` — comes from
+the frozen set or from build info. `/ready` additionally reports
+`started` and `up`, and `up` is recomputed per request as the elapsed
+time since the handler was built, so it advances across the window like
+it does at any other time. A scraper diffing `/ready` bodies to decide
+whether the report has changed must ignore `up`; the `checks` array is
+the part that is pinned.
+
+`/ready` reports `"starting"` throughout, exactly as it does during a
+normal boot. `/health` is the endpoint that distinguishes the two: it
+passes for the whole of a normal startup and fails only once a phase has
+failed.
+
+> [!IMPORTANT]
+> `/health` returns `503` from the **start** of the window. A liveness
+> probe whose `periodSeconds × failureThreshold` is shorter than the
+> linger will kill the container before anyone scrapes the reason, and
+> the feature will appear to work in manual testing and silently not in
+> production. Nothing in this repository configures a probe — those live
+> in Helm charts and operator manifests — so check yours before choosing
+> a value. A startup probe with a generous `failureThreshold`, or a
+> liveness probe that does not start until the startup probe succeeds, is
+> the usual arrangement.
+
+> [!WARNING]
+> `SIGTERM` is not trapped. `influxd` registers only `os.Interrupt`, so a
+> `systemctl stop` or a pod deletion during the window kills the process
+> where it stands and the final teardown never runs. The split above is
+> what limits the damage: the file locks are already gone, so the next
+> start is not blocked on them. What is left behind is a stale PID file —
+> the same thing an uncatchable signal leaves behind at any other point in
+> the process's life, and what `--overwrite-pid-file` is for. `SIGINT`
+> (Ctrl-C) does cut the window short.
+
+With health auth enabled the window is less useful than it looks; see
+[Check detail during the window](#check-detail-during-the-window).
+
+**One behavior change at the default.** `Shutdown` now runs on the
+startup-failure path even at `--startup-error-linger=0`. It did not
+before: a failed startup returned without reaching it, so a `--pid-file`
+was left behind and the next start met
+`PID file exists (possible unclean shutdown or another instance already
+running)`. That is now cleaned up.
+
 ### Picking the right endpoint
 
 Use `/ready`:
@@ -1038,9 +1197,12 @@ with a `subsystem` field naming the phase. This state is terminal: the
 process exits rather than retrying, so an orchestrator restarting the
 container will hit the same failure until the underlying cause is fixed.
 
-**Note on timing:** `influxd` currently exits as soon as `run` returns,
-so a scraper may or may not catch the body before the listener closes.
-The log line is the reliable copy.
+**Note on timing:** by default `influxd` exits as soon as `run` returns,
+so a scraper will almost certainly not catch the body before the listener
+closes — the log line is the reliable copy. Set
+[`--startup-error-linger`](#keeping-the-endpoints-alive-after-a-failed-startup)
+to hold both endpoints open, with this body frozen, long enough to be
+scraped.
 
 ### `/health` 503 — sqlite not open
 

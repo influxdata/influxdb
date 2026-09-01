@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -313,4 +314,57 @@ func TestNewInfluxdCommand_HealthAuthOptOutFromConfigFile(t *testing.T) {
 	o := resolveOpts(t, v, "--hardening-enabled")
 	assert.False(t, o.HealthAuthEnabled)
 	assert.True(t, o.HealthAuthEnabledSet, "the config file supplied a value")
+}
+
+// TestNewInfluxdCommand_StartupErrorLinger covers every way the option can be
+// supplied. It is a duration, which is the part worth pinning: viper's
+// cast.ToDurationE reads "30s" from a config file, and the derived env var name
+// is generated rather than declared, so nothing else in the tree would catch a
+// rename.
+func TestNewInfluxdCommand_StartupErrorLinger(t *testing.T) {
+	t.Parallel()
+
+	t.Run("absent", func(t *testing.T) {
+		t.Parallel()
+
+		o := resolveOpts(t, viper.New())
+		assert.Zero(t, o.StartupErrorLinger, "the default must exit immediately, as before")
+	})
+
+	t.Run("command line", func(t *testing.T) {
+		t.Parallel()
+
+		o := resolveOpts(t, viper.New(), "--startup-error-linger=30s")
+		assert.Equal(t, 30*time.Second, o.StartupErrorLinger)
+	})
+
+	t.Run("config file", func(t *testing.T) {
+		t.Parallel()
+
+		v := viper.New()
+		v.SetConfigType("yaml")
+		require.NoError(t, v.ReadConfig(strings.NewReader("startup-error-linger: 1m\n")))
+
+		o := resolveOpts(t, v)
+		assert.Equal(t, time.Minute, o.StartupErrorLinger)
+	})
+}
+
+// TestNewInfluxdCommand_StartupErrorLingerFromEnv pins the derived env var.
+// INFLUXD_* is how a containerized influxd is configured, which is also where a
+// failed startup is hardest to observe. Not parallel: t.Setenv forbids it.
+func TestNewInfluxdCommand_StartupErrorLingerFromEnv(t *testing.T) {
+	t.Setenv("INFLUXD_STARTUP_ERROR_LINGER", "45s")
+
+	o := resolveOpts(t, viper.New())
+	assert.Equal(t, 45*time.Second, o.StartupErrorLinger)
+}
+
+// TestPrintConfig_ReportsStartupErrorLinger keeps the option discoverable: an
+// operator finds it by reading what print-config emits.
+func TestPrintConfig_ReportsStartupErrorLinger(t *testing.T) {
+	t.Parallel()
+
+	got := printConfig(t)
+	assert.Contains(t, got, "startup-error-linger: 0s")
 }

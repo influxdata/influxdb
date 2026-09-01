@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,6 +30,52 @@ import (
 // the option's definition, the probe that decides whether the operator set it,
 // and the hardening implication that defers to that answer.
 const healthAuthEnabledFlag = "health-auth-enabled"
+
+// startupErrorLingerFlag names the --startup-error-linger option. Shared by the
+// option's definition and the log line holdForStartupError writes when the wait
+// begins, so an operator reading the log knows which flag produced it.
+const startupErrorLingerFlag = "startup-error-linger"
+
+// maxStartupErrorLinger caps --startup-error-linger. The window holds the HTTP
+// port open on a process that has already failed, and every supervisor that
+// would restart it -- systemd, a container runtime, a shell loop -- is waiting
+// on that process to exit, so an unbounded value turns a failed start into an
+// indefinite outage. That is a far worse failure than the one the window exists
+// to report. Thirty minutes is well past any scrape interval a monitoring
+// system uses and well short of the point at which nobody notices.
+//
+// Enforced in Launcher.holdForStartupError rather than on the option, so that
+// every caller is covered and so print-config keeps reporting what the operator
+// configured rather than silently rewriting it -- print-config output is
+// routinely redirected into a config file.
+const maxStartupErrorLinger = 30 * time.Minute
+
+// shutdownTimeout bounds teardown, giving in-progress requests a few seconds to
+// finish. It applies to the normal exit path and to both phases of the
+// startup-failure path. The check freeze that precedes them has a budget of its
+// own; see freezeTimeout.
+const shutdownTimeout = 2 * time.Second
+
+// freezeTimeout is the backstop on the whole check freeze that precedes a
+// startup-failure teardown. It is emphatically not the probe budget:
+// kit/check.Check.Freeze bounds every probe individually at
+// check.DefaultProbeTimeout, and that per-probe bound is what keeps one slow
+// subsystem from spending the time the checks after it need. This caps only the
+// sum, so a check set that has grown, or a run in which many subsystems are
+// slow at once, cannot hold open a process that has already failed.
+//
+// It is sized so that a healthy freeze never reaches it. Once it expires the
+// remaining probes run on a dead context, and a cancelled probe snapshots as a
+// failure that can outrank the attribution the freeze exists to preserve --
+// precisely the drift the per-probe bound was introduced to stop. The launcher
+// registers on the order of fifteen checks, so the worst case at
+// DefaultProbeTimeout apiece is around 7.5s; this leaves that room and then
+// some for the set to grow.
+//
+// Separate from shutdownTimeout because the two bound unrelated work -- probing
+// subsystems that are still up, versus draining in-flight HTTP requests -- and
+// resizing one must not silently resize the other.
+const freezeTimeout = 15 * time.Second
 
 func errInvalidFlags(flags []string, configFile string) error {
 	return fmt.Errorf(
@@ -172,17 +219,44 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		}
 		l.log = logger
 
-		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
-		if err := l.run(signals.WithStandardSignals(ctx), o); err != nil {
-			return err
+		// Start the launcher and wait for it to exit on SIGINT. SIGTERM is not
+		// trapped — kit/signals registers os.Interrupt and os.Kill, and SIGKILL
+		// cannot be caught — so a SIGTERM kills the process where it stands.
+		runErr := l.run(signals.WithStandardSignals(ctx), o)
+		if runErr != nil {
+			// Startup failed. Release everything a restart needs and, if the
+			// operator asked for it, keep /health and /ready answering long
+			// enough for a scraper to read which subsystem failed and why.
+			l.holdForStartupError(ctx, o.StartupErrorLinger)
+		} else {
+			<-l.Done()
 		}
-		<-l.Done()
 
-		// Tear down the launcher, allowing it a few seconds to finish any
-		// in-progress requests.
-		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		// Tear down whatever is left, allowing it a few seconds to finish any
+		// in-progress requests. Derived from the outer ctx rather than the
+		// signal-wrapped one so a signal cannot truncate teardown.
+		//
+		// This runs on the startup-failure path too, which it did not before:
+		// that path used to return above and leave a --pid-file orphaned for
+		// the next start to trip over.
+		shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
-		return l.Shutdown(shutdownCtx)
+		serr := l.Shutdown(shutdownCtx)
+
+		// Join rather than pick a winner. runErr leads, so the exit code and
+		// the first line influxd prints are what they have always been, while a
+		// teardown failure stays reachable through errors.Is and errors.As
+		// instead of living only in the log -- which is what a caller inspecting
+		// the error, a test among them, has to work with. errors.Join returns
+		// nil when both are nil and the surviving error's own message when only
+		// one is, so neither single-error case changes at all; only a startup
+		// failure whose teardown ALSO failed gains a second line.
+		//
+		// No aggregate log line here: runClosers already logs every closer
+		// failure at Error with the subsystem that produced it, which is the
+		// same reasoning holdForStartupError documents for discarding the error
+		// from its own phase.
+		return errors.Join(runErr, serr)
 	}
 }
 
@@ -198,6 +272,15 @@ type InfluxdOpts struct {
 
 	PIDFile          string
 	OverwritePIDFile bool
+
+	// StartupErrorLinger is how long a failed startup keeps /health and /ready
+	// serving before the process exits, so a monitoring system can retrieve the
+	// subsystem attribution that would otherwise die with the listener. Zero,
+	// the default, exits immediately as before, and anything above
+	// maxStartupErrorLinger is capped to it. Everything except the listener and
+	// the PID file is released before the wait begins; see
+	// Launcher.holdForStartupError.
+	StartupErrorLinger time.Duration
 
 	AssetsPath string
 	BoltPath   string
@@ -284,8 +367,9 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		FluxLogEnabled:    false,
 		ReportingDisabled: false,
 
-		PIDFile:          "",
-		OverwritePIDFile: false,
+		PIDFile:            "",
+		OverwritePIDFile:   false,
+		StartupErrorLinger: 0,
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
 		SqLitePath: filepath.Join(dir, sqlite.DefaultFilename),
@@ -443,6 +527,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "overwrite-pid-file",
 			Default: o.OverwritePIDFile,
 			Desc:    "overwrite PID file if it already exists instead of exiting",
+		},
+		{
+			DestP:   &o.StartupErrorLinger,
+			Flag:    startupErrorLingerFlag,
+			Default: o.StartupErrorLinger,
+			Desc:    fmt.Sprintf("how long to keep /health and /ready serving after a failed startup, so the error can be retrieved, before exiting. Set to 0 to exit immediately; capped at %s", maxStartupErrorLinger),
 		},
 		{
 			DestP:   &o.SessionLength,
