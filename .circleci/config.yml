@@ -13,9 +13,18 @@ parameters:
   release-ref:
     # Republish support. Set this to an existing release tag (e.g. "v1.13.0")
     # together with 'workflow: republish' to rebuild and publish that tag using
-    # the CI configuration on the branch the pipeline is triggered from. Every
+    # this file as it stands on the branch the pipeline is triggered from. Every
     # job checks the tag out before building, so the artifacts are built from
     # the tagged source even though the pipeline itself is branch triggered.
+    #
+    # That cuts both ways, and only this file comes from the branch: CircleCI
+    # reads config.yml from the triggering ref, but checkout_source then
+    # detaches to the tag, so every file a job reads off disk is the tag's --
+    # .circleci/scripts/get-version, .circleci/packages/,
+    # releng/packages/spec/ and scripts/ci/CHANGELOG_frozen.md. Only the
+    # commands written inline here carry a branch fix. If a release failed
+    # because of a bug in one of those, republishing re-runs the broken tagged
+    # copy; that needs a new tag instead.
     #
     # Leave empty for normal tag, push and nightly builds.
     type: string
@@ -707,7 +716,9 @@ workflows:
   #     -d '{"branch":"1.13","parameters":{"workflow":"republish","release-ref":"v1.13.0"}}'
   #
   # The source is built from release-ref, not from the branch, so the only
-  # difference from the original release build is the CI configuration.
+  # difference from the original release build is this file. Every other file
+  # the jobs read comes from the tag, including the scripts this one invokes;
+  # see the release-ref parameter for what that rules out.
   #
   # This workflow mirrors 'release' job for job, with two intended
   # differences: the hold_publish approval gate, and check_release_tag, which
