@@ -335,8 +335,8 @@ There are three honest mitigations and no fourth:
   accepting that it is then readable by anyone who can reach the port.
 
 Keeping the store open across the window would restore the detail, but it
-would re-hold the flock and the PID file that the split teardown exists
-to release, blocking the restart the operator is presumably attempting.
+would continue holding the flock that the split teardown exists to
+release. The PID file remains held independently until final shutdown.
 
 Note that this is the existing policy applied consistently, not a new
 hole: a startup failure *before* the authorization store opens already
