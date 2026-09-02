@@ -47,13 +47,35 @@ part of `sysexits.h` but `influxd` does not emit them.
 ### What did not change
 
 Anything `influxd` did not classify still exits **1**, exactly as it always has.
-That includes every subcommand, and every way one can fail: `influxd inspect
-dump-wal /missing.wal` exits 1 today and exits 1 now, and so does `influxd
-inspect --bogus-flag`. Cobra would have inherited the server's usage status down
-the whole tree, so each subcommand is given a pass-through of its own to stop
-that — see `newRootCommand` in `cmd/influxd/main.go`. Only the server's startup
-path, and command-line and config-file errors, produce a code from the table
-above.
+That includes every failure of a subcommand that was actually selected and run:
+`influxd inspect dump-wal /missing.wal` exits 1 today and exits 1 now, and so
+does `influxd inspect --bogus-flag`. Cobra would have inherited the server's
+usage status down the whole tree, so each subcommand is given a pass-through of
+its own to stop that — see `newRootCommand` in `cmd/influxd/main.go`. Of the
+statuses in the table above, only the server's own startup path and command line
+produce one — with the single exception below.
+
+### Failures before a command is selected
+
+`influxd` reads the config file and the `INFLUXD_*` environment while it
+assembles its command tree, which happens before cobra has looked at the command
+line at all. Three failures therefore exit **78** for *any* command line,
+`influxd inspect` and `influxd version` included:
+
+- a config file that cannot be read, or will not parse;
+- a config file holding 1.x keys;
+- an `INFLUXD_*` value the option it sets will not accept.
+
+This is not a subcommand acquiring a status it never opted into. No subcommand
+has been selected yet, and none of them will run: what failed is `influxd`
+reading the configuration that every command in the tree shares, so `EX_CONFIG`
+describes it as accurately for `influxd inspect` as for `influxd run`. All three
+already aborted every invocation before these statuses existed — same message,
+exit 1 — so the status is the only thing about them that changed.
+
+Worth knowing when this fires: with no `INFLUXD_CONFIG_PATH` set, `influxd`
+looks for a `config.{json|toml|yaml|yml}` in the working directory, so a broken
+one sitting in the directory you happen to run from produces it too.
 
 A clean stop is still **0**. A `SIGINT` that leads to a successful shutdown exits
 0, so `systemctl stop` does not read as a failure under `Restart=on-failure`.
