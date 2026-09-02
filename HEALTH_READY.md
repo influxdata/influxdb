@@ -847,7 +847,7 @@ influxd --startup-error-linger=30s
 | `/ready` after a failed start | connection refused | `503` `"starting"`, frozen, per-gate reasons, for 30s |
 | bolt flock, sqlite, engine | released by process death | released **before** the window opens |
 | PID file | released by process death | **held** for the window, released on exit |
-| exit code and stderr | `1`, the startup error | unchanged |
+| exit code and stderr | the failure's [exit code](EXIT_CODES.md), the startup error | unchanged |
 | `SIGINT` during the window | — | cuts the window short, then exits |
 
 The equivalent environment variable is

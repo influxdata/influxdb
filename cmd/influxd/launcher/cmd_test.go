@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +71,24 @@ bind-address = "127.0.0.1:8088"
 			require.ElementsMatch(t, tt.want, got)
 		})
 	}
+}
+
+// TestErrInvalidFlags_ExitCode covers the status for the failure an operator is
+// most likely to meet on an upgrade: a 1.x config file handed to a 2.x server.
+// It is reported before the launcher exists, so it is one of the few statuses
+// not pinned by Launcher.run.
+func TestErrInvalidFlags_ExitCode(t *testing.T) {
+	t.Parallel()
+
+	err := errInvalidFlags([]string{"data.index-version"}, "/etc/influxdb/config.toml")
+	require.Error(t, err)
+	require.Equal(t, exit.CodeConfig, exit.Code(err),
+		"a 1.x config file must exit %s: editing the file is the only fix, so a "+
+			"supervisor set to stop retrying on a config error must not restart into it",
+		exit.Name(exit.CodeConfig))
+	require.ErrorContains(t, err, "data.index-version",
+		"pinning a status must not disturb the message")
+	require.ErrorContains(t, err, "/etc/influxdb/config.toml")
 }
 
 func TestInfluxdOpts_ApplyHardeningImplications(t *testing.T) {
@@ -242,6 +261,30 @@ func printConfig(t *testing.T, args ...string) string {
 		printed = rest
 	}
 	return printed
+}
+
+// TestPrintConfig_RejectsPositionalArgs covers the half of a malformed command
+// line that cobra does not route through FlagErrorFunc. `print-config --bogus`
+// is a flag error and exits EX_USAGE; an Args violation is handed back to the
+// caller directly, so without cli.UsageArgs the same operator mistake would
+// exit 1 on the same command.
+func TestPrintConfig_RejectsPositionalArgs(t *testing.T) {
+	t.Parallel()
+
+	cmd, err := newInfluxdCommand(context.Background(), NewOpts(viper.New()))
+	require.NoError(t, err)
+
+	// Args are validated before RunE, so nothing is printed and no options are
+	// resolved.
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"print-config", "bogus"})
+
+	err = cmd.Execute()
+	require.Error(t, err, "print-config takes no positional arguments")
+	require.Equal(t, exit.CodeUsage, exit.Code(err),
+		"a wrong command line must exit %s however it is wrong", exit.Name(exit.CodeUsage))
 }
 
 // TestPrintConfig_ReportsHardeningImplications pins that print-config resolves

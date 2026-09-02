@@ -60,7 +60,13 @@ See 'influxd -h' for the full list of config options supported by the server.
 
 			return nil
 		},
-		Args: cobra.NoArgs,
+		// An unexpected positional argument is the same operator mistake as an
+		// unknown flag, which the root's FlagErrorFunc already reports as
+		// EX_USAGE. Cobra returns an Args violation to the caller directly
+		// instead of routing it through that func, so without this wrapper
+		// print-config answers one mistake two ways: `--bogus` exits 64 and
+		// `bogus` exits 1.
+		Args: cli.UsageArgs(cobra.NoArgs),
 	}
 	if err := cli.BindOptions(v, cmd, printOpts); err != nil {
 		return nil, err
