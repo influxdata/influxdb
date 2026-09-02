@@ -22,7 +22,6 @@ import (
 var errnoCodes = map[syscall.Errno]int{
 	// Permission, for files and for binding a reserved address.
 	windows.ERROR_ACCESS_DENIED:      CodeNoPerm,
-	windows.ERROR_WRITE_PROTECT:      CodeNoPerm,
 	windows.ERROR_PRIVILEGE_NOT_HELD: CodeNoPerm,
 	windows.WSAEACCES:                CodeNoPerm,
 
@@ -32,9 +31,14 @@ var errnoCodes = map[syscall.Errno]int{
 	windows.ERROR_INVALID_DRIVE:  CodeNoInput,
 	windows.ERROR_DIRECTORY:      CodeNoInput,
 
-	// Nothing more can be written until space is freed.
+	// Nothing more can be written until space is freed or the volume is made
+	// writable. ERROR_WRITE_PROTECT is write-protected media, which is what
+	// EROFS reports on the other platforms, and it belongs here for the same
+	// reason EROFS does: the fix is to the volume, not to an access-control
+	// entry, so it is not the same failure as ERROR_ACCESS_DENIED.
 	windows.ERROR_DISK_FULL:        CodeCantCreate,
 	windows.ERROR_HANDLE_DISK_FULL: CodeCantCreate,
+	windows.ERROR_WRITE_PROTECT:    CodeCantCreate,
 
 	// Hardware or filesystem trouble underneath a read or write.
 	windows.ERROR_CRC:         CodeIOErr,
