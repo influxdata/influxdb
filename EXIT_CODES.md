@@ -39,7 +39,7 @@ other channels do not.
 | 74 | `EX_IOERR` | An I/O error while reading or writing. Usually hardware or a failing filesystem. | **no** |
 | 75 | `EX_TEMPFAIL` | Something did not get to finish: a dependency timed out, a `SIGINT` interrupted startup, or a stop cut off requests still running when the two-second shutdown budget expired. Nothing is wrong with the configuration or the machine. | **yes** |
 | 77 | `EX_NOPERM` | Permission denied on a data directory, a PID file, a TLS certificate, or a privileged port. | **no** |
-| 78 | `EX_CONFIG` | A configured value is wrong: 1.x keys in a 2.x config file, an unreadable or unparseable config file, an `INFLUXD_*` value the option it sets will not accept, an unknown `--store` or `--secret-store`, an unsupported `--tls-min-version`, or a certificate that will not parse. | **no** |
+| 78 | `EX_CONFIG` | A configured value is wrong: 1.x keys in a 2.x config file, an unreadable or unparseable config file, an `INFLUXD_*` or config-file value the option it sets will not accept, an unknown `--store` or `--secret-store`, an unsupported `--tls-min-version`, or a certificate that will not parse. | **no** |
 
 `EX_NOUSER` (67), `EX_NOHOST` (68), `EX_OSFILE` (72) and `EX_PROTOCOL` (76) are
 part of `sysexits.h` but `influxd` does not emit them.
@@ -64,7 +64,7 @@ line at all. Three failures therefore exit **78** for *any* command line,
 
 - a config file that cannot be read, or will not parse;
 - a config file holding 1.x keys;
-- an `INFLUXD_*` value the option it sets will not accept.
+- an `INFLUXD_*` or config-file value the option it sets will not accept.
 
 This is not a subcommand acquiring a status it never opted into. No subcommand
 has been selected yet, and none of them will run: what failed is `influxd`

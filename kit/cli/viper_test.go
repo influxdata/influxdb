@@ -13,6 +13,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -269,11 +270,16 @@ func Test_NewProgram(t *testing.T) {
 // Test_EnvValueRejected covers a value supplied through the environment that
 // the option it sets will not accept.
 //
-// These branches used to discard the error: the server started on the default
-// and exited 0, so INFLUXD_LOG_LEVEL=trace logged at info and said nothing,
-// while --log-level=trace exits EX_USAGE. An environment variable is one of the
-// three documented ways to set every one of these options, and a wrong one has
-// to be as reportable as a wrong flag.
+// Every branch of BindOptions used to discard the error: the server started on
+// the default and exited 0, so INFLUXD_LOG_LEVEL=trace logged at info and said
+// nothing, while --log-level=trace exits EX_USAGE. An environment variable is
+// one of the three documented ways to set every one of these options, and a
+// wrong one has to be as reportable as a wrong flag.
+//
+// The cases below run one option of each shape BindOptions switches on: the
+// three that parse the value themselves, and the primitives it hands to cast.
+// A primitive is the easier one to leave discarding, because cast accepts so
+// much -- but not, for a bool, the "yes" and "on" an operator will reach for.
 func Test_EnvValueRejected(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -310,6 +316,71 @@ func Test_EnvValueRejected(t *testing.T) {
 				return Opt{DestP: &s, Flag: "custom"}
 			},
 		},
+		{
+			// strconv.ParseBool, which is what both cast and pflag use, takes
+			// neither "yes" nor "on". Discarding this one left the server
+			// reporting while the operator believed it had been turned off.
+			name:  "bool",
+			env:   "TEST_REPORTING_DISABLED",
+			value: "yes",
+			opt: func() Opt {
+				var b bool
+				return Opt{DestP: &b, Flag: "reporting-disabled"}
+			},
+		},
+		{
+			name:  "int",
+			env:   "TEST_QUERY_CONCURRENCY",
+			value: "as many as it takes",
+			opt: func() Opt {
+				var i int
+				return Opt{DestP: &i, Flag: "query-concurrency"}
+			},
+		},
+		{
+			name:  "duration",
+			env:   "TEST_STORAGE_RETENTION_CHECK_INTERVAL",
+			value: "30 minutes",
+			opt: func() Opt {
+				var d time.Duration
+				return Opt{DestP: &d, Flag: "storage-retention-check-interval"}
+			},
+		},
+		{
+			// cast read a unitless value as nanoseconds, so this one used to
+			// start a retention enforcer that ran every 300ns. pflag refuses
+			// it on the command line and now refuses it here.
+			name:  "unitless duration",
+			env:   "TEST_STORAGE_RETENTION_CHECK_INTERVAL",
+			value: "300",
+			opt: func() Opt {
+				var d time.Duration
+				return Opt{DestP: &d, Flag: "storage-retention-check-interval"}
+			},
+		},
+		{
+			// cast parses at 64 bits and converts, so this one used to arrive
+			// as a concurrency quota of -1294967296 and start the server.
+			name:  "int32 out of range",
+			env:   "TEST_QUERY_CONCURRENCY",
+			value: "3000000000",
+			opt: func() Opt {
+				var i int32
+				return Opt{DestP: &i, Flag: "query-concurrency"}
+			},
+		},
+		{
+			// The map branch takes the k=v form and JSON; a bare word is
+			// neither, and the message pflag returns for it is the one an
+			// operator gets from the flag.
+			name:  "string map",
+			env:   "TEST_FEATURE_FLAGS",
+			value: "someFlag",
+			opt: func() Opt {
+				var m map[string]string
+				return Opt{DestP: &m, Flag: "feature-flags"}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -331,6 +402,176 @@ func Test_EnvValueRejected(t *testing.T) {
 			require.ErrorContains(t, err, tt.value, "the message must name the value")
 		})
 	}
+}
+
+// Test_EnvValueStringMap covers the forms a map option accepts from the
+// environment. cast reads a string as JSON alone, which is not the form
+// --feature-flags documents, so k=v used to be discarded in silence: the
+// operator got no flags and no complaint.
+func Test_EnvValueStringMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected map[string]string
+	}{
+		{
+			name:     "k=v",
+			value:    "someFlag=true",
+			expected: map[string]string{"someFlag": "true"},
+		},
+		{
+			name:     "k=v list",
+			value:    "someFlag=true,otherFlag=false",
+			expected: map[string]string{"someFlag": "true", "otherFlag": "false"},
+		},
+		{
+			// What viper hands back for a flag it has already bound, which is
+			// how every option arrives on the second and third BindOptions.
+			name:     "as pflag prints it",
+			value:    "[someFlag=true]",
+			expected: map[string]string{"someFlag": "true"},
+		},
+		{
+			name:     "empty as pflag prints it",
+			value:    "[]",
+			expected: map[string]string{},
+		},
+		{
+			name:     "json",
+			value:    `{"someFlag":"true"}`,
+			expected: map[string]string{"someFlag": "true"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer setEnvVar("TEST_FEATURE_FLAGS", tt.value)()
+
+			var flags map[string]string
+			program := &Program{
+				Name: "test",
+				Opts: []Opt{{DestP: &flags, Flag: "feature-flags"}},
+				Run:  func() error { return nil },
+			}
+
+			_, err := NewCommand(viper.New(), program)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, flags)
+		})
+	}
+}
+
+// Test_EnvValueStringSlice covers the forms a list option accepts from the
+// environment. cast splits a string on whitespace while the flag splits on
+// commas, so INFLUXD_MEASUREMENT=cpu,mem used to arrive as one element that
+// matches no measurement: nothing exported, and nothing said about it.
+func Test_EnvValueStringSlice(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected []string
+	}{
+		{
+			name:     "comma separated",
+			value:    "cpu,mem",
+			expected: []string{"cpu", "mem"},
+		},
+		{
+			name:     "single element",
+			value:    "cpu",
+			expected: []string{"cpu"},
+		},
+		{
+			// Whitespace is part of the element, as it is for the flag. cast
+			// split here instead, turning one name into two.
+			name:     "space in an element",
+			value:    "cpu load,mem",
+			expected: []string{"cpu load", "mem"},
+		},
+		{
+			// An element holding a comma quotes the way it does on the
+			// command line: both read the value as one CSV record.
+			name:     "quoted element",
+			value:    `"cpu,mem",disk`,
+			expected: []string{"cpu,mem", "disk"},
+		},
+		{
+			// What viper hands back for a flag it has already bound, which is
+			// how every option arrives on the second and third BindOptions.
+			name:     "as pflag prints it",
+			value:    "[cpu,mem]",
+			expected: []string{"cpu", "mem"},
+		},
+		{
+			name:     "empty as pflag prints it",
+			value:    "[]",
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer setEnvVar("TEST_MEASUREMENT", tt.value)()
+
+			var measurements []string
+			program := &Program{
+				Name: "test",
+				Opts: []Opt{{DestP: &measurements, Flag: "measurement"}},
+				Run:  func() error { return nil },
+			}
+
+			_, err := NewCommand(viper.New(), program)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, measurements)
+		})
+	}
+}
+
+// Test_BindOptions_Rebind covers binding one set of options onto a second
+// command through the same viper, which is what influxd does for run and
+// print-config.
+//
+// viper answers a key it has no value for with the default of a flag it has
+// already bound, rendered as a string, so the second pass reads every option
+// back through the same conversion an operator's value takes. Rejecting a value
+// there rather than discarding it means a type whose default does not survive
+// the round trip stops the server -- and stops it for `influxd version`, since
+// the tree is built before the command line is read.
+func Test_BindOptions_Rebind(t *testing.T) {
+	var (
+		name     string
+		count    int
+		enabled  bool
+		interval time.Duration
+		hosts    []string
+		flags    map[string]string
+		fancy    customFlag
+	)
+	opts := []Opt{
+		{DestP: &name, Flag: "name", Default: "influxd"},
+		{DestP: &count, Flag: "count", Default: 3},
+		{DestP: &enabled, Flag: "enabled", Default: true},
+		{DestP: &interval, Flag: "interval", Default: time.Minute},
+		{DestP: &hosts, Flag: "hosts", Default: []string{"a", "b"}},
+		{DestP: &flags, Flag: "feature-flags"},
+		{DestP: &fancy, Flag: "fancy-bool", Default: "on"},
+	}
+
+	v := viper.New()
+	first, err := NewCommand(v, &Program{Name: "test", Opts: opts, Run: func() error { return nil }})
+	require.NoError(t, err)
+
+	second := &cobra.Command{Use: "run"}
+	require.NoError(t, BindOptions(v, second, opts), "rebinding must not reject a default of its own")
+	first.AddCommand(second)
+
+	assert.Equal(t, "influxd", name)
+	assert.Equal(t, 3, count)
+	assert.True(t, enabled)
+	assert.Equal(t, time.Minute, interval)
+	assert.Equal(t, []string{"a", "b"}, hosts)
+	assert.Empty(t, flags)
+	assert.Equal(t, customFlag(true), fancy)
 }
 
 func setEnvVar(key, val string) func() {
