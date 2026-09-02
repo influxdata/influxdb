@@ -35,7 +35,7 @@ other channels do not.
 | 69 | `EX_UNAVAILABLE` | Something `influxd` needs is held by someone else: the `--http-bind-address` port is in use, a `--pid-file` already exists, or a dependency refused the connection. | only once the conflict clears |
 | 70 | `EX_SOFTWARE` | Startup failed with no operating-system cause to point at. Read the error and the log. | **no** |
 | 71 | `EX_OSERR` | The operating system is out of a resource: file descriptors (`EMFILE`, `ENFILE`) or memory. | after raising limits |
-| 73 | `EX_CANTCREAT` | A file cannot be created or extended: the disk is full, a quota is exhausted, or the filesystem is read-only. | only once space is freed |
+| 73 | `EX_CANTCREAT` | A file cannot be created or extended: the disk is full, a quota is exhausted, or the filesystem is read-only. | only once space is freed or the filesystem is made writable |
 | 74 | `EX_IOERR` | An I/O error while reading or writing. Usually hardware or a failing filesystem. | **no** |
 | 75 | `EX_TEMPFAIL` | Something did not get to finish: a dependency timed out, a `SIGINT` interrupted startup, or a stop cut off requests still running when the two-second shutdown budget expired. Nothing is wrong with the configuration or the machine. | **yes** |
 | 77 | `EX_NOPERM` | Permission denied on a data directory, a PID file, a TLS certificate, or a privileged port. | **no** |

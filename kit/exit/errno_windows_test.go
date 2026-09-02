@@ -24,7 +24,6 @@ func TestClassifyErrno(t *testing.T) {
 		want  int
 	}{
 		{"ERROR_ACCESS_DENIED", windows.ERROR_ACCESS_DENIED, exit.CodeNoPerm},
-		{"ERROR_WRITE_PROTECT", windows.ERROR_WRITE_PROTECT, exit.CodeNoPerm},
 		{"ERROR_PRIVILEGE_NOT_HELD", windows.ERROR_PRIVILEGE_NOT_HELD, exit.CodeNoPerm},
 		{"WSAEACCES", windows.WSAEACCES, exit.CodeNoPerm},
 
@@ -35,6 +34,9 @@ func TestClassifyErrno(t *testing.T) {
 
 		{"ERROR_DISK_FULL", windows.ERROR_DISK_FULL, exit.CodeCantCreate},
 		{"ERROR_HANDLE_DISK_FULL", windows.ERROR_HANDLE_DISK_FULL, exit.CodeCantCreate},
+		// Write-protected media is the EROFS case: EXIT_CODES.md puts a
+		// read-only filesystem under 73, and so does errno_unix.go.
+		{"ERROR_WRITE_PROTECT", windows.ERROR_WRITE_PROTECT, exit.CodeCantCreate},
 
 		{"ERROR_CRC", windows.ERROR_CRC, exit.CodeIOErr},
 		{"ERROR_WRITE_FAULT", windows.ERROR_WRITE_FAULT, exit.CodeIOErr},
