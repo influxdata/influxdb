@@ -87,6 +87,23 @@ ignore = [
     # upstream datafusion-udf-wasm bump.
     "RUSTSEC-2026-0188",
     #
+    # wasmtime 41.0.4 stores can mix up type indices between engines
+    # (https://rustsec.org/advisories/RUSTSEC-2026-0222). Same transitive path via
+    # datafusion-udf-wasm; only reachable if a Wasm UDF is loaded, and UDFs are
+    # disabled by default (udfs_enabled = false). The 41.x line has no patched
+    # release. The fix requires wasmtime >=46.0.2, which needs an upstream
+    # datafusion-udf-wasm bump to a DataFusion 52 rev.
+    "RUSTSEC-2026-0222",
+    #
+    # wasmtime 41.0.4 filesystem sandbox escape when paths or symlinks contain
+    # trailing slashes (https://rustsec.org/advisories/RUSTSEC-2026-0269). Same
+    # transitive path via datafusion-udf-wasm; only reachable if a Wasm UDF is
+    # loaded with WASI filesystem preopens granted, and UDFs are disabled by
+    # default (udfs_enabled = false). The 41.x line has no patched release. The
+    # fix requires wasmtime >=46.0.3, which needs an upstream datafusion-udf-wasm
+    # bump.
+    "RUSTSEC-2026-0269",
+    #
     # TODO: update wasmtime-wasi via datafusion-udf-wasm to a patched version (>=45.0.3; >=46.0.1 is also fixed)
 
     # rand unsoundness: only reachable with rand's `log` feature plus a custom logger

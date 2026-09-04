@@ -244,6 +244,12 @@ pub trait RetryableObjectStore: ObjectStore {
         .await
     }
 
+    /// Put with retries, skipping the errors a retry cannot change.
+    ///
+    /// `NotFound`, `Precondition`, and `AlreadyExists` are returned on the first
+    /// attempt: a conditional put that lost the race loses it identically on
+    /// every retry, so retrying only delays the caller. Setting
+    /// [`RetryParams::when`] replaces this predicate rather than adding to it.
     async fn put_opts_with_retries(
         &self,
         path: &Path,
@@ -262,7 +268,9 @@ pub trait RetryableObjectStore: ObjectStore {
             Some(|err| {
                 !matches!(
                     err,
-                    ObjectStoreError::NotFound { .. } | ObjectStoreError::Precondition { .. }
+                    ObjectStoreError::NotFound { .. }
+                        | ObjectStoreError::Precondition { .. }
+                        | ObjectStoreError::AlreadyExists { .. }
                 )
             }),
             || async { store.put_opts(path, payload.clone(), options.clone()).await },

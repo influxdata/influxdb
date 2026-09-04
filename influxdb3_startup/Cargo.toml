@@ -10,6 +10,11 @@ build = "Core"
 
 [dependencies]
 chrono.workspace = true
+observability_deps = { path = "../core/observability_deps" }
+tokio.workspace = true
+
+[dev-dependencies]
+test_helpers = { path = "../core/test_helpers" }
 
 [lints]
 workspace = true
