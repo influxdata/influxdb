@@ -31,10 +31,11 @@ use influxdb3_authz::AuthProvider;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_process::build_version_string;
 use influxdb3_telemetry::store::TelemetryStore;
-use observability_deps::tracing::{error, info, trace, warn};
+use observability_deps::tracing::{error, info, warn};
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
@@ -143,6 +144,7 @@ pub struct CreateServerArgs<'a> {
     pub cert_file: Option<PathBuf>,
     pub key_file: Option<PathBuf>,
     pub tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+    pub shutdown_timeout: Duration,
 }
 
 #[derive(Debug)]
@@ -154,6 +156,7 @@ pub struct Server<'a> {
     key_file: Option<PathBuf>,
     cert_file: Option<PathBuf>,
     tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+    shutdown_timeout: Duration,
 }
 
 impl<'a> Server<'a> {
@@ -166,6 +169,7 @@ impl<'a> Server<'a> {
             cert_file,
             key_file,
             tls_minimum_version,
+            shutdown_timeout,
         }: CreateServerArgs<'a>,
     ) -> Self {
         Self {
@@ -176,6 +180,7 @@ impl<'a> Server<'a> {
             key_file,
             cert_file,
             tls_minimum_version,
+            shutdown_timeout,
         }
     }
 
@@ -374,6 +379,8 @@ pub async fn serve(
     paths_without_authz: &'static Vec<&'static str>,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
+    let shutdown_timeout = server.shutdown_timeout;
+
     // Create trace layers for HTTP and gRPC
     let http_trace_layer = server.create_http_trace_layer();
     let grpc_trace_layer = server.create_grpc_trace_layer();
@@ -533,15 +540,30 @@ pub async fn serve(
         }
     }
 
-    // This explicit select! is needed for graceful shutdown
-    trace!("Starting graceful shutdown, waiting for connections to close");
-    tokio::select! {
-        _ = graceful.shutdown() => {
-            info!("All connections closed gracefully");
-        }
-        _ = tokio::time::sleep(tokio::time::Duration::from_secs(30)) => {
-            info!("Graceful shutdown timed out after 30 seconds");
-        }
+    let connection_count = graceful.count();
+    if shutdown_timeout.is_zero() {
+        info!(
+            connection_count,
+            "shutdown timeout is 0s; skipping connection drain"
+        );
+        return Ok(());
+    }
+    info!(
+        connection_count,
+        ?shutdown_timeout,
+        "waiting for connections to drain"
+    );
+    if tokio::time::timeout(shutdown_timeout, graceful.shutdown())
+        .await
+        .is_err()
+    {
+        warn!(
+            connection_count,
+            ?shutdown_timeout,
+            "graceful connection drain timed out; forcing shutdown"
+        );
+    } else {
+        info!("all connections closed gracefully");
     }
 
     Ok(())

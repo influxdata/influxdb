@@ -61,7 +61,6 @@ executors:
     working_directory: /tmp/workspace/<< pipeline.id >>
 
 orbs:
-  aws-s3: circleci/aws-s3@2.0.0
   rust: circleci/rust@1.6.1
 
 # Unlike when a commit is pushed to a branch, CircleCI does not automatically
@@ -146,10 +145,10 @@ parameters:
   # Consistent environment setup for Python Build Standalone
   PBS_DATE:
     type: string
-    default: "20260610"
+    default: "20260901"
   PBS_VERSION:
     type: string
-    default: "3.13.14"
+    default: "3.13.15"
 
 # Consistent Cargo environment configuration
 cargo_env: &cargo_env
@@ -667,22 +666,23 @@ jobs:
       #   - snapshots
       destination:
         type: string
+    environment:
+      # Newer awscli/boto3 send CRC32 checksum headers that Cloudflare R2
+      # rejects unless checksum calculation is limited to when required.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - aws-s3/sync:
-          arguments:             --acl public-read
-          aws-region:            RELEASE_AWS_REGION
-          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
-          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
-          from:                  /tmp/workspace/artifacts
-          to:                    s3://dl.influxdata.com/influxdb/<< parameters.destination >>
       - run:
+          name: Upload artifacts to R2
           command: |
-            export AWS_REGION="${RELEASE_AWS_REGION}"
+            pip install --quiet awscli
             export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
             export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
-            aws cloudfront create-invalidation --distribution-id "${RELEASE_ARTIFACTS_CLOUDFRONT}" --paths '/influxdb/<< parameters.destination >>/*'
+            aws s3 sync /tmp/workspace/artifacts \
+              "s3://dl-influxdata-com/influxdb/<< parameters.destination >>" \
+              --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
+              --region auto
 
   build-docker:
     parameters:

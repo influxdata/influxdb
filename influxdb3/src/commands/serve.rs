@@ -60,6 +60,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::U64Gauge;
 use object_store::ObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
+use object_store_utils::SelfVerifyingCreateStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -247,6 +248,18 @@ pub struct Config {
         action,
     )]
     pub http_bind_address: SocketAddr,
+
+    /// Maximum time to wait for active connections to drain during shutdown.
+    ///
+    /// When the timeout expires, remaining connections are forcibly closed. A value of `0s`
+    /// skips the graceful drain and closes connections immediately.
+    #[clap(
+        long = "shutdown-timeout",
+        env = "INFLUXDB3_SHUTDOWN_TIMEOUT",
+        default_value = "30s",
+        action
+    )]
+    pub shutdown_timeout: humantime::Duration,
 
     /// Enable admin token recovery endpoint on the specified address.
     /// Use flag alone for default address (127.0.0.1:8182) or provide a custom address.
@@ -837,6 +850,21 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         .make_object_store_with_metrics(&metrics)
         .map_err(Error::ObjectStoreParsing)?;
 
+    // The WAL tags its conditional creates so it can recognise its own object
+    // when a retried PUT collides with its own hidden success. This layer sits
+    // innermost so the read-back reaches the real store, not the cache. A
+    // backend that discards object metadata has nowhere to carry the tag, so it
+    // is left unwrapped and keeps the un-verified behaviour.
+    let object_store: Arc<dyn ObjectStore> = if config
+        .object_store_config
+        .object_store
+        .supports_object_metadata()
+    {
+        Arc::new(SelfVerifyingCreateStore::new(object_store, &metrics))
+    } else {
+        object_store
+    };
+
     // setup metrics'd object store:
     let object_store: Arc<dyn ObjectStore> = Arc::new(ObjectStoreMetrics::new(
         object_store,
@@ -1269,6 +1297,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
             cert_file: cert_file.clone(),
             key_file: key_file.clone(),
             tls_minimum_version: (&config.tls_minimum_version).into(),
+            shutdown_timeout: *config.shutdown_timeout,
         })
     });
 
@@ -1280,6 +1309,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         cert_file,
         key_file,
         tls_minimum_version: (&config.tls_minimum_version).into(),
+        shutdown_timeout: *config.shutdown_timeout,
     });
 
     // There are two different select! macros - tokio::select and futures::select
