@@ -25,6 +25,11 @@ Examples
 {}
   --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
                                     [env: INFLUXDB3_HTTP_BIND_ADDR=]
+  --shutdown-timeout <DURATION>    Maximum time to wait for active connections to drain during
+                                   shutdown. Remaining connections are forcibly closed when the
+                                   timeout expires. Set to 0s to close connections immediately.
+                                    [default: 30s]
+                                    [env: INFLUXDB3_SHUTDOWN_TIMEOUT=]
   --log-filter <FILTER>            Logs: filter directive
                                     [default: info,iox_query::query_log=warn,influxdb3_query_executor::query_planner=warn]
                                     [env: INFLUXDB3_LOG_FILTER=]

@@ -486,7 +486,7 @@ async fn test_persist_and_load_checkpoint_roundtrip() {
         .await
         .unwrap();
     assert_eq!(paths.len(), 1);
-    assert!(paths[0].as_ref().contains("2025-01"));
+    assert!(paths[0].location.as_ref().contains("2025-01"));
 
     // Load it back
     let loaded = persister.load_checkpoints(paths).await.unwrap();
@@ -1221,4 +1221,45 @@ async fn test_checkpoint_cleanup_only_affects_specified_month() {
 
     // Now both should have 2
     assert_eq!(count_checkpoints_for_month(&persister, &feb_2025).await, 2);
+}
+
+#[tokio::test]
+async fn load_snapshots_bounds_fetch_concurrency() {
+    use object_store_utils::TestObjectStore;
+    use std::sync::Arc as StdArc;
+
+    // Persist more snapshots than the concurrency bound onto an InMemory store.
+    let inner = StdArc::new(InMemory::new());
+    let seed = Persister::new(
+        StdArc::clone(&inner) as _,
+        "test_host",
+        StdArc::new(MockProvider::new(Time::from_timestamp_nanos(0))) as _,
+        None,
+    );
+    let n = 24usize;
+    for seq in 1..=n as u64 {
+        seed.persist_snapshot(&PersistedSnapshotVersion::V1(create_test_snapshot(seq)))
+            .await
+            .unwrap();
+    }
+
+    // Wrap the store so each get() is tracked and delayed enough to overlap,
+    // making the peak concurrency observable.
+    let tracking = StdArc::new(TestObjectStore::new(inner).with_latency_ms(Some(20), None));
+    let k = 4usize;
+    let persister = Persister::new(
+        StdArc::clone(&tracking) as _,
+        "test_host",
+        StdArc::new(MockProvider::new(Time::from_timestamp_nanos(0))) as _,
+        None,
+    )
+    .with_snapshot_load_concurrency(k);
+
+    let loaded = persister.load_snapshots(n).await.unwrap();
+    assert_eq!(loaded.len(), n, "all snapshots should load");
+    assert!(
+        tracking.max_in_flight_gets() <= k,
+        "peak concurrent gets {} exceeded the bound {k}",
+        tracking.max_in_flight_gets()
+    );
 }

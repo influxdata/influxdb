@@ -1192,6 +1192,20 @@ impl ObjectStoreType {
             Self::Azure => "azure",
         }
     }
+
+    /// Whether the backend retains user-defined object metadata, which gates
+    /// nonce-tagged conditional creates.
+    pub fn supports_object_metadata(&self) -> bool {
+        match self {
+            // `InMemory` keeps the attributes it was given, and
+            // `ThrottledStore` passes them through to it.
+            Self::Memory | Self::MemoryThrottled => true,
+            // `LocalFileSystem` rejects a put carrying any attributes.
+            Self::File => false,
+            // User-defined metadata headers on the object.
+            Self::S3 | Self::Google | Self::Azure => true,
+        }
+    }
 }
 
 /// The `object_store::signer::Signer` trait is implemented for AWS and local file systems, so when

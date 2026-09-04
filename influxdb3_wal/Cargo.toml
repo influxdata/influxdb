@@ -16,6 +16,7 @@ schema = { path = "../core/schema" }
 # Local Crates
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
+object_store_utils = { path = "../object_store_utils" }
 
 # crates.io dependencies
 async-trait.workspace = true
@@ -40,4 +41,6 @@ large-strings = ["influxdb-line-protocol/large-strings"]
 workspace = true
 
 [dev-dependencies]
+metric = { path = "../core/metric" }
+object_store_utils = { path = "../object_store_utils", features = ["test-helpers"] }
 test-log.workspace = true
