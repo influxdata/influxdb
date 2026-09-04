@@ -351,7 +351,13 @@ pub fn percent_of_total_mem_capped(percent: u8, cap_bytes: usize) -> usize {
 /// Threshold (as a fraction of detected process memory) at which configured
 /// memory reservations are considered close enough to the available total to
 /// warrant warning the operator.
-pub const MEMORY_RESERVATION_WARN_THRESHOLD: f64 = 0.90;
+///
+/// Must stay strictly above the sum of the shipped percentage defaults, which
+/// come to 90% (`--exec-mem-pool-size` 20% + `--file-cache-size` 20% +
+/// `--replica-max-buffer-size` 50%), with a byte of slack for the rounding
+/// difference between the two. Otherwise the recommended configuration warns
+/// about itself. Raising any of those defaults means raising this too.
+pub const MEMORY_RESERVATION_WARN_THRESHOLD: f64 = 0.91;
 
 /// Returns true when `reserved` is at or above
 /// [`MEMORY_RESERVATION_WARN_THRESHOLD`] of `detected`.

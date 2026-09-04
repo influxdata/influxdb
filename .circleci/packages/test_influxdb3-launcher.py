@@ -174,7 +174,7 @@ class TestReadConfigTOML(unittest.TestCase):
             env_vars,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_NODE_IDENTIFIER_PREFIX": "test-node",
+                "INFLUXDB3_NODE_ID": "test-node",
             },
         )
 
@@ -190,7 +190,7 @@ class TestReadConfigTOML(unittest.TestCase):
             env_vars,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_DB_DIR": "/var/lib/influxdb3/data",
+                "INFLUXDB3_DATA_DIR": "/var/lib/influxdb3/data",
                 "INFLUXDB3_PLUGIN_DIR": "/var/lib/influxdb3/plugins",
             },
         )
@@ -247,7 +247,7 @@ class TestReadConfigTOML(unittest.TestCase):
             env_vars,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_NODE_IDENTIFIER_PREFIX": "test",
+                "INFLUXDB3_NODE_ID": "test",
             },
         )
 
@@ -333,9 +333,9 @@ class TestReadConfigTOML(unittest.TestCase):
             env_vars,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_ENTERPRISE_CLUSTER_ID": "my-cluster",
-                "INFLUXDB3_ENTERPRISE_MODE": "all",
-                "INFLUXDB3_ENTERPRISE_LICENSE_FILE": "/path/to/license.jwt",
+                "INFLUXDB3_CLUSTER_ID": "my-cluster",
+                "INFLUXDB3_MODE": "all",
+                "INFLUXDB3_LICENSE_FILE": "/path/to/license.jwt",
             },
         )
 
@@ -353,7 +353,7 @@ class TestReadConfigTOML(unittest.TestCase):
             env_vars,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_ENTERPRISE_LICENSE_FILE": "/path/to/license.jwt",
+                "INFLUXDB3_LICENSE_FILE": "/path/to/license.jwt",
                 # --max-total-columns; historic TOML key kept for compatibility
                 "INFLUXDB3_MAX_TOTAL_COLUMNS": "1000000",
                 # --preemptive-cache-age was never ENTERPRISE_-prefixed
@@ -391,7 +391,7 @@ class TestReadConfigTOML(unittest.TestCase):
             env_vars,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_NODE_IDENTIFIER_PREFIX": "test-node",
+                "INFLUXDB3_NODE_ID": "test-node",
                 "INFLUXDB3_RAM_CACHE_SIZE_MB": "2048",
                 "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD": "true",
             },
@@ -550,7 +550,7 @@ class TestReadConfigTOMLValidation(unittest.TestCase):
             result,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_ENTERPRISE_LICENSE_FILE": "/path/to/license.jwt",
+                "INFLUXDB3_LICENSE_FILE": "/path/to/license.jwt",
             },
         )
 
@@ -566,8 +566,8 @@ class TestReadConfigTOMLValidation(unittest.TestCase):
             result,
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_ENTERPRISE_LICENSE_EMAIL": "test@example.com",
-                "INFLUXDB3_ENTERPRISE_LICENSE_TYPE": "trial",
+                "INFLUXDB3_LICENSE_EMAIL": "test@example.com",
+                "INFLUXDB3_LICENSE_TYPE": "trial",
             },
         )
 
@@ -1946,7 +1946,7 @@ class TestLauncherIntegration(unittest.TestCase):
         # Create a mock executable that prints an env var
         mock_exec = self._create_mock_executable(
             "import os\n"
-            'print(f\'NODE_ID={os.environ.get("INFLUXDB3_NODE_IDENTIFIER_PREFIX", "NOT_SET")}\')\n'
+            'print(f\'NODE_ID={os.environ.get("INFLUXDB3_NODE_ID", "NOT_SET")}\')\n'
         )
 
         result = subprocess.run(

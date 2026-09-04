@@ -67,6 +67,7 @@ serde_json.workspace = true
 serde_with.workspace = true
 sha2.workspace = true
 snap.workspace = true
+siphasher.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
@@ -93,4 +94,8 @@ criterion.workspace = true
 
 [[bench]]
 name = "persisted_files_bench"
+harness = false
+
+[[bench]]
+name = "table_buffer_bench"
 harness = false
