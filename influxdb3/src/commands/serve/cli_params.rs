@@ -31,6 +31,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "node-id-from-env",
     "cluster-id",
     "http-bind",
+    "shutdown-timeout",
     "max-http-request-size",
     "object-store",
     "data-dir",

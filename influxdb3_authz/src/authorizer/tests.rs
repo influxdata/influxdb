@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use authz::{Authorizer, Error as IoxError, Permission as IoxPermission, Resource};
-use influxdb3_id::{DbId, TokenId};
+use influxdb3_id::{DbId, TokenId, UserId};
 use iox_time::{MockProvider, Time};
 use sha2::Digest;
 
+use crate::role::role_permissions::{DatabasePermission, RolePermission};
+use crate::role::{DatabaseAction, Permission, Permissions, ResourceIdentifier, RoleAction};
 use crate::{
     AccessRequest, AuthProvider, CatalogProvider, DatabaseActions, IdProvider,
-    ResourceAuthorizationError, TokenAuthenticator, TokenAuthenticatorAndAuthorizer, TokenInfo,
-    TokenPermissionProvider, TokenProvider,
+    ResourceAuthorizationError, Subject, TokenAuthenticator, TokenAuthenticatorAndAuthorizer,
+    TokenInfo, TokenPermissionProvider, TokenProvider,
 };
 
 #[derive(Debug)]
@@ -832,11 +834,6 @@ async fn test_authorizer_multi_db_nonexistent_database() {
 
 #[test]
 fn user_describe_grant_confers_database_visibility_but_not_read() {
-    use crate::role::{
-        DatabaseAction, Permission, Permissions, ResourceIdentifier,
-        role_permissions::DatabasePermission,
-    };
-
     let perms = Permissions::new(vec![Permission::Database(DatabasePermission::new(
         DatabaseAction::Describe,
         ResourceIdentifier::All,
@@ -855,4 +852,78 @@ fn user_describe_grant_confers_database_visibility_but_not_read() {
         Some(db_id),
         DatabaseActions::from(DatabaseActions::READ),
     ));
+}
+
+#[test_log::test(tokio::test)]
+async fn role_authoring_is_admin_only() {
+    let time_provider = MockProvider::new(Time::from_timestamp_nanos(0));
+    let authenticator = TokenAuthenticator::new(
+        Arc::new(MockTokenProvider::new("sample-token", false)),
+        Arc::new(time_provider),
+    );
+    let authorizer = TokenAuthenticatorAndAuthorizer::new(
+        Arc::new(authenticator),
+        Arc::new(MockCatalogProvider(false)) as _,
+    );
+
+    // A non-admin user is denied role authoring for now -- even when it has
+    // role:*:create/update/delete permissions
+    // Temporarily grant these permissions just to verify the admin-only behavior.
+    let user = Subject::User {
+        user_id: UserId::from(1),
+        permissions: Permissions::new(vec![
+            Permission::Role(RolePermission::new(RoleAction::Create)),
+            Permission::Role(RolePermission::new(RoleAction::Update)),
+            Permission::Role(RolePermission::new(RoleAction::Delete)),
+        ]),
+    };
+
+    // Any authenticated subject can read roles; no Role:Read permission is required
+    authorizer
+        .authorize_action(Some(&user), AccessRequest::Role(RoleAction::Read))
+        .await
+        .expect("role read should be allowed for any authenticated user");
+
+    // Non-admin users should be denied role authoring actions
+    for action in [RoleAction::Create, RoleAction::Update, RoleAction::Delete] {
+        let err = authorizer
+            .authorize_action(Some(&user), AccessRequest::Role(action))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, ResourceAuthorizationError::Unauthorized),
+            "expected {action:?} denied for non-admin users"
+        );
+    }
+}
+
+#[test_log::test(tokio::test)]
+async fn role_authoring_allowed_for_admin_user() {
+    let time_provider = MockProvider::new(Time::from_timestamp_nanos(0));
+    let authenticator = TokenAuthenticator::new(
+        Arc::new(MockTokenProvider::new("sample-token", false)),
+        Arc::new(time_provider),
+    );
+    let authorizer = TokenAuthenticatorAndAuthorizer::new(
+        Arc::new(authenticator),
+        Arc::new(MockCatalogProvider(false)) as _,
+    );
+
+    let admin = Subject::User {
+        user_id: UserId::from(1),
+        permissions: Permissions::new(vec![Permission::AccountAdminAll]),
+    };
+
+    // Admin can take all role actions
+    for action in [
+        RoleAction::Create,
+        RoleAction::Update,
+        RoleAction::Delete,
+        RoleAction::Read,
+    ] {
+        authorizer
+            .authorize_action(Some(&admin), AccessRequest::Role(action))
+            .await
+            .unwrap_or_else(|e| panic!("admin should be allowed {action:?}: {e}"));
+    }
 }

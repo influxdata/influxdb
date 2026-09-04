@@ -1,0 +1,1 @@
+idb3.004.l1-I{"catalog_batch":{"Database":{"time_ns":1784682366519548420,"database_id":1,"database_name":"mydb","ops":[{"CreateLastCache":{"table_id":0,"table":"cpu","id":0,"name":"cpu_lvc","key_columns":[{"tag":0}],"value_columns":{"explicit":{"columns":[{"field":[0,0]}]}},"count":1,"ttl":14400}}]}},"sequence_number":5}

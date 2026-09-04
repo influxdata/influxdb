@@ -167,6 +167,8 @@ pub(crate) struct TableSnapshot {
 pub(crate) struct ProcessingEngineTriggerSnapshot {
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,
+    /// This uses a default for definitions from core, which do not specify a `node_spec`.
+    #[serde(default)]
     pub node_spec: NodeSpec,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
@@ -300,6 +302,8 @@ pub(crate) struct FieldFamilySnapshot {
 pub(crate) struct LastCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    /// This uses a default for definitions from core, which do not specify a `node_spec`.
+    #[serde(default)]
     pub(crate) node_spec: NodeSpec,
     pub(crate) id: LastCacheId,
     pub(crate) name: Arc<str>,
@@ -313,6 +317,8 @@ pub(crate) struct LastCacheSnapshot {
 pub(crate) struct DistinctCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    /// This uses a default for definitions from core, which do not specify a `node_spec`.
+    #[serde(default)]
     pub(crate) node_spec: NodeSpec,
     pub(crate) id: DistinctCacheId,
     pub(crate) name: Arc<str>,

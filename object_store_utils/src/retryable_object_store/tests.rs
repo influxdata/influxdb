@@ -253,6 +253,44 @@ async fn put_opts_precondition_not_retried() {
     );
 }
 
+// Ensures put_opts surfaces AlreadyExists errors without retrying.
+#[tokio::test]
+async fn put_opts_already_exists_not_retried() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let path = Path::from("catalog/0001.json");
+    inner
+        .put(&path, PutPayload::from("theirs"))
+        .await
+        .expect("setup: direct put to InMemory should succeed");
+
+    let concrete_store = Arc::new(TestObjectStore::new(Arc::clone(&inner)));
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    concrete_store.reset_call_count();
+
+    let result = test_store
+        .put_opts_with_retries(
+            &path,
+            PutPayload::from("ours"),
+            PutOptions::from(PutMode::Create),
+            "already exists put_opts".to_string(),
+            test_retry_params(4),
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(ObjectStoreError::AlreadyExists { .. })
+    ));
+    // A conditional create that lost the race loses it identically on every
+    // attempt. Callers passing max_retries: usize::MAX spin forever.
+    assert_eq!(
+        concrete_store.get_call_count(),
+        1,
+        "AlreadyExists failures should not be retried"
+    );
+}
+
 #[tokio::test]
 async fn list_with_retries() {
     let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
