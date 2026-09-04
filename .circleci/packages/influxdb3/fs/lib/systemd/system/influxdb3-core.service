@@ -14,7 +14,7 @@ ExecReload=
 WorkingDirectory=/var/lib/influxdb3
 StateDirectory=influxdb3
 # Logs default to journald (StandardOutput/Error); you may optionally set
-# LOG_DESTINATION=file:/var/log/influxdb3/influxdb3.log to use LogsDirectory.
+# INFLUXDB3_LOG_DESTINATION=file:/var/log/influxdb3/influxdb3.log to use LogsDirectory.
 LogsDirectory=influxdb3
 StandardOutput=journal
 StandardError=journal

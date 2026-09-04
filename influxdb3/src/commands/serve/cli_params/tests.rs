@@ -296,3 +296,170 @@ fn test_config_file_cli_option_drift() {
         panic!("Config file and CLI options are out of sync!{}", error_msg);
     }
 }
+
+/// Parse the launcher's `TOML_KEY_ENVVAR` table: `section -> (toml key -> env name)`.
+///
+/// The table is a Python dict literal with one `"key": "ENV",` entry per
+/// line, grouped under `"common"`, `"core"` and `"enterprise"` sections.
+fn parse_launcher_env_table(launcher: &str) -> HashMap<String, HashMap<String, String>> {
+    let mut table: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut section: Option<String> = None;
+    let mut in_table = false;
+    for line in launcher.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("TOML_KEY_ENVVAR") {
+            in_table = true;
+            continue;
+        }
+        if !in_table {
+            continue;
+        }
+        // The table ends at the first unindented closing brace.
+        if line == "}" {
+            break;
+        }
+        if trimmed.starts_with('#') {
+            continue;
+        }
+        let Some((key, rest)) = trimmed.split_once(':') else {
+            continue;
+        };
+        let key = key.trim().trim_matches('"');
+        let rest = rest.trim();
+        if rest.starts_with('{') {
+            section = Some(key.to_string());
+            continue;
+        }
+        let env = rest.trim_end_matches(',').trim_matches('"');
+        let section = section
+            .as_ref()
+            .unwrap_or_else(|| panic!("launcher table entry {key} outside any section"));
+        table
+            .entry(section.clone())
+            .or_default()
+            .insert(key.to_string(), env.to_string());
+    }
+    assert!(in_table, "TOML_KEY_ENVVAR table not found in launcher");
+    table
+}
+
+/// `.conf` keys kept as deprecated aliases of a renamed flag. The launcher
+/// must export the env name of the flag they alias.
+const CONF_KEY_ALIASES: &[(&str, &str)] = &[("datafusion-num-threads", "num-datafusion-threads")];
+
+fn canonical_conf_key(key: &str) -> &str {
+    CONF_KEY_ALIASES
+        .iter()
+        .find(|(alias, _)| *alias == key)
+        .map_or(key, |(_, canonical)| canonical)
+}
+
+/// The env name the launcher exports for a `.conf` key, mirroring
+/// `read_config_toml` in the launcher: explicit table entry (flavor
+/// overrides common), else `INFLUXDB3_` + SCREAMING_SNAKE of the key.
+fn launcher_env_for(
+    table: &HashMap<String, HashMap<String, String>>,
+    flavor: &str,
+    key: &str,
+) -> String {
+    table
+        .get(flavor)
+        .and_then(|m| m.get(key))
+        .or_else(|| table.get("common").and_then(|m| m.get(key)))
+        .cloned()
+        .unwrap_or_else(|| format!("INFLUXDB3_{}", key.replace('-', "_").to_uppercase()))
+}
+
+/// Collect `long name -> env name` for every clap arg (hidden included: the
+/// launcher exports whatever the `.conf` template names, hidden or not).
+fn extract_cli_env_names(cmd: &clap::Command, out: &mut HashMap<String, Option<String>>) {
+    for arg in cmd.get_arguments() {
+        if let Some(long) = arg.get_long() {
+            out.insert(
+                long.to_string(),
+                arg.get_env().map(|e| e.to_string_lossy().into_owned()),
+            );
+        }
+    }
+    for subcmd in cmd.get_subcommands() {
+        extract_cli_env_names(subcmd, out);
+    }
+}
+
+/// Every `.conf` template key must reach the binary through the launcher
+/// under the env name clap actually binds for that flag. A launcher entry
+/// that exports a deprecated alias makes every packaged start log an
+/// `env_compat` deprecation warning for a variable the user never set
+/// (#5465); one that exports an unbound name silently drops the setting
+/// (#4816).
+#[test]
+fn test_launcher_env_names_match_cli() {
+    use crate::commands::serve::Config;
+    use influxdb3_startup::env_compat::ENV_ALIASES;
+
+    let launcher_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../.circleci/packages/influxdb3/fs/usr/lib/influxdb3/influxdb3-launcher"
+    );
+    let config_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../.circleci/packages/influxdb3/fs/usr/share/influxdb3/influxdb3-core.conf"
+    );
+    let flavor = "core";
+
+    let launcher = std::fs::read_to_string(launcher_path)
+        .unwrap_or_else(|e| panic!("Failed to read launcher at {launcher_path}: {e}"));
+    let config = std::fs::read_to_string(config_path)
+        .unwrap_or_else(|e| panic!("Failed to read config file at {config_path}: {e}"));
+
+    let table = parse_launcher_env_table(&launcher);
+    let mut cli_env = HashMap::new();
+    extract_cli_env_names(&Config::command(), &mut cli_env);
+    let legacy: HashMap<&str, &str> = ENV_ALIASES.iter().map(|(new, old)| (*old, *new)).collect();
+
+    let mut keys: Vec<_> = extract_config_file_options(&config).into_iter().collect();
+    keys.sort();
+    let mut errors = Vec::new();
+    for key in keys {
+        let exported = launcher_env_for(&table, flavor, &key);
+        let Some(bound) = cli_env.get(canonical_conf_key(&key)) else {
+            // Covered by test_config_file_cli_option_drift.
+            continue;
+        };
+        // A flag may bind a legacy env primary that ENV_ALIASES maps a
+        // canonical INFLUXDB3_ name onto (the trogging/trace_exporters
+        // exception in docs/cli-conventions.md); the launcher must export
+        // the canonical name, which env_compat copies onto the primary.
+        let expected = bound
+            .as_deref()
+            .map(|b| legacy.get(b).copied().unwrap_or(b));
+        match expected {
+            Some(expected) if expected == exported => {}
+            Some(expected) => match legacy.get(exported.as_str()) {
+                Some(canonical) => errors.push(format!(
+                    "  - {key}: launcher exports {exported}, a deprecated alias of \
+                     {canonical} (every packaged start logs a deprecation warning)"
+                )),
+                None => errors.push(format!(
+                    "  - {key}: launcher exports {exported}, but the flag binds {expected} \
+                     (the setting is silently ignored, or read through a clap-level \
+                     deprecated alias that warns)"
+                )),
+            },
+            None => errors.push(format!(
+                "  - {key}: launcher exports {exported}, but the flag has no env binding \
+                 (the setting is silently ignored)"
+            )),
+        }
+    }
+
+    if !errors.is_empty() {
+        panic!(
+            "Launcher env names do not match the CLI ({launcher_path}):\n{}\n\n\
+             To fix: update TOML_KEY_ENVVAR in the launcher (or remove the entry when the \
+             key follows the INFLUXDB3_ + SCREAMING_SNAKE default) so it exports the env \
+             name the clap flag binds, and update the `(env: ...)` comment in {config_path}.",
+            errors.join("\n")
+        );
+    }
+}

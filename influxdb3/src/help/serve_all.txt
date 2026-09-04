@@ -25,6 +25,8 @@ Examples:
 {}
   --node-id <NODE_ID>                          Node identifier used as prefix in object store file paths
                                                  [env: INFLUXDB3_NODE_ID=]
+  --node-id-from-env <VARNAME>                 Obtain the node id from the specified environment variable; conflicts with --node-id flag
+                                                 [env: INFLUXDB3_NODE_ID_FROM_ENV=]
   --object-store <STORE>                       Object storage to use
                                                  [possible values: memory, memory-throttled, file, s3, google, azure]
 
@@ -139,6 +141,8 @@ Examples:
                                                  [env: INFLUXDB3_OBJECT_STORE_MAX_RETRIES=]
   --object-store-retry-timeout <TIMEOUT>       Max retry timeout
                                                  [env: INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT=]
+  --object-store-request-timeout <TIMEOUT>     HTTP request timeout for object store requests [default: 30s]
+                                                 [env: INFLUXDB3_OBJECT_STORE_REQUEST_TIMEOUT=]
   --object-store-tls-allow-insecure            Skip TLS certificate verification for object storage.
                                                WARNING: This is insecure and should only be used for testing
                                                  [env: INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE=]
@@ -206,6 +210,15 @@ Examples:
                                                    [env: INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT=]
   --snapshotted-wal-files-to-keep <N>            Number of snapshotted WAL files to retain [default: 300]
                                                    [env: INFLUXDB3_SNAPSHOTTED_WAL_FILES_TO_KEEP=]
+  --wal-replay-fail-on-error                     Fail startup on corrupt WAL files instead of skipping them
+                                                   [env: INFLUXDB3_WAL_REPLAY_FAIL_ON_ERROR=]
+  --snapshot-concurrency-limit <N>               Max concurrent snapshot persistence tasks; setting this too
+                                                 high can lead to OOM [default: number of CPUs]
+                                                   [env: INFLUXDB3_SNAPSHOT_CONCURRENCY_LIMIT=]
+  --checkpoint-interval <INTERVAL>               Interval between snapshot checkpoints, which aggregate
+                                                 snapshots into one file per month to speed up startup
+                                                 [default: disabled]
+                                                   [env: INFLUXDB3_CHECKPOINT_INTERVAL=]
 
 {}
   --last-cache-eviction-interval <INTERVAL>      Last-N-Value cache eviction interval [default: 10s]
@@ -215,6 +228,11 @@ Examples:
   --query-log-max-entries <N>                    Maximum number of entries in the query log [default: 1000]
                                                    [aliases: query-log-size]
                                                    [env: INFLUXDB3_QUERY_LOG_MAX_ENTRIES=]
+  --max-concurrent-queries <N>                   Maximum number of queries executing at once; further queries
+                                                 wait until a running query completes. Lower values provide
+                                                 backpressure during load spikes at the cost of queuing
+                                                   [default: effectively unlimited (~2^60)]
+                                                   [env: INFLUXDB3_MAX_CONCURRENT_QUERIES=]
   --query-file-limit <LIMIT>                     Max parquet files allowed in a query
                                                    [env: INFLUXDB3_QUERY_FILE_LIMIT=]
 

@@ -193,8 +193,10 @@ fn test_should_warn_memory_reservations() {
     let total = 100;
     // Below threshold: no warn.
     assert!(!should_warn_memory_reservations(total, 89));
+    // Sum of the shipped percentage defaults: must stay quiet.
+    assert!(!should_warn_memory_reservations(total, 90));
     // At threshold: warn.
-    assert!(should_warn_memory_reservations(total, 90));
+    assert!(should_warn_memory_reservations(total, 91));
     // Above threshold but under detected total: warn.
     assert!(should_warn_memory_reservations(total, 95));
     // Over-committed (reserved > detected): warn.

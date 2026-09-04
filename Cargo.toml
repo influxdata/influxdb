@@ -127,7 +127,7 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.11.3"
+version = "3.11.4"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -225,6 +225,7 @@ serde_json = "1.0.127"
 serde_urlencoded = "0.7.0"
 serde_with = "3.8.1"
 sha2 = "0.10.8"
+siphasher = "1.0"
 snafu = "0.8"
 snap = "1.0.0"
 sqlparser = "0.48.0"

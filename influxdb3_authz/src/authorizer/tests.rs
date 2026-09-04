@@ -1,14 +1,22 @@
 use std::sync::Arc;
 
 use authz::{Authorizer, Error as IoxError, Permission as IoxPermission, Resource};
-use influxdb3_id::{DbId, TokenId};
+use influxdb3_id::{DbId, TokenId, UserId};
 use iox_time::{MockProvider, Time};
 use sha2::Digest;
 
+use crate::role::role_permissions::{
+    DatabasePermission, RolePermission, SystemPermission, UserPermission,
+};
+use crate::role::{
+    DatabaseAction, Permission, Permissions, ResourceIdentifier, RoleAction, SystemAction,
+    SystemResource, UserAction,
+};
 use crate::{
     AccessRequest, AuthProvider, CatalogProvider, DatabaseActions, IdProvider,
-    ResourceAuthorizationError, TokenAuthenticator, TokenAuthenticatorAndAuthorizer, TokenInfo,
-    TokenPermissionProvider, TokenProvider,
+    ResourceAuthorizationError, Subject, SystemActions, SystemResourceIdentifier,
+    TokenAuthenticator, TokenAuthenticatorAndAuthorizer, TokenInfo, TokenPermissionProvider,
+    TokenProvider,
 };
 
 #[derive(Debug)]
@@ -832,11 +840,6 @@ async fn test_authorizer_multi_db_nonexistent_database() {
 
 #[test]
 fn user_describe_grant_confers_database_visibility_but_not_read() {
-    use crate::role::{
-        DatabaseAction, Permission, Permissions, ResourceIdentifier,
-        role_permissions::DatabasePermission,
-    };
-
     let perms = Permissions::new(vec![Permission::Database(DatabasePermission::new(
         DatabaseAction::Describe,
         ResourceIdentifier::All,
@@ -859,12 +862,6 @@ fn user_describe_grant_confers_database_visibility_but_not_read() {
 
 #[test]
 fn user_system_all_read_grant_allows_specific_resources() {
-    use crate::role::{
-        Permission, Permissions, ResourceIdentifier, SystemAction,
-        role_permissions::SystemPermission,
-    };
-    use crate::{SystemActions, SystemResourceIdentifier};
-
     let perms = Permissions::new(vec![Permission::System(SystemPermission::new(
         SystemAction::Read,
         ResourceIdentifier::All,
@@ -886,12 +883,6 @@ fn user_system_all_read_grant_allows_specific_resources() {
 
 #[test]
 fn user_system_specific_grant_only_allows_that_resource() {
-    use crate::role::{
-        Permission, Permissions, ResourceIdentifier, SystemAction, SystemResource,
-        role_permissions::SystemPermission,
-    };
-    use crate::{SystemActions, SystemResourceIdentifier};
-
     let perms = Permissions::new(vec![Permission::System(SystemPermission::new(
         SystemAction::Read,
         ResourceIdentifier::Identifier(SystemResource::Health),
@@ -911,9 +902,6 @@ fn user_system_specific_grant_only_allows_that_resource() {
 
 #[test]
 fn user_without_system_grant_denied() {
-    use crate::role::{Permissions, UserAction, role_permissions::UserPermission};
-    use crate::{SystemActions, SystemResourceIdentifier};
-
     let perms = Permissions::new(vec![crate::role::Permission::User(UserPermission::new(
         UserAction::Read,
     ))]);
@@ -927,12 +915,6 @@ fn user_without_system_grant_denied() {
 
 #[test]
 fn user_system_unknown_resource_id_denied() {
-    use crate::role::{
-        Permission, Permissions, ResourceIdentifier, SystemAction,
-        role_permissions::SystemPermission,
-    };
-    use crate::{SystemActions, SystemResourceIdentifier};
-
     let perms = Permissions::new(vec![Permission::System(SystemPermission::new(
         SystemAction::Read,
         ResourceIdentifier::All,
@@ -947,9 +929,6 @@ fn user_system_unknown_resource_id_denied() {
 
 #[test]
 fn user_system_admin_all_covers_system_access() {
-    use crate::role::{Permission, Permissions};
-    use crate::{SystemActions, SystemResourceIdentifier};
-
     let perms = Permissions::new(vec![Permission::AccountAdminAll]);
 
     assert!(super::check_user_system_access(
@@ -957,4 +936,78 @@ fn user_system_admin_all_covers_system_access() {
         SystemResourceIdentifier::from(SystemResourceIdentifier::HEALTH),
         SystemActions::from(SystemActions::READ),
     ));
+}
+
+#[test_log::test(tokio::test)]
+async fn role_authoring_is_admin_only() {
+    let time_provider = MockProvider::new(Time::from_timestamp_nanos(0));
+    let authenticator = TokenAuthenticator::new(
+        Arc::new(MockTokenProvider::new("sample-token", false)),
+        Arc::new(time_provider),
+    );
+    let authorizer = TokenAuthenticatorAndAuthorizer::new(
+        Arc::new(authenticator),
+        Arc::new(MockCatalogProvider(false)) as _,
+    );
+
+    // A non-admin user is denied role authoring for now -- even when it has
+    // role:*:create/update/delete permissions
+    // Temporarily grant these permissions just to verify the admin-only behavior.
+    let user = Subject::User {
+        user_id: UserId::from(1),
+        permissions: Permissions::new(vec![
+            Permission::Role(RolePermission::new(RoleAction::Create)),
+            Permission::Role(RolePermission::new(RoleAction::Update)),
+            Permission::Role(RolePermission::new(RoleAction::Delete)),
+        ]),
+    };
+
+    // Any authenticated subject can read roles; no Role:Read permission is required
+    authorizer
+        .authorize_action(Some(&user), AccessRequest::Role(RoleAction::Read))
+        .await
+        .expect("role read should be allowed for any authenticated user");
+
+    // Non-admin users should be denied role authoring actions
+    for action in [RoleAction::Create, RoleAction::Update, RoleAction::Delete] {
+        let err = authorizer
+            .authorize_action(Some(&user), AccessRequest::Role(action))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, ResourceAuthorizationError::Unauthorized),
+            "expected {action:?} denied for non-admin users"
+        );
+    }
+}
+
+#[test_log::test(tokio::test)]
+async fn role_authoring_allowed_for_admin_user() {
+    let time_provider = MockProvider::new(Time::from_timestamp_nanos(0));
+    let authenticator = TokenAuthenticator::new(
+        Arc::new(MockTokenProvider::new("sample-token", false)),
+        Arc::new(time_provider),
+    );
+    let authorizer = TokenAuthenticatorAndAuthorizer::new(
+        Arc::new(authenticator),
+        Arc::new(MockCatalogProvider(false)) as _,
+    );
+
+    let admin = Subject::User {
+        user_id: UserId::from(1),
+        permissions: Permissions::new(vec![Permission::AccountAdminAll]),
+    };
+
+    // Admin can take all role actions
+    for action in [
+        RoleAction::Create,
+        RoleAction::Update,
+        RoleAction::Delete,
+        RoleAction::Read,
+    ] {
+        authorizer
+            .authorize_action(Some(&admin), AccessRequest::Role(action))
+            .await
+            .unwrap_or_else(|e| panic!("admin should be allowed {action:?}: {e}"));
+    }
 }
