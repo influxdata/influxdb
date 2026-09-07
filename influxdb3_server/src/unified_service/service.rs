@@ -20,6 +20,7 @@ pub(crate) struct UnifiedService<S> {
     grpc_service: S,
     without_auth: bool,
     paths_without_authz: &'static Vec<&'static str>,
+    max_request_bytes: usize,
 }
 
 impl<S> UnifiedService<S> {
@@ -28,12 +29,14 @@ impl<S> UnifiedService<S> {
         grpc_service: S,
         without_auth: bool,
         paths_without_authz: &'static Vec<&'static str>,
+        max_request_bytes: usize,
     ) -> Self {
         Self {
             http_api,
             grpc_service,
             without_auth,
             paths_without_authz,
+            max_request_bytes,
         }
     }
 }
@@ -94,25 +97,72 @@ where
             let http_api = Arc::clone(&self.http_api);
             let without_auth = self.without_auth;
             let paths_without_authz = self.paths_without_authz;
+            let max_request_bytes = self.max_request_bytes;
 
             Box::pin(async move {
                 // Convert hyper::Request<Incoming> to iox_http_util::Request
                 let (parts, body) = req.into_parts();
+                let max_request_bytes = max_request_bytes;
 
-                // Collect the body
-                let collected = match body.collect().await {
-                    Ok(collected) => collected,
-                    Err(e) => {
-                        // Convert body collection error to HTTP response
-                        return Ok(http::Response::builder()
-                            .status(http::StatusCode::BAD_REQUEST)
-                            .body(iox_http_util::bytes_to_response_body(format!(
-                                "Failed to read request body: {e}"
-                            )))
-                            .unwrap());
+                // Enforce the configured request body limit here, at the
+                // service boundary, before any body bytes are buffered in
+                // memory. A Content-Length that exceeds the limit is rejected
+                // outright; requests without a usable Content-Length (e.g.
+                // chunked transfer encoding) are read incrementally and capped
+                // at the limit, so no request can force unbounded allocation.
+                let too_large = |body_size: usize| {
+                    http::Response::builder()
+                        .status(http::StatusCode::PAYLOAD_TOO_LARGE)
+                        .header(http::header::CONTENT_TYPE, "text/plain; charset=utf-8")
+                        .body(iox_http_util::bytes_to_response_body(format!(
+                            "request body exceeds maximum size of {max_request_bytes} bytes (got {body_size})"
+                        )))
+                        .unwrap()
+                };
+                let content_length = parts
+                    .headers
+                    .get(http::header::CONTENT_LENGTH)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|s| s.parse::<usize>().ok());
+                let bytes = match content_length {
+                    Some(len) if len > max_request_bytes => {
+                        return Ok(too_large(len));
+                    }
+                    _ => {
+                        let mut collected = Vec::new();
+                        let mut body = body;
+                        let mut exceeded = false;
+                        loop {
+                            match body.frame().await {
+                                Some(Ok(frame)) => {
+                                    if let Some(chunk) = frame.data_ref() {
+                                        let new_len =
+                                            collected.len().saturating_add(chunk.len());
+                                        if new_len > max_request_bytes {
+                                            exceeded = true;
+                                            break;
+                                        }
+                                        collected.extend_from_slice(chunk);
+                                    }
+                                }
+                                Some(Err(e)) => {
+                                    // Convert body collection error to HTTP response
+                                    return Ok(http::Response::builder()
+                                        .status(http::StatusCode::BAD_REQUEST)
+                                        .body(iox_http_util::bytes_to_response_body(format!(
+                                            "Failed to read request body: {e}"
+                                        )))
+                                        .unwrap());
+                                }
+                                None => break,
+                            }
+                        }
+                        if exceeded {
+                            return Ok(too_large(max_request_bytes + 1));
+                        }
+                        bytes::Bytes::from(collected)
                     }
                 };
-                let bytes = collected.to_bytes();
 
                 // Create iox_http_util request body
                 let iox_body = iox_http_util::bytes_to_request_body(bytes);

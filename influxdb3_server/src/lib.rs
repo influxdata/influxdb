@@ -404,6 +404,7 @@ pub async fn serve(
         grpc_service,
         without_auth,
         paths_without_authz,
+        http_api.max_request_bytes(),
     ));
 
     if let (Some(key_file), Some(cert_file)) = (key_file.as_ref(), cert_file.as_ref()) {
