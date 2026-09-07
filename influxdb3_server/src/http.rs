@@ -1075,6 +1075,14 @@ impl HttpApi {
 }
 
 impl HttpApi {
+    /// The configured maximum request body size in bytes.
+    ///
+    /// Exposed so the connection layer can enforce the limit before the body is
+    /// buffered in memory.
+    pub(crate) fn max_request_bytes(&self) -> usize {
+        self.max_request_bytes
+    }
+
     async fn write_lp(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
