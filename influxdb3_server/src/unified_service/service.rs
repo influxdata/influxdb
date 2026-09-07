@@ -136,8 +136,7 @@ where
                             match body.frame().await {
                                 Some(Ok(frame)) => {
                                     if let Some(chunk) = frame.data_ref() {
-                                        let new_len =
-                                            collected.len().saturating_add(chunk.len());
+                                        let new_len = collected.len().saturating_add(chunk.len());
                                         if new_len > max_request_bytes {
                                             exceeded = true;
                                             break;

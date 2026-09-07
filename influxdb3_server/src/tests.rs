@@ -1661,8 +1661,15 @@ async fn request_body_chunked_over_limit_rejected() {
 async fn request_body_under_limit_processed_normally() {
     let (server, shutdown, _) = setup_server_with_max_request_bytes(0, 1 << 20).await;
 
-    let resp =
-        write_lp(&server, "foo", "cpu,host=a val=1i 1", None, false, "nanosecond").await;
+    let resp = write_lp(
+        &server,
+        "foo",
+        "cpu,host=a val=1i 1",
+        None,
+        false,
+        "nanosecond",
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
     shutdown.cancel();
