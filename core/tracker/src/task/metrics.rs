@@ -120,12 +120,12 @@ where
             completed_accu: Default::default(),
             cpu_time_histogram: metric_registry.register_metric_with_options(
                 "influxdb_iox_job_completed_cpu",
-                "CPU time of of completed jobs",
+                "CPU time of completed jobs",
                 Self::duration_histogram_options,
             ),
             wall_time_histogram: metric_registry.register_metric_with_options(
                 "influxdb_iox_job_completed_wall",
-                "Wall time of of completed jobs",
+                "Wall time of completed jobs",
                 Self::duration_histogram_options,
             ),
             completed_but_still_tracked: Default::default(),

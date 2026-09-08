@@ -28,7 +28,7 @@ pub enum CacheError {
                     tags and string fields can be used"
     )]
     NonTagOrStringColumn { attempted: InfluxColumnType },
-    #[error("cannot overwrite an an existing cache: {message}")]
+    #[error("cannot overwrite an existing cache: {message}")]
     ConfigurationMismatch { message: String },
     #[error("unexpected error: {0}")]
     Unexpected(#[from] anyhow::Error),
