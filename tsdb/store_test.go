@@ -702,6 +702,73 @@ func TestStore_DeleteShardsByID(t *testing.T) {
 	}
 }
 
+// Concurrent deletes in one database must not deadlock with each other or
+// with the writes they pause on the surviving shards.
+func TestStore_DeleteShardsByID_Concurrent(t *testing.T) {
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		const shardN = 6
+		for id := uint64(1); id <= shardN; id++ {
+			require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", id, true))
+		}
+
+		done := make(chan struct{})
+		var writers sync.WaitGroup
+		for w := 0; w < 4; w++ {
+			writers.Add(1)
+			go func(w int) {
+				defer writers.Done()
+				for i := 0; ; i++ {
+					select {
+					case <-done:
+						return
+					default:
+					}
+					pt := fmt.Sprintf("cpu,w=%d,i=%d v=1", w, i%50)
+					// Deleted shards are simply gone; any other error is a bug.
+					points, err := models.ParsePointsString(pt)
+					require.NoError(t, err)
+					id := uint64(i%shardN) + 1
+					if err := s.WriteToShard(context.Background(), id, points); err != nil && err != tsdb.ErrShardNotFound {
+						t.Errorf("write to shard %d: %v", id, err)
+						return
+					}
+				}
+			}(w)
+		}
+
+		deletes := make(chan error, 3)
+		go func() { deletes <- s.DeleteShard(1) }()
+		go func() { deletes <- s.DeleteShardsByID([]uint64{2, 3}) }()
+		go func() { deletes <- s.DeleteShardsByID([]uint64{3, 4}) }()
+
+		timeout := time.After(30 * time.Second)
+		for i := 0; i < 3; i++ {
+			select {
+			case err := <-deletes:
+				require.NoError(t, err)
+			case <-timeout:
+				t.Fatal("shard deletes deadlocked")
+			}
+		}
+		close(done)
+		writers.Wait()
+
+		for id := uint64(1); id <= 4; id++ {
+			require.Nil(t, s.Shard(id), "shard %d should be deleted", id)
+		}
+		for id := uint64(5); id <= shardN; id++ {
+			require.NotNil(t, s.Shard(id), "shard %d should survive", id)
+		}
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(t, index) })
+	}
+}
+
 // Ensure the store can create a snapshot to a shard.
 func TestStore_CreateShardSnapShot(t *testing.T) {
 

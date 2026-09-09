@@ -232,6 +232,16 @@ func TestBackupRestore_ReplaceStagedUntilUploadsComplete(t *testing.T) {
 		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00.000000001Z,200,f,m,v2` + "\r\n\r\n"
 	require.Equal(t, exp, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, q))
 
+	// Deletes are refused while the replace is staged: the store would apply
+	// them to the not-yet-committed restored shards too.
+	delReq := l.NewHTTPRequestOrFail(t, "POST",
+		fmt.Sprintf("/api/v2/delete?orgID=%s&bucketID=%s", l.Org.ID, l.Bucket.ID), l.Auth.Token,
+		`{"start":"2000-01-01T00:00:00Z","stop":"2000-01-02T00:00:00Z"}`)
+	delResp, err := nethttp.DefaultClient.Do(delReq)
+	require.NoError(t, err)
+	delResp.Body.Close()
+	require.Equal(t, nethttp.StatusUnprocessableEntity, delResp.StatusCode)
+
 	// A full replace restore still succeeds after the abandoned attempt,
 	// dropping its staged shards and committing the backup's contents.
 	l.RestoreOrFail(t, ctx, restore.Params{Path: backupDir, OnConflict: "replace"})

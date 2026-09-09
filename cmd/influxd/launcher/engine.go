@@ -182,7 +182,7 @@ func (t *TemporaryEngine) RestoreKVStore(ctx context.Context, r io.Reader) error
 	return t.engine.RestoreKVStore(ctx, r)
 }
 
-func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte, replace bool, onReplaceCommitted func()) (map[uint64]uint64, error) {
+func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte, replace bool, onReplaceCommitted func(context.Context) error) (map[uint64]uint64, error) {
 	return t.engine.RestoreBucket(ctx, id, dbi, replace, onReplaceCommitted)
 }
 

@@ -225,7 +225,7 @@ func (m *MockRestoreService) EXPECT() *MockRestoreServiceMockRecorder {
 }
 
 // RestoreBucket mocks base method.
-func (m *MockRestoreService) RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte, replace bool, onReplaceCommitted func()) (map[uint64]uint64, error) {
+func (m *MockRestoreService) RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte, replace bool, onReplaceCommitted func(context.Context) error) (map[uint64]uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RestoreBucket", ctx, id, rpiData, replace, onReplaceCommitted)
 	ret0, _ := ret[0].(map[uint64]uint64)

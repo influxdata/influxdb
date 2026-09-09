@@ -311,20 +311,27 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 	// happens after the client uploads every shard. Applying it earlier would
 	// hand the live bucket the backup's retention settings while its old data
 	// still serves, letting the retention service delete shard groups if the
-	// restore is then cancelled. It runs outside this request, so a failure
-	// only logs: the bucket merely keeps its previous description and
-	// retention settings.
-	var onReplaceCommitted func()
+	// restore is then cancelled. The hook runs inside the committing upload
+	// request, which fails if it does; the engine retries it on the next
+	// upload. Its settings are checked here so it cannot fail on validation
+	// after the data has already been swapped.
+	var onReplaceCommitted func(context.Context) error
 	if outcome == restoredBucketReplaced {
-		onReplaceCommitted = func() {
-			if _, err := h.BucketService.UpdateBucket(context.Background(), target.ID, influxdb.BucketUpdate{
+		if err := validateRestoredRetention(bkt.RetentionPeriod, bkt.ShardGroupDuration); err != nil {
+			h.api.Err(w, r, err)
+			return
+		}
+		onReplaceCommitted = func(ctx context.Context) error {
+			_, err := h.BucketService.UpdateBucket(ctx, target.ID, influxdb.BucketUpdate{
 				Description:        &bkt.Description,
 				RetentionPeriod:    &bkt.RetentionPeriod,
 				ShardGroupDuration: &bkt.ShardGroupDuration,
-			}); err != nil {
+			})
+			if err != nil {
 				h.Logger.Warn("Failed to update replaced bucket's metadata to match the backup",
 					zap.String("bucket_id", target.ID.String()), zap.Error(err))
 			}
+			return err
 		}
 	}
 
@@ -396,6 +403,24 @@ func (h *RestoreHandler) createRestoredBucket(ctx context.Context, bkt *influxdb
 		return existing, restoredBucketReplaced, nil
 	}
 	return bkt, restoredBucketCreated, nil
+}
+
+// validateRestoredRetention applies the retention-policy rules the bucket
+// update at commit time would enforce.
+func validateRestoredRetention(retention, shardGroupDuration time.Duration) error {
+	if retention != 0 && retention < meta.MinRetentionPolicyDuration {
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
+			Msg:  fmt.Sprintf("backup retention period %s is below the minimum of %s", retention, meta.MinRetentionPolicyDuration),
+		}
+	}
+	if retention > 0 && shardGroupDuration > retention {
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
+			Msg:  fmt.Sprintf("backup shard-group duration %s exceeds its retention period %s", shardGroupDuration, retention),
+		}
+	}
+	return nil
 }
 
 func manifestToDbInfo(m influxdb.BucketMetadataManifest) meta.DatabaseInfo {
