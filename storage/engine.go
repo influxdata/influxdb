@@ -308,7 +308,7 @@ func (e *Engine) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	//TODO - remember to add back unicode validation...
+	// TODO - remember to add back unicode validation...
 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -742,10 +742,6 @@ func (e *Engine) dropStagedReplaces(match func(*stagedBucketReplace) bool, rewri
 		st.mu.Lock()
 		st.dropped = true
 		st.mu.Unlock()
-		// Uploads already under way must finish before the caller deletes
-		// the shard files; later ones see dropped and abort.
-		st.uploads.Lock()
-		st.uploads.Unlock()
 	}
 	return dropped
 }
