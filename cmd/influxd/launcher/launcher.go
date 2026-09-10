@@ -735,6 +735,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	ts.BucketService = storage.NewBucketService(m.log, ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
+	// Also applies bucket settings owed by replace restores that committed
+	// before a restart.
+	m.engine.SetBucketService(ts.BucketService)
 
 	bucketManifestWriter := backup.NewBucketManifestWriter(ts, metaClient)
 	bucketManifestWriter.WithLogger(m.log.With(zap.String("service", "bucket-manifest-writer")))

@@ -85,6 +85,33 @@ func (d *databaseState) hasMultipleIndexTypes() bool { return d != nil && len(d.
 type shardErrorMap struct {
 	mu          sync.Mutex
 	shardErrors map[uint64]error
+	// shardPaths: data and WAL directories of shards that failed to open,
+	// so a delete can still remove them.
+	shardPaths map[uint64][2]string
+}
+
+// setShardPaths records where a shard that failed to open keeps its files.
+func (se *shardErrorMap) setShardPaths(shardID uint64, path, walPath string) {
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	if se.shardPaths == nil {
+		se.shardPaths = make(map[uint64][2]string)
+	}
+	se.shardPaths[shardID] = [2]string{path, walPath}
+}
+
+// takeBadShard forgets a shard that failed to open, returning its
+// directories if they were recorded.
+func (se *shardErrorMap) takeBadShard(shardID uint64) (path, walPath string, ok bool) {
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	if _, bad := se.shardErrors[shardID]; !bad {
+		return "", "", false
+	}
+	delete(se.shardErrors, shardID)
+	paths, ok := se.shardPaths[shardID]
+	delete(se.shardPaths, shardID)
+	return paths[0], paths[1], ok
 }
 
 func (se *shardErrorMap) setShardOpenError(shardID uint64, err error) {
@@ -123,8 +150,9 @@ type Store struct {
 	pendingShardDeletes map[uint64]struct{}
 
 	// Serializes the phase of a shard delete that holds write guards on
-	// several shards at once.
-	shardDeleteMu sync.Mutex
+	// several shards at once; shard creation holds it shared so no shard
+	// can join a database while a delete is tombstoning its series.
+	shardDeleteMu sync.RWMutex
 
 	// Maintains a set of shards that failed to open
 	badShards shardErrorMap
@@ -684,6 +712,7 @@ func (s *Store) registerShard(res *shardResponse) {
 	}
 	if res.err != nil {
 		s.badShards.setShardOpenError(res.s.ID(), res.err)
+		s.badShards.setShardPaths(res.s.ID(), res.s.path, res.s.walPath)
 		if s.startupProgressMetrics != nil {
 			s.startupProgressMetrics.ShardLoadFailed(res.s.ID(), res.err)
 		}
@@ -924,6 +953,8 @@ func (s *Store) ShardDigest(id uint64) (io.ReadCloser, int64, error) {
 
 // CreateShard creates a shard with the given id and retention policy on a database.
 func (s *Store) CreateShard(ctx context.Context, database, retentionPolicy string, shardID uint64, enabled bool) error {
+	s.shardDeleteMu.RLock()
+	defer s.shardDeleteMu.RUnlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1048,9 +1079,11 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 	restorable := make(map[uint64]*Shard, len(shardIDs))
 	// Keep the trackers they may hold in-flight writes later deletes must wait on.
 	epochs := make(map[uint64]*epochTracker, len(shardIDs))
+	var badShards []uint64
 	for _, id := range shardIDs {
 		sh, ok := s.shards[id]
 		if !ok {
+			badShards = append(badShards, id)
 			continue
 		}
 		if _, ok := s.pendingShardDeletes[id]; ok {
@@ -1069,6 +1102,21 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 		doomedByDB[sh.Database()] = append(doomedByDB[sh.Database()], sh)
 	}
 	s.mu.Unlock()
+
+	// A shard that never opened has no index to reconcile; just drop its
+	// files. Its series stay in the series file until a later delete.
+	var errs []error
+	for _, id := range badShards {
+		path, walPath, ok := s.badShards.takeBadShard(id)
+		if !ok {
+			continue
+		}
+		if err := os.RemoveAll(path); err != nil {
+			errs = append(errs, fmt.Errorf("remove bad shard %d: %w", id, err))
+		} else if err := os.RemoveAll(walPath); err != nil {
+			errs = append(errs, fmt.Errorf("remove bad shard %d wal: %w", id, err))
+		}
+	}
 
 	// Block new writes to the claimed shards and wait for in-flight writes
 	// that retained them before the claim, so none can add series behind
@@ -1100,7 +1148,6 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 		}
 	}()
 
-	var errs []error
 	removable := make(map[string][]*Shard, len(doomedByDB))
 	for db, doomed := range doomedByDB {
 		if err := s.deleteDoomedSeries(db, doomed); err != nil {

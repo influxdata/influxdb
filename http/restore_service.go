@@ -311,31 +311,24 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 	// happens after the client uploads every shard. Applying it earlier would
 	// hand the live bucket the backup's retention settings while its old data
 	// still serves, letting the retention service delete shard groups if the
-	// restore is then cancelled. The hook runs inside the committing upload
-	// request, which fails if it does; the engine retries it on the next
-	// upload. Its settings are checked here so it cannot fail on validation
-	// after the data has already been swapped.
-	var onReplaceCommitted func(context.Context) error
+	// restore is then cancelled. The engine persists the update alongside the
+	// staged replace and applies it at commit, or at the next startup if the
+	// process exits first. Its settings are checked here so it cannot fail on
+	// validation after the data has already been swapped.
+	var update *influxdb.RestoredBucketUpdate
 	if outcome == restoredBucketReplaced {
 		if err := validateRestoredRetention(bkt.RetentionPeriod, bkt.ShardGroupDuration); err != nil {
 			h.api.Err(w, r, err)
 			return
 		}
-		onReplaceCommitted = func(ctx context.Context) error {
-			_, err := h.BucketService.UpdateBucket(ctx, target.ID, influxdb.BucketUpdate{
-				Description:        &bkt.Description,
-				RetentionPeriod:    &bkt.RetentionPeriod,
-				ShardGroupDuration: &bkt.ShardGroupDuration,
-			})
-			if err != nil {
-				h.Logger.Warn("Failed to update replaced bucket's metadata to match the backup",
-					zap.String("bucket_id", target.ID.String()), zap.Error(err))
-			}
-			return err
+		update = &influxdb.RestoredBucketUpdate{
+			Description:        bkt.Description,
+			RetentionPeriod:    bkt.RetentionPeriod,
+			ShardGroupDuration: bkt.ShardGroupDuration,
 		}
 	}
 
-	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, target.ID, rawDbi, outcome == restoredBucketReplaced, onReplaceCommitted)
+	shardIDMap, err := h.RestoreService.RestoreBucket(ctx, target.ID, rawDbi, outcome == restoredBucketReplaced, update)
 	if err != nil {
 		if outcome == restoredBucketCreated {
 			h.Logger.Warn("Cleaning up after failed bucket-restore", zap.String("bucket_id", target.ID.String()))

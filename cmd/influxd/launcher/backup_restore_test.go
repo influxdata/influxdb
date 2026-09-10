@@ -154,15 +154,22 @@ func TestBackupRestore_OnConflictReplace(t *testing.T) {
 	l.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000\nm,k=v2 f=200i 946684800000000001")
 	l.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
 
-	// Write another point after the backup, then restore over the live bucket.
+	// Write another point and change the bucket's own settings after the
+	// backup, then restore over the live bucket.
 	l.WritePointsOrFail(t, "m,k=v3 f=300i 946684800000000002")
+	desc := "changed after backup"
+	retention := 30 * 24 * time.Hour
+	_, err := l.BucketService(t).UpdateBucket(ctx, l.Bucket.ID, influxdb.BucketUpdate{Description: &desc, RetentionPeriod: &retention})
+	require.NoError(t, err)
 	l.RestoreOrFail(t, ctx, restore.Params{Path: backupDir, OnConflict: "replace"})
 
 	// The bucket must keep its ID so tokens, DBRP mappings, and tasks
-	// referencing it stay valid.
+	// referencing it stay valid, and its settings match the backup again.
 	rbkt, err := l.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{Org: &l.Org.Name, Name: &l.Bucket.Name})
 	require.NoError(t, err)
 	require.Equal(t, l.Bucket.ID, rbkt.ID)
+	require.Equal(t, l.Bucket.Description, rbkt.Description)
+	require.Equal(t, l.Bucket.RetentionPeriod, rbkt.RetentionPeriod)
 
 	// The bucket's contents match the backup: the post-backup point is gone.
 	q := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`

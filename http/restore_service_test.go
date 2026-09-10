@@ -22,18 +22,11 @@ import (
 type restoreServiceMock struct {
 	influxdb.RestoreService
 
-	restoreBucketFn func(ctx context.Context, id platform.ID, dbInfo []byte, replace bool) (map[uint64]uint64, error)
+	restoreBucketFn func(ctx context.Context, id platform.ID, dbInfo []byte, replace bool, update *influxdb.RestoredBucketUpdate) (map[uint64]uint64, error)
 }
 
-func (s *restoreServiceMock) RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte, replace bool, onReplaceCommitted func(context.Context) error) (map[uint64]uint64, error) {
-	m, err := s.restoreBucketFn(ctx, id, dbInfo, replace)
-	// Mimic the engine: the commit hook runs only when a replace succeeds.
-	if err == nil && replace && onReplaceCommitted != nil {
-		if err := onReplaceCommitted(ctx); err != nil {
-			return nil, err
-		}
-	}
-	return m, err
+func (s *restoreServiceMock) RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte, replace bool, update *influxdb.RestoredBucketUpdate) (map[uint64]uint64, error) {
+	return s.restoreBucketFn(ctx, id, dbInfo, replace, update)
 }
 
 func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
@@ -75,22 +68,24 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 			*calls = append(*calls, fmt.Sprintf("delete:%s", id))
 			return nil
 		}
-		buckets.UpdateBucketFn = func(_ context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-			*calls = append(*calls, fmt.Sprintf("update:%s", id))
-			require.Equal(t, existingID, id)
-			require.NotNil(t, upd.RetentionPeriod)
-			require.Equal(t, manifest.RetentionPolicies[0].Duration, *upd.RetentionPeriod)
-			return &influxdb.Bucket{ID: existingID, OrgID: orgID, Name: manifest.BucketName}, nil
-		}
 
 		return NewRestoreHandler(&RestoreBackend{
 			Logger:           zaptest.NewLogger(t),
 			HTTPErrorHandler: kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 			BucketService:    buckets,
 			RestoreService: &restoreServiceMock{
-				restoreBucketFn: func(_ context.Context, id platform.ID, dbInfo []byte, replace bool) (map[uint64]uint64, error) {
+				restoreBucketFn: func(_ context.Context, id platform.ID, dbInfo []byte, replace bool, update *influxdb.RestoredBucketUpdate) (map[uint64]uint64, error) {
 					*calls = append(*calls, fmt.Sprintf("restore:%s:replace=%t", id, replace))
 					require.NotEmpty(t, dbInfo)
+					// The bucket's own settings travel with a replace so the
+					// engine can apply them once the data is swapped.
+					if replace {
+						require.NotNil(t, update)
+						require.Equal(t, manifest.RetentionPolicies[0].Duration, update.RetentionPeriod)
+						require.Equal(t, manifest.RetentionPolicies[0].ShardGroupDuration, update.ShardGroupDuration)
+					} else {
+						require.Nil(t, update)
+					}
 					if restoreErr != nil {
 						return nil, restoreErr
 					}
@@ -184,7 +179,6 @@ func TestRestoreBucketMetadata_OnConflict(t *testing.T) {
 			"create",
 			"find",
 			fmt.Sprintf("restore:%s:replace=true", existingID),
-			fmt.Sprintf("update:%s", existingID),
 		}, calls)
 	})
 
