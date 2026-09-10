@@ -1183,17 +1183,20 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 			// The shard is being permanently removed. Close it first so the
 			// engine's background compaction goroutines stop, then delete its
 			// Prometheus series.
-			if err := sh.CloseAndRemoveMetrics(); err != nil {
-				errs = append(errs, fmt.Errorf("close shard %d: %w", sh.id, err))
-				continue
+			var err error
+			if err = sh.CloseAndRemoveMetrics(); err != nil {
+				err = fmt.Errorf("close shard %d: %w", sh.id, err)
+			} else if err = os.RemoveAll(sh.path); err != nil {
+				err = fmt.Errorf("remove shard %d: %w", sh.id, err)
+			} else if err = os.RemoveAll(sh.walPath); err != nil {
+				err = fmt.Errorf("remove shard %d wal: %w", sh.id, err)
 			}
-
-			// Remove the on-disk shard data.
-			if err := os.RemoveAll(sh.path); err != nil {
-				errs = append(errs, fmt.Errorf("remove shard %d: %w", sh.id, err))
-				continue
-			} else if err := os.RemoveAll(sh.walPath); err != nil {
-				errs = append(errs, fmt.Errorf("remove shard %d wal: %w", sh.id, err))
+			if err != nil {
+				// The shard is gone from the store, so record it as bad with
+				// its paths; a retry removes what is left of it.
+				s.badShards.setShardOpenError(sh.id, err)
+				s.badShards.setShardPaths(sh.id, sh.path, sh.walPath)
+				errs = append(errs, err)
 				continue
 			}
 			s.mu.Lock()

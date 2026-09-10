@@ -255,6 +255,16 @@ func TestBackupRestore_ReplaceStagedUntilUploadsComplete(t *testing.T) {
 	exp = `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
 		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v1` + "\r\n\r\n"
 	require.Equal(t, exp, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, q))
+
+	// A late upload for the abandoned attempt's shard is refused rather than
+	// reported as a success.
+	upReq := l.NewHTTPRequestOrFail(t, "POST",
+		fmt.Sprintf("/api/v2/restore/shards/%d", mappings.ShardMappings[0].NewId), l.Auth.Token, "")
+	upResp, err := nethttp.DefaultClient.Do(upReq)
+	require.NoError(t, err)
+	upResp.Body.Close()
+	require.NotEqual(t, nethttp.StatusOK, upResp.StatusCode)
+	require.Equal(t, exp, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, q))
 }
 
 func TestBackupRestore_Partial(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -363,10 +364,11 @@ func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) 
 	// Any staged replace of the bucket goes with it; DeleteDatabase removes
 	// its shard files along with the rest. The manifest keeps them until
 	// then, so a failure here is retried at the next startup.
-	dropped := e.dropStagedReplaces(func(st *stagedBucketReplace) bool { return st.bucketID == bucketID }, false)
+	dropped := e.dropStagedReplaces(func(st *stagedBucketReplace) bool { return st.bucketID == bucketID })
 	if err := e.tsdbStore.DeleteDatabase(bucketID.String()); err != nil {
 		return err
 	}
+	e.forgetStagedShards(dropped, false)
 	e.stagedMu.Lock()
 	_, pending := e.pendingBucketUpdates[bucketID]
 	delete(e.pendingBucketUpdates, bucketID)
@@ -455,7 +457,7 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	// The restored metadata reallocates shard IDs, so a replace staged
 	// against the old metadata must never commit against the new one. The
 	// manifest stays until the shard files are gone, in case this fails.
-	dropped := e.dropStagedReplaces(func(*stagedBucketReplace) bool { return true }, false)
+	dropped := e.dropStagedReplaces(func(*stagedBucketReplace) bool { return true })
 
 	// Replace KV store data and remove all existing shard data.
 	if err := e.metaClient.Restore(ctx, r); err != nil {
@@ -464,6 +466,7 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	} else if err := e.tsdbStore.DeleteShards(); err != nil {
 		return err
 	}
+	e.forgetStagedShards(dropped, false)
 	e.stagedMu.Lock()
 	e.pendingBucketUpdates = make(map[platform.ID]influxdb.RestoredBucketUpdate)
 	if err := e.writeStagedManifestLocked(); err != nil {
@@ -596,8 +599,9 @@ func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte, 
 		return nil, err
 	}
 	if created, err := createShards(); err != nil {
-		// Nothing can be committing: uploads are still pending.
-		toDelete := append(created, staged.replacedShardIDs...)
+		// Nothing can be committing: uploads are still pending. Copy: created
+		// shares its backing array with staged.shardIDs.
+		toDelete := slices.Concat(created, staged.replacedShardIDs)
 		if err2 := e.tsdbStore.DeleteShardsByID(toDelete); err2 != nil {
 			// Keep the staged entry so a rerun or restart retries the cleanup.
 			e.logger.Warn("Failed to clean up shards after aborted restore",
@@ -671,16 +675,20 @@ func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, sh
 
 	// The previous entry stays in the manifest, and so survives a crash
 	// here, until this replace's own entry overwrites it below.
-	for _, prev := range e.dropStagedReplaces(func(p *stagedBucketReplace) bool { return p.bucketID == id }, false) {
+	for _, prev := range e.dropStagedReplaces(func(p *stagedBucketReplace) bool { return p.bucketID == id }) {
 		prev.mu.Lock()
 		if prev.committed.Load() {
 			// Its shards are the bucket's live data now; only whatever it
 			// failed to delete after committing is still owed.
 			st.replacedShardIDs = append(st.replacedShardIDs, prev.replacedShardIDs...)
+			e.forgetStagedShards([]*stagedBucketReplace{prev}, false)
 		} else if err := e.tsdbStore.DeleteShardsByID(prev.shardIDs); err != nil {
+			// Its mappings stay so uploads of its shards keep being refused.
 			e.logger.Warn("Failed to delete shards from an abandoned bucket replace",
 				zap.String("bucket_id", id.String()), zap.Uint64s("shard_ids", prev.shardIDs), zap.Error(err))
 			st.replacedShardIDs = append(st.replacedShardIDs, prev.shardIDs...)
+		} else {
+			e.forgetStagedShards([]*stagedBucketReplace{prev}, false)
 		}
 		prev.mu.Unlock()
 	}
@@ -709,15 +717,17 @@ func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, sh
 // unstageBucketReplace drops a staged replace whose shard files are gone,
 // unless a newer replace of the same bucket has superseded it.
 func (e *Engine) unstageBucketReplace(st *stagedBucketReplace) {
-	e.dropStagedReplaces(func(p *stagedBucketReplace) bool { return p == st }, true)
+	e.forgetStagedShards(e.dropStagedReplaces(func(p *stagedBucketReplace) bool { return p == st }), true)
 }
 
 // dropStagedReplaces removes every staged replace match accepts from the
-// engine's tracking and marks it so an in-flight commit attempt cannot land.
-// It waits for any commit attempt already under way. The dropped entries are
-// returned; their shard files are left for the caller, as is the manifest
-// unless rewriteManifest is set.
-func (e *Engine) dropStagedReplaces(match func(*stagedBucketReplace) bool, rewriteManifest bool) []*stagedBucketReplace {
+// engine's tracking, marks it so an in-flight commit attempt cannot land, and
+// waits for any commit or shard upload already under way. The dropped entries
+// are returned; their shard files are left for the caller, as is the
+// manifest. Their shard mappings stay, so a later upload of one of their
+// shards is refused rather than landing on a shard about to be deleted; the
+// caller forgets them once the files are gone.
+func (e *Engine) dropStagedReplaces(match func(*stagedBucketReplace) bool) []*stagedBucketReplace {
 	e.stagedMu.Lock()
 	var dropped []*stagedBucketReplace
 	for id, st := range e.stagedReplaces {
@@ -725,15 +735,7 @@ func (e *Engine) dropStagedReplaces(match func(*stagedBucketReplace) bool, rewri
 			continue
 		}
 		delete(e.stagedReplaces, id)
-		for _, sid := range st.shardIDs {
-			delete(e.stagedShards, sid)
-		}
 		dropped = append(dropped, st)
-	}
-	if len(dropped) > 0 && rewriteManifest {
-		if err := e.writeStagedManifestLocked(); err != nil {
-			e.logger.Warn("Failed to rewrite staged restore manifest", zap.Error(err))
-		}
 	}
 	e.stagedMu.Unlock()
 
@@ -742,8 +744,33 @@ func (e *Engine) dropStagedReplaces(match func(*stagedBucketReplace) bool, rewri
 		st.mu.Lock()
 		st.dropped = true
 		st.mu.Unlock()
+		// Uploads that started before the mark drain here; later ones see it.
+		st.uploads.Lock()
+		st.uploads.Unlock()
 	}
 	return dropped
+}
+
+// forgetStagedShards removes the shard mappings of dropped replaces whose
+// shard files are gone or, after a commit, live.
+func (e *Engine) forgetStagedShards(dropped []*stagedBucketReplace, rewriteManifest bool) {
+	if len(dropped) == 0 {
+		return
+	}
+	e.stagedMu.Lock()
+	defer e.stagedMu.Unlock()
+	for _, st := range dropped {
+		for _, sid := range st.shardIDs {
+			if e.stagedShards[sid] == st {
+				delete(e.stagedShards, sid)
+			}
+		}
+	}
+	if rewriteManifest {
+		if err := e.writeStagedManifestLocked(); err != nil {
+			e.logger.Warn("Failed to rewrite staged restore manifest", zap.Error(err))
+		}
+	}
 }
 
 // restageReplaces puts entries dropStagedReplaces removed back, for a caller
@@ -758,9 +785,6 @@ func (e *Engine) restageReplaces(dropped []*stagedBucketReplace) {
 	defer e.stagedMu.Unlock()
 	for _, st := range dropped {
 		e.stagedReplaces[st.bucketID] = st
-		for _, sid := range st.shardIDs {
-			e.stagedShards[sid] = st
-		}
 	}
 }
 
