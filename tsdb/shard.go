@@ -1331,7 +1331,7 @@ func (s *Shard) Restore(ctx context.Context, r io.Reader, basePath string) error
 
 		// Restore to engine.
 		if err := s._engine.Restore(r, basePath); err != nil {
-			return closeWaitNeeded, nil
+			return closeWaitNeeded, err
 		}
 
 		// Close shard.

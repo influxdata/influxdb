@@ -922,6 +922,19 @@ func (c *Client) SetData(data *Data) error {
 	return nil
 }
 
+// UpdateData atomically applies update to a clone of the current metadata
+// and commits the result, so concurrent mutations are not overwritten.
+func (c *Client) UpdateData(update func(data *Data) error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	data := c.cacheData.Clone()
+	if err := update(data); err != nil {
+		return err
+	}
+	return c.commit(data)
+}
+
 // Data returns a clone of the underlying data in the meta store.
 func (c *Client) Data() Data {
 	c.mu.RLock()

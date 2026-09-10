@@ -627,6 +627,221 @@ func TestStore_DeleteShard(t *testing.T) {
 	}
 }
 
+func TestStore_DeleteShardsByID(t *testing.T) {
+
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		// Create three shards in db0 and one in db1.
+		for i, db := range []string{"db0", "db0", "db0", "db1"} {
+			id := uint64(i + 1)
+			if err := s.CreateShard(context.Background(), db, "rp0", id, true); err != nil {
+				return err
+			} else if sh := s.Shard(id); sh == nil {
+				return fmt.Errorf("expected shard %d", id)
+			}
+		}
+
+		// Series cpu,serverb=b and mem,serverc=a exist only in the two doomed
+		// shards; cpu,servera=a survives in shard 3.
+		s.MustWriteToShardString(1, "cpu,servera=a v=1", "cpu,serverb=b v=1")
+		s.MustWriteToShardString(2, "cpu,servera=a v=1", "mem,serverc=a v=1")
+		s.MustWriteToShardString(3, "cpu,servera=a v=1")
+		s.MustWriteToShardString(4, "cpu,serverb=b v=1")
+
+		// Remove both doomed shards in one call.
+		if err := s.DeleteShardsByID([]uint64{1, 2}); err != nil {
+			return err
+		}
+		if sh := s.Shard(1); sh != nil {
+			return fmt.Errorf("expected shard 1 to be deleted")
+		}
+		if sh := s.Shard(2); sh != nil {
+			return fmt.Errorf("expected shard 2 to be deleted")
+		}
+
+		// Only the series still owned by shard 3 remains in db0.
+		keys, err := s.TagKeys(context.Background(), nil, []uint64{3}, nil)
+		if err != nil {
+			return err
+		}
+		expKeys := []tsdb.TagKeys{{Measurement: "cpu", Keys: []string{"servera"}}}
+		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+			return fmt.Errorf("got keys %v, expected %v", got, exp)
+		}
+
+		// Series shared with db1 were not removed from db1's series file.
+		if keys, err = s.TagKeys(context.Background(), nil, []uint64{4}, nil); err != nil {
+			return err
+		}
+		expKeys = []tsdb.TagKeys{{Measurement: "cpu", Keys: []string{"serverb"}}}
+		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+			return fmt.Errorf("got keys %v, expected %v", got, exp)
+		}
+
+		// The store reopens cleanly with the deleted shards gone.
+		if err := s.Reopen(t); err != nil {
+			return err
+		}
+		if sh := s.Shard(1); sh != nil {
+			return fmt.Errorf("expected shard 1 to stay deleted after reopen")
+		}
+		if sh := s.Shard(3); sh == nil {
+			return fmt.Errorf("expected shard 3 to survive reopen")
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(t, index); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+// A bad shard whose files could not be removed stays deletable, so the
+// delete can be retried.
+func TestStore_DeleteShardsByID_BadShardRetry(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 1, true))
+		s.MustWriteToShardString(1, "cpu,servera=a v=1")
+		shardPath := s.Shard(1).Path()
+		require.NoError(t, s.Store.Close())
+		s.Store = nil
+
+		// A corrupt TSM file makes the shard fail to open on reload.
+		require.NoError(t, os.WriteFile(filepath.Join(shardPath, "000000001-000000001.tsm"), []byte("garbage"), 0666))
+		require.NoError(t, s.Reopen(t))
+		require.Contains(t, s.GetBadShardList(), uint64(1))
+
+		// A read-only parent makes removing the shard directory fail.
+		rpPath := filepath.Dir(shardPath)
+		require.NoError(t, os.Chmod(rpPath, 0555))
+		defer os.Chmod(rpPath, 0777)
+		require.Error(t, s.DeleteShardsByID([]uint64{1}))
+		require.Contains(t, s.GetBadShardList(), uint64(1), "bad shard forgotten after a failed removal")
+
+		require.NoError(t, os.Chmod(rpPath, 0777))
+		require.NoError(t, s.DeleteShardsByID([]uint64{1}))
+		require.NotContains(t, s.GetBadShardList(), uint64(1))
+		_, err := os.Stat(shardPath)
+		require.True(t, os.IsNotExist(err), "shard directory still exists")
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(t, index) })
+	}
+}
+
+// A shard whose files fail to be removed must stay deletable by a retry.
+func TestStore_DeleteShardsByID_RemoveFailureRetry(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 1, true))
+		s.MustWriteToShardString(1, "cpu,servera=a v=1")
+		shardPath := s.Shard(1).Path()
+
+		// A read-only parent makes removing the shard directory fail.
+		rpPath := filepath.Dir(shardPath)
+		require.NoError(t, os.Chmod(rpPath, 0555))
+		defer os.Chmod(rpPath, 0777)
+		require.Error(t, s.DeleteShardsByID([]uint64{1}))
+		require.Nil(t, s.Shard(1))
+		require.Contains(t, s.GetBadShardList(), uint64(1), "shard forgotten after a failed removal")
+
+		require.NoError(t, os.Chmod(rpPath, 0777))
+		require.NoError(t, s.DeleteShardsByID([]uint64{1}))
+		require.NotContains(t, s.GetBadShardList(), uint64(1))
+		_, err := os.Stat(shardPath)
+		require.True(t, os.IsNotExist(err), "shard directory still exists")
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(t, index) })
+	}
+}
+
+// Concurrent deletes in one database must not deadlock with each other or
+// with the writes they pause on the surviving shards.
+func TestStore_DeleteShardsByID_Concurrent(t *testing.T) {
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		const shardN = 6
+		for id := uint64(1); id <= shardN; id++ {
+			require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", id, true))
+		}
+
+		done := make(chan struct{})
+		var writers sync.WaitGroup
+		for w := 0; w < 4; w++ {
+			writers.Add(1)
+			go func(w int) {
+				defer writers.Done()
+				for i := 0; ; i++ {
+					select {
+					case <-done:
+						return
+					default:
+					}
+					pt := fmt.Sprintf("cpu,w=%d,i=%d v=1", w, i%50)
+					// Deleted shards are simply gone; any other error is a bug.
+					points, err := models.ParsePointsString(pt)
+					require.NoError(t, err)
+					id := uint64(i%shardN) + 1
+					if err := s.WriteToShard(context.Background(), id, points); err != nil && err != tsdb.ErrShardNotFound {
+						t.Errorf("write to shard %d: %v", id, err)
+						return
+					}
+				}
+			}(w)
+		}
+
+		deletes := make(chan error, 3)
+		go func() { deletes <- s.DeleteShard(1) }()
+		go func() { deletes <- s.DeleteShardsByID([]uint64{2, 3}) }()
+		go func() { deletes <- s.DeleteShardsByID([]uint64{3, 4}) }()
+
+		timeout := time.After(30 * time.Second)
+		for i := 0; i < 3; i++ {
+			select {
+			case err := <-deletes:
+				require.NoError(t, err)
+			case <-timeout:
+				t.Fatal("shard deletes deadlocked")
+			}
+		}
+		close(done)
+		writers.Wait()
+
+		for id := uint64(1); id <= 4; id++ {
+			require.Nil(t, s.Shard(id), "shard %d should be deleted", id)
+		}
+		for id := uint64(5); id <= shardN; id++ {
+			require.NotNil(t, s.Shard(id), "shard %d should survive", id)
+		}
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(t, index) })
+	}
+}
+
 // Ensure the store can create a snapshot to a shard.
 func TestStore_CreateShardSnapShot(t *testing.T) {
 

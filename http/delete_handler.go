@@ -125,6 +125,17 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.DeleteService.DeleteBucketRangePredicate(r.Context(), dr.Org.ID, dr.Bucket.ID, dr.Start, dr.Stop, dr.Predicate, measurement); err != nil {
+		// Keep the code of an error the service classified, e.g. a conflict
+		// with a restore in progress.
+		if code := errors.ErrorCode(err); code != errors.EInternal {
+			h.HandleHTTPError(ctx, &errors.Error{
+				Code: code,
+				Op:   "http/handleDelete",
+				Msg:  fmt.Sprintf("unable to delete: %v", err),
+				Err:  err,
+			}, w)
+			return
+		}
 		h.HandleHTTPError(ctx, &errors.Error{
 			Code: errors.EInternal,
 			Op:   "http/handleDelete",

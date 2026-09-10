@@ -35,6 +35,7 @@ type Engine interface {
 
 	TSDBStore() storage.TSDBStore
 	MetaClient() storage.MetaClient
+	SetBucketService(influxdb.BucketService)
 
 	WithLogger(log *zap.Logger)
 	WithStartupMetrics(sp storage.ShardLoadingProgressMetrics)
@@ -182,8 +183,8 @@ func (t *TemporaryEngine) RestoreKVStore(ctx context.Context, r io.Reader) error
 	return t.engine.RestoreKVStore(ctx, r)
 }
 
-func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte) (map[uint64]uint64, error) {
-	return t.engine.RestoreBucket(ctx, id, dbi)
+func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte, replace bool, update *influxdb.RestoredBucketUpdate) (map[uint64]uint64, error) {
+	return t.engine.RestoreBucket(ctx, id, dbi, replace, update)
 }
 
 func (t *TemporaryEngine) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {
@@ -196,6 +197,10 @@ func (t *TemporaryEngine) RestoreShard(ctx context.Context, shardID uint64, r io
 
 func (t *TemporaryEngine) TSDBStore() storage.TSDBStore {
 	return &t.tsdbStore
+}
+
+func (t *TemporaryEngine) SetBucketService(svc influxdb.BucketService) {
+	t.engine.SetBucketService(svc)
 }
 
 func (t *TemporaryEngine) MetaClient() storage.MetaClient {

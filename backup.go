@@ -46,17 +46,30 @@ type BucketManifestWriter interface {
 	WriteManifest(ctx context.Context, w io.Writer) error
 }
 
+// RestoredBucketUpdate holds the bucket settings from a backup that a replace
+// restore applies to the bucket once its data has been swapped in.
+type RestoredBucketUpdate struct {
+	Description        string        `json:"description"`
+	RetentionPeriod    time.Duration `json:"retention_period"`
+	ShardGroupDuration time.Duration `json:"shard_group_duration"`
+}
+
 // RestoreService represents the data restore functions of InfluxDB.
 type RestoreService interface {
 	// RestoreKVStore restores & replaces metadata database.
 	RestoreKVStore(ctx context.Context, r io.Reader) error
 
-	// RestoreBucket restores storage metadata for a bucket.
+	// RestoreBucket restores storage metadata for a bucket. When replace is
+	// true, the data of any shards the bucket owned beforehand is deleted once
+	// the restored metadata is committed; otherwise pre-existing shard files
+	// are left orphaned on disk. update, if non-nil, is applied to the bucket
+	// once a replace has been fully committed, which for a staged replace only
+	// happens after every restored shard has been uploaded.
 	// TODO(danmoran): As far as I can tell, dbInfo is typed as a []byte because typing it as
 	//  a meta.DatabaseInfo introduces a circular dependency between the root package and `meta`.
 	//  We should refactor to make this signature easier to use. It might be easier to wait
 	//  until we're ready to delete the 2.0.x restore APIs before refactoring.
-	RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte) (shardIDMap map[uint64]uint64, err error)
+	RestoreBucket(ctx context.Context, id platform.ID, dbInfo []byte, replace bool, update *RestoredBucketUpdate) (shardIDMap map[uint64]uint64, err error)
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error
