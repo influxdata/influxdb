@@ -100,18 +100,25 @@ func (se *shardErrorMap) setShardPaths(shardID uint64, path, walPath string) {
 	se.shardPaths[shardID] = [2]string{path, walPath}
 }
 
-// takeBadShard forgets a shard that failed to open, returning its
-// directories if they were recorded.
-func (se *shardErrorMap) takeBadShard(shardID uint64) (path, walPath string, ok bool) {
+// badShardPaths returns the directories of a shard that failed to open, if
+// they were recorded.
+func (se *shardErrorMap) badShardPaths(shardID uint64) (path, walPath string, ok bool) {
 	se.mu.Lock()
 	defer se.mu.Unlock()
 	if _, bad := se.shardErrors[shardID]; !bad {
 		return "", "", false
 	}
-	delete(se.shardErrors, shardID)
 	paths, ok := se.shardPaths[shardID]
-	delete(se.shardPaths, shardID)
 	return paths[0], paths[1], ok
+}
+
+// forgetBadShard drops the record of a shard that failed to open, once its
+// files are gone.
+func (se *shardErrorMap) forgetBadShard(shardID uint64) {
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	delete(se.shardErrors, shardID)
+	delete(se.shardPaths, shardID)
 }
 
 func (se *shardErrorMap) setShardOpenError(shardID uint64, err error) {
@@ -1107,14 +1114,17 @@ func (s *Store) DeleteShardsByID(shardIDs []uint64) error {
 	// files. Its series stay in the series file until a later delete.
 	var errs []error
 	for _, id := range badShards {
-		path, walPath, ok := s.badShards.takeBadShard(id)
+		path, walPath, ok := s.badShards.badShardPaths(id)
 		if !ok {
 			continue
 		}
+		// Forget it only once its files are gone, so a failure can be retried.
 		if err := os.RemoveAll(path); err != nil {
 			errs = append(errs, fmt.Errorf("remove bad shard %d: %w", id, err))
 		} else if err := os.RemoveAll(walPath); err != nil {
 			errs = append(errs, fmt.Errorf("remove bad shard %d wal: %w", id, err))
+		} else {
+			s.badShards.forgetBadShard(id)
 		}
 	}
 

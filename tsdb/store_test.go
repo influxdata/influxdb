@@ -702,6 +702,46 @@ func TestStore_DeleteShardsByID(t *testing.T) {
 	}
 }
 
+// A bad shard whose files could not be removed stays deletable, so the
+// delete can be retried.
+func TestStore_DeleteShardsByID_BadShardRetry(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 1, true))
+		s.MustWriteToShardString(1, "cpu,servera=a v=1")
+		shardPath := s.Shard(1).Path()
+		require.NoError(t, s.Store.Close())
+		s.Store = nil
+
+		// A corrupt TSM file makes the shard fail to open on reload.
+		require.NoError(t, os.WriteFile(filepath.Join(shardPath, "000000001-000000001.tsm"), []byte("garbage"), 0666))
+		require.NoError(t, s.Reopen(t))
+		require.Contains(t, s.GetBadShardList(), uint64(1))
+
+		// A read-only parent makes removing the shard directory fail.
+		rpPath := filepath.Dir(shardPath)
+		require.NoError(t, os.Chmod(rpPath, 0555))
+		defer os.Chmod(rpPath, 0777)
+		require.Error(t, s.DeleteShardsByID([]uint64{1}))
+		require.Contains(t, s.GetBadShardList(), uint64(1), "bad shard forgotten after a failed removal")
+
+		require.NoError(t, os.Chmod(rpPath, 0777))
+		require.NoError(t, s.DeleteShardsByID([]uint64{1}))
+		require.NotContains(t, s.GetBadShardList(), uint64(1))
+		_, err := os.Stat(shardPath)
+		require.True(t, os.IsNotExist(err), "shard directory still exists")
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(t, index) })
+	}
+}
+
 // Concurrent deletes in one database must not deadlock with each other or
 // with the writes they pause on the surviving shards.
 func TestStore_DeleteShardsByID_Concurrent(t *testing.T) {

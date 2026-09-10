@@ -361,20 +361,21 @@ func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) 
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	// Any staged replace of the bucket goes with it; DeleteDatabase removes
-	// its shard files along with the rest.
-	e.dropStagedReplaces(func(st *stagedBucketReplace) bool { return st.bucketID == bucketID }, true)
+	// its shard files along with the rest. The manifest keeps them until
+	// then, so a failure here is retried at the next startup.
+	dropped := e.dropStagedReplaces(func(st *stagedBucketReplace) bool { return st.bucketID == bucketID }, false)
+	if err := e.tsdbStore.DeleteDatabase(bucketID.String()); err != nil {
+		return err
+	}
 	e.stagedMu.Lock()
-	if _, ok := e.pendingBucketUpdates[bucketID]; ok {
-		delete(e.pendingBucketUpdates, bucketID)
+	_, pending := e.pendingBucketUpdates[bucketID]
+	delete(e.pendingBucketUpdates, bucketID)
+	if pending || len(dropped) > 0 {
 		if err := e.writeStagedManifestLocked(); err != nil {
 			e.logger.Warn("Failed to rewrite staged restore manifest", zap.Error(err))
 		}
 	}
 	e.stagedMu.Unlock()
-	err := e.tsdbStore.DeleteDatabase(bucketID.String())
-	if err != nil {
-		return err
-	}
 	return e.metaClient.DropDatabase(bucketID.String())
 }
 
@@ -648,6 +649,9 @@ type stagedBucketReplace struct {
 	dropped bool
 	// committed: the metadata swap is done, so shardIDs are live.
 	committed atomic.Bool
+	// uploads is read-held for the whole of each shard upload, so dropping
+	// the replace can wait for them before its shard files are deleted.
+	uploads sync.RWMutex
 }
 
 // stageBucketReplace records a bucket replace awaiting its shard uploads,
@@ -665,7 +669,9 @@ func (e *Engine) stageBucketReplace(id platform.ID, newDBI meta.DatabaseInfo, sh
 		st.pending[sid] = struct{}{}
 	}
 
-	for _, prev := range e.dropStagedReplaces(func(p *stagedBucketReplace) bool { return p.bucketID == id }, true) {
+	// The previous entry stays in the manifest, and so survives a crash
+	// here, until this replace's own entry overwrites it below.
+	for _, prev := range e.dropStagedReplaces(func(p *stagedBucketReplace) bool { return p.bucketID == id }, false) {
 		prev.mu.Lock()
 		if prev.committed.Load() {
 			// Its shards are the bucket's live data now; only whatever it
@@ -736,6 +742,10 @@ func (e *Engine) dropStagedReplaces(match func(*stagedBucketReplace) bool, rewri
 		st.mu.Lock()
 		st.dropped = true
 		st.mu.Unlock()
+		// Uploads already under way must finish before the caller deletes
+		// the shard files; later ones see dropped and abort.
+		st.uploads.Lock()
+		st.uploads.Unlock()
 	}
 	return dropped
 }
@@ -889,11 +899,20 @@ func (e *Engine) cleanupStagedShards() {
 	remaining := make(map[string]stagedManifestEntry)
 	for bucketID, entry := range manifest {
 		// The swap may have landed before the flag was written; the
-		// metadata owning a restored shard proves it.
+		// metadata owning a restored shard proves it. With nothing to
+		// restore, the metadata having let go of every replaced shard does.
 		committed := entry.Committed
 		for _, sid := range entry.ShardIDs {
 			if _, ok := inMeta[sid]; ok {
 				committed = true
+			}
+		}
+		if !committed && len(entry.ShardIDs) == 0 {
+			committed = true
+			for _, sid := range entry.ReplacedShardIDs {
+				if _, ok := inMeta[sid]; ok {
+					committed = false
+				}
 			}
 		}
 
@@ -1169,6 +1188,22 @@ func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) 
 
 	if e.closing == nil {
 		return ErrEngineClosed
+	}
+
+	// Hold off any drop of the staged replace this shard belongs to until
+	// the upload is done, so its files are not deleted mid-restore.
+	e.stagedMu.Lock()
+	st := e.stagedShards[shardID]
+	e.stagedMu.Unlock()
+	if st != nil {
+		st.uploads.RLock()
+		defer st.uploads.RUnlock()
+		st.mu.Lock()
+		dropped := st.dropped
+		st.mu.Unlock()
+		if dropped {
+			return fmt.Errorf("bucket replace for %q was superseded or cancelled", st.bucketID)
+		}
 	}
 
 	if err := e.tsdbStore.RestoreShard(ctx, shardID, r); err != nil {
