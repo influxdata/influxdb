@@ -361,6 +361,9 @@ func (e *Engine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID platf
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
+	e.restoreMu.Lock()
+	defer e.restoreMu.Unlock()
+
 	// Any staged replace of the bucket goes with it; DeleteDatabase removes
 	// its shard files along with the rest. The manifest keeps them until
 	// then, so a failure here is retried at the next startup.
