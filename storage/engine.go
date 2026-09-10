@@ -744,9 +744,6 @@ func (e *Engine) dropStagedReplaces(match func(*stagedBucketReplace) bool) []*st
 		st.mu.Lock()
 		st.dropped = true
 		st.mu.Unlock()
-		// Uploads that started before the mark drain here; later ones see it.
-		st.uploads.Lock()
-		st.uploads.Unlock()
 	}
 	return dropped
 }
