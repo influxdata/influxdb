@@ -288,14 +288,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		// Match the root handler so /health and /ready also carry the header.
 		m.checkHandler.SetStrictTransportSecurity(opts.StrictTransportSecurityMaxAge)
 	}
-	// Fold --hardening-enabled's implications into the individual options,
-	// which is what NewConfigHandler below reports and what everything past
-	// this point reads. An option the operator set for themselves survives;
-	// see applyHardeningImplications.
-	opts.applyHardeningImplications()
 	// Set before runHTTP so it is in place for the very first request.
-	m.checkHandler.SetHealthAuthRequired(opts.HealthAuthEnabled)
-	if opts.HealthAuthEnabled {
+	healthAuth := opts.healthAuthRequired()
+	m.checkHandler.SetHealthAuthRequired(healthAuth)
+	if healthAuth {
 		// Bracket the window in the log: no credential can be resolved until
 		// the authorization store opens, and an operator who sees a body with
 		// no messages in it should be able to tell that phase apart from a
@@ -398,7 +394,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// than check names and statuses.
 	m.checkHandler.SetCredentialResolver(
 		newHealthCredentialResolver(httpLogger, authSvc, ts.UserService, nil))
-	if opts.HealthAuthEnabled {
+	if healthAuth {
 		m.log.Info("Check detail on /health and /ready now gated on operator permissions",
 			zap.String("credentials", "token"))
 	}

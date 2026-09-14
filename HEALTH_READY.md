@@ -1,7 +1,7 @@
 # `/health` and `/ready`
 
 A reference and operator guide for the two diagnostic endpoints served by
-`influxd`. Both are unauthenticated by default; `--health-auth-enabled`
+`influxd`. Both are unauthenticated by default; `--health-auth-mode=required`
 gates their diagnostic detail behind operator permissions without
 breaking credential-free probes. See [Authentication](#authentication).
 
@@ -68,34 +68,44 @@ By default both endpoints are fully unauthenticated: any caller receives
 the complete body documented below. This is the historical behavior and
 it is unchanged unless you opt in.
 
-`--health-auth-enabled` (also implied by `--hardening-enabled`) requires
-**operator permissions** to read the diagnostic detail. This exists
-because check messages carry raw error text — filesystem paths,
-permission errors, shard ids — which is not appropriate to publish to an
-unauthenticated caller in a hardened deployment.
+`--health-auth-mode=required` requires **operator permissions** to read
+the diagnostic detail. This exists because check messages carry raw error
+text — filesystem paths, permission errors, shard ids — which is not
+appropriate to publish to an unauthenticated caller in a hardened
+deployment.
+
+The option takes one of three values:
+
+| Value | Effect |
+|---|---|
+| `auto` (default) | Follows `--hardening-enabled`: detail is gated when hardening is on, served to everyone when it is off. |
+| `required` | Detail is gated regardless of `--hardening-enabled`. |
+| `disabled` | Detail is served to everyone regardless of `--hardening-enabled`. |
+
+Any other value — including `true` and `false` — is rejected on the
+command line. The same values work from `INFLUXD_HEALTH_AUTH_MODE` or from
+`health-auth-mode` in the config file. There is no bare form: write
+`--health-auth-mode=required`, not `--health-auth-mode` on its own, which
+would consume the next argument as its value.
 
 ### Opting out under `--hardening-enabled`
 
 `--hardening-enabled` turns on every hardening feature, this one
-included. If your monitoring parses the `/health` body, **set
-`--health-auth-enabled=false` explicitly** and it wins:
+included. If your monitoring parses the `/health` body, set the mode to
+`disabled` and hardening leaves it alone:
 
 ```bash
-influxd --hardening-enabled --health-auth-enabled=false
+influxd --hardening-enabled --health-auth-mode=disabled
 ```
-
-The same works from `INFLUXD_HEALTH_AUTH_ENABLED=false` or from
-`health-auth-enabled: false` in the config file. What matters is that the
-option is named somewhere, not where — an option left at its default is
-what `--hardening-enabled` is allowed to imply.
 
 This escape hatch exists because dropping `--hardening-enabled` is not a
 substitute: the flux/pkger IP validator it enables has no per-feature
-flag, so there would be no way to keep it while declining this. The
-opt-out is honored by `applyHardeningImplications` in
-`cmd/influxd/launcher/cmd.go`, and `/api/v2/config` reports the resolved
-value — `health-auth-enabled: false` alongside `hardening-enabled: true`
-— so what the API reports is always what the server enforces.
+flag, so there would be no way to keep it while declining this. The two
+options are resolved by `healthAuthRequired` in
+`cmd/influxd/launcher/cmd.go`. `/api/v2/config` reports each as
+configured — `health-auth-mode: auto` next to `hardening-enabled: true`
+means detail is gated; `health-auth-mode: disabled` means it is not,
+whatever `hardening-enabled` says.
 
 `--template-file-urls-disabled`, the other feature `--hardening-enabled`
 implies, has no such opt-out. It changes no response body, so nothing
@@ -303,7 +313,8 @@ Per-check `message` and the rarely-used `checks` sub-array are
 `omitempty` (see `kit/check/response.go`).
 
 > **This envelope is the unauthenticated default.** With
-> `--health-auth-enabled` (or `--hardening-enabled`) a caller who cannot
+> `--health-auth-mode=required` (or `--hardening-enabled` with the mode at
+> `auto`) a caller who cannot
 > prove operator permissions still gets `name`, `status`, `message` and
 > `checks` on a `200`, but with the per-check messages and the build
 > fields removed; on a `503` it gets `{"name","status"}` and no `checks`
@@ -493,7 +504,8 @@ Notes:
   entirely**, not an empty array. On a `503` it contains **only the
   failing** gates.
 
-> With `--health-auth-enabled` (or `--hardening-enabled`) the `503`
+> With `--health-auth-mode=required` (or `--hardening-enabled` with the
+> mode at `auto`) the `503`
 > `checks` array is withheld from a caller who cannot prove operator
 > permissions, and carries names and statuses without messages during
 > the [startup window](#the-startup-window). `status`, `started` and
@@ -808,7 +820,7 @@ from running.
 **Action:** Check disk and kernel logs for an unresponsive mmap. Inspect
 `iostat`, `dmesg`, and the `influxd` process's CPU and memory state.
 
-**With `--health-auth-enabled`,** this is the one failure where an
+**With health auth required,** this is the one failure where an
 operator token buys nothing: resolving it would read the store that is
 wedged. The body above loses its `message` fields for every caller and
 keeps the `checks` names and statuses, so you can still see what is
@@ -923,9 +935,10 @@ This document is derived from the implementation introduced in commit
   `serverHeaderWriter`.
 - `authz.go` — `OperPermissions`, `Permission.matchesV1` and the
   `instance` wildcard.
-- `cmd/influxd/launcher/cmd.go` — `--health-auth-enabled`,
-  `--hardening-enabled`, and `applyHardeningImplications`, which lets an
-  explicitly-set `--health-auth-enabled` override the implication.
+- `cmd/influxd/launcher/cmd.go` — `--health-auth-mode`,
+  `--hardening-enabled`, and `healthAuthRequired`, which resolves the two.
+- `cmd/influxd/launcher/health_auth_mode.go` — `HealthAuthMode`, the
+  option's `auto|required|disabled` type.
 - `cmd/influxd/launcher/launcher.go` — `openMetaStores` /
   `migrateSQLStore` and the credential-resolver install between them.
 - `kit/check/check.go` — status enum, aggregation rule.
