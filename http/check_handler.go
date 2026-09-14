@@ -154,8 +154,8 @@ func (h *HealthReadyHandler) SetStrictTransportSecurity(maxAge int) {
 // callers that cannot prove operator permissions. Unauthorized callers still
 // receive the correct 200/503 status code and a reduced body, so credential-free
 // liveness probes keep working unchanged; only the diagnostic detail is gated.
-// Opt-in via --health-auth-enabled or --hardening-enabled. Call during setup,
-// before the handler begins serving.
+// Opt-in via --health-auth-mode=required, or --hardening-enabled with the mode
+// left at auto. Call during setup, before the handler begins serving.
 //
 // Until a credential resolver is installed no caller can be identified, and the
 // bodies carry check names and statuses without their messages instead; see

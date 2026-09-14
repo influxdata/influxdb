@@ -46,7 +46,7 @@ func assertReducedHealthy(t *testing.T, body map[string]any) {
 
 func TestLauncher_HealthAuth_Enabled(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
-		o.HealthAuthEnabled = true
+		o.HealthAuthMode = launcher.HealthAuthRequired
 	})
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -105,9 +105,9 @@ func TestLauncher_HealthAuth_Enabled(t *testing.T) {
 	})
 }
 
-// TestLauncher_HealthAuth_ImpliedByHardening pins the OR in the launcher:
-// --hardening-enabled turns on every hardening feature, health auth included,
-// without --health-auth-enabled being set.
+// TestLauncher_HealthAuth_ImpliedByHardening pins the auto mode in a real
+// launcher: --hardening-enabled turns on every hardening feature, health auth
+// included, with --health-auth-mode left at its default.
 func TestLauncher_HealthAuth_ImpliedByHardening(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.HardeningEnabled = true
@@ -125,31 +125,27 @@ func TestLauncher_HealthAuth_ImpliedByHardening(t *testing.T) {
 	assert.Contains(t, body, "version")
 	assert.Contains(t, body, "commit")
 
-	// The implication is resolved into opts before the config handler is built,
-	// so /api/v2/config reports what is actually enforced rather than the raw
-	// flag the operator happened to pass.
+	// /api/v2/config reports the option as configured, not resolved: auto next
+	// to hardening-enabled is how a reader tells that health auth is enforced.
 	status, cfg := getCheckEndpoint(t, l, "/api/v2/config", l.Auth.Token)
 	require.Equal(t, nethttp.StatusOK, status)
 	config, ok := cfg["config"].(map[string]any)
 	require.Truef(t, ok, "expected a config object, got %#v", cfg["config"])
-	assert.Equal(t, true, config["health-auth-enabled"])
+	assert.Equal(t, "auto", config["health-auth-mode"])
+	assert.Equal(t, true, config["hardening-enabled"])
 }
 
 // TestLauncher_HealthAuth_HardeningOptOut pins the escape hatch. An operator
 // who hardens the instance but whose monitoring parses the /health body can set
-// --health-auth-enabled=false and keep both: the full anonymous envelope, and
+// --health-auth-mode=disabled and keep both: the full anonymous envelope, and
 // every other hardening feature -- including the flux/pkger IP validator, which
 // has no per-feature flag of its own and is therefore unreachable if dropping
-// --hardening-enabled were the only way out.
-//
-// HealthAuthEnabledSet is what newInfluxdCommand sets when the operator names
-// the option on the command line, in INFLUXD_HEALTH_AUTH_ENABLED, or in the
-// config file; the three sources are covered by the cmd tests.
+// --hardening-enabled were the only way out. The command line, environment and
+// config file routes to the mode are covered by the cmd tests.
 func TestLauncher_HealthAuth_HardeningOptOut(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.HardeningEnabled = true
-		o.HealthAuthEnabled = false
-		o.HealthAuthEnabledSet = true
+		o.HealthAuthMode = launcher.HealthAuthDisabled
 	})
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -170,12 +166,12 @@ func TestLauncher_HealthAuth_HardeningOptOut(t *testing.T) {
 	assert.NotEmpty(t, res.Header.Get("Strict-Transport-Security"),
 		"opting out of health auth must not disarm the rest of --hardening-enabled")
 
-	// And /api/v2/config reports what is enforced, not the flag that lost.
+	// And /api/v2/config reports both as configured.
 	status, cfg := getCheckEndpoint(t, l, "/api/v2/config", l.Auth.Token)
 	require.Equal(t, nethttp.StatusOK, status)
 	config, ok := cfg["config"].(map[string]any)
 	require.Truef(t, ok, "expected a config object, got %#v", cfg["config"])
-	assert.Equal(t, false, config["health-auth-enabled"])
+	assert.Equal(t, "disabled", config["health-auth-mode"])
 	assert.Equal(t, true, config["hardening-enabled"])
 }
 
