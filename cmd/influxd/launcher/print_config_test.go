@@ -20,6 +20,7 @@ var sliceVar = []string{"hello", "world"}
 var mapVar = map[string]string{"foo": "bar", "baz": "qux"}
 var levelVar = zapcore.InfoLevel
 var idVar, _ = platform.IDFromString("020f755c3c082000")
+var modeVar = HealthAuthAuto // a pflag.Value that is a plain string kind
 
 var opts = []cli.Opt{
 	{
@@ -54,6 +55,10 @@ var opts = []cli.Opt{
 		DestP: &idVar,
 		Flag:  "id-var",
 	},
+	{
+		DestP: &modeVar,
+		Flag:  "mode-var",
+	},
 }
 
 func Test_printAllConfig(t *testing.T) {
@@ -68,6 +73,7 @@ level-var: info
 map-var:
     baz: qux
     foo: bar
+mode-var: auto
 slice-var:
     - hello
     - world
@@ -102,6 +108,10 @@ func Test_printOneConfig(t *testing.T) {
 			key: "map-var",
 			expected: `baz: qux
 foo: bar`,
+		},
+		{
+			key:      "mode-var",
+			expected: "auto",
 		},
 		{
 			key: "slice-var",

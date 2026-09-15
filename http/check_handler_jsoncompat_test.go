@@ -128,13 +128,6 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		sentinelCommit  = "<commit>"
 	)
 
-	decodeTree := func(t *testing.T, body io.Reader) map[string]any {
-		t.Helper()
-		var m map[string]any
-		require.NoError(t, json.NewDecoder(body).Decode(&m))
-		return m
-	}
-
 	info := platform.GetBuildInfo()
 
 	t.Run("health 200 with one passing named check", func(t *testing.T) {
@@ -150,7 +143,7 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		require.Equal(t, "OSS", res.Header.Get("X-Influxdb-Build"))
 		require.Equal(t, info.Version, res.Header.Get("X-Influxdb-Version"))
 
-		got := decodeTree(t, res.Body)
+		got := decodeBody(t, res)
 		require.Equal(t, info.Version, got["version"])
 		require.Equal(t, info.Commit, got["commit"])
 		got["version"] = sentinelVersion
@@ -178,7 +171,7 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		defer closeBody(t, res)
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		got := decodeTree(t, res.Body)
+		got := decodeBody(t, res)
 		got["version"] = sentinelVersion
 		got["commit"] = sentinelCommit
 
@@ -201,7 +194,7 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 		require.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
 
-		got := decodeTree(t, res.Body)
+		got := decodeBody(t, res)
 		got["version"] = sentinelVersion
 		got["commit"] = sentinelCommit
 
@@ -229,7 +222,7 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
 
-		got := decodeTree(t, res.Body)
+		got := decodeBody(t, res)
 		require.IsType(t, "", got["started"])
 		require.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, got["started"])
 		require.IsType(t, "", got["up"])
@@ -251,7 +244,7 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		defer closeBody(t, res)
 		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 
-		got := decodeTree(t, res.Body)
+		got := decodeBody(t, res)
 		require.IsType(t, "", got["started"])
 		require.IsType(t, "", got["up"])
 		got["started"] = sentinelStarted
