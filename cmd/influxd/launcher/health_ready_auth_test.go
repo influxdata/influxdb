@@ -207,7 +207,7 @@ func userFindByIDCalls(t *testing.T, l *launcher.TestLauncher) float64 {
 // some unrelated reason and passing whatever the resolver does.
 func TestLauncher_HealthAuth_ProbesAreNotUserActivity(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
-		o.HealthAuthEnabled = true
+		o.HealthAuthMode = launcher.HealthAuthRequired
 	})
 	defer l.ShutdownOrFail(t, ctx)
 
