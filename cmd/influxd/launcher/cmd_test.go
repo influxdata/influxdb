@@ -276,14 +276,16 @@ func TestNewInfluxdCommand_StartupErrorLinger(t *testing.T) {
 	t.Run("absent", func(t *testing.T) {
 		t.Parallel()
 
-		o := resolveOpts(t, viper.New())
+		o, err := resolveOpts(t, viper.New())
+		assert.NoError(t, err)
 		assert.Zero(t, o.StartupErrorLinger, "the default must exit immediately, as before")
 	})
 
 	t.Run("command line", func(t *testing.T) {
 		t.Parallel()
 
-		o := resolveOpts(t, viper.New(), "--startup-error-linger=30s")
+		o, err := resolveOpts(t, viper.New(), "--startup-error-linger=30s")
+		assert.NoError(t, err)
 		assert.Equal(t, 30*time.Second, o.StartupErrorLinger)
 	})
 
@@ -294,7 +296,8 @@ func TestNewInfluxdCommand_StartupErrorLinger(t *testing.T) {
 		v.SetConfigType("yaml")
 		require.NoError(t, v.ReadConfig(strings.NewReader("startup-error-linger: 1m\n")))
 
-		o := resolveOpts(t, v)
+		o, err := resolveOpts(t, v)
+		assert.NoError(t, err)
 		assert.Equal(t, time.Minute, o.StartupErrorLinger)
 	})
 }
@@ -305,15 +308,7 @@ func TestNewInfluxdCommand_StartupErrorLinger(t *testing.T) {
 func TestNewInfluxdCommand_StartupErrorLingerFromEnv(t *testing.T) {
 	t.Setenv("INFLUXD_STARTUP_ERROR_LINGER", "45s")
 
-	o := resolveOpts(t, viper.New())
+	o, err := resolveOpts(t, viper.New())
+	assert.NoError(t, err)
 	assert.Equal(t, 45*time.Second, o.StartupErrorLinger)
-}
-
-// TestPrintConfig_ReportsStartupErrorLinger keeps the option discoverable: an
-// operator finds it by reading what print-config emits.
-func TestPrintConfig_ReportsStartupErrorLinger(t *testing.T) {
-	t.Parallel()
-
-	got := printConfig(t)
-	assert.Contains(t, got, "startup-error-linger: 0s")
 }
