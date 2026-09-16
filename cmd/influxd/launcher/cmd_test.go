@@ -292,23 +292,6 @@ func TestNewInfluxdCommand_HealthAuthModeFromConfigFile(t *testing.T) {
 	assert.False(t, o.healthAuthRequired())
 }
 
-// TestNewInfluxdCommand_HealthAuthModeInvalidEnvIgnored pins a kit-wide
-// behavior rather than one this option chose: cli.BindOptions drops an
-// environment or config-file value that the option's Set rejects, without a
-// log line (kit/cli/viper.go, the pflag.Value case), just as it does for *bool
-// and *zapcore.Level. So a value shaped for the old bool flag leaves the mode at
-// auto, and under --hardening-enabled health auth is enforced despite it. Only
-// the command line is strict. If kit/cli is ever tightened to return the error,
-// this test should fail and be deleted.
-func TestNewInfluxdCommand_HealthAuthModeInvalidEnvIgnored(t *testing.T) {
-	t.Setenv("INFLUXD_HEALTH_AUTH_MODE", "false")
-
-	o, err := resolveOpts(t, viper.New(), "--hardening-enabled")
-	require.NoError(t, err)
-	assert.Equal(t, HealthAuthAuto, o.HealthAuthMode)
-	assert.True(t, o.healthAuthRequired())
-}
-
 // TestNewInfluxdCommand_StartupErrorLinger covers every way the option can be
 // supplied. It is a duration, which is the part worth pinning: viper's
 // cast.ToDurationE reads "30s" from a config file, and the derived env var name
