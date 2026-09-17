@@ -644,6 +644,11 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:  "influxql-max-select-buckets",
 			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
 		},
+		{
+			DestP: &o.CoordinatorConfig.MaxTimeRange,
+			Flag:  "influxql-max-time-range",
+			Desc:  "The maximum time range a single SELECT statement may cover. A query whose time range exceeds this limit returns an error. A query with no upper time bound is measured up to now(); a query with no lower time bound is treated as covering all time and will exceed any non-zero limit. A value of 0 disables the limit.",
+		},
 
 		// NATS config
 		{
