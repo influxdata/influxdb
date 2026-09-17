@@ -44,6 +44,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "query-file-limit",
     "max-concurrent-queries",
     "force-snapshot-mem-size",
+    "force-snapshot-max-age",
     "force-snapshot-mem-threshold",
     // WAL parameters
     "wal-flush-interval",

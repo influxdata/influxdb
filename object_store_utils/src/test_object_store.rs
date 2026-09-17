@@ -79,7 +79,8 @@ pub struct TestObjectStore {
     error_type: ErrorType,
     get_delay: Option<Duration>,
     put_delay: Option<Duration>,
-    /// Number of `get` requests currently executing against the inner store
+    /// Number of read requests (`get`, `get_opts`, `get_range`, `get_ranges`)
+    /// currently executing against the inner store
     in_flight_gets: AtomicUsize,
     /// Peak value of `in_flight_gets`, for asserting concurrency bounds
     max_in_flight_gets: AtomicUsize,
@@ -229,12 +230,13 @@ impl TestObjectStore {
         }
     }
 
-    /// Peak number of `get` requests that were executing concurrently
+    /// Peak number of read requests (`get`, `get_opts`, `get_range`,
+    /// `get_ranges`) that were executing concurrently
     pub fn max_in_flight_gets(&self) -> usize {
         self.max_in_flight_gets.load(Ordering::SeqCst)
     }
 
-    /// Track an in-flight `get` for the returned guard's lifetime. A guard (rather
+    /// Track an in-flight read for the returned guard's lifetime. A guard (rather
     /// than a decrement after the await) keeps the count accurate when the request
     /// future is cancelled mid-flight.
     fn track_get(&self) -> InFlightGuard<'_> {
@@ -346,6 +348,7 @@ impl ObjectStore for TestObjectStore {
         }) {
             return Err(self.create_error());
         }
+        let _in_flight = self.track_get();
         self.maybe_delay_get().await;
         self.inner.get_opts(location, options).await
     }
@@ -357,6 +360,7 @@ impl ObjectStore for TestObjectStore {
         }) {
             return Err(self.create_error());
         }
+        let _in_flight = self.track_get();
         self.maybe_delay_get().await;
         self.inner.get_range(location, range).await
     }
@@ -368,6 +372,7 @@ impl ObjectStore for TestObjectStore {
         }) {
             return Err(self.create_error());
         }
+        let _in_flight = self.track_get();
         self.maybe_delay_get().await;
         self.inner.get_ranges(location, ranges).await
     }

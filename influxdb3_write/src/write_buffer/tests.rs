@@ -2011,6 +2011,66 @@ async fn write_metrics() {
     );
 }
 
+/// A single WAL period never reaches the count-based snapshot trigger.
+/// The age-based check leaves it alone while it is younger than the
+/// maximum age and forces a snapshot once it is older.
+#[test_log::test(tokio::test)]
+async fn test_check_age_and_force_snapshot() {
+    let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let (write_buffer, _, time_provider, persister) = setup_with_checkpointing(
+        Time::from_timestamp_nanos(0),
+        Arc::clone(&obj_store),
+        WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100_000,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 10,
+            ..Default::default()
+        },
+        Duration::from_secs(3_600),
+    )
+    .await;
+    do_writes(
+        "sample",
+        write_buffer.as_ref(),
+        &[TestWrite {
+            lp: "cpu,host=a usage=10",
+            time_seconds: 1,
+        }],
+    )
+    .await;
+    let max_age = Duration::from_secs(30 * 60);
+    let since = write_buffer
+        .wal
+        .unsnapshotted_since()
+        .await
+        .expect("one period is waiting for a snapshot");
+
+    // Younger than the maximum age: nothing happens.
+    time_provider.set(since + max_age - Duration::from_secs(1));
+    check_mem_and_force_snapshot(&write_buffer, usize::MAX, max_age).await;
+    assert!(persister.load_snapshots(10).await.unwrap().is_empty());
+    assert_eq!(write_buffer.wal.unsnapshotted_since().await, Some(since));
+
+    // At the maximum age: snapshot forced, nothing left waiting.
+    time_provider.set(since + max_age);
+    check_mem_and_force_snapshot(&write_buffer, usize::MAX, max_age).await;
+    assert_eq!(write_buffer.wal.unsnapshotted_since().await, None);
+    // Persistence runs in the background of the forced flush.
+    let start = std::time::Instant::now();
+    loop {
+        let snapshots = persister.load_snapshots(10).await.unwrap();
+        if snapshots.len() == 1 {
+            break;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "forced snapshot was not persisted: {snapshots:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
 #[test_log::test(tokio::test)]
 async fn test_check_mem_and_force_snapshot() {
     let tmp_dir = test_helpers::tmp_dir().unwrap();
@@ -2065,7 +2125,7 @@ async fn test_check_mem_and_force_snapshot() {
     debug!(?total_buffer_size_bytes_before, "total buffer size");
 
     debug!("1st snapshot..");
-    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50).await;
+    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50, Duration::MAX).await;
 
     // check memory has gone down after forcing first snapshot
     let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
@@ -2101,7 +2161,7 @@ async fn test_check_mem_and_force_snapshot() {
     // hole in the sequence that stalls the compactor and read replicas
     // (influxdb_pro#4827). The assertion below checks object store directly to
     // confirm the sequence stays contiguous.
-    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50).await;
+    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50, Duration::MAX).await;
     let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
     // no other writes so nothing can be snapshotted, so mem should stay same
     assert!(total_buffer_size_bytes_before == total_buffer_size_bytes_after);

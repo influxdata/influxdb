@@ -47,6 +47,7 @@ pub const MAX_CHUNKS_PER_BATCH: NonZeroUsize =
 /// knows it (e.g. from a prior `list()` / `ObjectMeta`) to skip size discovery;
 /// pass `None` to have the method discover it with a ranged GET of the first
 /// chunk (which also returns the whole object in one request when it is small).
+/// A zero-byte object returns empty bytes on both paths.
 ///
 /// # Correctness
 ///
@@ -104,7 +105,26 @@ pub(crate) async fn get_adaptive_impl<S: ObjectStore + ?Sized>(
                 range: Some((0..chunk).into()),
                 ..Default::default()
             };
-            let result = store.get_opts(path, options).await?;
+            let result = match store.get_opts(path, options).await {
+                Ok(result) => result,
+                Err(e) => {
+                    // A ranged GET on a zero-byte object fails on every backend.
+                    // `InMemory` and `LocalFileSystem` return a range error. S3,
+                    // GCS and Azure return HTTP 416, which `object_store` maps
+                    // to `Error::Generic`. None of these is `Error::NotFound`,
+                    // and the error type cannot tell this failure apart from
+                    // other failures. So one HEAD confirms the size, but only on
+                    // the failure path. The happy path stays HEAD-free. Return
+                    // the original error in every other case.
+                    if !matches!(e, object_store::Error::NotFound { .. })
+                        && let Ok(meta) = store.head(path).await
+                        && meta.size == 0
+                    {
+                        return Ok(Bytes::new());
+                    }
+                    return Err(e);
+                }
+            };
             let size = result.meta.size;
             let bytes = result.bytes().await?;
             if size <= chunk {
@@ -166,7 +186,7 @@ pub(crate) async fn get_adaptive_impl<S: ObjectStore + ?Sized>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_object_store::{ErrorConfig, OperationKind, TestObjectStore};
+    use crate::test_object_store::{ErrorConfig, ErrorType, OperationKind, TestObjectStore};
     use object_store::memory::InMemory;
     use std::sync::Arc;
 
@@ -401,6 +421,105 @@ mod tests {
             10,
             "expected 10 per-chunk get_range calls, got {}",
             store.get_call_count()
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_size_zero_byte_object_returns_empty() {
+        // A zero-byte object rejects the ranged discovery GET on every backend.
+        // The impl must fall back to one HEAD, see size 0, and return empty
+        // bytes instead of an error the caller cannot classify.
+        let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let path = Path::from("empty-none");
+        inner.put(&path, Bytes::new().into()).await.unwrap();
+        let store = TestObjectStore::new(inner);
+
+        let got = get_adaptive_impl(&store, &path, None, nz(1024), nz(256), nzu(4))
+            .await
+            .expect("zero-byte object with size=None must return empty bytes");
+        assert_eq!(got.len(), 0, "zero-byte object must return empty bytes");
+        // One failed get_opts plus one head. The test store counts every
+        // operation, so 2 proves the HEAD ran exactly once.
+        assert_eq!(
+            store.get_call_count(),
+            2,
+            "expected one get_opts and one head, got {} operations",
+            store.get_call_count()
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_size_discovery_error_on_non_empty_object_propagates() {
+        // The object is not empty, so the HEAD fallback must not mask the
+        // discovery error. The caller must see the original error.
+        let payload = Bytes::from(vec![9u8; 50]);
+        let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let path = Path::from("nonempty-fail");
+        inner.put(&path, payload.into()).await.unwrap();
+        let store = TestObjectStore::new(inner)
+            .with_error_config(ErrorConfig::PercentageError(100.0))
+            .with_error_type(ErrorType::Generic)
+            .with_failure_predicate(|ctx| ctx.kind == OperationKind::GetOpts);
+
+        let err = get_adaptive_impl(&store, &path, None, nz(1024), nz(256), nzu(4))
+            .await
+            .expect_err("a failed discovery GET on a non-empty object must error");
+        assert!(
+            matches!(err, object_store::Error::Generic { store: "test", .. }),
+            "expected the injected discovery error, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_size_not_found_skips_head() {
+        // A missing object gives NotFound from discovery. That error is already
+        // unambiguous, so the impl must return it without a HEAD. Any HEAD here
+        // fails with a Generic error, so a NotFound result proves no HEAD ran.
+        let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let path = Path::from("missing-none");
+        let store = TestObjectStore::new(inner)
+            .with_error_config(ErrorConfig::PercentageError(100.0))
+            .with_error_type(ErrorType::Generic)
+            .with_failure_predicate(|ctx| ctx.kind == OperationKind::Head);
+
+        let err = get_adaptive_impl(&store, &path, None, nz(1024), nz(256), nzu(4))
+            .await
+            .expect_err("a missing object must error");
+        assert!(
+            matches!(err, object_store::Error::NotFound { .. }),
+            "expected NotFound straight from discovery, got {err:?}"
+        );
+        assert_eq!(
+            store.get_injected_failure_count(),
+            0,
+            "a NotFound discovery error must not trigger a HEAD"
+        );
+    }
+
+    #[tokio::test]
+    async fn known_size_zero_returns_empty() {
+        // A known size of 0 stays on the single-GET path and returns empty
+        // bytes. No ranged GET and no HEAD.
+        let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let path = Path::from("empty-known");
+        inner.put(&path, Bytes::new().into()).await.unwrap();
+        let store = TestObjectStore::new(inner)
+            .with_error_config(ErrorConfig::PercentageError(100.0))
+            .with_failure_predicate(|ctx| {
+                matches!(
+                    ctx.kind,
+                    OperationKind::GetOpts | OperationKind::GetRange | OperationKind::Head
+                )
+            });
+
+        let got = get_adaptive_impl(&store, &path, Some(0), nz(1024), nz(256), nzu(4))
+            .await
+            .expect("size=Some(0) must return empty bytes via the single GET");
+        assert_eq!(got.len(), 0, "zero-byte object must return empty bytes");
+        assert_eq!(
+            store.get_injected_failure_count(),
+            0,
+            "size=Some(0) must use a single whole-object get"
         );
     }
 }

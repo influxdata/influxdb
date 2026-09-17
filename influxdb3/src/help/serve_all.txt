@@ -249,6 +249,9 @@ Examples:
   --force-snapshot-mem-size <SIZE>                    Write-buffer memory at which a snapshot is forced to free
                                                       memory [default: 50%]
                                                         [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_SIZE=]
+  --force-snapshot-max-age <DURATION>                 Maximum age of un-snapshotted WAL data before a snapshot
+                                                      is forced, regardless of WAL file count [default: 1h]
+                                                        [env: INFLUXDB3_FORCE_SNAPSHOT_MAX_AGE=]
   --file-cache-size <SIZE>                            In-memory data file cache size [default: 20%]
                                                         [env: INFLUXDB3_FILE_CACHE_SIZE=]
   --parquet-mem-cache-prune-percentage <PCT>          Percentage to prune from cache [default: 0.1]
