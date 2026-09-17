@@ -178,6 +178,7 @@ pub struct WriteBufferImpl {
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
     wal: Arc<dyn Wal>,
+    time_provider: Arc<dyn TimeProvider>,
     metrics: WriteMetrics,
     distinct_cache: Arc<DistinctCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
@@ -442,6 +443,7 @@ impl WriteBufferImpl {
             persister,
             wal_config,
             wal,
+            time_provider,
             distinct_cache,
             last_cache,
             persisted_files,
@@ -840,9 +842,19 @@ impl LastCacheManager for WriteBufferImpl {
 
 impl WriteBuffer for WriteBufferImpl {}
 
+/// Periodically force a snapshot when the buffer is over
+/// `memory_threshold_bytes`, or when the oldest un-snapshotted WAL data is
+/// older than `max_unsnapshotted_age`.
+///
+/// Snapshots otherwise trigger only on the number of WAL periods, checked
+/// only when a flush has something to write, so a node receiving a trickle
+/// of writes — or none — can hold hours of data in RAM and WAL before its
+/// period count is reached. The age bound caps that wait, independent of
+/// write arrival (influxdb_pro#4078).
 pub async fn check_mem_and_force_snapshot_loop(
     write_buffer: Arc<WriteBufferImpl>,
     memory_threshold_bytes: usize,
+    max_unsnapshotted_age: Duration,
     check_interval: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -850,7 +862,12 @@ pub async fn check_mem_and_force_snapshot_loop(
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-            check_mem_and_force_snapshot(&write_buffer, memory_threshold_bytes).await;
+            check_mem_and_force_snapshot(
+                &write_buffer,
+                memory_threshold_bytes,
+                max_unsnapshotted_age,
+            )
+            .await;
         }
     })
 }
@@ -858,6 +875,7 @@ pub async fn check_mem_and_force_snapshot_loop(
 async fn check_mem_and_force_snapshot(
     write_buffer: &Arc<WriteBufferImpl>,
     memory_threshold_bytes: usize,
+    max_unsnapshotted_age: Duration,
 ) {
     let current_buffer_size_bytes = write_buffer.buffer.get_total_size_bytes();
     debug!(
@@ -870,23 +888,41 @@ async fn check_mem_and_force_snapshot(
             current_buffer_size_bytes,
             memory_threshold_bytes, "forcing snapshot as buffer size > mem threshold"
         );
+        force_snapshot(&write_buffer.wal).await;
+        return;
+    }
 
-        let wal = Arc::clone(&write_buffer.wal);
+    if let Some(since) = write_buffer.wal.unsnapshotted_since().await
+        && let Some(age) = write_buffer
+            .time_provider
+            .now()
+            .checked_duration_since(since)
+        && age >= max_unsnapshotted_age
+    {
+        info!(
+            unsnapshotted_age_secs = age.as_secs(),
+            max_unsnapshotted_age_secs = max_unsnapshotted_age.as_secs(),
+            "forcing snapshot as un-snapshotted WAL data is older than the maximum age"
+        );
+        force_snapshot(&write_buffer.wal).await;
+    }
+}
 
-        let cleanup_after_snapshot = wal.force_flush_buffer().await;
+/// Force a snapshot and clean up its WAL files in the background.
+async fn force_snapshot(wal: &Arc<dyn Wal>) {
+    let cleanup_after_snapshot = wal.force_flush_buffer().await;
 
-        // handle snapshot cleanup outside of the flush loop
-        if let Some((snapshot_complete, snapshot_info, snapshot_permit)) = cleanup_after_snapshot {
-            let snapshot_wal = Arc::clone(&wal);
-            tokio::spawn(async move {
-                let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                assert_eq!(snapshot_info, snapshot_details);
+    // handle snapshot cleanup outside of the flush loop
+    if let Some((snapshot_complete, snapshot_info, snapshot_permit)) = cleanup_after_snapshot {
+        let snapshot_wal = Arc::clone(wal);
+        tokio::spawn(async move {
+            let snapshot_details = snapshot_complete.await.expect("snapshot failed");
+            assert_eq!(snapshot_info, snapshot_details);
 
-                snapshot_wal
-                    .cleanup_snapshot(snapshot_info, snapshot_permit)
-                    .await;
-            });
-        }
+            snapshot_wal
+                .cleanup_snapshot(snapshot_info, snapshot_permit)
+                .await;
+        });
     }
 }
 

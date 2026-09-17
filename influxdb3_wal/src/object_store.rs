@@ -9,7 +9,7 @@ use data_types::Timestamp;
 use futures_util::stream::StreamExt;
 use hashbrown::HashMap;
 use influxdb3_shutdown::{CancellationToken, ShutdownToken};
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutPayload};
 use object_store_utils::{PutNonce, SelfVerifyingCreate};
@@ -653,6 +653,14 @@ impl Wal for WalObjectStore {
             .last_wal_sequence_number()
     }
 
+    async fn unsnapshotted_since(&self) -> Option<Time> {
+        self.flush_buffer
+            .lock()
+            .await
+            .snapshot_tracker
+            .oldest_period_added_at()
+    }
+
     async fn last_snapshot_sequence_number(&self) -> SnapshotSequenceNumber {
         self.flush_buffer
             .lock()
@@ -709,7 +717,11 @@ impl FlushBuffer {
 
     fn replay_wal_period(&mut self, wal_period: WalPeriod) {
         self.wal_buffer.wal_file_sequence_number = wal_period.wal_file_number.next();
-        self.snapshot_tracker.add_wal_period(wal_period);
+        // Replayed periods age from the replay, not from their original
+        // write: the age trigger then bounds how long a replayed backlog
+        // waits after a restart.
+        self.snapshot_tracker
+            .add_wal_period(wal_period.added_at(self.time_provider.now()));
     }
 
     /// Converts the wal_buffer into contents and resets it. Returns the channels waiting for
@@ -744,6 +756,7 @@ impl FlushBuffer {
             wal_file_number: wal_contents.wal_file_number,
             min_time: Timestamp::new(wal_contents.min_timestamp_ns),
             max_time: Timestamp::new(wal_contents.max_timestamp_ns),
+            added_at: Some(self.time_provider.now()),
         });
         let snapshot_details = self.snapshot_tracker.snapshot(force_snapshot);
         let snapshot = match snapshot_details {

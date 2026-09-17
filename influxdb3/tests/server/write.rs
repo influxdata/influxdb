@@ -940,3 +940,46 @@ async fn overwrite_last_write_wins_through_persistence() {
         failures.join("\n")
     );
 }
+
+/// A node that receives one write and then goes idle never reaches the
+/// count-based snapshot trigger; the age-based one persists its data
+/// anyway (influxdb_pro#4078). The buffer checker runs every 10 s, hence
+/// the poll budget.
+#[tokio::test(flavor = "multi_thread")]
+async fn idle_node_snapshots_after_max_unsnapshotted_age() {
+    let tmp_dir = tempfile::TempDir::new().expect("temp dir");
+    let data_dir = tmp_dir.path().to_str().expect("tmp dir string").to_owned();
+    let server = TestServer::configure()
+        .with_object_store_dir(&data_dir)
+        .with_env_var("INFLUXDB3_FORCE_SNAPSHOT_MAX_AGE", "1s")
+        .spawn()
+        .await;
+
+    server
+        .write_lp_to_db("idle_db", "cpu,host=a usage=1i 100", Precision::Nanosecond)
+        .await
+        .expect("write lp");
+
+    let snapshot_files = || {
+        walkdir::WalkDir::new(&data_dir)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry.file_type().is_file()
+                    && entry
+                        .path()
+                        .components()
+                        .any(|component| component.as_os_str() == "snapshots")
+            })
+            .count()
+    };
+    let start = std::time::Instant::now();
+    while snapshot_files() == 0 {
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(45),
+            "no snapshot was forced by age within 45s"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+    drop(server);
+}

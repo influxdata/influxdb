@@ -616,6 +616,18 @@ pub struct Config {
     )]
     pub force_snapshot_mem_size: MemorySizeMb,
 
+    /// Maximum time un-snapshotted WAL data may wait before a snapshot is
+    /// forced, regardless of how many WAL files have accumulated. Bounds
+    /// memory growth and restart replay on nodes that receive few or no
+    /// writes; checked every 10 seconds.
+    #[clap(
+        long = "force-snapshot-max-age",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MAX_AGE",
+        default_value = "1h",
+        action
+    )]
+    pub force_snapshot_max_age: humantime::Duration,
+
     /// Deprecated alias of `--force-snapshot-mem-size` that accepts the
     /// pre-3.11 value format (bare numbers mean megabytes). Warned about
     /// and resolved in [`resolve_legacy_size_options`].
@@ -1314,6 +1326,7 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
     info!("setting up background mem check for query buffer");
     background_buffer_checker(
         config.force_snapshot_mem_size.as_num_bytes(),
+        *config.force_snapshot_max_age,
         &write_buffer_impl,
     )
     .await;
@@ -1835,12 +1848,18 @@ async fn setup_telemetry_store(
 
 async fn background_buffer_checker(
     mem_threshold_bytes: usize,
+    max_unsnapshotted_age: Duration,
     write_buffer_impl: &Arc<WriteBufferImpl>,
 ) {
-    debug!(mem_threshold_bytes, "setting up background buffer checker");
+    debug!(
+        mem_threshold_bytes,
+        ?max_unsnapshotted_age,
+        "setting up background buffer checker"
+    );
     check_mem_and_force_snapshot_loop(
         Arc::clone(write_buffer_impl),
         mem_threshold_bytes,
+        max_unsnapshotted_age,
         Duration::from_secs(10),
     )
     .await;
