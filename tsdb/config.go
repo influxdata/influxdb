@@ -396,22 +396,30 @@ func (c *Config) Validate() error {
 // Diagnostics returns a diagnostics representation of a subset of the Config.
 func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	return diagnostics.RowFromMap(map[string]interface{}{
-		"dir":                                    c.Dir,
-		"wal-dir":                                c.WALDir,
-		"wal-fsync-delay":                        c.WALFsyncDelay,
-		"strict-error-handling":                  c.StrictErrorHandling,
-		"cache-max-memory-size":                  c.CacheMaxMemorySize,
-		"cache-snapshot-memory-size":             c.CacheSnapshotMemorySize,
-		"cache-snapshot-write-cold-duration":     c.CacheSnapshotWriteColdDuration,
-		"compact-full-write-cold-duration":       c.CompactFullWriteColdDuration,
-		"max-series-per-database":                c.MaxSeriesPerDatabase,
-		"max-values-per-tag":                     c.MaxValuesPerTag,
-		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
-		"max-index-log-file-size":                c.MaxIndexLogFileSize,
-		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
-		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
-		"aggressive-points-per-block":            c.AggressivePointsPerBlock,
-		"compact-throughput":                     c.CompactThroughput,
-		"compact-throughput-burst":               c.CompactThroughputBurst,
+		"dir":                                c.Dir,
+		"wal-dir":                            c.WALDir,
+		"wal-fsync-delay":                    c.WALFsyncDelay,
+		"strict-error-handling":              c.StrictErrorHandling,
+		"cache-max-memory-size":              c.CacheMaxMemorySize,
+		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
+		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
+		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
+		"max-series-per-database":            c.MaxSeriesPerDatabase,
+		"max-values-per-tag":                 c.MaxValuesPerTag,
+		"max-concurrent-compactions":         c.MaxConcurrentCompactions,
+		"max-index-log-file-size":            c.MaxIndexLogFileSize,
+		"series-id-set-cache-size":           c.SeriesIDSetCacheSize,
+		// The adaptive settings belong here for the same reason the fixed size
+		// does: without them /debug/vars cannot say whether adaptive sizing is
+		// even enabled on an instance, let alone what it is aiming at, which
+		// leaves an operator unable to interpret the tsi1_cache capacity and
+		// hit-rate statistics sitting alongside them.
+		"series-id-set-cache-max-size":            c.SeriesIDSetCacheMaxSize,
+		"series-id-set-cache-target-hit-rate":     c.SeriesIDSetCacheTargetHitRate,
+		"series-id-set-cache-shrink-conservatism": c.SeriesIDSetCacheShrinkConservatism,
+		"series-file-max-concurrent-compactions":  c.SeriesFileMaxConcurrentSnapshotCompactions,
+		"aggressive-points-per-block":             c.AggressivePointsPerBlock,
+		"compact-throughput":                      c.CompactThroughput,
+		"compact-throughput-burst":                c.CompactThroughputBurst,
 	}), nil
 }
