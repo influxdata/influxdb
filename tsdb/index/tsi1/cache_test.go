@@ -3,6 +3,7 @@ package tsi1
 import (
 	"math"
 	"math/rand"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -257,6 +258,16 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		return stats[0].Values
 	}
 
+	// counters returns the statistics without the bytes gauge, whose value
+	// depends on the size of the series id sets involved. Bytes is asserted
+	// separately here and exhaustively in TestTagValueSeriesIDCache_Bytes.
+	counters := func(cache *TagValueSeriesIDCache) map[string]interface{} {
+		v := statValues(cache)
+		require.Contains(t, v, statTagValueCacheBytes)
+		delete(v, statTagValueCacheBytes)
+		return v
+	}
+
 	cache := NewTagValueSeriesIDCache(2)
 
 	// Initial state: all counters zero.
@@ -267,7 +278,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheShrinkEviction: int64(0),
 		statTagValueCacheSize:           int64(0),
 		statTagValueCacheCapacity:       int64(2),
-	}, statValues(cache))
+	}, counters(cache))
 
 	// Miss on absent key.
 	require.Nil(t, cache.Get([]byte("m0"), []byte("k0"), []byte("v0")))
@@ -278,7 +289,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheShrinkEviction: int64(0),
 		statTagValueCacheSize:           int64(0),
 		statTagValueCacheCapacity:       int64(2),
-	}, statValues(cache))
+	}, counters(cache))
 
 	// Put, then Get the same key → one hit, size 1.
 	s0 := tsdb.NewSeriesIDSet(1)
@@ -291,7 +302,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheShrinkEviction: int64(0),
 		statTagValueCacheSize:           int64(1),
 		statTagValueCacheCapacity:       int64(2),
-	}, statValues(cache))
+	}, counters(cache))
 
 	// Add a second entry to fill the cache.
 	s1 := tsdb.NewSeriesIDSet(2)
@@ -314,7 +325,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheShrinkEviction: int64(0),
 		statTagValueCacheSize:           int64(2),
 		statTagValueCacheCapacity:       int64(2),
-	}, statValues(cache))
+	}, counters(cache))
 	// v0 was evicted; v1 and v2 must survive.
 	got0, _ := cache.get([]byte("m0"), []byte("k0"), []byte("v0"))
 	require.Nil(t, got0)
@@ -322,6 +333,178 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 	require.True(t, got1.Equals(s1))
 	got2, _ := cache.get([]byte("m0"), []byte("k0"), []byte("v2"))
 	require.True(t, got2.Equals(s2))
+}
+
+// sumEntryBytes recomputes the cache's footprint from scratch by walking the
+// evictor. This is the O(entries * containers) computation that the incremental
+// gauge exists to avoid, so it serves as independent ground truth for the
+// gauge in tests.
+func sumEntryBytes(c *TagValueSeriesIDCache) int64 {
+	c.RLock()
+	defer c.RUnlock()
+
+	var b int64
+	for e := c.evictor.Front(); e != nil; e = e.Next() {
+		b += e.Value.(*seriesIDCacheElement).computeBytes()
+	}
+	return b
+}
+
+// drainLocked evicts every entry, so the gauge can be checked for balance: if
+// each insertion's contribution is removed exactly once, an emptied cache must
+// report zero bytes.
+func drainLocked(c *TagValueSeriesIDCache) {
+	c.Lock()
+	defer c.Unlock()
+	for c.evictLRULocked() {
+	}
+	c.stats.Size.Store(int64(c.evictor.Len()))
+}
+
+func TestTagValueSeriesIDCache_Bytes(t *testing.T) {
+	bytesStat := func(c *TagValueSeriesIDCache) int64 {
+		return c.Statistics(nil)[0].Values[statTagValueCacheBytes].(int64)
+	}
+
+	cache := NewTagValueSeriesIDCache(2)
+	require.Zero(t, bytesStat(cache), "an empty cache holds nothing")
+
+	// A Put is accounted, and the gauge agrees with a from-scratch walk.
+	small := tsdb.NewSeriesIDSet(1, 2, 3)
+	cache.Put([]byte("m0"), []byte("k0"), []byte("v0"), small)
+	afterFirst := bytesStat(cache)
+	require.Positive(t, afterFirst)
+	require.Equal(t, sumEntryBytes(cache), afterFirst)
+
+	// A second, larger entry costs more than the first.
+	big := tsdb.NewSeriesIDSet()
+	for i := uint64(0); i < 5000; i++ {
+		big.Add(i * 3)
+	}
+	cache.Put([]byte("m0"), []byte("k0"), []byte("v1"), big)
+	afterSecond := bytesStat(cache)
+	require.Equal(t, sumEntryBytes(cache), afterSecond)
+	require.Greater(t, afterSecond-afterFirst, afterFirst,
+		"the larger set must contribute more than the smaller one")
+
+	// Re-Putting an existing tuple is a no-op and must not double-count.
+	cache.Put([]byte("m0"), []byte("k0"), []byte("v0"), tsdb.NewSeriesIDSet(99, 100, 101))
+	require.Equal(t, afterSecond, bytesStat(cache))
+	require.Equal(t, sumEntryBytes(cache), bytesStat(cache))
+
+	// In-place growth is tracked. The new id lands in a container far from the
+	// existing ones, so the set must actually grow.
+	beforeAdd := bytesStat(cache)
+	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v0"), 1<<20)
+	require.Greater(t, bytesStat(cache), beforeAdd, "addToSet must grow the gauge")
+	require.Equal(t, sumEntryBytes(cache), bytesStat(cache))
+
+	// In-place shrinkage is tracked too.
+	beforeDelete := bytesStat(cache)
+	cache.delete([]byte("m0"), []byte("k0"), []byte("v0"), 1<<20)
+	require.LessOrEqual(t, bytesStat(cache), beforeDelete, "delete must not grow the gauge")
+	require.Equal(t, sumEntryBytes(cache), bytesStat(cache))
+
+	// A forced eviction removes the evicted entry's contribution.
+	cache.Put([]byte("m0"), []byte("k0"), []byte("v2"), tsdb.NewSeriesIDSet(7))
+	require.Equal(t, int64(1), cache.stats.Evictions.Load())
+	require.Equal(t, sumEntryBytes(cache), bytesStat(cache))
+
+	// Draining the cache must return the gauge to exactly zero: every byte
+	// added is removed once and only once.
+	drainLocked(cache)
+	require.Zero(t, bytesStat(cache))
+	require.Zero(t, sumEntryBytes(cache))
+}
+
+func TestTagValueSeriesIDCache_Bytes_TracksAdaptiveShrink(t *testing.T) {
+	// The shrink path sheds entries through evictLRULocked just as forced
+	// eviction does, so the gauge must follow it down.
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 64, 0.8, 0.0, 0, zap.NewNop())
+
+	for i := 0; i < 40; i++ {
+		v := []byte{byte('a' + i%26), byte('0' + i/26)}
+		cache.Put([]byte("m0"), []byte("k0"), v, tsdb.NewSeriesIDSet(uint64(i), uint64(i)*997))
+	}
+	require.Equal(t, sumEntryBytes(cache), cache.stats.Bytes.Load())
+
+	// Whatever mix of growth and eviction the policy chose, the gauge and the
+	// from-scratch walk must agree, and the gauge must never go negative.
+	require.GreaterOrEqual(t, cache.stats.Bytes.Load(), int64(0))
+
+	drainLocked(cache)
+	require.Zero(t, cache.stats.Bytes.Load())
+}
+
+func TestTagValueSeriesIDCache_Bytes_Concurrent(t *testing.T) {
+	// addToSet and delete run under the cache read lock, so they can execute
+	// concurrently with one another. Run them on disjoint entries, where the
+	// accounting must come out exact, and let the race detector check the
+	// atomics.
+	const entries = 32
+	cache := NewTagValueSeriesIDCache(entries)
+
+	values := make([][]byte, entries)
+	for i := range values {
+		values[i] = []byte{byte('a' + i)}
+		cache.Put([]byte("m0"), []byte("k0"), values[i], tsdb.NewSeriesIDSet(uint64(i)))
+	}
+
+	var wg sync.WaitGroup
+	for i := range values {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			// Each goroutine owns one entry, so no two updates contend for the
+			// same element's accounted size.
+			cache.RLock()
+			defer cache.RUnlock()
+			for j := uint64(0); j < 200; j++ {
+				cache.addToSet([]byte("m0"), []byte("k0"), values[i], j*65536+uint64(i))
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	require.Equal(t, sumEntryBytes(cache), cache.stats.Bytes.Load(),
+		"disjoint concurrent updates must account exactly")
+
+	drainLocked(cache)
+	require.Zero(t, cache.stats.Bytes.Load())
+}
+
+func TestTagValueSeriesIDCache_Bytes_ConvergesAfterContention(t *testing.T) {
+	// Concurrent mutation of the *same* entry can leave the gauge momentarily
+	// stale, because a set may change between computing its size and publishing
+	// it. The documented guarantee is that the next accounting of that entry
+	// corrects it; this test pins that guarantee down.
+	cache := NewTagValueSeriesIDCache(4)
+	name, key, value := []byte("m0"), []byte("k0"), []byte("v0")
+	cache.Put(name, key, value, tsdb.NewSeriesIDSet(1))
+
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			cache.RLock()
+			defer cache.RUnlock()
+			for j := uint64(0); j < 200; j++ {
+				cache.addToSet(name, key, value, j*65536+uint64(g))
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	// One more quiescent update re-accounts the entry from its settled size.
+	cache.RLock()
+	cache.addToSet(name, key, value, 1<<40)
+	cache.RUnlock()
+
+	require.Equal(t, sumEntryBytes(cache), cache.stats.Bytes.Load())
+
+	drainLocked(cache)
+	require.Zero(t, cache.stats.Bytes.Load())
 }
 
 func TestTagValueSeriesIDCache_Statistics_EvictsTrueLRU(t *testing.T) {
@@ -1458,4 +1641,744 @@ func BenchmarkTagValueSeriesIDCache_GetHit_AtFloor(b *testing.B) {
 // Above the floor (capacity > minCapacity): the shrink bookkeeping runs.
 func BenchmarkTagValueSeriesIDCache_GetHit_AboveFloor(b *testing.B) {
 	benchmarkGetHit(b, 64, 2)
+}
+
+// benchmarkAddToSet measures the cost of folding a newly created series into a
+// cached set, for a set spanning `containers` roaring containers.
+//
+// This is the path the bytes gauge taxes: addToSet re-accounts the entry, and
+// the recomputation walks the bitmap's container array. It runs once per tag
+// pair per newly created series, only for measurements that already have cached
+// sets — not on the ordinary write path — so the walk is compared against the
+// cost of series creation, not against the cost of a point write.
+func benchmarkAddToSet(b *testing.B, containers int) {
+	cache := NewTagValueSeriesIDCache(1)
+
+	// Spread ids across `containers` 65 536-wide blocks so the container array
+	// has the intended length.
+	ss := tsdb.NewSeriesIDSet()
+	for c := 0; c < containers; c++ {
+		base := uint64(c) << 16
+		for i := uint64(0); i < 64; i++ {
+			ss.Add(base + i)
+		}
+	}
+
+	name, key, value := []byte("m"), []byte("k"), []byte("v")
+	cache.Put(name, key, value, ss)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cache.addToSet(name, key, value, uint64(i%containers)<<16|0xFF)
+	}
+}
+
+func BenchmarkTagValueSeriesIDCache_AddToSet_1Container(b *testing.B) {
+	benchmarkAddToSet(b, 1)
+}
+
+func BenchmarkTagValueSeriesIDCache_AddToSet_16Containers(b *testing.B) {
+	benchmarkAddToSet(b, 16)
+}
+
+func BenchmarkTagValueSeriesIDCache_AddToSet_256Containers(b *testing.B) {
+	benchmarkAddToSet(b, 256)
+}
+
+// --- Adaptive target-hit-rate behaviour ------------------------------------
+//
+// These exercise the real adaptive cache against synthetic access patterns to
+// show what the target hit rate actually governs. The formulas in
+// TSI_ADAPTIVE_CACHE_SIZING_METHOD.md predict this behaviour; these tests
+// demonstrate it end to end and pin it against regression.
+
+// driveCache issues n gets, filling misses the way Index.TagValueSeriesIDIterator
+// does: a miss materializes the set and Puts it. next supplies the tag value for
+// each get, which is where the access pattern lives.
+func driveCache(c *TagValueSeriesIDCache, n int, next func(i int) []byte) {
+	name, key := []byte("m"), []byte("k")
+	for i := 0; i < n; i++ {
+		v := next(i)
+		if ss := c.Get(name, key, v); ss == nil {
+			c.Put(name, key, v, tsdb.NewSeriesIDSet(uint64(i)))
+		}
+	}
+}
+
+// uniformOver returns an access pattern drawing uniformly from `size` distinct
+// predicates — a stable working set.
+func uniformOver(rnd *rand.Rand, size int) func(int) []byte {
+	return func(int) []byte {
+		return []byte(strconv.Itoa(rnd.Intn(size)))
+	}
+}
+
+// TestAdaptiveTarget_BoundedWorkingSet shows what the target costs when the
+// working set *fits*: very little.
+//
+// Capacity is a limit compared against evictor.Len(), not an allocation — an
+// entry slot that is never filled costs nothing, and decideShrinkPre's slack
+// branch trims capacity down to occupancy once a window completes anyway. So
+// comparing capacities overstates the memory difference badly; only stats.Bytes
+// says what is actually held.
+//
+// What the target does change here is eviction churn and hit rate. The memory
+// cost of a high target appears only when the working set does *not* fit, which
+// is TestAdaptiveTarget_UnreachableTargetPinsAtMax.
+func TestAdaptiveTarget_BoundedWorkingSet(t *testing.T) {
+	const (
+		floor  = 100
+		max    = 8192
+		wide   = 2000 // working set while busy
+		narrow = 50   // working set after it contracts
+		// Long enough for the slack branch to have trimmed capacity down to
+		// occupancy. At 200 000 the 0.95 cache is still mid-cycle, carrying
+		// capacity 3788 against 1996 resident — a transient, not a steady state.
+		warmup  = 500_000
+		budget  = 600_000 // gets allowed for the cache to give memory back
+		checkAt = 150_000 // a midpoint that separates the two targets
+	)
+
+	type result struct {
+		grewTo      int64
+		size        int64
+		bytes       int64
+		evictions   int64
+		atCheck     int64
+		getsToFloor int
+		reclaimed   bool
+	}
+	results := map[float64]result{}
+
+	for _, target := range []float64{0.85, 0.95} {
+		cache := NewAdaptiveTagValueSeriesIDCache(floor, max, target,
+			tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+			tsdb.DefaultAdaptiveCacheMinSamples, zap.NewNop())
+
+		// Phase 1: a working set far larger than the floor. The cache grows
+		// until the set fits and the hit rate reaches target.
+		rnd := rand.New(rand.NewSource(1))
+		driveCache(cache, warmup, uniformOver(rnd, wide))
+		res := result{
+			grewTo:    cache.capacity.Load(),
+			size:      cache.stats.Size.Load(),
+			bytes:     cache.stats.Bytes.Load(),
+			evictions: cache.stats.Evictions.Load(),
+		}
+		require.Greater(t, res.grewTo, int64(floor),
+			"target %.2f: the cache must grow to hold a %d-predicate working set", target, wide)
+		t.Logf("target %.2f: capacity %d, resident %d, bytes %d, evictions %d",
+			target, res.grewTo, res.size, res.bytes, res.evictions)
+
+		// Phase 2: the working set contracts. Everything is now a hit, so the
+		// shrink gates pass and only the pacing differs.
+		rnd = rand.New(rand.NewSource(2))
+		narrowSet := uniformOver(rnd, narrow)
+		for i := 0; i < budget; i++ {
+			driveCache(cache, 1, narrowSet)
+			if i == checkAt {
+				res.atCheck = cache.capacity.Load()
+			}
+			if !res.reclaimed && cache.capacity.Load() <= floor {
+				res.getsToFloor, res.reclaimed = i, true
+			}
+		}
+		results[target] = res
+	}
+
+	lo, hi := results[0.85], results[0.95]
+
+	t.Logf("working set %d -> %d, floor %d, max %d", wide, narrow, floor, max)
+	t.Logf("%8s %10s %18s %18s", "target", "grew to", "cap after 150k gets", "gets to reach floor")
+	for _, target := range []float64{0.85, 0.95} {
+		r := results[target]
+		reached := "not within budget"
+		if r.reclaimed {
+			reached = strconv.Itoa(r.getsToFloor)
+		}
+		t.Logf("%8.2f %10d %18d %18s", target, r.grewTo, r.atCheck, reached)
+	}
+
+	// 1. Memory. Compare *occupancy*, never capacity: capacity oscillates as the
+	// policy grows and trims, so a point sample of it says more about where in
+	// that cycle the run stopped than about the target. Occupancy and bytes are
+	// stable across the cycle.
+	require.Equal(t, hi.grewTo, hi.size, "0.95 sampled with capacity settled on occupancy")
+	require.Greater(t, lo.grewTo, lo.size,
+		"0.85 sampled mid-cycle with slack capacity — which costs nothing, and is "+
+			"exactly why capacity is the wrong thing to compare")
+
+	ratio := float64(hi.bytes) / float64(lo.bytes)
+	t.Logf("memory actually held: 0.95 %d bytes over %d entries, 0.85 %d over %d (%.2fx)",
+		hi.bytes, hi.size, lo.bytes, lo.size, ratio)
+	require.Less(t, ratio, 1.5,
+		"with a working set that fits, a higher target must not cost much memory: "+
+			"unfilled capacity is free and the slack branch reclaims it")
+
+	// What the higher target buys: markedly less eviction churn.
+	require.Less(t, hi.evictions, lo.evictions,
+		"the higher target should evict less, which is what it is for")
+	t.Logf("eviction churn: 0.85 evicted %d, 0.95 evicted %d (%.1fx fewer)",
+		lo.evictions, hi.evictions, float64(lo.evictions)/float64(hi.evictions))
+
+	// 2. Reclaim, normalised. The two start from different capacities — again
+	// the oscillation — so absolute gets-to-floor is not comparable. Gets per
+	// entry reclaimed is, and it isolates the window length, which scales as
+	// ln(1/(1-target)): 3.00n at 0.95 against 1.90n at 0.85.
+	require.True(t, lo.reclaimed, "target 0.85 must return to the floor within %d gets", budget)
+	require.True(t, hi.reclaimed, "target 0.95 must also return to the floor within %d gets", budget)
+
+	loRate := float64(lo.getsToFloor) / float64(lo.grewTo-floor)
+	hiRate := float64(hi.getsToFloor) / float64(hi.grewTo-floor)
+	t.Logf("reclaim pace: 0.85 %.2f gets per entry, 0.95 %.2f (%.2fx slower)",
+		loRate, hiRate, hiRate/loRate)
+	require.Greater(t, hiRate, loRate,
+		"the longer window at a higher target must slow reclaim per entry")
+}
+
+// TestAdaptiveTarget_UnreachableTargetPinsAtMax shows the hard failure: when a
+// steady trickle of never-before-seen predicates caps the achievable hit rate,
+// a target above that ceiling can never be met. Growth never stops and the
+// shrink hit-rate gate never opens, so the cache pins at max-size permanently —
+// not slowly, but never.
+func TestAdaptiveTarget_UnreachableTargetPinsAtMax(t *testing.T) {
+	const (
+		floor  = 100
+		max    = 4096
+		pool   = 500 // recurring predicates, comfortably cacheable
+		novel  = 20  // 1 get in 20 is for a predicate never seen before => ceiling ~0.95
+		gets   = 400_000
+		settle = 100_000
+	)
+
+	// mixed draws from a small recurring pool, except every `novel`-th get,
+	// which invents a predicate the cache has never held. No cache size can
+	// serve those, so the hit rate cannot exceed 1 - 1/novel.
+	mixed := func(rnd *rand.Rand) func(int) []byte {
+		fresh := 0
+		return func(i int) []byte {
+			if i%novel == 0 {
+				fresh++
+				return []byte("new-" + strconv.Itoa(fresh))
+			}
+			return []byte(strconv.Itoa(rnd.Intn(pool)))
+		}
+	}
+
+	type result struct{ capacity, hits, misses int64 }
+	results := map[float64]result{}
+
+	// 0.90 is under the ~0.95 ceiling and reachable; 0.99 is above it.
+	for _, target := range []float64{0.90, 0.99} {
+		cache := NewAdaptiveTagValueSeriesIDCache(floor, max, target,
+			tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+			tsdb.DefaultAdaptiveCacheMinSamples, zap.NewNop())
+
+		driveCache(cache, gets, mixed(rand.New(rand.NewSource(3))))
+
+		// Keep the novel predicates coming. That is the point: the ceiling is a
+		// property of the workload, not a warm-up artefact. Removing them here
+		// would let the hit rate reach 1.0 and both targets would shrink, which
+		// says nothing about the steady state either would actually live in.
+		before := cache.capacity.Load()
+		driveCache(cache, settle, mixed(rand.New(rand.NewSource(4))))
+
+		results[target] = result{
+			capacity: cache.capacity.Load(),
+			hits:     cache.stats.Hits.Load(),
+			misses:   cache.stats.Misses.Load(),
+		}
+		t.Logf("target %.2f: capacity %d -> %d after %d quiet gets, lifetime hit rate %.4f",
+			target, before, cache.capacity.Load(), settle,
+			float64(results[target].hits)/float64(results[target].hits+results[target].misses))
+	}
+
+	reachable, unreachable := results[0.90], results[0.99]
+
+	// The unreachable target climbs to the ceiling and stays there.
+	require.Equal(t, int64(max), unreachable.capacity,
+		"target 0.99 is above the achievable hit rate, so growth never stops")
+
+	// The reachable one settles below max — it stopped growing once satisfied.
+	require.Less(t, reachable.capacity, int64(max),
+		"target 0.90 is achievable, so growth should stop before the ceiling")
+	require.Less(t, reachable.capacity, unreachable.capacity,
+		"an unreachable target costs strictly more memory")
+}
+
+// TestHitRate_SaturatesWellBeforeMaxSize measures hit rate against a range of
+// fixed capacities, and is the evidence behind the recommendation to keep the
+// target below the workload's achievable hit rate.
+//
+// The argument it answers is a reasonable one: if max-size is set inside the
+// memory budget, spending that budget to raise the hit rate is exactly what the
+// cache is for. That holds — provided the memory is in fact buying hit rate.
+// Past the saturation point it is not. The extra entries hold predicates that
+// will never be queried again, because the LRU tail is churning novel arrivals.
+//
+// This matters because the growth policy's only stopping signal is
+// `hit rate < target`; it has no notion of marginal gain per entry. A target
+// below the ceiling stops it at saturation. A target above the ceiling removes
+// the stopping condition, and it grows to max-size regardless of whether growth
+// is still buying anything.
+func TestHitRate_SaturatesWellBeforeMaxSize(t *testing.T) {
+	const (
+		pool  = 500     // recurring predicates
+		novel = 20      // 1 get in 20 is for a predicate never seen before
+		gets  = 500_000 //
+	)
+	// Compulsory misses cap the achievable rate: nothing can serve a predicate
+	// the cache has never held.
+	ceiling := 1 - 1.0/novel
+
+	type point struct {
+		capacity int
+		hitRate  float64
+		bytes    int64
+	}
+	var curve []point
+
+	for _, capacity := range []int{500, 600, 700, 1000, 2000, 4096, 8192} {
+		c := NewTagValueSeriesIDCache(capacity) // fixed size: no adaptive policy
+		rnd := rand.New(rand.NewSource(3))
+		name, key := []byte("m"), []byte("k")
+		fresh := 0
+		for i := 0; i < gets; i++ {
+			var v []byte
+			if i%novel == 0 {
+				fresh++
+				v = []byte("new-" + strconv.Itoa(fresh))
+			} else {
+				v = []byte(strconv.Itoa(rnd.Intn(pool)))
+			}
+			if ss := c.Get(name, key, v); ss == nil {
+				c.Put(name, key, v, tsdb.NewSeriesIDSet(uint64(i)))
+			}
+		}
+		h, m := c.stats.Hits.Load(), c.stats.Misses.Load()
+		curve = append(curve, point{capacity, float64(h) / float64(h+m), c.stats.Bytes.Load()})
+	}
+
+	t.Logf("recurring pool %d, %.0f%% of gets novel, achievable ceiling %.4f", pool, 100.0/novel, ceiling)
+	for _, p := range curve {
+		t.Logf("  capacity %5d: hit rate %.4f, bytes %d", p.capacity, p.hitRate, p.bytes)
+	}
+
+	// Find the first capacity within a whisker of the ceiling: saturation.
+	var sat point
+	for _, p := range curve {
+		if ceiling-p.hitRate < 0.002 {
+			sat = p
+			break
+		}
+	}
+	require.NotZero(t, sat.capacity, "the curve must reach the ceiling somewhere")
+
+	// Saturation arrives close to the recurring working set, nowhere near the
+	// largest capacity tested.
+	require.Less(t, sat.capacity, 2*pool,
+		"hit rate should saturate near the recurring working set (%d), not at max-size", pool)
+
+	// Everything past saturation multiplies memory and buys essentially nothing.
+	last := curve[len(curve)-1]
+	gain := last.hitRate - sat.hitRate
+	cost := float64(last.bytes) / float64(sat.bytes)
+
+	t.Logf("past saturation: capacity %d -> %d costs %.1fx the bytes for %+.5f hit rate",
+		sat.capacity, last.capacity, cost, gain)
+
+	require.Greater(t, cost, 5.0, "the test should span a wide enough range to be interesting")
+	require.Less(t, gain, 0.001,
+		"past saturation the extra memory must buy no meaningful hit rate; "+
+			"if this fails the saturation point has moved and the recommendation needs revisiting")
+
+	// And the climb *to* saturation is cheap by comparison — that is the part
+	// worth paying for.
+	first := curve[0]
+	t.Logf("up to saturation: capacity %d -> %d costs %.2fx the bytes for %+.4f hit rate",
+		first.capacity, sat.capacity, float64(sat.bytes)/float64(first.bytes), sat.hitRate-first.hitRate)
+	require.Greater(t, sat.hitRate-first.hitRate, 50*gain,
+		"the gain below saturation must dwarf anything available above it")
+}
+
+// adaptiveSample is one observation of a running cache.
+type adaptiveSample struct {
+	gets     int
+	capacity int64
+	size     int64
+	bytes    int64
+	hitRate  float64
+}
+
+// runAdaptive drives a cache from its configured floor — never forcing capacity,
+// because a real shard starts at the floor after every restart — and samples it
+// every 100 000 gets. novel is the period of never-before-seen predicates: 20
+// means one get in twenty is for something no cache size can serve; 0 means the
+// working set is closed.
+func runAdaptive(target float64, floor, max, workingSet, novel, rounds int) []adaptiveSample {
+	c := NewAdaptiveTagValueSeriesIDCache(floor, max, target,
+		tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+		tsdb.DefaultAdaptiveCacheMinSamples, zap.NewNop())
+
+	rnd := rand.New(rand.NewSource(11))
+	fresh := 0 // persists across rounds: every novel predicate is distinct
+	next := func(i int) []byte {
+		if novel > 0 && i%novel == 0 {
+			fresh++
+			return []byte("n" + strconv.Itoa(fresh))
+		}
+		return []byte(strconv.Itoa(rnd.Intn(workingSet)))
+	}
+
+	var out []adaptiveSample
+	for round := 1; round <= rounds; round++ {
+		driveCache(c, 100_000, next)
+		h, m := c.stats.Hits.Load(), c.stats.Misses.Load()
+		out = append(out, adaptiveSample{
+			gets:     round * 100_000,
+			capacity: c.capacity.Load(),
+			size:     c.stats.Size.Load(),
+			bytes:    c.stats.Bytes.Load(),
+			hitRate:  float64(h) / float64(h+m),
+		})
+	}
+	return out
+}
+
+// TestAdaptiveTarget_OverProvisionedMaxIsSafe pins the property that makes a
+// generous max-size safe, and isolates what actually is not.
+//
+// The intuition it tests is that setting max-size far above the working set lets
+// capacity run away. It does not. With a reachable target the cache tracks its
+// working set however high the ceiling is: growth stops when the hit rate
+// reaches target, and decideShrinkPre's slack branch returns any headroom
+// without evicting anything. Doubling overshoots by up to 2x, briefly.
+//
+// What does run away is a target above the workload's achievable hit rate. Then
+// the growth rule's only brake never engages, and — because the hit-rate gate
+// sits *before* the slack branch — neither cold-tail shrink nor slack
+// reclamation can fire. max-size stops being a bound and becomes the
+// destination, with occupancy following capacity all the way up.
+func TestAdaptiveTarget_OverProvisionedMaxIsSafe(t *testing.T) {
+	const (
+		floor      = 100
+		max        = 16384 // 32x the working set: deliberately over-provisioned
+		workingSet = 500
+		rounds     = 8
+	)
+
+	log := func(label string, ss []adaptiveSample) {
+		t.Logf("%s", label)
+		for _, s := range ss {
+			t.Logf("  after %4dk gets: capacity %6d  size %6d  bytes %9d  hit %.4f",
+				s.gets/1000, s.capacity, s.size, s.bytes, s.hitRate)
+		}
+	}
+
+	// A: the target is reachable, because the working set is closed.
+	a := runAdaptive(0.95, floor, max, workingSet, 0, rounds)
+	log("A: target 0.95, closed working set — reachable", a)
+
+	var peak int64
+	for _, s := range a {
+		if s.capacity > peak {
+			peak = s.capacity
+		}
+	}
+	last := a[len(a)-1]
+
+	require.Less(t, peak, int64(4*workingSet),
+		"with a reachable target capacity must track the working set, not the ceiling; "+
+			"peak %d against max-size %d", peak, max)
+	require.Less(t, peak, int64(max)/8, "capacity must stay nowhere near max-size")
+	require.Equal(t, last.capacity, last.size,
+		"the slack branch must return headroom, leaving capacity equal to occupancy")
+	require.GreaterOrEqual(t, last.hitRate, 0.95,
+		"and it should still be meeting its target while doing so")
+
+	// B: identical except the target sits above the achievable ceiling, which a
+	// steady trickle of novel predicates caps near 0.95.
+	b := runAdaptive(0.99, floor, max, workingSet, 20, rounds)
+	log("B: target 0.99, 5% novel predicates — ceiling ~0.95, unreachable", b)
+
+	bLast := b[len(b)-1]
+	require.Equal(t, int64(max), bLast.capacity,
+		"an unreachable target removes the stopping signal, so capacity reaches max-size")
+
+	// The memory is real: occupancy follows capacity, because there is always a
+	// fresh predicate to fill the next slot.
+	require.Greater(t, bLast.size, int64(max)*9/10,
+		"occupancy must follow capacity — the extra slots fill with novel entries")
+
+	// And it is monotonic, not a high-water mark that later recedes.
+	for i := 1; i < len(b); i++ {
+		require.GreaterOrEqual(t, b[i].capacity, b[i-1].capacity,
+			"capacity must never recede under an unreachable target (sample %d)", i)
+	}
+
+	// Both served essentially the same hit rate. B bought nothing with it.
+	require.InDelta(t, a[len(a)-1].hitRate, bLast.hitRate, 0.02,
+		"the two settle at nearly the same hit rate; the extra memory buys no more")
+	require.Greater(t, float64(bLast.bytes)/float64(last.bytes), 20.0,
+		"yet B holds an order of magnitude more memory for it")
+
+	t.Logf("A holds %d bytes at hit %.4f; B holds %d bytes at hit %.4f (%.0fx the memory)",
+		last.bytes, last.hitRate, bLast.bytes, bLast.hitRate,
+		float64(bLast.bytes)/float64(last.bytes))
+
+	// C: the same 0.99 target as B, but against a closed working set — so it is
+	// achievable. This separates the target's *value* from its reachability.
+	// A high target is not the hazard; a target above what the workload can
+	// deliver is, and the same 0.99 that ran away in B is safe here.
+	c := runAdaptive(0.99, floor, max, workingSet, 0, rounds)
+	log("C: target 0.99, closed working set — high but reachable", c)
+
+	cLast := c[len(c)-1]
+	require.Less(t, cLast.capacity, int64(max)/8,
+		"0.99 is safe when it is achievable: capacity must stay near the working set")
+	require.Less(t, float64(cLast.bytes)/float64(last.bytes), 2.0,
+		"and it must hold about the memory that A does, not B's")
+	t.Logf("C holds %d bytes — %.2fx A, %.3fx B — on the same target that ran away in B",
+		cLast.bytes, float64(cLast.bytes)/float64(last.bytes),
+		float64(cLast.bytes)/float64(bLast.bytes))
+}
+
+// mixedOver returns an access pattern drawing uniformly from a recurring pool of
+// `pool` predicates, except every `novel`-th get, which invents a predicate the
+// cache has never held. Those compulsory misses cap the achievable hit rate at
+// 1 - 1/novel. novel == 0 means the working set is closed. fresh persists across
+// calls so every novel predicate is distinct even when the pattern is rebuilt
+// mid-run with a different novel period.
+func mixedOver(rnd *rand.Rand, pool, novel int, fresh *int) func(int) []byte {
+	return func(i int) []byte {
+		if novel > 0 && i%novel == 0 {
+			*fresh++
+			return []byte("n" + strconv.Itoa(*fresh))
+		}
+		return []byte(strconv.Itoa(rnd.Intn(pool)))
+	}
+}
+
+// TestAdaptiveTarget_PinnedCacheRecoversWhenNovelRateDrops shows that the pin
+// at max-size under an unreachable target is episodic, not permanent. It lasts
+// exactly as long as the workload's novel-predicate rate stays above
+// 1 - target. Once that rate drops the shrink gates open and the existing
+// cold-tail policy sheds the cache back to its working set with no
+// configuration change, at maxShrinkEvictPerEvent entries per window.
+//
+// The 1% row is the knife edge: a ceiling that equals the target exactly passes
+// the hit-rate gate but not the eviction gate, so it stays pinned.
+func TestAdaptiveTarget_PinnedCacheRecoversWhenNovelRateDrops(t *testing.T) {
+	const (
+		floor      = 100
+		max        = 16384
+		workingSet = 500
+		pinGets    = 800_000 // enough for 5% novel at target 0.99 to reach max
+		rounds     = 10      // 100k gets each after the novel rate changes
+	)
+
+	cases := []struct {
+		name       string
+		novelAfter int  // novel period after the pin; 0 = closed working set
+		recovers   bool // expected to return to the working set within budget
+	}{
+		{"novel->0%", 0, true},
+		{"novel->0.5%", 200, true},
+		{"novel->1% (ceiling == target)", 100, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := NewAdaptiveTagValueSeriesIDCache(floor, max, 0.99,
+				tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+				tsdb.DefaultAdaptiveCacheMinSamples, zap.NewNop())
+
+			rnd := rand.New(rand.NewSource(11))
+			fresh := 0
+			driveCache(cache, pinGets, mixedOver(rnd, workingSet, 20, &fresh))
+			require.Equal(t, int64(max), cache.capacity.Load(),
+				"precondition: 5%% novel against target 0.99 must pin at max-size")
+			pinnedSize := cache.stats.Size.Load()
+			shrinkEvictionsAtPin := cache.stats.ShrinkEvictions.Load()
+			t.Logf("pinned: capacity %d, occupancy %d, bytes %d",
+				cache.capacity.Load(), pinnedSize, cache.stats.Bytes.Load())
+
+			next := mixedOver(rnd, workingSet, tc.novelAfter, &fresh)
+			for round := 1; round <= rounds; round++ {
+				driveCache(cache, 100_000, next)
+				t.Logf("  +%4dk gets: capacity %6d  occupancy %6d  bytes %9d",
+					round*100, cache.capacity.Load(), cache.stats.Size.Load(), cache.stats.Bytes.Load())
+			}
+
+			if tc.recovers {
+				require.Less(t, cache.capacity.Load(), int64(2*workingSet),
+					"once the novel rate drops below 1-target the pin must clear on its own")
+				// Everything between the pinned occupancy and the working set must
+				// have left through the shrink policy, not through forced eviction.
+				shed := cache.stats.ShrinkEvictions.Load() - shrinkEvictionsAtPin
+				require.Greater(t, shed, pinnedSize-int64(2*workingSet),
+					"the memory must be returned by the shrink policy, not by forced eviction")
+			} else {
+				require.Greater(t, cache.capacity.Load(), int64(max)*9/10,
+					"a ceiling equal to the target cannot pass the eviction gate, so the pin holds")
+			}
+		})
+	}
+}
+
+// TestAdaptiveTarget_SameWorkloadDifferentTargets is the like-for-like cost of
+// an unreachable target: the same 5%-novel workload (ceiling 0.95) under
+// targets on either side of the ceiling. Targets below it settle near the
+// saturation point of TestHitRate_SaturatesWellBeforeMaxSize; the one above it
+// pins at max-size for the same hit rate.
+//
+// 0.95 is deliberately included and deliberately not asserted on: the novel
+// schedule is deterministic (exactly one get in twenty), so the windowed rate
+// lands on 0.95 exactly and growth stalls short of max. A real, noisy novel
+// rate would push it to the ceiling too, which is why the highest safe target at
+// 5% novel is ~0.946 (the eviction gate's margin), not 0.95.
+func TestAdaptiveTarget_SameWorkloadDifferentTargets(t *testing.T) {
+	const (
+		floor      = 100
+		max        = 16384
+		workingSet = 500
+		novel      = 20 // ceiling 0.95
+		rounds     = 8  // 100k gets each
+	)
+
+	type result struct {
+		capacity, size, bytes int64
+		hitRate               float64
+	}
+	results := map[float64]result{}
+
+	for _, target := range []float64{0.85, 0.90, 0.94, 0.95, 0.99} {
+		cache := NewAdaptiveTagValueSeriesIDCache(floor, max, target,
+			tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+			tsdb.DefaultAdaptiveCacheMinSamples, zap.NewNop())
+		rnd := rand.New(rand.NewSource(11))
+		fresh := 0
+		driveCache(cache, rounds*100_000, mixedOver(rnd, workingSet, novel, &fresh))
+
+		h, m := cache.stats.Hits.Load(), cache.stats.Misses.Load()
+		r := result{
+			capacity: cache.capacity.Load(),
+			size:     cache.stats.Size.Load(),
+			bytes:    cache.stats.Bytes.Load(),
+			hitRate:  float64(h) / float64(h+m),
+		}
+		results[target] = r
+		t.Logf("target %.2f: capacity %6d  occupancy %6d  bytes %8d  hit %.4f",
+			target, r.capacity, r.size, r.bytes, r.hitRate)
+	}
+
+	// Reachable targets settle near saturation (~700 entries, section 4.2), never
+	// anywhere near max-size.
+	for _, target := range []float64{0.85, 0.90, 0.94} {
+		require.Less(t, results[target].capacity, int64(2*workingSet),
+			"target %.2f is below the ceiling and must track the working set", target)
+	}
+
+	// The unreachable target pins at max for the same hit rate the reachable
+	// 0.94 delivers, at an order of magnitude more memory.
+	lo, hi := results[0.94], results[0.99]
+	require.Equal(t, int64(max), hi.capacity, "target 0.99 is above the ceiling and must pin at max-size")
+	require.InDelta(t, lo.hitRate, hi.hitRate, 0.005,
+		"the two must serve the same hit rate; the extra memory buys nothing")
+	ratio := float64(hi.bytes) / float64(lo.bytes)
+	require.Greater(t, ratio, 10.0, "yet the unreachable target must hold an order of magnitude more memory")
+	t.Logf("0.99 holds %.0fx the memory of 0.94 for the same hit rate (%.4f vs %.4f)",
+		ratio, hi.hitRate, lo.hitRate)
+}
+
+// TestAdaptiveTarget_ShrinkCadenceIsOneWindow pins the two facts about shrink
+// pacing that an untouched-fraction model gets wrong.
+//
+// First, the post-shrink cooldown does not add a window: cooldownGets ticks
+// down during the next observation window, and both are sized to the same n
+// after a shrink, so consecutive shrinks are exactly one adaptiveWindowLen
+// apart, not two. Second, the amount shed per event is decideColdTail's
+// min(size/2, maxShrinkEvictPerEvent, cold tail), not (1 - target) of the
+// cache: against a working set that has contracted, each event halves the
+// cache.
+//
+// The run grows a cache against a 2000-predicate working set, then contracts
+// the working set to 50 and records every capacity-decrease log line along with
+// the number of Gets since the previous one.
+func TestAdaptiveTarget_ShrinkCadenceIsOneWindow(t *testing.T) {
+	const (
+		floor  = 100
+		max    = 8192
+		target = 0.95
+		wide   = 2000
+		narrow = 50
+		warmup = 500_000
+		budget = 600_000
+	)
+
+	core, logs := observer.New(zap.InfoLevel)
+	cache := NewAdaptiveTagValueSeriesIDCache(floor, max, target,
+		tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+		tsdb.DefaultAdaptiveCacheMinSamples, zap.New(core))
+
+	driveCache(cache, warmup, uniformOver(rand.New(rand.NewSource(1)), wide))
+	require.Greater(t, cache.capacity.Load(), int64(floor), "precondition: the cache must have grown")
+	t.Logf("grew to capacity %d against a %d-predicate working set", cache.capacity.Load(), wide)
+
+	type shrink struct {
+		oldCap, newCap, getsSincePrev int64
+	}
+	var shrinks []shrink
+
+	narrowSet := uniformOver(rand.New(rand.NewSource(2)), narrow)
+	seen := logs.Len()
+	lastShrinkAt := -1
+	for i := 0; i < budget && cache.capacity.Load() > floor; i++ {
+		driveCache(cache, 1, narrowSet)
+		if logs.Len() == seen {
+			continue
+		}
+		for _, e := range logs.All()[seen:] {
+			if e.Message != logMsgCacheCapacityDecreased {
+				continue
+			}
+			s := shrink{
+				oldCap: e.ContextMap()["old_capacity"].(int64),
+				newCap: e.ContextMap()["new_capacity"].(int64),
+			}
+			if lastShrinkAt >= 0 {
+				s.getsSincePrev = int64(i - lastShrinkAt)
+			}
+			shrinks = append(shrinks, s)
+			lastShrinkAt = i
+		}
+		seen = logs.Len()
+	}
+	require.Equal(t, int64(floor), cache.capacity.Load(), "the cache must return to the floor within %d gets", budget)
+	require.GreaterOrEqual(t, len(shrinks), 3, "need several consecutive shrinks to measure a cadence")
+
+	t.Logf("%8s %8s %14s %12s %12s", "old cap", "new cap", "gets since prev", "window(old)", "2*window")
+	for i, s := range shrinks {
+		window := adaptiveWindowLen(s.oldCap, tsdb.DefaultAdaptiveCacheMinSamples, target)
+		t.Logf("%8d %8d %14d %12d %12d", s.oldCap, s.newCap, s.getsSincePrev, window, 2*window)
+		if i == 0 {
+			continue // no previous shrink to measure against
+		}
+
+		// Cadence: exactly one window sized to the capacity being shrunk from.
+		require.Equal(t, window, s.getsSincePrev,
+			"shrink %d -> %d must follow the previous one by one window, not window + cooldown", s.oldCap, s.newCap)
+
+		// Amount: bounded by size/2 (and maxShrinkEvictPerEvent), so a cache far
+		// above its working set halves rather than shedding (1 - target).
+		if s.oldCap-int64(narrow) > maxShrinkEvictPerEvent {
+			continue // absolute cap applies; not the halving regime
+		}
+		if s.newCap == floor {
+			continue // last step is clamped at the floor
+		}
+		require.Equal(t, s.oldCap-s.oldCap/2, s.newCap,
+			"shrink from %d must halve the cache, not shed %.0f%% of it", s.oldCap, 100*(1-target))
+	}
 }
