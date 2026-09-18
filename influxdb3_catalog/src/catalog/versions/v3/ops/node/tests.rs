@@ -5,10 +5,11 @@ use iox_time::Time;
 use uuid::Uuid;
 
 use crate::CatalogError;
+use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::ops::CatalogOp;
 use crate::catalog::versions::v3::ops::test_util::{apply_batch, test_catalog};
-use crate::catalog::versions::v3::schema::node::{NodeMode, NodeState};
-use crate::format::records::RegisterNode;
+use crate::catalog::versions::v3::schema::node::{NodeMode, NodeState, RemovalAttestation};
+use crate::format::records::{CreateQueryGroup, RegisterNode};
 use crate::format::{FeatureLevel, RecordBatch, derive_feature_level, record_ids};
 
 use super::{
@@ -279,6 +280,8 @@ fn stop_never_bundles_advance() {
     assert_eq!(records[0].id(), record_ids::STOP_NODE);
 }
 
+// Registration args for a node that advertises an address, so it can join a
+// query group.
 fn register_args_with_mode(node_id: &str, instance_id: &str, mode: NodeMode) -> RegisterNodeArgs {
     RegisterNodeArgs {
         node_id: Arc::from(node_id),
@@ -286,7 +289,7 @@ fn register_args_with_mode(node_id: &str, instance_id: &str, mode: NodeMode) -> 
         mode: vec![mode],
         process_uuid: Uuid::nil(),
         instance_id: Arc::from(instance_id),
-        conn_info: None,
+        conn_info: Some(format!("{node_id}:8181")),
         cli_params: None,
         registered_time: Time::from_timestamp_nanos(1000),
         row_delete_predicate_version: 0,
@@ -314,6 +317,7 @@ fn remove_args(node_id: &str) -> RemoveNodeArgs {
     RemoveNodeArgs {
         node_id: Arc::from(node_id),
         requested_time: Time::from_timestamp_nanos(4000),
+        attestation: RemovalAttestation::NotForced,
     }
 }
 
@@ -509,6 +513,7 @@ fn remove_succeeds_when_stopped() {
         NodeState::Removing {
             requested_time_ns,
             final_snapshot_sequence,
+            ..
         } => {
             assert_eq!(requested_time_ns, 4000);
             assert_eq!(
@@ -615,4 +620,111 @@ fn unregister_succeeds_when_removing() {
     apply_batch(&batch, &mut catalog);
 
     assert!(catalog.nodes.get_by_name("node-a").is_none());
+}
+
+// ---------------------------------------------------------------------------
+// A query group member may not clear its connection address
+// ---------------------------------------------------------------------------
+
+// Registration args for `node_id` in `Query` mode, advertising `conn_info`.
+// The instance id is fixed, so re-registering re-uses the same node.
+fn register_query_args(node_id: &str, conn_info: Option<&str>) -> RegisterNodeArgs {
+    RegisterNodeArgs {
+        conn_info: conn_info.map(str::to_string),
+        mode: vec![NodeMode::Query],
+        ..register_args(node_id, "inst-1")
+    }
+}
+
+// Register `node_id` as a running query node advertising `conn_info`.
+fn register_query_node(catalog: &mut InnerCatalog, node_id: &str, conn_info: Option<&str>) {
+    let mut batch = RecordBatch::new(1);
+    RegisterNodeOp::prepare(
+        &register_query_args(node_id, conn_info),
+        catalog,
+        &mut batch,
+    )
+    .expect("register node");
+    apply_batch(&batch, catalog);
+}
+
+// Put `node_id` in a query group, writing the record straight to the catalog.
+// `CreateQueryGroupOp` refuses a member with no address, and one test needs
+// exactly the state a catalog written before that check still holds.
+fn put_in_query_group(catalog: &mut InnerCatalog, node_id: &str) {
+    let member = catalog
+        .nodes
+        .get_by_name(node_id)
+        .unwrap()
+        .node_catalog_id();
+    let mut batch = RecordBatch::new(2);
+    batch.push(&CreateQueryGroup {
+        query_group_id: 0,
+        query_group_name: "analytics".to_string(),
+        members: vec![member.get()],
+        replication_factor: 1,
+    });
+    apply_batch(&batch, catalog);
+}
+
+#[test]
+fn register_node_op_changes_conn_info_for_a_query_group_member() {
+    // A restarted pod comes back at a new address, which must keep working.
+    let mut catalog = test_catalog();
+    register_query_node(&mut catalog, "node-a", Some("a:8181"));
+    put_in_query_group(&mut catalog, "node-a");
+
+    register_query_node(&mut catalog, "node-a", Some("a-moved:8181"));
+
+    let node = catalog.nodes.get_by_name("node-a").unwrap();
+    assert_eq!(node.conn_info().unwrap().as_ref(), "a-moved:8181");
+}
+
+#[test]
+fn register_node_op_clears_conn_info_outside_a_query_group() {
+    let mut catalog = test_catalog();
+    register_query_node(&mut catalog, "node-a", Some("a:8181"));
+
+    register_query_node(&mut catalog, "node-a", None);
+
+    let node = catalog.nodes.get_by_name("node-a").unwrap();
+    assert!(node.conn_info().is_none());
+}
+
+#[test]
+fn register_node_op_re_registers_a_query_group_member_that_never_advertised() {
+    // A catalog migrated from v2 holds no `conn_info`, so a member that never
+    // advertised an address must still boot.
+    let mut catalog = test_catalog();
+    register_query_node(&mut catalog, "node-a", None);
+    put_in_query_group(&mut catalog, "node-a");
+
+    let mut batch = RecordBatch::new(3);
+    RegisterNodeOp::prepare(&register_query_args("node-a", None), &catalog, &mut batch)
+        .expect("a member that never advertised an address must still register");
+}
+
+#[test]
+fn register_node_op_rejects_clearing_conn_info_for_a_query_group_member() {
+    let mut catalog = test_catalog();
+    register_query_node(&mut catalog, "node-a", Some("a:8181"));
+    put_in_query_group(&mut catalog, "node-a");
+
+    let mut batch = RecordBatch::new(3);
+    let Err(err) =
+        RegisterNodeOp::prepare(&register_query_args("node-a", None), &catalog, &mut batch)
+    else {
+        panic!("clearing conn info for a query group member must be refused");
+    };
+    match err {
+        CatalogError::NodeConnInfoRequiredInQueryGroup {
+            node_id,
+            query_group_name,
+            ..
+        } => {
+            assert_eq!(node_id.as_ref(), "node-a");
+            assert_eq!(query_group_name.as_ref(), "analytics");
+        }
+        other => panic!("expected NodeConnInfoRequiredInQueryGroup, got {other:?}"),
+    }
 }

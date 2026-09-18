@@ -2090,6 +2090,112 @@ async fn test_hard_delete_removes_schedule_triggers() -> Result<(), Box<dyn std:
     Ok(())
 }
 
+/// Create `db_name` with a disabled trigger on `file_name` and seed the
+/// worker's plugin cache for it.
+async fn seed_worker_plugin_in_db(
+    pem: &Arc<ProcessingEngineManagerImpl>,
+    db_name: &str,
+    file_name: &str,
+) -> crate::scheduler::TriggerKey {
+    pem.catalog.create_database(db_name).await.unwrap();
+    let validated = pem.validate_plugin_filename(file_name).await.unwrap();
+    let trigger = pem
+        .catalog
+        .create_processing_engine_trigger(
+            db_name,
+            "cache_trigger",
+            validated,
+            ApiNodeSpec::All,
+            "every:1s",
+            TriggerSettings::default(),
+            &None,
+            true,
+        )
+        .await
+        .unwrap();
+    let key = trigger_key(
+        pem.catalog.db_schema(db_name).unwrap().id,
+        trigger.trigger_id,
+    );
+    pem.worker.load_plugin_for_test(key).await.unwrap();
+    key
+}
+
+/// #5358: soft delete must evict the worker's cached plugins for that db —
+/// immediately, even though the default hard delete is 72 h out — and only
+/// that db's.
+#[test_log::test(tokio::test)]
+async fn test_soft_delete_evicts_worker_plugin_cache() -> Result<(), Box<dyn std::error::Error>> {
+    let (pem, db_id, trigger_id, _cancel, file) = setup_db_with_trigger("schedule").await?;
+    let file_name = file
+        .path()
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let key = trigger_key(db_id, trigger_id);
+    pem.worker.load_plugin_for_test(key).await.unwrap();
+    let other_key = seed_worker_plugin_in_db(&pem, "other_db", &file_name).await;
+    assert_eq!(pem.worker.cached_keys().len(), 2);
+
+    // Plain delete: hard delete pending on the default (72 h) schedule.
+    pem.catalog
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Default,
+            DeletionScope::DataAndCatalog,
+        )
+        .await?;
+
+    // Catalog subscriptions are synchronous, so the handler has run.
+    assert_eq!(
+        pem.worker.cached_keys(),
+        vec![other_key],
+        "soft delete must evict the db's cached plugins and no others"
+    );
+
+    pem.catalog
+        .soft_delete_database(
+            "other_db",
+            HardDeletionTime::Default,
+            DeletionScope::DataAndCatalog,
+        )
+        .await?;
+    assert!(
+        pem.worker.cached_keys().is_empty(),
+        "no cached plugins should remain once every db is deleted"
+    );
+    Ok(())
+}
+
+/// #5358: a plugin cached after soft delete (straggler load) is swept when the
+/// hard delete fires.
+#[test_log::test(tokio::test)]
+async fn test_hard_delete_evicts_worker_plugin_cache() -> Result<(), Box<dyn std::error::Error>> {
+    let (pem, db_id, trigger_id, _cancel, _file) = setup_db_with_trigger("schedule").await?;
+    let key = trigger_key(db_id, trigger_id);
+
+    pem.catalog
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Now,
+            DeletionScope::DataAndCatalog,
+        )
+        .await?;
+
+    // Cache after the soft delete so the hard-delete handler must evict itself.
+    pem.worker.load_plugin_for_test(key).await.unwrap();
+    assert_eq!(pem.worker.cached_keys(), vec![key]);
+
+    pem.catalog.hard_delete_database(&db_id).await?;
+    assert!(
+        pem.worker.cached_keys().is_empty(),
+        "hard delete must evict the db's cached plugins"
+    );
+    Ok(())
+}
+
 /// Unit tests for the id-keyed trigger routing table. These exercise
 /// `TriggerRegistry` directly, without a catalog, to prove WAL and request
 /// routing are driven by `TriggerKey`.

@@ -344,8 +344,8 @@ where
         if let Some(entry) = self.entries.get(&key) {
             entry
                 .freq
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |f| Some(3.min(f + 1)))
-                .unwrap(); // Safe unwrap since we are always returning Some in fetch_update
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |f| Some(3.min(f + 1)))
+                .unwrap(); // Safe unwrap since we are always returning Some in try_update
             self.config
                 .hook
                 .evict(generation, &key, EvictResult::Unfetched);
@@ -439,8 +439,8 @@ where
         if let Some(entry) = entry {
             entry
                 .freq
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |f| Some(3.min(f + 1)))
-                .unwrap(); // Safe unwrap since we are always returning Some in fetch_update
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |f| Some(3.min(f + 1)))
+                .unwrap(); // Safe unwrap since we are always returning Some in try_update
             Some(entry)
         } else {
             None
@@ -940,7 +940,7 @@ where
 
             let was_not_zero = tail
                 .freq
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |f| f.checked_sub(1))
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |f| f.checked_sub(1))
                 .is_ok();
 
             if was_not_zero || entry_likely_in_use(&tail) {

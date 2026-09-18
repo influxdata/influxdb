@@ -8,7 +8,7 @@ use crate::resource::CatalogResource;
 /// An operator-defined query group in the catalog.
 ///
 /// A query group names a set of query nodes that collectively buffer data from
-/// ingesters and compacted shards. The [Distributed Query design doc](https://github.com/influxdata/influxdb_pro/blob/main/docs/distributed-queries.md)
+/// ingesters and compacted shards. The [Distributed Query design doc](https://github.com/influxdata/influxdb_pro/blob/main/ent/docs/distributed-queries.md)
 /// describes how these inputs feed deterministic query data placement.
 ///
 /// Member order is operator-supplied and semantically significant, so it is

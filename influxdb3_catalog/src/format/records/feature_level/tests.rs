@@ -5,7 +5,7 @@ use uuid::Uuid;
 use super::AdvanceFeatureLevel;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::format::records::assert_roundtrip;
-use crate::format::{CatalogRecord, FeatureLevel, derive_feature_level};
+use crate::format::{CatalogRecord, FeatureLevel, RecordApply, derive_feature_level};
 
 #[test]
 fn record_id() {

@@ -21,18 +21,22 @@ pub struct Time(DateTime<Utc>);
 impl Add<Duration> for Time {
     type Output = Self;
 
+    /// Saturates at [`Time::MAX`]: a std [`Duration`] can exceed chrono's
+    /// representable range, so overflow is reachable from user-supplied
+    /// durations and must not panic. Use [`Time::checked_add`] to detect it.
     fn add(self, rhs: Duration) -> Self::Output {
-        let duration = chrono::Duration::from_std(rhs).unwrap();
-        Self(self.0 + duration)
+        self.checked_add(rhs).unwrap_or(Self::MAX)
     }
 }
 
 impl Sub<Duration> for Time {
     type Output = Self;
 
+    /// Saturates at [`Time::MIN`]: a std [`Duration`] can exceed chrono's
+    /// representable range, so overflow is reachable from user-supplied
+    /// durations and must not panic. Use [`Time::checked_sub`] to detect it.
     fn sub(self, rhs: Duration) -> Self::Output {
-        let duration = chrono::Duration::from_std(rhs).unwrap();
-        Self(self.0 - duration)
+        self.checked_sub(rhs).unwrap_or(Self::MIN)
     }
 }
 
@@ -685,6 +689,13 @@ mod test {
         assert!(chrono::Duration::from_std(duration).is_err());
         assert!(time.checked_add(duration).is_none());
         assert!(time.checked_sub(duration).is_none());
+
+        // The Add/Sub operators saturate instead of panicking, both when the
+        // duration exceeds chrono's range and when the result would overflow.
+        assert_eq!(time + duration, Time::MAX);
+        assert_eq!(time - duration, Time::MIN);
+        assert_eq!(Time::MAX + Duration::from_nanos(1), Time::MAX);
+        assert_eq!(Time::MIN - Duration::from_nanos(1), Time::MIN);
     }
 
     #[test]

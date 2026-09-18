@@ -3,6 +3,7 @@ mod api;
 mod db_retention;
 mod log_filter;
 mod offline_tokens;
+mod schema_enforcement;
 mod system_tables;
 mod tls_no_verify;
 
@@ -4813,4 +4814,35 @@ def process_writes(influxdb3_local, table_batches, args=None):
     );
 
     assert_eq!(result["errors"], serde_json::json!([]));
+}
+
+#[test_log::test]
+fn test_client_failure_hints_unread_env_lookalikes() {
+    let args = ["show", "databases", "--host", "http://127.0.0.1:1"];
+
+    // Guessed-but-unread name set: failure output carries the hint.
+    let output = cargo_bin_cmd!("influxdb3")
+        .args(args)
+        .env("INFLUXDB3_TOKEN", "t")
+        .env_remove("INFLUXDB3_AUTH_TOKEN")
+        .env_remove("INFLUXDB3_HOST")
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "unreachable host must fail");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_contains!(
+        &stderr,
+        "note: INFLUXDB3_TOKEN is not a recognized environment variable and is ignored; use INFLUXDB3_AUTH_TOKEN or --token instead"
+    );
+
+    // Nothing guessed set: same failure, no hint.
+    let output = cargo_bin_cmd!("influxdb3")
+        .args(args)
+        .env_remove("INFLUXDB3_TOKEN")
+        .env_remove("INFLUXDB3_HOST")
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "unreachable host must fail");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_not_contains!(&stderr, "INFLUXDB3_AUTH_TOKEN (or --token)");
 }

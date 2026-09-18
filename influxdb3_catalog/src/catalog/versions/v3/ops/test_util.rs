@@ -1,3 +1,4 @@
+use crate::catalog::versions::v3::schema::database::SchemaMode;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -34,6 +35,7 @@ pub(crate) fn create_db(catalog: &mut InnerCatalog, name: &str) -> DbId {
         &CreateDatabaseArgs {
             name: name.to_string(),
             retention_period: None,
+            schema_mode: SchemaMode::Implicit,
         },
         catalog,
         &mut batch,

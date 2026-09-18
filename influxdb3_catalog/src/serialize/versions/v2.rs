@@ -195,9 +195,9 @@ pub fn verify_and_deserialize_catalog_file(bytes: Bytes) -> Result<log::OrderedC
             Ok(log)
         }
         crate::log::UpgradedLog::VERSION_ID => Err(ObjectStoreCatalogError::UpgradedLog),
-        _ => Err(ObjectStoreCatalogError::unexpected(
-            format! {"unrecognized catalog file format: {version_id:?}"},
-        )),
+        _ => Err(ObjectStoreCatalogError::unexpected(format!(
+            "unrecognized catalog file format: {version_id:?}"
+        ))),
     }
 }
 

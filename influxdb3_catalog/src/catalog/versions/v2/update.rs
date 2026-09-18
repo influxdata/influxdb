@@ -255,8 +255,6 @@ impl Catalog {
         })
         .await
     }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn register_node(
         &self,
         node_id: &str,
@@ -647,8 +645,6 @@ impl Catalog {
         })
         .await
     }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_distinct_cache(
         &self,
         db_name: &str,
@@ -822,7 +818,6 @@ impl Catalog {
     /// - Include `refresh_interval` for periodic refresh
     ///
     /// Only one auto-generated cache per table is allowed.
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_auto_distinct_cache(
         &self,
         db_id: DbId,
@@ -895,8 +890,6 @@ impl Catalog {
         })
         .await
     }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_last_cache(
         &self,
         db_name: &str,
@@ -1050,7 +1043,6 @@ impl Catalog {
     }
 
     /// Insert a new trigger for the processing engine
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_processing_engine_trigger(
         &self,
         db_name: &str,

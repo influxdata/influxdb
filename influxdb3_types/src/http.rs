@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use influxdb3_authz::TokenInfo;
+use influxdb3_catalog::catalog::SchemaMode;
 use influxdb3_catalog::log::TriggerSettings;
 use uuid::Uuid;
 
@@ -197,9 +198,11 @@ pub struct ProcessingEngineTriggerCreateRequest {
     pub db: String,
     pub plugin_filename: String,
     pub trigger_name: String,
+    #[serde(default)]
     pub trigger_settings: TriggerSettings,
     pub trigger_specification: String,
     pub trigger_arguments: Option<HashMap<String, String>>,
+    #[serde(default)]
     pub disabled: bool,
 }
 
@@ -303,6 +306,11 @@ pub struct CreateDatabaseRequest {
     pub db: String,
     #[serde(with = "humantime_serde", default)]
     pub retention_period: Option<Duration>,
+    /// Whether tables in this database take their schemas from writes
+    /// (`implicit`, the default) or from explicit declarations (`explicit`).
+    /// Fixed at creation.
+    #[serde(default)]
+    pub schema_mode: SchemaMode,
 }
 
 /// Request definition for the `PUT /api/v3/configure/database` API
@@ -327,6 +335,21 @@ pub struct CreateTableRequest {
     pub db: String,
     pub table: String,
     pub tags: Vec<String>,
+    pub fields: Vec<CreateTableField>,
+}
+
+/// Request definition for the `PATCH /api/v3/configure/table` API.
+///
+/// Additive: the named tags and fields are added to the table. A column that
+/// already exists at the requested type is left alone. Nothing else about the
+/// table is touched.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PatchTableRequest {
+    pub db: String,
+    pub table: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
     pub fields: Vec<CreateTableField>,
 }
 

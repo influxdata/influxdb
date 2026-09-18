@@ -6,13 +6,13 @@ use uuid::Uuid;
 
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::enterprise::format::records::token::CreateResourceScopedToken;
-use crate::format::CatalogRecord;
 use crate::format::records::CreateDatabase;
 use crate::format::records::assert_roundtrip;
 use crate::format::records::types::{
     Actions as WireActions, Permission as WirePermission, ResourceIdentifier as WireResourceIdent,
     ResourceNameEntry as WireResourceNameEntry, ResourceType as WireResourceType, RetentionPeriod,
 };
+use crate::format::{CatalogRecord, RecordApply};
 
 /// Helper to create a test catalog.
 fn test_catalog() -> InnerCatalog {

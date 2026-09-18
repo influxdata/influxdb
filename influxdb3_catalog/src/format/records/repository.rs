@@ -5,13 +5,14 @@ use influxdb3_id::{
     TableId, TokenId, TriggerId,
 };
 
-use super::impl_bitcode_encoding;
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::database::DatabaseSchema;
 use crate::catalog::versions::v3::schema::table::TableDefinition;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 
 /// Set a repository's next-id counter.
 ///
@@ -20,7 +21,8 @@ use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, reco
 /// and reuse an id. This record carries the counter explicitly. It is emitted
 /// by the v2 → v3 migration (and, in future, by snapshot compaction) for any
 /// repository whose counter has advanced past `max(present id) + 1`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::SET_NEXT_ID, shape = 0xdb5eba72)]
+#[derive(Copy)]
 pub struct SetNextId {
     /// Which repository the counter belongs to.
     pub scope: NextIdScope,
@@ -35,12 +37,14 @@ pub struct SetNextId {
 ///
 /// # Adding variants
 ///
-/// `NextIdScope` is part of the on-disk format and follows the append-only
-/// rule for bitcode enums (see [`super::types`]): a new variant goes at the
+/// `NextIdScope` is part of the on-disk format: a new variant goes at the
 /// **end**; existing discriminants are positional and frozen; never reorder,
 /// insert, or remove one — a retired entity type keeps its now-dead variant
 /// so old records still decode. Add a variant when a *new* entity type becomes
 /// removable (and so can leave a gap in its counter).
+///
+/// Appending is bounded by the bucket rule in [`super::types`] — at 11
+/// variants this enum has room up to 16, then it is frozen (#4905).
 ///
 /// If new variants are added, it is assumed that they would not be serialized
 /// into the log during an upgrade, because any HardDelete* records that they
@@ -79,11 +83,7 @@ pub enum NextIdScope {
     QueryGroups,
 }
 
-impl CatalogRecord for SetNextId {
-    const ID: RecordId = record_ids::SET_NEXT_ID;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "SetNextId";
-
+impl RecordApply for SetNextId {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         match self.scope {
             NextIdScope::Nodes => catalog.nodes.set_next_id(NodeId::new(self.narrow_u32()?)),
@@ -174,7 +174,7 @@ impl SetNextId {
         f: impl FnOnce(&mut DatabaseSchema) -> Result<(), ApplyError>,
     ) -> Result<(), ApplyError> {
         let db_id = DbId::new(database_id);
-        catalog.databases.modify_by_id(&db_id, f)
+        catalog.databases.modify_by_id_in_place(&db_id, f)
     }
 
     fn with_table(
@@ -186,16 +186,10 @@ impl SetNextId {
     ) -> Result<(), ApplyError> {
         let table_id = TableId::new(table_id);
         self.with_database(catalog, database_id, |db| {
-            db.tables.modify_by_id(&table_id, f)
+            db.tables.modify_by_id_in_place(&table_id, f)
         })
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<SetNextId>()
-}
-
-impl_bitcode_encoding!(SetNextId);
 
 #[cfg(test)]
 mod tests;

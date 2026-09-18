@@ -19,6 +19,15 @@ pub enum MetricFamily {
     GrpcClient,
 }
 
+/// Maps a raw request path to a bounded route-template label value.
+struct PathNormalizer(Box<dyn Fn(&str) -> &'static str + Send + Sync>);
+
+impl std::fmt::Debug for PathNormalizer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PathNormalizer(..)")
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct MetricsKey {
     /// request path or None for 404 responses
@@ -43,8 +52,8 @@ pub struct RequestMetrics {
     /// Metrics.
     metrics: Mutex<HashMap<MetricsKey, Metrics>>,
 
-    /// Maximum path segments.
-    max_path_segments: Option<usize>,
+    /// Optional hook mapping raw request paths to bounded label values.
+    path_normalizer: Option<PathNormalizer>,
 }
 
 impl RequestMetrics {
@@ -53,13 +62,18 @@ impl RequestMetrics {
             family,
             metric_registry,
             metrics: Default::default(),
-            max_path_segments: None,
+            path_normalizer: None,
         }
     }
 
-    /// Restrict metric paths to `segments`
-    pub fn with_max_path_segments(mut self, segments: usize) -> Self {
-        self.max_path_segments = Some(segments);
+    /// Map every recorded path through `normalizer`, bounding the `path` and
+    /// `method_path` label values to the normalizer's (static) output set.
+    /// This bounds the number of distinct label values by construction.
+    pub fn with_path_normalizer(
+        mut self,
+        normalizer: impl Fn(&str) -> &'static str + Send + Sync + 'static,
+    ) -> Self {
+        self.path_normalizer = Some(PathNormalizer(Box::new(normalizer)));
         self
     }
 
@@ -92,7 +106,12 @@ impl RequestMetrics {
             MetricFamily::GrpcServer | MetricFamily::GrpcClient => None,
         };
 
-        let path = path.map(|p| truncate_path(&p, self.max_path_segments));
+        let method = method.filter(is_standard_method);
+
+        let path = path.map(|p| match &self.path_normalizer {
+            Some(normalizer) => (normalizer.0)(&p).to_string(),
+            None => p,
+        });
 
         MutexGuard::map(self.metrics.lock(), |metrics| {
             let key = MetricsKey {
@@ -127,20 +146,21 @@ impl RequestMetrics {
     }
 }
 
-fn truncate_path(path: &str, segments: Option<usize>) -> String {
-    let search = || {
-        let s = segments?;
-        let mut indices = path.match_indices('/');
-        for _ in 0..s {
-            indices.next();
-        }
-        let end = indices.next()?.0;
-        if end + 1 == path.len() {
-            return None;
-        }
-        Some(format!("{}/*", &path[..end]))
-    };
-    search().unwrap_or_else(|| path.to_string())
+/// Custom (extension) HTTP methods are client-controlled strings; treat them
+/// like invalid methods so they cannot mint per-method label values.
+fn is_standard_method(method: &Method) -> bool {
+    const STANDARD: &[Method] = &[
+        Method::GET,
+        Method::POST,
+        Method::PUT,
+        Method::DELETE,
+        Method::HEAD,
+        Method::OPTIONS,
+        Method::PATCH,
+        Method::CONNECT,
+        Method::TRACE,
+    ];
+    STANDARD.contains(method)
 }
 
 /// The request metrics for a specific set of attributes (e.g. path)
@@ -265,6 +285,18 @@ impl MetricsRecorder {
 
 impl Drop for MetricsRecorder {
     fn drop(&mut self) {
+        if self.classification.is_none() && matches!(self.metrics.family, MetricFamily::GrpcServer)
+        {
+            // An aborted gRPC server request never had its path validated by
+            // service routing (unknown methods normally classify as
+            // PathNotFound via grpc-status 12), so arbitrary client-supplied
+            // paths could mint unbounded series; do not record the path.
+            // Client-side paths come from the application's own outgoing
+            // calls, a bounded set with no spray risk, so they keep per-method
+            // abort attribution.
+            self.path = None;
+        }
+
         let metrics = self.metrics.request_metrics(
             self.path.take(),
             self.method.take(),
@@ -326,15 +358,218 @@ impl Drop for MetricsRecorder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use metric::{Observation, RawReporter};
+
     #[test]
-    fn test_truncate() {
-        assert_eq!(truncate_path("/health", Some(1)), "/health");
-        assert_eq!(truncate_path("/api/v2/write", Some(3)), "/api/v2/write");
-        assert_eq!(truncate_path("/api/v2/write/", Some(3)), "/api/v2/write/");
-        assert_eq!(truncate_path("/api/v2/write", Some(2)), "/api/v2/*");
-        assert_eq!(truncate_path("/v1/p/000000000000053e", Some(2)), "/v1/p/*");
-        assert_eq!(truncate_path("/a/b/c/d/e/f", None), "/a/b/c/d/e/f");
-        assert_eq!(truncate_path("/a/b/c/d/e/f/", None), "/a/b/c/d/e/f/");
-        assert_eq!(truncate_path("/v1/p/", Some(2)), "/v1/p/");
+    fn aborted_grpc_requests_do_not_mint_path_series() {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(RequestMetrics::new(
+            Arc::clone(&registry),
+            MetricFamily::GrpcServer,
+        ));
+        let request = http::Request::builder()
+            .method(Method::POST)
+            .uri("/sprayed.Garbage/Path")
+            .body(())
+            .unwrap();
+        // dropped without classification = aborted
+        drop(metrics.recorder(&request, QueryVariantExt::default()));
+
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        let observations = reporter.metric("grpc_requests").unwrap();
+        for (attributes, _) in &observations.observations {
+            assert!(
+                attributes.iter().all(|(key, _)| *key != "path"),
+                "aborted gRPC request must not retain its path: {attributes:?}"
+            );
+        }
+
+        let aborted: Vec<_> = observations
+            .observations
+            .iter()
+            .filter(|(attributes, _)| {
+                attributes
+                    .iter()
+                    .any(|(key, value)| *key == "status" && value.as_ref() == "aborted")
+                    && attributes.iter().all(|(key, _)| *key != "path")
+            })
+            .collect();
+        assert_eq!(
+            aborted.len(),
+            1,
+            "expected exactly one path-less aborted series: {observations:?}"
+        );
+        assert_eq!(aborted[0].1, Observation::U64Counter(1));
+    }
+
+    #[test]
+    fn aborted_grpc_client_requests_keep_their_path() {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(RequestMetrics::new(
+            Arc::clone(&registry),
+            MetricFamily::GrpcClient,
+        ));
+        let request = http::Request::builder()
+            .method(Method::POST)
+            .uri("/ingester.WriteService/Write")
+            .body(())
+            .unwrap();
+        drop(metrics.recorder(&request, QueryVariantExt::default()));
+
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        let observations = reporter.metric("grpc_client_requests").unwrap();
+        assert!(
+            observations
+                .observations
+                .iter()
+                .any(|(attributes, _)| attributes.iter().any(|(key, value)| {
+                    *key == "path" && value.as_ref() == "/ingester.WriteService/Write"
+                })),
+            "aborted gRPC client requests keep their path (bounded by the application's own outgoing calls)"
+        );
+    }
+
+    #[test]
+    fn aborted_http_requests_keep_their_path() {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(RequestMetrics::new(
+            Arc::clone(&registry),
+            MetricFamily::HttpServer,
+        ));
+        let request = http::Request::builder()
+            .method(Method::GET)
+            .uri("/api/v3/query_sql")
+            .body(())
+            .unwrap();
+        drop(metrics.recorder(&request, QueryVariantExt::default()));
+
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        let observations = reporter.metric("http_requests").unwrap();
+        assert!(
+            observations
+                .observations
+                .iter()
+                .any(|(attributes, _)| attributes.iter().any(|(key, value)| {
+                    *key == "path" && value.as_ref() == "/api/v3/query_sql"
+                })),
+            "aborted HTTP requests keep their path; the record-time path normalizer bounds its cardinality when one is configured"
+        );
+    }
+
+    #[test]
+    fn aborted_http_requests_fold_path_through_normalizer() {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(
+            RequestMetrics::new(Arc::clone(&registry), MetricFamily::HttpServer)
+                .with_path_normalizer(|path| {
+                    if path == "/health" {
+                        "/health"
+                    } else {
+                        "other"
+                    }
+                }),
+        );
+        let request = http::Request::builder()
+            .method(Method::GET)
+            .uri("/wp-admin/setup.php")
+            .body(())
+            .unwrap();
+        // dropped without classification = aborted
+        drop(metrics.recorder(&request, QueryVariantExt::default()));
+
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        let observations = reporter.metric("http_requests").unwrap();
+        for (attributes, _) in &observations.observations {
+            assert!(
+                attributes
+                    .iter()
+                    .all(|(key, value)| *key != "path" || value.as_ref() == "other"),
+                "aborted HTTP request leaked its raw path: {attributes:?}"
+            );
+        }
+
+        let aborted: Vec<_> = observations
+            .observations
+            .iter()
+            .filter(|(attributes, _)| {
+                attributes
+                    .iter()
+                    .any(|(key, value)| *key == "status" && value.as_ref() == "aborted")
+            })
+            .collect();
+        assert_eq!(
+            aborted.len(),
+            1,
+            "expected exactly one aborted series: {observations:?}"
+        );
+        assert!(
+            aborted[0]
+                .0
+                .iter()
+                .any(|(key, value)| *key == "path" && value.as_ref() == "other"),
+            "aborted series must carry the normalized path: {:?}",
+            aborted[0].0
+        );
+        assert_eq!(aborted[0].1, Observation::U64Counter(1));
+    }
+
+    fn record_ok(metrics: &Arc<RequestMetrics>, method: Method, uri: &str) {
+        let request = http::Request::builder()
+            .method(method)
+            .uri(uri)
+            .body(())
+            .unwrap();
+        let mut recorder = metrics.recorder(&request, QueryVariantExt::default());
+        recorder.set_classification(Classification::Ok);
+        drop(recorder);
+    }
+
+    fn observed_attributes(registry: &metric::Registry, metric_name: &str) -> String {
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        format!("{:?}", reporter.metric(metric_name).unwrap().observations)
+    }
+
+    #[test]
+    fn path_normalizer_bounds_label_values() {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(
+            RequestMetrics::new(Arc::clone(&registry), MetricFamily::HttpServer)
+                .with_path_normalizer(|path| {
+                    if path == "/health" {
+                        "/health"
+                    } else {
+                        "other"
+                    }
+                }),
+        );
+        record_ok(&metrics, Method::GET, "/health");
+        record_ok(&metrics, Method::GET, "/wp-admin/setup.php");
+
+        let attrs = observed_attributes(&registry, "http_requests");
+        assert!(attrs.contains("/health"));
+        assert!(attrs.contains("other"));
+        assert!(!attrs.contains("wp-admin"), "raw path leaked: {attrs}");
+    }
+
+    #[test]
+    fn non_standard_methods_are_not_label_values() {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(RequestMetrics::new(
+            Arc::clone(&registry),
+            MetricFamily::HttpServer,
+        ));
+        record_ok(&metrics, Method::from_bytes(b"SPRAYED").unwrap(), "/health");
+
+        let attrs = observed_attributes(&registry, "http_requests");
+        assert!(!attrs.contains("SPRAYED"), "custom method leaked: {attrs}");
+        assert!(
+            attrs.contains("/health"),
+            "request must still be counted with its path: {attrs}"
+        );
     }
 }

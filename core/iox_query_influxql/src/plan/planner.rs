@@ -2309,7 +2309,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ///   the `input` plan and sort the `output` plan.
     /// - `projection_tag_set`: Additional tag columns that should be used to sort the `output`
     ///   plan.
-    #[expect(clippy::too_many_arguments)]
     fn limit(
         &self,
         input: LogicalPlan,

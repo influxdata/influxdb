@@ -3,11 +3,12 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::impl_bitcode_encoding;
 use super::types::{
     ErrorBehavior as WireErrorBehavior, NodeSpec as WireNodeSpec,
     TriggerSettings as WireTriggerSettings, TriggerSpec as WireTriggerSpec,
 };
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::node::NodeSpec as SchemaNodeSpec;
@@ -15,11 +16,11 @@ use crate::catalog::versions::v3::schema::trigger::{
     ErrorBehavior, TriggerDefinition, TriggerSettings, TriggerSpecificationDefinition,
 };
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{RecordApply, record_ids};
 use influxdb3_id::{DbId, TriggerId};
 
 /// Create a processing engine trigger.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_TRIGGER, shape = 0x1b3f7476)]
 pub struct CreateTrigger {
     /// Trigger catalog ID.
     pub trigger_id: u32,
@@ -41,16 +42,12 @@ pub struct CreateTrigger {
     pub disabled: bool,
 }
 
-impl CatalogRecord for CreateTrigger {
-    const ID: RecordId = record_ids::CREATE_TRIGGER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateTrigger";
-
+impl RecordApply for CreateTrigger {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
             let trigger_def = TriggerDefinition {
                 trigger_id,
                 trigger_name: Arc::from(self.trigger_name.as_str()),
@@ -80,12 +77,8 @@ impl CatalogRecord for CreateTrigger {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateTrigger>()
-}
-
 /// Delete a trigger.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_TRIGGER, shape = 0x00ff5210)]
 pub struct DeleteTrigger {
     /// Trigger catalog ID.
     pub trigger_id: u32,
@@ -97,16 +90,12 @@ pub struct DeleteTrigger {
     pub force: bool,
 }
 
-impl CatalogRecord for DeleteTrigger {
-    const ID: RecordId = record_ids::DELETE_TRIGGER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteTrigger";
-
+impl RecordApply for DeleteTrigger {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
             db.processing_engine_triggers.remove(&trigger_id);
             Ok(())
         })
@@ -121,12 +110,8 @@ impl CatalogRecord for DeleteTrigger {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<DeleteTrigger>()
-}
-
 /// Enable a disabled trigger.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::ENABLE_TRIGGER, shape = 0x96117d65)]
 pub struct EnableTrigger {
     /// Database catalog ID.
     pub db_id: u32,
@@ -136,18 +121,14 @@ pub struct EnableTrigger {
     pub trigger_name: String,
 }
 
-impl CatalogRecord for EnableTrigger {
-    const ID: RecordId = record_ids::ENABLE_TRIGGER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "EnableTrigger";
-
+impl RecordApply for EnableTrigger {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
             db.processing_engine_triggers
-                .modify_by_id(&trigger_id, |trigger| {
+                .modify_by_id_in_place(&trigger_id, |trigger| {
                     trigger.disabled = false;
                     Ok(())
                 })
@@ -162,12 +143,8 @@ impl CatalogRecord for EnableTrigger {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<EnableTrigger>()
-}
-
 /// Disable a trigger.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DISABLE_TRIGGER, shape = 0x96117d65)]
 pub struct DisableTrigger {
     /// Database catalog ID.
     pub db_id: u32,
@@ -177,18 +154,14 @@ pub struct DisableTrigger {
     pub trigger_name: String,
 }
 
-impl CatalogRecord for DisableTrigger {
-    const ID: RecordId = record_ids::DISABLE_TRIGGER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DisableTrigger";
-
+impl RecordApply for DisableTrigger {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
             db.processing_engine_triggers
-                .modify_by_id(&trigger_id, |trigger| {
+                .modify_by_id_in_place(&trigger_id, |trigger| {
                     trigger.disabled = true;
                     Ok(())
                 })
@@ -201,10 +174,6 @@ impl CatalogRecord for DisableTrigger {
             trigger_id: TriggerId::new(self.trigger_id),
         }
     }
-}
-
-inventory::submit! {
-    RegisteredRecord::new::<DisableTrigger>()
 }
 
 // ---------------------------------------------------------------------------
@@ -293,8 +262,6 @@ impl From<&ErrorBehavior> for WireErrorBehavior {
         }
     }
 }
-
-impl_bitcode_encoding!(CreateTrigger, DeleteTrigger, EnableTrigger, DisableTrigger);
 
 #[cfg(test)]
 mod tests;

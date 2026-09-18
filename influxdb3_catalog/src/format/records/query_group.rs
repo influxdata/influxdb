@@ -9,19 +9,20 @@
 //! holds everything, but together the query nodes cover all the data.
 //!
 //! See the
-//! [Distributed Query design doc](https://github.com/influxdata/influxdb_pro/blob/main/docs/distributed-queries.md).
+//! [Distributed Query design doc](https://github.com/influxdata/influxdb_pro/blob/main/ent/docs/distributed-queries.md).
 
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use influxdb3_id::{NodeId, QueryGroupId};
 
-use super::impl_bitcode_encoding;
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::query_group::QueryGroupDefinition;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -37,7 +38,7 @@ fn decode_replication_factor(record: &'static str, value: u64) -> Result<NonZero
 }
 
 /// Create a new query group.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_QUERY_GROUP, shape = 0x5483ed05)]
 pub struct CreateQueryGroup {
     /// The query group's catalog ID.
     pub query_group_id: u32,
@@ -50,11 +51,7 @@ pub struct CreateQueryGroup {
     pub replication_factor: u64,
 }
 
-impl CatalogRecord for CreateQueryGroup {
-    const ID: RecordId = record_ids::CREATE_QUERY_GROUP;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateQueryGroup";
-
+impl RecordApply for CreateQueryGroup {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let id = QueryGroupId::new(self.query_group_id);
         let name: Arc<str> = Arc::from(self.query_group_name.as_str());
@@ -93,12 +90,8 @@ impl CatalogRecord for CreateQueryGroup {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateQueryGroup>()
-}
-
 /// Replace an existing query group's name, members, and replication factor.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UPDATE_QUERY_GROUP, shape = 0x5483ed05)]
 pub struct UpdateQueryGroup {
     /// The query group's catalog ID.
     pub query_group_id: u32,
@@ -111,11 +104,7 @@ pub struct UpdateQueryGroup {
     pub replication_factor: u64,
 }
 
-impl CatalogRecord for UpdateQueryGroup {
-    const ID: RecordId = record_ids::UPDATE_QUERY_GROUP;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UpdateQueryGroup";
-
+impl RecordApply for UpdateQueryGroup {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let id = QueryGroupId::new(self.query_group_id);
         let name: Arc<str> = Arc::from(self.query_group_name.as_str());
@@ -157,22 +146,15 @@ impl CatalogRecord for UpdateQueryGroup {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<UpdateQueryGroup>()
-}
-
 /// Remove an existing query group from the catalog.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_QUERY_GROUP, shape = 0x0c40adea)]
+#[derive(Copy)]
 pub struct DeleteQueryGroup {
     /// The query group's catalog ID.
     pub query_group_id: u32,
 }
 
-impl CatalogRecord for DeleteQueryGroup {
-    const ID: RecordId = record_ids::DELETE_QUERY_GROUP;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteQueryGroup";
-
+impl RecordApply for DeleteQueryGroup {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let id = QueryGroupId::new(self.query_group_id);
         if !catalog.query_groups.contains_id(&id) {
@@ -192,12 +174,6 @@ impl CatalogRecord for DeleteQueryGroup {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<DeleteQueryGroup>()
-}
-
-impl_bitcode_encoding!(CreateQueryGroup, UpdateQueryGroup, DeleteQueryGroup);
 
 #[cfg(test)]
 mod tests;

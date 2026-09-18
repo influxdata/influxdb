@@ -38,13 +38,13 @@ trace_http = { path = "../core/trace_http" }
 influxdb3_authz = { path = "../influxdb3_authz" }
 influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }
-influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_processing_engine = { path = "../influxdb3_processing_engine" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 influxdb3_types = { path = "../influxdb3_types"}
+influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
 jemalloc_pprof_http = { path = "../core/jemalloc_pprof_http" }
 
@@ -95,7 +95,6 @@ influxdb3_catalog = { path = "../influxdb3_catalog", features = [ "test_helpers"
 influxdb3_query_executor = { path = "../influxdb3_query_executor" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_sys_events = { path = "../influxdb3_sys_events" }
-influxdb3_wal = { path = "../influxdb3_wal" }
 
 # Core Crates
 parquet_file = { path = "../core/parquet_file" }

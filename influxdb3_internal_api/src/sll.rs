@@ -143,6 +143,60 @@ pub enum SystemEvent {
         duration_ms: u64,
     },
 
+    // ── parquet_cleanup ───────────────────────────────────────────────
+    /// A post-upgrade cleanup attempt completed successfully. Node-scoped:
+    /// one primary compactor walks the whole cluster object store. A dry run
+    /// reports matches while `files_deleted` and `bytes_reclaimed` remain 0.
+    ParquetCleanupSuccess {
+        /// `"delete"` or `"dry_run"`.
+        cleanup_mode: &'static str,
+        files_matched: u64,
+        bytes_matched: u64,
+        files_deleted: u64,
+        bytes_reclaimed: u64,
+        duration_ms: u64,
+    },
+    /// A post-upgrade cleanup reached a durable terminal failure. Counts
+    /// reflect progress persisted before the failure; `error_code` is a
+    /// static category and never includes an object-store path or message.
+    ParquetCleanupError {
+        cleanup_mode: &'static str,
+        files_matched: u64,
+        bytes_matched: u64,
+        files_deleted: u64,
+        bytes_reclaimed: u64,
+        error_code: &'static str,
+        duration_ms: u64,
+    },
+
+    // ── upgrade_retry ─────────────────────────────────────────────────
+    /// An operator reset of a failed Parquet → PachaTree upgrade rewrote the
+    /// durable migration state so the upgrade resumes on the next compactor
+    /// start. Cluster-wide: whichever node served the request emits it.
+    UpgradeRetrySuccess {
+        /// Terminal failures re-probed against the catalog and object store.
+        entries_inspected: u64,
+        /// Entries recorded as skips because their table or every one of
+        /// their sources is gone.
+        entries_skipped: u64,
+        /// Entries returned to the queue because a source is still readable.
+        entries_requeued: u64,
+        /// Entries whose sequence already held converted data, settled as
+        /// imported.
+        entries_already_converted: u64,
+        /// Entries left untouched because the object holding their sequence
+        /// could not be read; a re-run re-attempts them.
+        entries_unresolved: u64,
+        duration_ms: u64,
+    },
+    /// An operator reset was refused or could not be carried out. Nothing
+    /// durable changed except idempotent skip markers; `error_code` is a
+    /// static category and never includes a path or message.
+    UpgradeRetryError {
+        error_code: &'static str,
+        duration_ms: u64,
+    },
+
     // ── compaction_planned ────────────────────────────────────────────
     /// The compactor produced one or more plans for a database in this
     /// planning cycle. One emission per (cycle, database).
@@ -155,10 +209,6 @@ pub enum SystemEvent {
         database_id: u32,
         groups_planned: u64,
         files_to_compact: u64,
-        /// Plans skipped this cycle because their input file count exceeded the
-        /// compactor's per-plan file limit. Zero on a healthy cycle; the log
-        /// entry omits the field in that case.
-        plans_skipped_file_limit: u64,
     },
     /// Cycle-wide setup failed before any per-database plans existed
     /// (e.g. loading snapshots errored). Node-scoped — no `database_id`
@@ -200,6 +250,21 @@ pub enum SystemEvent {
     MemoryPressureSuccess {
         current_buffer_size_bytes: u64,
         memory_threshold_bytes: u64,
+    },
+
+    // ── memory_reservations ───────────────────────────────────────────
+    /// A node reported the memory it reserves up front and what is left over.
+    /// Node-scoped, once per boot, observation only — there is no fallible
+    /// operation to attach an error to.
+    ///
+    /// The reservations are static configuration; the headroom is what
+    /// everything unbudgeted has to fit in. Because the reservations are
+    /// percentages of the detected limit, the headroom ratio does not improve
+    /// when a node is given more memory.
+    MemoryReservationsSuccess {
+        detected_bytes: u64,
+        reserved_bytes: u64,
+        headroom_bytes: u64,
     },
 
     // ── catalog_snapshot ──────────────────────────────────────────────
@@ -262,6 +327,32 @@ pub enum SystemEvent {
         from_node_id: Arc<str>,
         /// Snapshot sequence number that was skipped.
         snapshot_sequence_number: u64,
+        /// Error category code (never a full message).
+        error_code: &'static str,
+    },
+
+    // ── trigger_work_abandoned ────────────────────────────────────────
+    /// The processing engine gave up on trigger work it could not confirm a
+    /// worker was still running, and reported it as a failed attempt.
+    ///
+    /// Workers report progress on each item they hold, repeatedly, so an item
+    /// nothing has been said about for long enough is one whose worker can no
+    /// longer be shown to be running it.
+    ///
+    /// Emitted once per sweep per worker, aggregated over every item retired at
+    /// that moment, because a worker holding a backlog goes quiet all at once.
+    /// Node-scoped: the count spans every database and trigger the affected
+    /// worker held, so there is no `database_id`.
+    ///
+    /// This answers two questions nothing else surfaces: why a plugin ran
+    /// twice, and why an invocation ended without the plugin reporting
+    /// anything. The work is retried under the trigger's error behaviour, so a
+    /// single entry is not by itself a failed invocation.
+    TriggerWorkAbandoned {
+        /// Worker node whose work was given up.
+        worker_node_id: Arc<str>,
+        /// How many work items were retired in this detection.
+        work_abandoned: u64,
         /// Error category code (never a full message).
         error_code: &'static str,
     },

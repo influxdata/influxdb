@@ -201,7 +201,7 @@ fn group_same_file_sources(files: Vec<&PartitionedFile>) -> Result<Vec<FileGroup
 ///         for each partitioned file in the group.
 ///     * Therefore the MinMaxStatistics will be the same for each partitioned file.
 ///     * Therefore the `MinMaxStatistics::is_sorted` will return false.
-///     * Therefore the [`FileScanConfig::project`](datafusion::datasource::physical_plan::FileScanConfig::project)
+///     * Therefore `FileScanConfig`'s projection logic
 ///         will not find a sort ordering for the group. Refer to:
 ///         <https://github.com/apache/datafusion/blob/9d06baf45298bc736966d0239fa78ec7a434ca54/datafusion/datasource/src/file_scan_config.rs#L1470>
 ///

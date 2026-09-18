@@ -162,7 +162,7 @@ fn conjunction(
 mod tests {
     use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use datafusion::{
-        datasource::object_store::ObjectStoreUrl,
+        datasource::{object_store::ObjectStoreUrl, table_schema::TableSchema},
         logical_expr::Operator,
         physical_expr::LexOrdering,
         physical_plan::{
@@ -186,10 +186,12 @@ mod tests {
         let schema = schema();
         let mut table_opts = table_parquet_options();
         table_opts.global.pushdown_filters = false;
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_opts)
+            .with_predicate(predicate_tag(&schema));
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_opts).with_predicate(predicate_tag(&schema))),
+            Arc::new(parquet_source),
         )
         .build();
         let plan = Arc::new(
@@ -341,12 +343,12 @@ mod tests {
     #[test]
     fn test_parquet() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options())
+            .with_predicate(predicate_tag(&schema));
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(
-                ParquetSource::new(table_parquet_options()).with_predicate(predicate_tag(&schema)),
-            ),
+            Arc::new(parquet_source),
         )
         .build();
         let plan = Arc::new(

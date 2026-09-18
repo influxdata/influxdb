@@ -1,11 +1,11 @@
-use std::{borrow::Cow, str::FromStr, time::Duration};
+use std::{str::FromStr, time::Duration};
 
 use datafusion::{
     common::{Result, extensions_options},
     config::{ConfigExtension, ConfigField, Visit},
     error::DataFusionError,
 };
-use datafusion_udf_wasm_host::HttpRequestMatcher;
+use datafusion_udf_wasm_host::AllowCertainHttpRequests;
 
 /// IOx-specific config extension prefix.
 pub const IOX_CONFIG_PREFIX: &str = "iox";
@@ -58,6 +58,37 @@ extensions_options! {
         /// Limit for the number of parquet files to scan in a single query. Zero means no limit.
         pub parquet_file_limit: usize, default = 0
 
+        /// Rewrite a regular expression predicate into an `IN` list where it matches a finite set
+        /// of values.
+        ///
+        /// A regular expression that is anchored at both ends and describes a finite set of strings can
+        /// be rewritten: `tag ~ '^val(1|2|3)$'` becomes `tag IN ('val1', 'val2', 'val3')`, which
+        /// is cheaper per row.
+        pub use_regex_to_in_list: bool, default = true
+
+        /// Limit for the number of values a regular expression predicate may be rewritten into an
+        /// `IN` list of.
+        ///
+        /// A pattern matching more values than this is left as a regular expression.
+        pub regex_to_in_list_max_entries: usize, default = 1000
+
+        /// Limit for the total size, in bytes, of the values a regular expression predicate may be
+        /// rewritten into an `IN` list of.
+        ///
+        /// Bounds the memory a rewrite may take even where
+        /// [`regex_to_in_list_max_entries`](Self::regex_to_in_list_max_entries) permits it, as a
+        /// pattern such as `^[0-9][0-9](…a long literal…)$` reaches few values that are each long.
+        pub regex_to_in_list_max_bytes: usize, default = 1024 * 1024
+
+        /// Limit for the number of times a repetition in a regular expression is repeated when
+        /// rewriting it into an `IN` list.
+        ///
+        /// Bounds the work a rewrite may take even where the other two limits permit it: the
+        /// values of `^a{0,999}$` fit within both, but cost far longer to enumerate than planning
+        /// a query should. A pattern repeating anything more times than this is left as a regular
+        /// expression.
+        pub regex_to_in_list_max_repetition: usize, default = 50
+
         /// Use an InfluxDB-specific parquet loader.
         ///
         /// Our custom loader currently has the following features:
@@ -74,11 +105,13 @@ extensions_options! {
         /// (which is basically all kinds of functions).
         pub udfs_enabled: bool, default = false
 
-  /// Set of HTTP/S request allowed in UDFs (pipe-delimited list of `METHOD:HOST:PORT`)
-  ///
-  /// Example: Allow HTTP GET requests to influxdata.com and POST requests to api.github.com
-  /// GET:influxdata.com:80|POST:api.github.com:443
-        pub udfs_http_allow_list: UDFHttpAllowList, default = UDFHttpAllowList::default()
+        /// HTTP/S requests permitted from UDFs.
+        ///
+        /// Each request is controlled by its host, port, connection mode, HTTP methods, and optional
+        /// IP allow/deny subnets. Configure nested settings through the `iox.udfs_http_permissions`
+        /// DataFusion namespace. For `--datafusion-config`, for example, use:
+        /// `iox.udfs_http_permissions.host.[api.example.com].port.443.methods:GET|POST`.
+        pub udfs_http_permissions: AllowCertainHttpRequests, default = AllowCertainHttpRequests::default()
     }
 }
 
@@ -178,163 +211,5 @@ impl ConfigField for MetadataCutoff {
             )
         })?;
         Ok(())
-    }
-}
-
-/// List of of allowed HTTP targets for the UDF.
-///
-/// Items have the format `<METHOD>:<HOST>:<PORT>` and are separated by a pipe `|`.
-///
-/// # Example Format
-/// ```
-/// # use std::{fmt::{Debug, Display}, str::FromStr};
-/// # use iox_query::config::UDFHttpAllowList;
-/// # use datafusion_udf_wasm_host::{HttpMethod, HttpRequestMatcher};
-/// #
-/// # #[track_caller]
-/// # fn assert_roundtrip<T>(s: &'static str, t: T)
-/// # where
-/// #     T: Debug + Display + FromStr + PartialEq,
-/// #     <T as FromStr>::Err: Debug,
-/// # {
-/// #     let t2 = T::from_str(s).unwrap();
-/// #     assert_eq!(t, t2);
-/// #
-/// #     let s2 = t.to_string();
-/// #     assert_eq!(s, s2);
-/// # }
-///
-/// // An empty string means "no items".
-/// assert_roundtrip(
-///     "",
-///     UDFHttpAllowList(vec![]),
-/// );
-///
-/// assert_roundtrip(
-///     "GET:influxdata.com:80",
-///     UDFHttpAllowList(vec![
-///         HttpRequestMatcher {
-///             method: HttpMethod::GET,
-///             host: "influxdata.com".into(),
-///             port: 80,
-///         },
-///     ]),
-/// );
-///
-/// // Multiple items are split by `|`.
-/// // This is done because we pass the different DataFusion config
-/// // options as one environment variable as `k1:v2,k2:v2,...` and
-/// // hence `,` is already taken (`:` can be used though since only
-/// // the first occurance in a key-value pair is used for splitting).
-/// assert_roundtrip(
-///     "GET:influxdata.com:80|POST:foo.com:443",
-///     UDFHttpAllowList(vec![
-///         HttpRequestMatcher {
-///             method: HttpMethod::GET,
-///             host: "influxdata.com".into(),
-///             port: 80,
-///         },
-///         HttpRequestMatcher {
-///             method: HttpMethod::POST,
-///             host: "foo.com".into(),
-///             port: 443,
-///         },
-///     ]),
-/// );
-/// ```
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct UDFHttpAllowList(pub Vec<HttpRequestMatcher>);
-
-impl UDFHttpAllowList {
-    const ITEM_SEP: &str = "|";
-    const PART_SEP: &str = ":";
-}
-
-impl FromStr for UDFHttpAllowList {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let l = s
-            .split(Self::ITEM_SEP)
-            .filter(|s| !s.is_empty())
-            .map(|s| {
-                let parts = s.split(Self::PART_SEP).collect::<Vec<_>>();
-                let [method, host, port] = parts.as_slice() else {
-                    return Err(ParseError(format!(
-                        "HTTP allow-list items must have 3 parts, separated by `{}`, but got `{s}`",
-                        Self::PART_SEP,
-                    )));
-                };
-                Ok(HttpRequestMatcher {
-                    method: method
-                        .parse()
-                        .map_err(|e| ParseError(format!("cannot parse HTTP method: {e}")))?,
-                    host: Cow::Owned((*host).to_owned()),
-                    port: port
-                        .parse()
-                        .map_err(|e| ParseError(format!("cannot parse HTTP port: {e}")))?,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self(l))
-    }
-}
-
-impl std::fmt::Display for UDFHttpAllowList {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, item) in self.0.iter().enumerate() {
-            if i > 0 {
-                write!(f, "{}", Self::ITEM_SEP)?;
-            }
-            let HttpRequestMatcher { method, host, port } = item;
-            write!(
-                f,
-                "{method}{}{host}{}{port}",
-                Self::PART_SEP,
-                Self::PART_SEP,
-            )?;
-        }
-        Ok(())
-    }
-}
-
-impl ConfigField for UDFHttpAllowList {
-    fn visit<V: Visit>(&self, v: &mut V, key: &str, description: &'static str) {
-        v.some(key, self, description)
-    }
-
-    fn set(&mut self, _key: &str, value: &str) -> Result<()> {
-        *self = value.parse().map_err(|e| {
-            DataFusionError::Context(
-                format!("Error parsing '{value}' as UDFHttpAllowList",),
-                Box::new(DataFusionError::External(Box::new(e))),
-            )
-        })?;
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::str::FromStr;
-    use test_helpers::assert_contains;
-
-    #[test]
-    fn udf_http_allow_list_requires_three_parts() {
-        let err = UDFHttpAllowList::from_str("GET:example.com").unwrap_err();
-        assert_contains!(err.to_string(), "HTTP allow-list items must have 3 parts");
-    }
-
-    #[test]
-    fn udf_http_allow_list_rejects_invalid_port() {
-        let err = UDFHttpAllowList::from_str("GET:example.com:not_a_port").unwrap_err();
-        assert_contains!(err.to_string(), "cannot parse HTTP port");
-    }
-
-    #[test]
-    fn udf_http_allow_list_rejects_invalid_method() {
-        let err = UDFHttpAllowList::from_str(":example.com:1234").unwrap_err();
-        assert_contains!(err.to_string(), "cannot parse HTTP method");
     }
 }

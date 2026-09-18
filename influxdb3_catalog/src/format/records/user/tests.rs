@@ -4,7 +4,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
 
 use super::*;

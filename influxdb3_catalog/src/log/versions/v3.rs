@@ -1037,7 +1037,6 @@ pub struct TokenBatch {
 // PK: I cannot come up with better names for variants, I _think_
 //     it is ok to ignore. Maybe I can break them into separate
 //     enum for each type
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TokenCatalogOp {
     CreateAdminToken(CreateAdminTokenDetails),

@@ -35,8 +35,10 @@ pub(crate) mod progressive_eval;
 mod record_batch_exec;
 pub(crate) mod reorder_partitions;
 pub use self::overlap::group_potential_duplicates;
+pub use crate::physical_optimizer::sort::lexical_range::LexicalRange;
 pub use deduplicate::{DeduplicateExec, RecordBatchDeduplicator};
 pub(crate) use physical::{PartitionedFileExt, chunks_to_physical_nodes};
+pub use progressive_eval::ProgressiveEvalExec;
 
 pub(crate) use record_batch_exec::RecordBatchesExec;
 

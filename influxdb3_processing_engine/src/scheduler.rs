@@ -429,7 +429,7 @@ impl Scheduler {
         }
     }
 
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub(crate) async fn shutdown_all(&self) {
         let keys: Vec<_> = self.triggers.lock().keys().copied().collect();
         for key in keys {

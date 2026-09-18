@@ -350,7 +350,7 @@ pub struct DatabaseTables {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ParquetFile {
     pub id: ParquetFileId,
-    pub path: String,
+    pub path: Arc<str>,
     pub size_bytes: u64,
     pub row_count: u64,
     /// chunk time nanos
@@ -397,7 +397,7 @@ impl AsRef<ParquetFile> for ParquetFile {
 
 #[cfg(test)]
 impl ParquetFile {
-    pub(crate) fn create_for_test(path: impl Into<String>) -> Self {
+    pub(crate) fn create_for_test(path: impl Into<Arc<str>>) -> Self {
         Self {
             id: ParquetFileId::new(),
             path: path.into(),

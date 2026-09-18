@@ -4685,7 +4685,6 @@ pub enum DeletionScope {
 }
 
 impl DeletionScope {
-    #[allow(dead_code)]
     /// Returns `None` if the scope is `DataAndCatalog`, otherwise `Some(scope)`.
     fn as_option(self) -> Option<Self> {
         match self {

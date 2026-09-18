@@ -4,9 +4,11 @@ use std::sync::Arc;
 
 use crate::CatalogError;
 use crate::catalog::versions::v3::catalog::Catalog;
+use crate::catalog::versions::v3::schema::node::NodeMode;
 use crate::catalog::{QueryGroupInsertPosition, QueryGroupUpdate};
 use crate::resource::CatalogResource;
 use influxdb3_id::NodeId;
+use influxdb3_process::ProcessUuidWrapper;
 
 // ---------------------------------------------------------------------------
 // Helper Functions
@@ -34,6 +36,58 @@ fn assert_invalid_configuration<T: fmt::Debug>(result: Result<T, CatalogError>) 
         matches!(result, Err(CatalogError::InvalidConfiguration { .. })),
         "expected InvalidConfiguration, got {result:?}"
     );
+}
+
+// Assert the operation was refused because the node is in another query group,
+// and that the error names the node and the group holding it.
+fn assert_node_already_in_query_group<T: fmt::Debug>(
+    result: Result<T, CatalogError>,
+    expected_node_id: &str,
+    expected_group_name: &str,
+) {
+    match result {
+        Err(CatalogError::NodeAlreadyInQueryGroup {
+            node_id,
+            query_group_name,
+            ..
+        }) => {
+            assert_eq!(node_id.as_ref(), expected_node_id);
+            assert_eq!(query_group_name.as_ref(), expected_group_name);
+        }
+        other => panic!("expected NodeAlreadyInQueryGroup, got {other:?}"),
+    }
+}
+
+// Register a query node that advertises no address, the way a node started
+// without `--conn-info` does. Returns its catalog id.
+async fn register_query_node_without_conn_info(catalog: &Arc<Catalog>, node_id: &str) -> NodeId {
+    catalog
+        .register_node(
+            node_id,
+            4,
+            vec![NodeMode::Query],
+            Arc::new(ProcessUuidWrapper::new()),
+            Arc::from(format!("inst-{node_id}")),
+            None,
+            None,
+            0,
+        )
+        .await
+        .expect("register node")
+        .node_catalog_id()
+}
+
+// Assert the result names `node_id` as the member that advertises no address.
+fn assert_rejected_for_missing_conn_info<T: fmt::Debug>(
+    result: Result<T, CatalogError>,
+    node_id: &str,
+) {
+    match &result {
+        Err(CatalogError::QueryGroupMemberNotConnectable { node_id: named }) => {
+            assert_eq!(named.as_ref(), node_id, "the error names the wrong node");
+        }
+        other => panic!("expected QueryGroupMemberNotConnectable, got {other:?}"),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +154,37 @@ async fn create_query_group_op_member_order_preserved() {
         members.as_slice(),
         "member order must be preserved exactly"
     );
+}
+
+// Test creating a query group that claims a node another group already holds.
+#[tokio::test]
+async fn create_query_group_op_rejects_member_of_another_group() {
+    let catalog = new_catalog().await;
+    let nodes = catalog.register_query_nodes(3).await;
+    catalog
+        .create_query_group("g1", vec![nodes[0], nodes[1]], rf(1))
+        .await
+        .expect("first create");
+
+    assert_node_already_in_query_group(
+        catalog
+            .create_query_group("g2", vec![nodes[2], nodes[1]], rf(1))
+            .await,
+        "query-node-1",
+        "g1",
+    );
+
+    assert_eq!(
+        catalog.list_query_groups().len(),
+        1,
+        "the refused group must not be created"
+    );
+
+    // A group built only from unclaimed nodes still goes through.
+    catalog
+        .create_query_group("g2", vec![nodes[2]], rf(1))
+        .await
+        .expect("create with an unclaimed node");
 }
 
 #[tokio::test]
@@ -189,6 +274,46 @@ async fn add_query_group_member_inserts_at_index() {
         &[nodes[0], nodes[1], nodes[2]],
         "member should be inserted between nodes[0] and nodes[2]"
     );
+}
+
+// Test adding a node that another query group already holds.
+#[tokio::test]
+async fn add_query_group_member_rejects_member_of_another_group() {
+    let catalog = new_catalog().await;
+    let nodes = catalog.register_query_nodes(3).await;
+    catalog
+        .create_query_group("g1", vec![nodes[0]], rf(1))
+        .await
+        .expect("create g1");
+    let g2 = catalog
+        .create_query_group("g2", vec![nodes[1]], rf(1))
+        .await
+        .expect("create g2");
+
+    // Attempt to add a node already claimed by another group should fail.
+    assert_node_already_in_query_group(
+        catalog
+            .add_query_group_member(&g2.id(), nodes[0], QueryGroupInsertPosition::Append)
+            .await,
+        "query-node-0",
+        "g1",
+    );
+
+    let stored = catalog
+        .query_group_by_id(&g2.id())
+        .expect("group present after the refused add");
+    assert_eq!(
+        stored.members(),
+        &[nodes[1]],
+        "the refused member must not be added"
+    );
+
+    // An unclaimed node still joins.
+    let updated = catalog
+        .add_query_group_member(&g2.id(), nodes[2], QueryGroupInsertPosition::Append)
+        .await
+        .expect("append an unclaimed node");
+    assert_eq!(updated.members(), &[nodes[1], nodes[2]]);
 }
 
 #[tokio::test]
@@ -289,6 +414,81 @@ async fn update_query_group_with_members_preserves_omitted_fields() {
     );
 }
 
+#[tokio::test]
+async fn update_query_group_op_allows_reordering_its_own_members() {
+    let catalog = new_catalog().await;
+    let nodes = catalog.register_query_nodes(3).await;
+    catalog
+        .create_query_group("g1", vec![nodes[2]], rf(1))
+        .await
+        .expect("create g1");
+    let g2 = catalog
+        .create_query_group("g2", vec![nodes[0], nodes[1]], rf(1))
+        .await
+        .expect("create g2");
+
+    let updated = catalog
+        .replace_query_group_members(&g2.id(), vec![nodes[1], nodes[0]])
+        .await
+        .expect("reorder its own members");
+    assert_eq!(updated.members(), &[nodes[1], nodes[0]]);
+
+    // Dropping a member and adding it back is the same: the group being edited
+    // never conflicts with itself.
+    catalog
+        .replace_query_group_members(&g2.id(), vec![nodes[1]])
+        .await
+        .expect("shrink");
+    let updated = catalog
+        .replace_query_group_members(&g2.id(), vec![nodes[1], nodes[0]])
+        .await
+        .expect("grow back");
+    assert_eq!(updated.members(), &[nodes[1], nodes[0]]);
+}
+
+#[tokio::test]
+async fn update_query_group_op_rejects_member_of_another_group() {
+    let catalog = new_catalog().await;
+    let nodes = catalog.register_query_nodes(3).await;
+    catalog
+        .create_query_group("g1", vec![nodes[0]], rf(1))
+        .await
+        .expect("create g1");
+    let g2 = catalog
+        .create_query_group("g2", vec![nodes[1]], rf(1))
+        .await
+        .expect("create g2");
+
+    // Attempting to add a node already claimed by another group should fail.
+    assert_node_already_in_query_group(
+        catalog
+            .replace_query_group_members(&g2.id(), vec![nodes[1], nodes[0]])
+            .await,
+        "query-node-0",
+        "g1",
+    );
+
+    let renamed = catalog
+        .update_query_group(
+            &g2.id(),
+            QueryGroupUpdate {
+                name: Some("g2-renamed".into()),
+                members: None,
+                replication_factor: None,
+            },
+        )
+        .await
+        .expect("rename");
+    assert_eq!(renamed.members(), &[nodes[1]], "members must be unchanged");
+
+    // An unclaimed node still joins.
+    let grown = catalog
+        .replace_query_group_members(&g2.id(), vec![nodes[1], nodes[2]])
+        .await
+        .expect("add an unclaimed node");
+    assert_eq!(grown.members(), &[nodes[1], nodes[2]]);
+}
+
 // Verify that an RF update persists the new RF while leaving name and member order
 // unchanged, and that the stored definition reflects the change immediately.
 #[tokio::test]
@@ -354,5 +554,59 @@ async fn query_group_member_mutation_rejects_invalid_targets() {
         catalog
             .remove_query_group_member(&group.id(), NodeId::new(999)) // non-existent member
             .await,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// A member must advertise a connection address
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn create_query_group_op_rejects_member_with_no_conn_info() {
+    let catalog = new_catalog().await;
+    let nodes = catalog.register_query_nodes(1).await;
+    let unreachable = register_query_node_without_conn_info(&catalog, "query-node-9").await;
+
+    assert_rejected_for_missing_conn_info(
+        catalog
+            .create_query_group("g1", vec![nodes[0], unreachable], rf(1))
+            .await,
+        "query-node-9",
+    );
+}
+
+#[tokio::test]
+async fn update_query_group_members_op_rejects_adding_a_member_with_no_conn_info() {
+    let catalog = new_catalog().await;
+    let nodes = catalog.register_query_nodes(1).await;
+    let unreachable = register_query_node_without_conn_info(&catalog, "query-node-9").await;
+    let group = catalog
+        .create_query_group("g1", vec![nodes[0]], rf(1))
+        .await
+        .expect("create");
+
+    assert_rejected_for_missing_conn_info(
+        catalog
+            .add_query_group_member(&group.id(), unreachable, QueryGroupInsertPosition::Append)
+            .await,
+        "query-node-9",
+    );
+}
+
+#[tokio::test]
+async fn update_query_group_op_rejects_member_with_no_conn_info() {
+    let catalog = new_catalog().await;
+    let nodes = catalog.register_query_nodes(1).await;
+    let unreachable = register_query_node_without_conn_info(&catalog, "query-node-9").await;
+    let group = catalog
+        .create_query_group("g1", vec![nodes[0]], rf(1))
+        .await
+        .expect("create");
+
+    assert_rejected_for_missing_conn_info(
+        catalog
+            .replace_query_group_members(&group.id(), vec![nodes[0], unreachable])
+            .await,
+        "query-node-9",
     );
 }

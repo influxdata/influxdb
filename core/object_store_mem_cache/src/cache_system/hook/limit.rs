@@ -54,7 +54,7 @@ impl<K> Hook<K> for MemoryLimiter {
         // synchronise memory accesses beyond itself
         match self
             .current
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                 // This cannot overflow as current + size <= limit
                 (current <= max).then_some(current + size)
             }) {

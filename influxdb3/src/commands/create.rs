@@ -3,6 +3,7 @@ pub mod token;
 use crate::commands::common::{DataType, InfluxDb3Config, SeparatedKeyValue, parse_key_val};
 use hashbrown::HashMap;
 use humantime::Duration;
+use influxdb3_catalog::catalog::SchemaMode;
 use influxdb3_catalog::log::ErrorBehavior;
 use influxdb3_catalog::log::TriggerSettings;
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
@@ -150,6 +151,12 @@ pub struct DatabaseConfig {
     /// The retention period for the database as a human-readable duration, e.g., "30d", "24h"
     pub retention_period: Option<Duration>,
 
+    /// Where table schemas come from: "implicit" (the default) grows them from incoming writes;
+    /// "explicit" requires every table and column to be created with `influxdb3 create table`
+    /// first, and rejects writes naming anything undefined. Fixed when the database is created
+    #[clap(long = "schema-mode", value_enum, default_value_t = SchemaMode::Implicit)]
+    pub schema_mode: SchemaMode,
+
     /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
@@ -249,13 +256,14 @@ pub struct DistinctCacheConfig {
 
 #[derive(Debug, clap::Args)]
 pub struct TableConfig {
-    #[clap(long = "tags", value_delimiter = ',', num_args = 1..)]
     /// The list of tag names to be created for the table. Tags are alphanumeric, can contain - and _, and start with a letter or number
+    /// This flag takes one or more values, so put the table name before it: `create table -d mydb mytable --tags a,b`
+    #[clap(long = "tags", value_delimiter = ',', num_args = 1..)]
     tags: Option<Vec<String>>,
 
-    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, value_delimiter = ',')]
     /// The list of field names and their data type to be created for the table. Fields are alphanumeric, can contain - and _, and start with a letter or number
     /// The expected format is a list like so: 'field_name:data_type'. Valid data types are: int64, uint64, float64, utf8, and bool
+    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, value_delimiter = ',')]
     fields: Vec<(String, DataType)>,
 
     #[clap(flatten)]
@@ -325,10 +333,15 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Database(DatabaseConfig {
             database_name,
             retention_period,
+            schema_mode,
             ..
         }) => {
             client
-                .api_v3_configure_db_create(&database_name, retention_period.map(Into::into))
+                .api_v3_configure_db_create(
+                    &database_name,
+                    retention_period.map(Into::into),
+                    schema_mode,
+                )
                 .await?;
 
             println!("Database {database_name:?} created successfully");

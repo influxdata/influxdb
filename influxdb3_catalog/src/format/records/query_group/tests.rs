@@ -6,8 +6,8 @@ use uuid::Uuid;
 use super::{CreateQueryGroup, DeleteQueryGroup, UpdateQueryGroup};
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
+use crate::format::{CatalogRecord, RecordApply};
 use crate::resource::CatalogResource;
 
 fn empty_catalog() -> InnerCatalog {

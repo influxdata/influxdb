@@ -3,9 +3,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
 use crate::format::records::token::{CreateAdminToken, DeleteToken, RegenerateAdminToken};
+use crate::format::{CatalogRecord, RecordApply};
 
 /// Helper to create a test catalog.
 fn test_catalog() -> InnerCatalog {

@@ -40,7 +40,7 @@ impl MemoryLimiter {
         // We can use relaxed ordering as not relying on this to
         // synchronise memory accesses beyond itself
         self.current
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                 // This cannot overflow as current + size <= limit
                 (current <= max).then_some(current + size)
             })

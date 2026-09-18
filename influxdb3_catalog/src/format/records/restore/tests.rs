@@ -1,7 +1,7 @@
 use super::RestoreCatalog;
 use crate::catalog::versions::v3::events::CatalogEvent;
-use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
+use crate::format::{CatalogRecord, RecordApply};
 
 #[test]
 fn record_id_and_flags() {

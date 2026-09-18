@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
-use std::ops::{Add, Deref};
+use std::ops::{Add, ControlFlow, Deref};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -27,7 +27,7 @@ use object_store::ObjectStore;
 use object_store::path::Path as ObjectStorePath;
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::{Mutex as ParkingMutex, RwLock};
-use tokio::sync::{Mutex, RwLock as AsyncRwLock, Semaphore};
+use tokio::sync::{Mutex, OwnedSemaphorePermit, RwLock as AsyncRwLock, Semaphore};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -101,8 +101,10 @@ use crate::catalog::versions::v3::schema::cache::{
     MaxCardinality, RefreshInterval,
 };
 use crate::catalog::versions::v3::schema::column::{FieldDataType, FieldFamilyMode};
-use crate::catalog::versions::v3::schema::database::DatabaseSchema;
-use crate::catalog::versions::v3::schema::node::{NodeDefinition, NodeMode, NodeModes, NodeSpec};
+use crate::catalog::versions::v3::schema::database::{DatabaseSchema, SchemaMode};
+use crate::catalog::versions::v3::schema::node::{
+    NodeDefinition, NodeMode, NodeModes, NodeSpec, RemovalAttestation,
+};
 use crate::catalog::versions::v3::schema::query_group::{
     QueryGroupDefinition, QueryGroupInsertPosition, QueryGroupUpdate,
 };
@@ -119,20 +121,17 @@ use crate::catalog::versions::v3::usage::{CatalogLimiter, CatalogLimits};
 use crate::catalog::{
     CatalogSequenceNumber, DEFAULT_OPERATOR_TOKEN_NAME, DeletionStatus, INTERNAL_DB_NAME,
 };
-use crate::format::FeatureLevel;
-use crate::format::Record;
-use crate::format::RecordBatch;
 use crate::format::apply::{
-    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file,
+    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file_records,
     preload_restore_for_records, serialize_log_file, serialize_snapshot_file,
 };
-use crate::format::derive_feature_level;
 use crate::format::records::CreateDatabase;
 use crate::format::records::types::Actions as WireActions;
 use crate::format::records::types::Permission as WirePermission;
 use crate::format::records::types::ResourceIdentifier as WireResourceIdentifier;
 use crate::format::records::types::ResourceType as WireResourceType;
 use crate::format::records::types::RetentionPeriod as WireRetentionPeriod;
+use crate::format::{CatalogFile, FeatureLevel, Record, RecordBatch, derive_feature_level};
 use crate::object_store::PersistCatalogResult;
 use crate::object_store::versions::v3::{CatalogLoad, ObjectStoreCatalog};
 use crate::resource::CatalogResource;
@@ -271,11 +270,17 @@ impl CatalogBuilder {
 #[derive(Default, Debug, Clone, Copy)]
 pub struct CreateDatabaseOptions {
     pub retention_period: Option<Duration>,
+    pub schema_mode: SchemaMode,
 }
 
 impl CreateDatabaseOptions {
     pub fn retention_period(mut self, retention_period: Duration) -> Self {
         self.retention_period = Some(retention_period);
+        self
+    }
+
+    pub fn schema_mode(mut self, schema_mode: SchemaMode) -> Self {
+        self.schema_mode = schema_mode;
         self
     }
 }
@@ -467,7 +472,6 @@ impl Catalog {
             args,
         )
         .await
-        .map(Arc::new)
     }
 
     /// Construct `Catalog` and initiate a background task that flips the registered
@@ -608,10 +612,12 @@ impl Catalog {
     ///
     /// Nodes are named `query-node-0`, `query-node-1`, … and assigned instance
     /// IDs `inst-query-0`, `inst-query-1`, … with 4 cores each in `Query` mode.
+    /// Each advertises `query-node-0:8181`, `query-node-1:8181`, … the way a
+    /// query node started with `--conn-info` does, so it can join a query group.
     ///
     /// This is intended for tests.
     #[cfg(any(test, feature = "test_helpers"))]
-    pub async fn register_query_nodes(&self, count: usize) -> Vec<influxdb3_id::NodeId> {
+    pub async fn register_query_nodes(self: &Arc<Self>, count: usize) -> Vec<influxdb3_id::NodeId> {
         use influxdb3_process::ProcessUuidWrapper;
 
         let mut ids = Vec::with_capacity(count);
@@ -623,7 +629,7 @@ impl Catalog {
                     vec![NodeMode::Query],
                     Arc::new(ProcessUuidWrapper::new()),
                     Arc::from(format!("inst-query-{i}")),
-                    None,
+                    Some(format!("query-node-{i}:8181")),
                     None,
                     0,
                 )
@@ -639,7 +645,7 @@ impl Catalog {
     /// This is intended for tests.
     #[cfg(any(test, feature = "test_helpers"))]
     pub async fn register_ingester_node(
-        &self,
+        self: &Arc<Self>,
     ) -> Arc<crate::catalog::versions::v3::schema::node::NodeDefinition> {
         use influxdb3_process::ProcessUuidWrapper;
 
@@ -666,6 +672,7 @@ impl Catalog {
         Self::new(catalog_id, store, time_provider, metric_registry).await
     }
 
+    #[cfg(any(test, feature = "test_helpers"))]
     pub async fn new_with_checkpoint_interval(
         catalog_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
@@ -710,7 +717,7 @@ impl Catalog {
         metric_registry: Arc<Registry>,
         limits: Arc<dyn CatalogLimiter>,
         args: CatalogArgs,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         use influxdb3_wal::NoopCatalogSnapshotObserver;
         Self::load_or_create_with_observer(
             catalog_id,
@@ -730,7 +737,6 @@ impl Catalog {
     /// emissions fire on initial-snapshot and periodic-checkpoint persists.
     /// Used by the enterprise binary; OSS-style callers use
     /// [`Self::load_or_create`] which supplies a noop observer.
-    #[allow(clippy::too_many_arguments)]
     async fn load_or_create_with_observer(
         catalog_id: impl Into<Arc<str>>,
         current_node_id: Option<Arc<str>>,
@@ -740,7 +746,7 @@ impl Catalog {
         limits: Arc<dyn CatalogLimiter>,
         args: CatalogArgs,
         catalog_snapshot_observer: Arc<dyn CatalogSnapshotObserver>,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let catalog_id: Arc<str> = catalog_id.into();
 
         // If a v2 catalog is present at this prefix and no v3 snapshot
@@ -776,7 +782,7 @@ impl Catalog {
             }
         }
 
-        let catalog = Self::from_parts(
+        let catalog = Arc::new(Self::from_parts(
             inner,
             store,
             current_node_id,
@@ -786,7 +792,7 @@ impl Catalog {
             args.default_hard_delete_duration,
             CheckpointPolicy::default(),
             limits,
-        );
+        ));
 
         // Snapshots in a non-current layout — legacy multi-group, or the
         // indexless flat form that pre-flat readers reject — still load, but
@@ -797,7 +803,7 @@ impl Catalog {
         // in as well. Failure is non-fatal — startup proceeds and the next
         // checkpoint retires the file instead.
         if snapshot_needs_rewrite {
-            match catalog.force_checkpoint().await {
+            match catalog.force_checkpoint(None).await {
                 Ok(()) => info!("rewrote catalog snapshot in current format"),
                 Err(error) => warn!(
                     ?error,
@@ -817,7 +823,7 @@ impl Catalog {
 
     /// Idempotently create the `_internal` system database with the
     /// long-lived retention period that hosts catalog system tables.
-    async fn create_internal_db_if_missing(&self) {
+    async fn create_internal_db_if_missing(self: &Arc<Self>) {
         use crate::catalog::INTERNAL_DB_RETENTION_PERIOD;
         let result = self
             .create_database_opts(
@@ -866,7 +872,6 @@ impl Catalog {
             args,
         )
         .await
-        .map(Arc::new)
     }
 
     /// Construct a `Catalog` for a node in an Enterprise cluster and initiate
@@ -877,7 +882,6 @@ impl Catalog {
     /// persistence (init + periodic checkpoints). Pass
     /// [`NoopCatalogSnapshotObserver`](influxdb3_wal::NoopCatalogSnapshotObserver)
     /// when SLL is disabled or in tests.
-    #[allow(clippy::too_many_arguments)]
     pub async fn new_enterprise_with_shutdown(
         current_node_id: impl Into<Arc<str>>,
         catalog_id: impl Into<Arc<str>>,
@@ -903,19 +907,17 @@ impl Catalog {
             args.storage_mode,
         )
         .await?;
-        let catalog = Arc::new(
-            Self::load_or_create_with_observer(
-                catalog_id,
-                Some(current_node_id),
-                store,
-                time_provider,
-                metric_registry,
-                limits,
-                args,
-                catalog_snapshot_observer,
-            )
-            .await?,
-        );
+        let catalog = Self::load_or_create_with_observer(
+            catalog_id,
+            Some(current_node_id),
+            store,
+            time_provider,
+            metric_registry,
+            limits,
+            args,
+            catalog_snapshot_observer,
+        )
+        .await?;
         let catalog_for_shutdown = Arc::clone(&catalog);
         tokio::spawn(async move {
             shutdown_token.wait_for_shutdown().await;
@@ -951,8 +953,6 @@ impl Catalog {
         });
         Ok(catalog)
     }
-
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
         inner: InnerCatalog,
         store: ObjectStoreCatalog,
@@ -1091,7 +1091,7 @@ impl Catalog {
     /// rebuild their per-resource state from the post-restore catalog
     /// view.
     pub async fn restore(
-        &self,
+        self: &Arc<Self>,
         restore_id: Arc<str>,
         source: CatalogRestoreSource,
     ) -> Result<RestoreReport> {
@@ -1129,7 +1129,7 @@ impl Catalog {
         // ordering must not be reworked to write the checkpoint first (it can
         // only run after the restored state is applied) nor to drop the staging
         // before a covering checkpoint exists.
-        self.force_checkpoint().await?;
+        self.force_checkpoint(None).await?;
         Ok(committed.output)
     }
 
@@ -1152,19 +1152,28 @@ impl Catalog {
     /// record is already present in the snapshot, failing the duplicate
     /// apply. Reading the live sequence here keeps header and body aligned
     /// regardless of any interleaving.
-    pub(crate) async fn force_checkpoint(&self) -> Result<()> {
+    ///
+    /// You must not be holding the `self.inner` write-lock while driving this function.
+    pub(crate) async fn force_checkpoint(
+        &self,
+        preacquired_permit: Option<OwnedSemaphorePermit>,
+    ) -> Result<()> {
         // Hold the checkpoint slot across the read+write. `maybe_background_checkpoint`
         // acquires the same slot, so a background snapshot task spawned just before a
         // restore — capturing an older sequence and pre-restore records — cannot land
         // its `put` after this forced write and clobber the post-restore snapshot with
         // a stale image. We block on any in-flight background checkpoint, then read the
         // live sequence and write last, so the forced checkpoint always wins.
-        let _checkpoint_permit = Arc::clone(&self.checkpoint_slot)
-            .acquire_owned()
-            .await
-            .map_err(|e| CatalogError::Internal {
-                details: format!("failed to acquire checkpoint slot: {e}"),
-            })?;
+        let _checkpoint_permit = match preacquired_permit {
+            Some(p) => p,
+            None => Arc::clone(&self.checkpoint_slot)
+                .acquire_owned()
+                .await
+                .map_err(|e| CatalogError::Internal {
+                    details: format!("failed to acquire checkpoint slot: {e}"),
+                })?,
+        };
+
         let (catalog_uuid, snapshot_seq, records) = {
             let inner = self.inner.read();
             (
@@ -1173,10 +1182,25 @@ impl Catalog {
                 inner.ordered_records.clone(),
             )
         };
+
         let snapshot_bytes = serialize_snapshot_file(catalog_uuid, snapshot_seq.get(), &records);
-        self.store
+        let meta = self
+            .store
             .write_checkpoint(snapshot_seq, snapshot_bytes)
             .await?;
+
+        // we know that locking this here while holding the checkpoint permit is fine because this
+        // is the only function that grabs the checkpoint permit and we lint against holding sync
+        // mutexes over await points, so nobody should be write-locking the `inner` mutex while
+        // calling force_checkpoint. Theoretically, if someone was driving this function through
+        // something other than `.await`'ing it, we might have issues, but nobody is doing that
+        // right now.
+        //
+        // Technically, doing this write might make the `last_snapshot_meta` be out-of-date since we
+        // don't ensure that nobody else read a new snapshot in since we called this function, but
+        // ensuring that will come in a later PR, since we don't actually use `last_snapshot_meta`
+        // at all anywhere yet.
+        self.inner.write().last_snapshot_meta = meta;
         *self.last_checkpoint.lock() = Checkpoint {
             sequence: snapshot_seq,
             when: Instant::now(),
@@ -1278,6 +1302,11 @@ impl Catalog {
     /// The members are kept in the order given. The replication factor sets
     /// how many copies of the data the group keeps.
     ///
+    /// Every member must belong to only one query group.
+    ///
+    /// Every member must be a registered node that advertises a connection
+    /// address: group members dial each other directly.
+    ///
     /// This API does not validate member-list policy, such as non-empty
     /// membership, uniqueness, node existence, or whether members are
     /// query-capable. Callers that accept user input should validate those
@@ -1285,8 +1314,11 @@ impl Catalog {
     ///
     /// Returns an error when:
     /// - The name is already in use.
+    /// - A member already belongs to another query group.
+    /// - A member is not in the catalog.
+    /// - A member advertises no connection address.
     pub async fn create_query_group(
-        &self,
+        self: &Arc<Self>,
         name: impl Into<Arc<str>>,
         members: Vec<NodeId>,
         replication_factor: std::num::NonZeroUsize,
@@ -1328,11 +1360,9 @@ impl Catalog {
 
     /// Return the query group that `node_id` is a member of, if any.
     ///
-    /// A running query node uses this to discover its own placement group. The
-    /// distributed-query model assumes a node belongs to at most one group.
-    /// That invariant is not yet enforced when groups are created or edited, so
-    /// if a node is placed in several groups this resolves to the
-    /// earliest-created one. Returns `None` when no group includes the node —
+    /// A running query node uses this to discover its own placement group. A
+    /// query node belongs to only one group: the catalog refuses to place
+    /// a node in a second one. Returns `None` when no group includes the node -
     /// such nodes keep the default behavior of loading all data (follow every
     /// ingester, read every shard).
     pub fn query_group_for_node(&self, node_id: NodeId) -> Option<Arc<QueryGroupDefinition>> {
@@ -1350,12 +1380,27 @@ impl Catalog {
     /// keeps its current value. Internally this writes a full-state record, so
     /// the stored group is always complete after each update.
     ///
+    /// A member list in `update` must hold registered nodes that each
+    /// advertise a connection address: group members dial each other directly.
+    /// None of them may already belong to another group, because a query node
+    /// belongs to only one group; a node this group already holds is not a conflict.
+    /// An update that carries no member list is not checked, so a group that
+    /// already holds an unreachable member can still be renamed and have its
+    /// replication factor changed.
+    ///
     /// This API does not validate member-list policy, such as non-empty
     /// membership, uniqueness, node existence, or whether members are
     /// query-capable. Callers that accept user input should validate those
     /// invariants before calling into the catalog.
+    ///
+    /// Returns an error when:
+    /// - The group does not exist.
+    /// - The new name is already used by another group.
+    /// - A member in a new member list belongs to another query group.
+    /// - A member in a new member list is not in the catalog.
+    /// - A member in a new member list advertises no connection address.
     pub async fn update_query_group(
-        &self,
+        self: &Arc<Self>,
         id: &QueryGroupId,
         update: QueryGroupUpdate,
     ) -> Result<Arc<QueryGroupDefinition>> {
@@ -1372,12 +1417,24 @@ impl Catalog {
 
     /// Add a member to a query group at the requested position.
     ///
+    /// Every member must belong to only one query group.
+    ///
+    /// The member must be a registered node that advertises a connection
+    /// address: group members dial each other directly.
+    ///
     /// This API does not validate member-list policy, such as uniqueness, node
     /// existence, or whether the member is query-capable. Callers that accept
     /// user input should validate those invariants before calling into the
     /// catalog.
+    ///
+    /// Returns an error when:
+    /// - The group does not exist.
+    /// - The requested position is past the end of the member list.
+    /// - The member already belongs to another query group.
+    /// - The member is not in the catalog.
+    /// - The member advertises no connection address.
     pub async fn add_query_group_member(
-        &self,
+        self: &Arc<Self>,
         id: &QueryGroupId,
         member: NodeId,
         position: QueryGroupInsertPosition,
@@ -1396,7 +1453,7 @@ impl Catalog {
     /// membership after removal. Callers that accept user input should validate
     /// those invariants before calling into the catalog.
     pub async fn remove_query_group_member(
-        &self,
+        self: &Arc<Self>,
         id: &QueryGroupId,
         member: NodeId,
     ) -> Result<Arc<QueryGroupDefinition>> {
@@ -1410,12 +1467,25 @@ impl Catalog {
 
     /// Replace a query group's complete member list.
     ///
+    /// Every member must be a registered node that advertises a connection
+    /// address: group members dial each other directly. Only the new list is
+    /// checked, so dropping a member that lost its address is how an operator
+    /// repairs a group. No member may already belong to another group, because
+    /// a query node belongs to one group; a node this group already holds is
+    /// not a conflict, so the list can be reordered freely.
+    ///
     /// This API does not validate member-list policy, such as non-empty
     /// membership, uniqueness, node existence, or whether members are
     /// query-capable. Callers that accept user input should validate those
     /// invariants before calling into the catalog.
+    ///
+    /// Returns an error when:
+    /// - The group does not exist.
+    /// - A member already belongs to another query group.
+    /// - A member is not in the catalog.
+    /// - A member advertises no connection address.
     pub async fn replace_query_group_members(
-        &self,
+        self: &Arc<Self>,
         id: &QueryGroupId,
         members: Vec<NodeId>,
     ) -> Result<Arc<QueryGroupDefinition>> {
@@ -1432,7 +1502,7 @@ impl Catalog {
 
     /// Update a query group's replication factor.
     pub async fn update_query_group_replication_factor(
-        &self,
+        self: &Arc<Self>,
         id: &QueryGroupId,
         replication_factor: std::num::NonZeroUsize,
     ) -> Result<Arc<QueryGroupDefinition>> {
@@ -1455,7 +1525,10 @@ impl Catalog {
     ///
     /// Returns the removed group definition so callers can inspect which
     /// members were affected (for example, node stop/remove safety checks).
-    pub async fn delete_query_group(&self, id: &QueryGroupId) -> Result<Arc<QueryGroupDefinition>> {
+    pub async fn delete_query_group(
+        self: &Arc<Self>,
+        id: &QueryGroupId,
+    ) -> Result<Arc<QueryGroupDefinition>> {
         info!(%id, "delete query group");
         self.update::<DeleteQueryGroupOp>(DeleteQueryGroupArgs { id: *id })
             .await
@@ -1617,7 +1690,7 @@ impl Catalog {
         token_hash: Vec<u8>,
     ) -> Option<PermissionAttributes> {
         let inner = self.inner.read();
-        let token_id = inner.tokens.hash_to_id(token_hash)?;
+        let token_id = inner.tokens.hash_to_id(&token_hash)?;
         let resource_id = inner.databases.name_to_id(db_name)?;
         inner.token_permissions.get_permission(
             ResourceType::Database,
@@ -1778,9 +1851,8 @@ impl Catalog {
     // -----------------------------------------------------------------
 
     /// Register a node in the cluster.
-    #[allow(clippy::too_many_arguments)]
     pub async fn register_node(
-        &self,
+        self: &Arc<Self>,
         node_id: &str,
         core_count: u64,
         mode: Vec<NodeMode>,
@@ -1815,7 +1887,7 @@ impl Catalog {
     /// Mark a node as stopped, recording the stopping process UUID. Used
     /// by a node's own graceful-shutdown path.
     pub async fn update_node_state_stopped(
-        &self,
+        self: &Arc<Self>,
         node_id: &str,
         process_uuid_getter: Arc<dyn ProcessUuidGetter>,
     ) -> Result<Arc<NodeDefinition>> {
@@ -1836,7 +1908,7 @@ impl Catalog {
     /// Administratively stop a node. Records `Uuid::nil()` as the
     /// stopping process UUID to distinguish operator-driven stops from
     /// graceful-shutdown stops.
-    pub async fn stop_node(&self, node_id: &str) -> Result<Arc<NodeDefinition>> {
+    pub async fn stop_node(self: &Arc<Self>, node_id: &str) -> Result<Arc<NodeDefinition>> {
         info!(node_id, "administratively stopping node in catalog");
         self.update::<StopNodeOp>(StopNodeArgs {
             node_id: Arc::from(node_id),
@@ -1855,7 +1927,7 @@ impl Catalog {
     /// 200 OK so controllers can retry a stop without treating it as a
     /// conflict.
     pub async fn request_stop_node(
-        &self,
+        self: &Arc<Self>,
         node_id: &str,
         process_uuid: Uuid,
     ) -> Result<Arc<NodeDefinition>> {
@@ -1871,7 +1943,7 @@ impl Catalog {
     /// Acknowledge that a stopping node has persisted its final snapshot,
     /// transitioning it from `Stopping` to `Stopped`.
     pub async fn ack_stop_node(
-        &self,
+        self: &Arc<Self>,
         node_id: &str,
         ack_time: Time,
         process_uuid: Uuid,
@@ -1888,23 +1960,35 @@ impl Catalog {
 
     /// Mark a fully-stopped node for permanent removal from the cluster.
     ///
+    /// `attestation` records whether an operator accepted the data loss the
+    /// removal may cause; the compactor's removal driver reads it much later,
+    /// on another node, to tell an authorised loss from an accidental one.
+    ///
     /// Returns [`CatalogError::IdempotentNoOp`] when the node is already in
-    /// `Removing`; HTTP handlers translate that to 200 OK.
+    /// `Removing`; HTTP handlers translate that to 200 OK. The one exception is
+    /// an operator attesting after the fact, which proceeds so a blocked
+    /// removal has a way out of a state it cannot otherwise leave.
     pub async fn remove_node(
-        &self,
+        self: &Arc<Self>,
         node_id: &str,
         requested_time: Time,
+        attestation: RemovalAttestation,
     ) -> Result<Arc<NodeDefinition>> {
         self.update::<RemoveNodeOp>(RemoveNodeArgs {
             node_id: Arc::from(node_id),
             requested_time,
+            attestation,
         })
         .await
     }
 
     /// Permanently unregister a node from the catalog. Called by the
     /// compactor's node_removal driver after object-store cleanup completes.
-    pub async fn unregister_node(&self, node_id: &str, unregistered_time: Time) -> Result<()> {
+    pub async fn unregister_node(
+        self: &Arc<Self>,
+        node_id: &str,
+        unregistered_time: Time,
+    ) -> Result<()> {
         self.update::<UnregisterNodeOp>(UnregisterNodeArgs {
             node_id: Arc::from(node_id),
             unregistered_time,
@@ -1913,14 +1997,14 @@ impl Catalog {
     }
 
     /// Create a new database with default options.
-    pub async fn create_database(&self, name: &str) -> Result<Arc<DatabaseSchema>> {
+    pub async fn create_database(self: &Arc<Self>, name: &str) -> Result<Arc<DatabaseSchema>> {
         self.create_database_opts(name, CreateDatabaseOptions::default())
             .await
     }
 
     /// Create a new database with the supplied options.
     pub async fn create_database_opts(
-        &self,
+        self: &Arc<Self>,
         name: &str,
         options: CreateDatabaseOptions,
     ) -> Result<Arc<DatabaseSchema>> {
@@ -1928,6 +2012,7 @@ impl Catalog {
         self.update::<CreateDatabaseOp>(CreateDatabaseArgs {
             name: name.to_string(),
             retention_period: options.retention_period,
+            schema_mode: options.schema_mode,
         })
         .await
     }
@@ -1935,7 +2020,7 @@ impl Catalog {
     /// Soft-delete a database. The database is renamed in place (so the original name
     /// can be re-used) and scheduled for hard deletion at the resolved time.
     pub async fn soft_delete_database(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         hard_delete_time: HardDeletionTime,
         hard_delete_scope: DeletionScope,
@@ -1981,7 +2066,10 @@ impl Catalog {
     }
 
     /// Hard-delete a database.
-    pub async fn hard_delete_database(&self, db_id: &DbId) -> Result<Arc<DatabaseSchema>> {
+    pub async fn hard_delete_database(
+        self: &Arc<Self>,
+        db_id: &DbId,
+    ) -> Result<Arc<DatabaseSchema>> {
         info!(db_id = db_id.get(), "hard delete database");
         self.update::<HardDeleteDatabaseOp>(HardDeleteDatabaseArgs { db_id: *db_id })
             .await
@@ -1989,7 +2077,7 @@ impl Catalog {
 
     /// Apply a retention policy to an active database.
     pub async fn set_retention_period_for_database(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         duration: Duration,
     ) -> Result<Arc<DatabaseSchema>> {
@@ -2004,7 +2092,7 @@ impl Catalog {
 
     /// Remove the retention policy from an active database.
     pub async fn clear_retention_period_for_database(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
     ) -> Result<Arc<DatabaseSchema>> {
         info!(db_name, "clear retention period for database");
@@ -2033,7 +2121,7 @@ impl Catalog {
     /// Create a table in `db_name` with the given tag and field columns, using default options.
     /// The database is auto-created if it does not exist.
     pub async fn create_table<S, F>(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         tags: &[S],
@@ -2055,7 +2143,7 @@ impl Catalog {
 
     /// Create a table with the provided options.
     pub async fn create_table_opts<S, F>(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         tags: &[S],
@@ -2075,7 +2163,9 @@ impl Catalog {
             "create table"
         );
         loop {
-            let mut txn = self.begin_database_transaction(db_name)?;
+            // This call is the configuration API defining schema, so it is
+            // exempt from `SchemaMode::Explicit` enforcement.
+            let mut txn = self.begin_database_transaction(db_name)?.defining_schema();
             let db_id = txn.db_schema().id;
             let table_id = txn.create_table_with_opts(table_name, options)?;
             let tbl_txn = txn.table_tx_or_create(table_name)?;
@@ -2107,10 +2197,84 @@ impl Catalog {
         }
     }
 
+    /// Add tag and field columns to an existing table.
+    ///
+    /// Additive only. A column that already exists at the requested type is
+    /// left alone; one that exists at a different type fails with
+    /// [`CatalogError::InvalidColumnType`]. A field named `family::field`
+    /// routes to that field family, as on the write path.
+    ///
+    /// Part of the configuration API, so it runs as
+    /// `SchemaSource::Definition` and is not enforced against — see
+    /// [`DatabaseCatalogTransaction`] for the write-path counterpart.
+    pub async fn add_table_columns<S, F>(
+        self: &Arc<Self>,
+        db_name: &str,
+        table_name: &str,
+        tags: &[S],
+        fields: &[(F, FieldDataType)],
+    ) -> Result<Arc<TableDefinition>>
+    where
+        S: AsRef<str> + Send + Sync,
+        F: AsRef<str> + Send + Sync,
+    {
+        info!(
+            db_name,
+            table_name,
+            n_tags = tags.len(),
+            n_fields = fields.len(),
+            "add table columns"
+        );
+        loop {
+            // This call is the configuration API defining schema, so it is
+            // exempt from `SchemaMode::Explicit` enforcement.
+            let mut txn = self.begin_database_transaction(db_name)?.defining_schema();
+            let db_id = txn.db_schema().id;
+            let table_def = txn
+                .db_schema()
+                .table_definition(table_name)
+                .ok_or_else(|| CatalogError::TableNotFound {
+                    db_name: Arc::from(db_name),
+                    table_name: Arc::from(table_name),
+                })?;
+            if table_def.deleted {
+                return Err(CatalogError::AlreadyDeleted(table_name.to_string()));
+            }
+            let table_id = table_def.table_id;
+
+            let tbl_txn = txn.table_tx_or_create(table_name)?;
+            for tag in tags.iter().map(AsRef::as_ref) {
+                tbl_txn.tag_or_create(tag)?;
+            }
+            for (f_name, f_type) in fields.iter().map(|(f, d)| (f.as_ref(), *d)) {
+                tbl_txn.field_or_create(f_name, f_type.into())?;
+            }
+
+            match self.commit(txn).await? {
+                Prompt::Success(_) => {
+                    return self
+                        .db_schema_by_id(&db_id)
+                        .ok_or_else(|| {
+                            CatalogError::NotFound(format!(
+                                "database (id: {db_id}, name: {db_name})"
+                            ))
+                        })?
+                        .table_definition_by_id(&table_id)
+                        .ok_or_else(|| {
+                            CatalogError::NotFound(format!(
+                                "table (id: {table_id}, name: {table_name})"
+                            ))
+                        });
+                }
+                Prompt::Retry(_) => continue,
+            }
+        }
+    }
+
     /// Soft-delete a table. The table is renamed in place and scheduled
     /// for hard deletion at the resolved time.
     pub async fn soft_delete_table(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         hard_delete_time: HardDeletionTime,
@@ -2151,7 +2315,7 @@ impl Catalog {
 
     /// Hard-delete a table, removing it from the catalog.
     pub async fn hard_delete_table(
-        &self,
+        self: &Arc<Self>,
         db_id: &DbId,
         table_id: &TableId,
     ) -> Result<Arc<TableDefinition>> {
@@ -2170,7 +2334,7 @@ impl Catalog {
     /// Apply a per-table retention policy. Errors if the database or
     /// table is missing or soft-deleted.
     pub async fn set_retention_period_for_table(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         duration: Duration,
@@ -2191,7 +2355,7 @@ impl Catalog {
 
     /// Remove the per-table retention policy.
     pub async fn clear_retention_period_for_table(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
     ) -> Result<Arc<TableDefinition>> {
@@ -2212,7 +2376,10 @@ impl Catalog {
     ///
     /// `regenerate=true` requires an existing operator token; the hash on the existing entry is
     /// rotated. `regenerate=false` requires no existing operator token; a fresh entry is created.
-    pub async fn create_admin_token(&self, regenerate: bool) -> Result<(Arc<TokenInfo>, String)> {
+    pub async fn create_admin_token(
+        self: &Arc<Self>,
+        regenerate: bool,
+    ) -> Result<(Arc<TokenInfo>, String)> {
         info!(regenerate, "create admin token");
         let (token, hash) = create_token_and_hash();
         let now = self.time_provider.now();
@@ -2253,7 +2420,7 @@ impl Catalog {
     // renamed here because the method does not give any permissions, it is an admin token that
     // gets full permissions.
     pub async fn create_named_admin_token(
-        &self,
+        self: &Arc<Self>,
         token_name: String,
         expiry_secs: Option<u64>,
     ) -> Result<(Arc<TokenInfo>, String)> {
@@ -2282,7 +2449,7 @@ impl Catalog {
 
     /// Create a named admin token using a caller-supplied hash.
     pub async fn create_named_admin_token_with_hash(
-        &self,
+        self: &Arc<Self>,
         name: String,
         hash: Vec<u8>,
         expiry_millis: Option<i64>,
@@ -2303,7 +2470,7 @@ impl Catalog {
     }
 
     /// Delete a named token. Operator token cannot be deleted.
-    pub async fn delete_token(&self, token_name: &str) -> Result<Arc<TokenInfo>> {
+    pub async fn delete_token(self: &Arc<Self>, token_name: &str) -> Result<Arc<TokenInfo>> {
         info!(token_name, "delete token");
         if token_name == DEFAULT_OPERATOR_TOKEN_NAME {
             return Err(CatalogError::CannotDeleteOperatorToken);
@@ -2317,7 +2484,7 @@ impl Catalog {
     /// Create a resource-scoped token. Returns the stored `TokenInfo` plus the
     /// raw token string.
     pub async fn create_token_with_permission(
-        &self,
+        self: &Arc<Self>,
         all_permissions: Vec<PermissionDetailsSpec>,
         token_name: String,
         expiry_secs: Option<u64>,
@@ -2350,7 +2517,7 @@ impl Catalog {
     /// Create a resource-scoped token with caller-supplied hash and a
     /// list of permission specs.
     pub async fn create_token_with_permission_and_hash(
-        &self,
+        self: &Arc<Self>,
         all_permissions: Vec<PermissionDetailsSpec>,
         token_name: String,
         hash: Vec<u8>,
@@ -2378,9 +2545,8 @@ impl Catalog {
     // -----------------------------------------------------------------
 
     /// Create a user-defined distinct-value cache.
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_distinct_cache<C: AsRef<str> + Send + Sync>(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         node_spec: ApiNodeSpec,
@@ -2405,9 +2571,8 @@ impl Catalog {
 
     /// Like [`Self::create_distinct_cache`], returning the applied sequence
     /// number and timestamp alongside the new definition.
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_distinct_cache_committed<C: AsRef<str> + Send + Sync>(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         node_spec: ApiNodeSpec,
@@ -2441,7 +2606,7 @@ impl Catalog {
     }
 
     pub async fn delete_distinct_cache(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         cache_name: &str,
@@ -2456,9 +2621,8 @@ impl Catalog {
     }
 
     /// Create an auto-generated distinct-value cache.
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_auto_distinct_cache(
-        &self,
+        self: &Arc<Self>,
         db_id: DbId,
         table_id: TableId,
         tag_ids: &[TagId],
@@ -2491,7 +2655,7 @@ impl Catalog {
 
     /// Delete the auto-generated distinct cache for `db_id`, `table_id`.
     pub async fn delete_auto_distinct_cache(
-        &self,
+        self: &Arc<Self>,
         db_id: DbId,
         table_id: TableId,
     ) -> Result<Arc<DistinctCacheDefinition>> {
@@ -2527,9 +2691,8 @@ impl Catalog {
     }
 
     /// Create a last-value cache.
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_last_cache<K, V>(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         node_spec: ApiNodeSpec,
@@ -2560,9 +2723,8 @@ impl Catalog {
 
     /// Like [`Self::create_last_cache`], returning the applied sequence
     /// number and timestamp alongside the new definition.
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_last_cache_committed<K, V>(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         node_spec: ApiNodeSpec,
@@ -2607,7 +2769,7 @@ impl Catalog {
     }
 
     pub async fn delete_last_cache(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         table_name: &str,
         cache_name: &str,
@@ -2624,10 +2786,8 @@ impl Catalog {
     // -----------------------------------------------------------------
     // Processing-engine triggers
     // -----------------------------------------------------------------
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_processing_engine_trigger(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         trigger_name: &str,
         plugin_filename: ValidPluginFilename<'_>,
@@ -2678,7 +2838,7 @@ impl Catalog {
     }
 
     pub async fn delete_processing_engine_trigger(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         trigger_name: &str,
         force: bool,
@@ -2696,7 +2856,7 @@ impl Catalog {
     }
 
     pub async fn enable_processing_engine_trigger(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<Arc<TriggerDefinition>> {
@@ -2709,7 +2869,7 @@ impl Catalog {
     }
 
     pub async fn disable_processing_engine_trigger(
-        &self,
+        self: &Arc<Self>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<Arc<TriggerDefinition>> {
@@ -2730,7 +2890,7 @@ impl Catalog {
     /// # Legacy Note
     ///
     /// This is method is for the legacy Parquet storage engined setting.
-    pub async fn set_gen1_duration(&self, duration: Duration) -> Result<()> {
+    pub async fn set_gen1_duration(self: &Arc<Self>, duration: Duration) -> Result<()> {
         info!(duration_ns = duration.as_nanos(), "set gen1 duration");
         self.update::<SetGenerationDurationOp>(SetGenerationDurationArgs { level: 1, duration })
             .await
@@ -2747,7 +2907,10 @@ impl Catalog {
     /// # Legacy Note
     ///
     /// This is method is for the legacy Parquet storage engined setting.
-    pub async fn set_all_generation_durations(&self, durations: &[Duration]) -> Result<()> {
+    pub async fn set_all_generation_durations(
+        self: &Arc<Self>,
+        durations: &[Duration],
+    ) -> Result<()> {
         if durations.is_empty() {
             return Ok(());
         }
@@ -2762,7 +2925,7 @@ impl Catalog {
     /// `Parquet → ParquetAndPachaTree → PachaTree`. Other transitions
     /// are rejected as Internal errors. Re-issuing the current mode is
     /// a `NoCatalogChange` no-op.
-    pub async fn set_storage_mode(&self, storage_mode: StorageMode) -> Result<()> {
+    pub async fn set_storage_mode(self: &Arc<Self>, storage_mode: StorageMode) -> Result<()> {
         info!(?storage_mode, "set storage mode");
         self.update::<SetStorageModeOp>(SetStorageModeArgs { storage_mode })
             .await
@@ -2773,7 +2936,7 @@ impl Catalog {
     /// # Warning
     ///
     /// Should not be called while nodes in the cluster are running.
-    pub async fn downgrade_storage_mode_to_parquet(&self) -> Result<()> {
+    pub async fn downgrade_storage_mode_to_parquet(self: &Arc<Self>) -> Result<()> {
         info!("downgrade storage mode to parquet");
         self.update::<DowngradeStorageModeOp>(()).await
     }
@@ -2795,7 +2958,10 @@ impl Catalog {
     }
 
     /// Execute an op and return just its output. See [`Self::update_committed`].
-    pub(crate) async fn update<Op: CatalogOp>(&self, args: Op::Input) -> Result<Op::Output> {
+    pub(crate) async fn update<Op: CatalogOp>(
+        self: &Arc<Self>,
+        args: Op::Input,
+    ) -> Result<Op::Output> {
         self.update_committed::<Op>(args).await.map(|c| c.output)
     }
 
@@ -2806,79 +2972,84 @@ impl Catalog {
     /// load and apply the winning log files, then retry from prepare with the
     /// refreshed catalog state.
     pub(crate) async fn update_committed<Op: CatalogOp>(
-        &self,
+        self: &Arc<Self>,
         args: Op::Input,
     ) -> Result<Committed<Op::Output>> {
-        let mut permit = self.write_permit.lock().await;
-        loop {
-            let next_seq = permit.next();
+        let (events, output, next_seq, time_ns) = {
+            let mut permit = self.write_permit.lock().await;
+            loop {
+                let next_seq = permit.next();
 
-            let mut batch = RecordBatch::new(next_seq.get());
-            let (op, committed) = {
-                let cat = self.inner.read();
-                // Prepare first so existence/validation errors surface
-                // ahead of any `TooMany*` from limits_check.
-                let op = Op::prepare(&args, &cat, &mut batch)?;
-                let usage = cat.current_usage();
-                Op::limits_check(&args, &cat, &usage, self.limits.as_ref())?;
-                (op, cat.committed_feature_level)
-            };
+                let mut batch = RecordBatch::new(next_seq.get());
+                let (op, committed) = {
+                    let cat = self.inner.read();
+                    // Prepare first so existence/validation errors surface
+                    // ahead of any `TooMany*` from limits_check.
+                    let op = Op::prepare(&args, &cat, &mut batch)?;
+                    let usage = cat.current_usage();
+                    Op::limits_check(&args, &cat, &usage, self.limits.as_ref())?;
+                    (op, cat.committed_feature_level)
+                };
 
-            // The local `committed` may be stale; catch up and retry
-            // before surfacing the rejection.
-            if let Err(err) = check_batch_against_committed(batch.as_slice(), committed) {
-                let before = self.sequence_number();
-                self.catch_up_from(next_seq).await?;
-                if self.sequence_number() != before {
-                    *permit = self.sequence_number();
-                    continue;
-                }
-                return Err(err);
-            }
-
-            let bytes = serialize_log_file(self.catalog_uuid, next_seq.get(), batch.as_slice());
-
-            // Pre-load any RestoreCatalog backup state before taking the
-            // sync write lock — the load is async I/O against object store
-            // and the lock cannot be held across `.await`.
-            let mut preload =
-                preload_restore_for_records(batch.as_slice(), &self.store, committed).await?;
-
-            match self.store.persist_log(next_seq, bytes).await? {
-                PersistCatalogResult::Success => {
-                    // TODO(tjh): a failure here leaves the catalog wedged — the log
-                    // file is durable at `next_seq`, in-memory state is not, and
-                    // every subsequent write hits AlreadyExists then re-fails the
-                    // same apply during catch-up. Should poison/halt the catalog
-                    // rather than surface as a per-call Internal error.
-                    //
-                    // See: https://github.com/influxdata/influxdb_pro/issues/3405
-                    let (output, events, time_ns) = {
-                        let mut cat = self.inner.write();
-                        let events =
-                            apply_records(batch.as_slice(), &mut cat, next_seq, &mut preload)
-                                .map_err(|e| CatalogError::Internal {
-                                    details: format!("apply_records after persist: {e}"),
-                                })?;
-                        let time_ns = self.time_provider.now().timestamp_nanos();
-                        (op.output(&cat), events, time_ns)
-                    };
-                    *permit = next_seq;
-                    self.broadcast(events, "broadcast").await?;
-                    self.maybe_background_checkpoint(next_seq);
-                    return Ok(Committed {
-                        output,
-                        sequence: next_seq,
-                        time_ns,
-                    });
-                }
-                PersistCatalogResult::AlreadyExists => {
+                // The local `committed` may be stale; catch up and retry
+                // before surfacing the rejection.
+                if let Err(err) = check_batch_against_committed(batch.as_slice(), committed) {
+                    let before = self.sequence_number();
                     self.catch_up_from(next_seq).await?;
-                    *permit = self.sequence_number();
-                    continue;
+                    if self.sequence_number() != before {
+                        *permit = self.sequence_number();
+                        continue;
+                    }
+                    return Err(err);
+                }
+
+                let bytes = serialize_log_file(self.catalog_uuid, next_seq.get(), batch.as_slice());
+
+                // Pre-load any RestoreCatalog backup state before taking the
+                // sync write lock — the load is async I/O against object store
+                // and the lock cannot be held across `.await`.
+                let preload =
+                    preload_restore_for_records(batch.as_slice(), &self.store, committed).await?;
+
+                match self.store.persist_log(next_seq, bytes).await? {
+                    PersistCatalogResult::Success => {
+                        // TODO(tjh): a failure here leaves the catalog wedged — the log
+                        // file is durable at `next_seq`, in-memory state is not, and
+                        // every subsequent write hits AlreadyExists then re-fails the
+                        // same apply during catch-up. Should poison/halt the catalog
+                        // rather than surface as a per-call Internal error.
+                        //
+                        // See: https://github.com/influxdata/influxdb_pro/issues/3405
+                        let (output, events, time_ns) = {
+                            let mut cat = self.inner.write();
+                            let events =
+                                apply_records(batch.as_slice(), &mut cat, next_seq, preload)
+                                    .map_err(|e| CatalogError::Internal {
+                                        details: format!("apply_records after persist: {e}"),
+                                    })?;
+
+                            let time_ns = self.time_provider.now().timestamp_nanos();
+                            (op.output(&cat), events, time_ns)
+                        };
+                        *permit = next_seq;
+                        break (events, output, next_seq, time_ns);
+                    }
+                    PersistCatalogResult::AlreadyExists => {
+                        self.catch_up_from(next_seq).await?;
+                        *permit = self.sequence_number();
+                        continue;
+                    }
                 }
             }
-        }
+        };
+
+        self.broadcast(events, "broadcast").await?;
+        self.maybe_background_checkpoint(next_seq);
+        Ok(Committed {
+            output,
+            sequence: next_seq,
+            time_ns,
+        })
     }
 
     pub fn begin_transaction(&self) -> CatalogTransaction {
@@ -2951,14 +3122,14 @@ impl Catalog {
     /// writer raced us to the next sequence. The caller must re-run
     /// their domain logic against the refreshed catalog.
     pub async fn commit(
-        &self,
+        self: &Arc<Self>,
         txn: DatabaseCatalogTransaction,
     ) -> Result<Prompt<CatalogSequenceNumber>> {
         self.commit_transaction(txn.finalize()).await
     }
 
     pub(crate) async fn commit_transaction(
-        &self,
+        self: &Arc<Self>,
         txn: CatalogTransaction,
     ) -> Result<Prompt<CatalogSequenceNumber>> {
         let CatalogTransaction {
@@ -2970,65 +3141,69 @@ impl Catalog {
             return Ok(Prompt::Success(sequence_at_begin));
         }
 
-        let mut permit = self.write_permit.lock().await;
+        let (next_seq, events) = {
+            let mut permit = self.write_permit.lock().await;
 
-        if *permit != sequence_at_begin {
-            return Ok(Prompt::Retry(()));
-        }
-
-        let next_seq = permit.next();
-
-        let committed = self.inner.read().committed_feature_level;
-        // Same catch-up-then-recheck as `update`, but signal
-        // `Prompt::Retry` instead of looping so the caller re-runs
-        // its domain logic against the refreshed catalog.
-        if let Err(err) = check_batch_against_committed(records.as_slice(), committed) {
-            let before = self.sequence_number();
-            self.catch_up_from(next_seq).await?;
-            if self.sequence_number() != before {
-                *permit = self.sequence_number();
+            if *permit != sequence_at_begin {
                 return Ok(Prompt::Retry(()));
             }
-            return Err(err);
-        }
 
-        let bytes = serialize_log_file(self.catalog_uuid, next_seq.get(), records.as_slice());
+            let next_seq = permit.next();
 
-        match self.store.persist_log(next_seq, bytes).await? {
-            PersistCatalogResult::Success => {
-                // TODO(tjh): a failure here leaves the catalog wedged — the log
-                // file is durable at `next_seq`, in-memory state is not, and
-                // every subsequent write hits AlreadyExists then re-fails the
-                // same apply during catch-up. Should poison/halt the catalog
-                // rather than surface as a per-call Internal error.
-                //
-                // See: https://github.com/influxdata/influxdb_pro/issues/3405
-                let events = {
-                    let mut cat = self.inner.write();
-                    // Database transactions only carry DDL records; never
-                    // a RestoreCatalog. Empty preload is sufficient.
-                    apply_records(
-                        records.as_slice(),
-                        &mut cat,
-                        next_seq,
-                        &mut RestorePreload::empty(),
-                    )
-                    .map_err(|e| CatalogError::Internal {
-                        details: format!("apply_records after commit persist: {e}"),
-                    })?
-                };
-                *permit = next_seq;
-                self.broadcast(events, "broadcast during transaction commit")
-                    .await?;
-                self.maybe_background_checkpoint(next_seq);
-                Ok(Prompt::Success(next_seq))
-            }
-            PersistCatalogResult::AlreadyExists => {
+            let committed = self.inner.read().committed_feature_level;
+            // Same catch-up-then-recheck as `update`, but signal
+            // `Prompt::Retry` instead of looping so the caller re-runs
+            // its domain logic against the refreshed catalog.
+            if let Err(err) = check_batch_against_committed(records.as_slice(), committed) {
+                let before = self.sequence_number();
                 self.catch_up_from(next_seq).await?;
-                *permit = self.sequence_number();
-                Ok(Prompt::Retry(()))
+                if self.sequence_number() != before {
+                    *permit = self.sequence_number();
+                    return Ok(Prompt::Retry(()));
+                }
+                return Err(err);
             }
-        }
+
+            let bytes = serialize_log_file(self.catalog_uuid, next_seq.get(), records.as_slice());
+
+            match self.store.persist_log(next_seq, bytes).await? {
+                PersistCatalogResult::Success => {
+                    // TODO(tjh): a failure here leaves the catalog wedged — the log
+                    // file is durable at `next_seq`, in-memory state is not, and
+                    // every subsequent write hits AlreadyExists then re-fails the
+                    // same apply during catch-up. Should poison/halt the catalog
+                    // rather than surface as a per-call Internal error.
+                    //
+                    // See: https://github.com/influxdata/influxdb_pro/issues/3405
+                    let events = {
+                        let mut cat = self.inner.write();
+                        // Database transactions only carry DDL records; never
+                        // a RestoreCatalog. Empty preload is sufficient.
+                        apply_records(
+                            records.as_slice(),
+                            &mut cat,
+                            next_seq,
+                            RestorePreload::empty(),
+                        )
+                        .map_err(|e| CatalogError::Internal {
+                            details: format!("apply_records after commit persist: {e}"),
+                        })?
+                    };
+                    *permit = next_seq;
+                    (next_seq, events)
+                }
+                PersistCatalogResult::AlreadyExists => {
+                    self.catch_up_from(next_seq).await?;
+                    *permit = self.sequence_number();
+                    return Ok(Prompt::Retry(()));
+                }
+            }
+        };
+
+        self.broadcast(events, "broadcast during transaction commit")
+            .await?;
+        self.maybe_background_checkpoint(next_seq);
+        Ok(Prompt::Success(next_seq))
     }
 
     /// Spawn a background checkpoint task if both the concurrency slot is
@@ -3041,7 +3216,7 @@ impl Catalog {
     /// the handle — the task warns internally on failure — while tests can
     /// await it to observe success or error.
     fn maybe_background_checkpoint(
-        &self,
+        self: &Arc<Self>,
         persisted_seq: CatalogSequenceNumber,
     ) -> Option<JoinHandle<Result<()>>> {
         let Ok(permit) = Arc::clone(&self.checkpoint_slot).try_acquire_owned() else {
@@ -3056,59 +3231,50 @@ impl Catalog {
             return None;
         }
 
-        // Clone the records under the read lock so the (potentially expensive)
-        // serialization happens off-lock in the spawned task. `Record` clone
-        // is a `Bytes` refcount bump plus a 16-byte header copy.
-        let (catalog_uuid, records) = {
+        {
             let inner = self.inner.read();
             if inner.ordered_records.is_empty() {
                 return None;
             }
-            (inner.catalog_uuid, inner.ordered_records.clone())
-        };
+        }
 
-        let store = self.store.clone();
-        let last_checkpoint = Arc::clone(&self.last_checkpoint);
+        let this = Arc::clone(self);
         Some(tokio::spawn(async move {
-            let _permit = permit;
-            let snapshot_bytes =
-                serialize_snapshot_file(catalog_uuid, persisted_seq.get(), &records);
-            let result = store.write_checkpoint(persisted_seq, snapshot_bytes).await;
-            match &result {
-                Ok(()) => {
-                    *last_checkpoint.lock() = Checkpoint {
-                        sequence: persisted_seq,
-                        when: Instant::now(),
-                    };
-                }
-                Err(e) => warn!(
+            this.force_checkpoint(Some(permit)).await.inspect_err(|e| {
+                warn!(
                     error = ?e,
-                    prefix = %store.prefix,
+                    prefix = %this.store.prefix,
                     sequence = persisted_seq.get(),
                     "background checkpoint failed",
-                ),
-            }
-            result.map_err(Into::into)
+                )
+            })
         }))
+    }
+
+    /// Take a [`CatalogFile`], preload any `RestoreCatalog` records that may exist within it, and
+    /// then apply the records within the file to self. This can fail if we can't validate a record
+    /// within application of the record
+    async fn apply_catalog_file_with_preloading(
+        &self,
+        file: &CatalogFile,
+    ) -> Result<Vec<CatalogEvent>> {
+        let file_seq = file.sequence_number();
+
+        // Pre-load restore state (if any) outside the sync write lock.
+        let committed = self.inner.read().committed_feature_level;
+        let preload =
+            preload_restore_for_file_records(&file.records, &self.store, committed).await?;
+
+        let mut cat = self.inner.write();
+        apply_catalog_file(file, &mut cat, preload).map_err(|e| CatalogError::Internal {
+            details: format!("apply_catalog_file during catch-up at {file_seq}: {e}"),
+        })
     }
 
     pub(super) async fn catch_up_from(&self, from_seq: CatalogSequenceNumber) -> Result<()> {
         let mut seq = from_seq;
         while let Some(file) = self.store.load_log(seq).await? {
-            // Pre-load restore state (if any) outside the sync write lock.
-            let committed = self.inner.read().committed_feature_level;
-            let mut preload = preload_restore_for_file(&file, &self.store, committed).await?;
-            let events = {
-                let mut cat = self.inner.write();
-                apply_catalog_file(&file, &mut cat, &mut preload).map_err(|e| {
-                    CatalogError::Internal {
-                        details: format!(
-                            "apply_catalog_file during catch-up at {}: {e}",
-                            seq.get(),
-                        ),
-                    }
-                })?
-            };
+            let events = self.apply_catalog_file_with_preloading(&file).await?;
             let saw_restore = events
                 .iter()
                 .any(|e| matches!(e, CatalogEvent::CatalogFullyRestored { .. }));
@@ -3118,7 +3284,7 @@ impl Catalog {
                 // the restored state — peers cold-starting later can load
                 // the snapshot directly instead of replaying the restore
                 // log against backup paths that may have moved.
-                self.force_checkpoint().await?;
+                self.force_checkpoint(None).await?;
             }
             seq = seq.next();
         }
@@ -3137,45 +3303,50 @@ impl Catalog {
     /// caches, processing engine, and deleter rely on this loop for
     /// updates that arrive via background poll, not via the local
     /// write path.
-    pub async fn update_to_sequence_number(&self, update_to: CatalogSequenceNumber) -> Result<()> {
-        let mut permit = self.write_permit.lock().await;
-        let mut next = permit.next();
-        if next > update_to {
-            return Ok(());
-        }
-        while next <= update_to {
-            if self.state.lock().is_shutdown() {
-                break;
-            }
-            let Some(file) = self.store.load_log(next).await? else {
-                break;
-            };
-            // Pre-load restore state (if any) outside the sync write lock.
-            let committed = self.inner.read().committed_feature_level;
-            let mut preload = preload_restore_for_file(&file, &self.store, committed).await?;
-            let events = {
-                let mut cat = self.inner.write();
-                apply_catalog_file(&file, &mut cat, &mut preload).map_err(|e| {
-                    CatalogError::Internal {
-                        details: format!(
-                            "apply_catalog_file during bounded catch-up at {}: {e}",
-                            next.get(),
-                        ),
+    pub async fn update_to_sequence_number(
+        &self,
+        update_to: CatalogSequenceNumber,
+        mut preloaded_first_log: Option<CatalogFile>,
+    ) -> Result<()> {
+        loop {
+            'write_lock: {
+                let mut permit = self.write_permit.lock().await;
+                let mut next = permit.next();
+                if next > update_to {
+                    return Ok(());
+                }
+                while next <= update_to {
+                    if self.state.lock().is_shutdown() {
+                        break;
                     }
-                })?
-            };
-            *permit = next;
-            let saw_restore = events
-                .iter()
-                .any(|e| matches!(e, CatalogEvent::CatalogFullyRestored { .. }));
-            self.broadcast(events, "broadcast during bounded catch-up")
-                .await?;
-            if saw_restore {
-                self.force_checkpoint().await?;
+                    let Some(file) = (match preloaded_first_log.take() {
+                        // We need this check because something could've changed the write permit in between
+                        // fetching this log and locking the write permit again.
+                        // See https://github.com/influxdata/influxdb_pro/issues/4916
+                        Some(f) if f.sequence_number() == next.get() => Some(f),
+                        _ => self.store.load_log(next).await?,
+                    }) else {
+                        break;
+                    };
+
+                    let events = self.apply_catalog_file_with_preloading(&file).await?;
+                    *permit = next;
+                    let saw_restore = events
+                        .iter()
+                        .any(|e| matches!(e, CatalogEvent::CatalogFullyRestored { .. }));
+                    self.broadcast(events, "broadcast during bounded catch-up")
+                        .await?;
+                    if saw_restore {
+                        break 'write_lock;
+                    }
+                    next = next.next();
+                }
+
+                return Ok(());
             }
-            next = next.next();
+
+            self.force_checkpoint(None).await?;
         }
-        Ok(())
     }
 
     /// Periodic catch-up loop. Sleeps for `duration` between probes and,
@@ -3195,29 +3366,41 @@ impl Catalog {
                     if self.state.lock().is_shutdown() {
                         break;
                     }
-                    let next_seq = self.sequence_number().next();
-                    match self.store.load_log(next_seq).await {
-                        Ok(Some(_)) => {
-                            if shutdown_token.is_cancelled() {
-                                break;
-                            }
-                            if let Err(err) = self
-                                .update_to_sequence_number(CatalogSequenceNumber::new(u64::MAX))
-                                .await
-                            {
-                                error!(?err, "background catalog update failed");
-                            }
-                        }
-                        Ok(None) => {}
-                        Err(err) => {
-                            error!(?err, "background catalog update probe failed");
-                        }
+
+                    if let ControlFlow::Break(()) = self.try_single_background_update(&shutdown_token).await {
+                        break;
                     }
-                    next_check = self.time_provider.now() + duration;
+                    next_check = next_check + duration;
                 }
                 _ = shutdown_token.wait_for_shutdown() => break,
             }
         }
+    }
+
+    async fn try_single_background_update(
+        &self,
+        shutdown_token: &ShutdownToken,
+    ) -> ControlFlow<()> {
+        let next_seq = self.sequence_number().next();
+        match self.store.load_log(next_seq).await {
+            Ok(Some(f)) => {
+                if shutdown_token.is_cancelled() {
+                    return ControlFlow::Break(());
+                }
+                if let Err(err) = self
+                    .update_to_sequence_number(CatalogSequenceNumber::new(u64::MAX), Some(f))
+                    .await
+                {
+                    error!(?err, "background catalog update failed");
+                }
+            }
+            Ok(None) => {}
+            Err(err) => {
+                error!(?err, "background catalog update probe failed");
+            }
+        }
+
+        ControlFlow::Continue(())
     }
 
     async fn broadcast(&self, events: Vec<CatalogEvent>, context: &str) -> Result<()> {
@@ -3360,7 +3543,7 @@ impl Catalog {
             .get_deleted_user_by_oauth_id(oauth_id)
     }
 
-    pub async fn delete_user(&self, user_id: UserId) -> Result<()> {
+    pub async fn delete_user(self: &Arc<Self>, user_id: UserId) -> Result<()> {
         info!(%user_id, "delete user");
         self.update::<DeleteUserOp>(DeleteUserArgs {
             user_id,
@@ -3370,7 +3553,7 @@ impl Catalog {
         Ok(())
     }
 
-    pub async fn revoke_refresh_token(&self, token_hash: Arc<str>) -> Result<()> {
+    pub async fn revoke_refresh_token(self: &Arc<Self>, token_hash: Arc<str>) -> Result<()> {
         info!("revoke refresh token");
         self.update::<RevokeRefreshTokenOp>(RevokeRefreshTokenArgs {
             token_hash: token_hash.to_string(),
@@ -3388,7 +3571,11 @@ impl Catalog {
             .and_then(|u| u.login_identities.username_password.clone())
     }
 
-    pub async fn update_user_roles(&self, user_id: UserId, role_ids: Vec<RoleId>) -> Result<()> {
+    pub async fn update_user_roles(
+        self: &Arc<Self>,
+        user_id: UserId,
+        role_ids: Vec<RoleId>,
+    ) -> Result<()> {
         info!(%user_id, "update user roles");
         self.update::<UpdateUserRolesOp>(UpdateUserRolesArgs {
             user_id,
@@ -3407,7 +3594,10 @@ impl Catalog {
             .filter(|u| !u.is_deleted())
     }
 
-    pub async fn create_user(&self, display_name: Option<&str>) -> Result<Arc<UserInfo>> {
+    pub async fn create_user(
+        self: &Arc<Self>,
+        display_name: Option<&str>,
+    ) -> Result<Arc<UserInfo>> {
         info!("create user");
         self.update::<CreateUserOp>(CreateUserArgs {
             display_name: display_name.map(|s| s.to_string()),
@@ -3417,7 +3607,7 @@ impl Catalog {
     }
 
     pub async fn restore_user(
-        &self,
+        self: &Arc<Self>,
         user_id: UserId,
         display_name: Option<&str>,
     ) -> Result<Arc<UserInfo>> {
@@ -3431,7 +3621,7 @@ impl Catalog {
     }
 
     pub async fn create_username_login_identity(
-        &self,
+        self: &Arc<Self>,
         user_id: UserId,
         username: Arc<str>,
         password_hash: Arc<str>,
@@ -3457,7 +3647,7 @@ impl Catalog {
     }
 
     pub async fn create_oauth_login_identity(
-        &self,
+        self: &Arc<Self>,
         user_id: UserId,
         oauth_id: Arc<str>,
     ) -> Result<Arc<UserInfo>> {
@@ -3470,14 +3660,17 @@ impl Catalog {
         .await
     }
 
-    pub async fn delete_oauth_login_identity(&self, user_id: UserId) -> Result<Arc<UserInfo>> {
+    pub async fn delete_oauth_login_identity(
+        self: &Arc<Self>,
+        user_id: UserId,
+    ) -> Result<Arc<UserInfo>> {
         info!(%user_id, "delete OAuth login identity");
         self.update::<DeleteLoginIdentityOAuthOp>(DeleteLoginIdentityOAuthArgs { user_id })
             .await
     }
 
     pub async fn update_user_display_name(
-        &self,
+        self: &Arc<Self>,
         user_id: UserId,
         display_name: Option<&str>,
     ) -> Result<Arc<UserInfo>> {
@@ -3491,7 +3684,7 @@ impl Catalog {
     }
 
     pub async fn update_password_hash(
-        &self,
+        self: &Arc<Self>,
         user_id: UserId,
         password_hash: Arc<str>,
     ) -> Result<Arc<UserInfo>> {
@@ -3505,7 +3698,7 @@ impl Catalog {
     }
 
     pub async fn update_requires_password_reset(
-        &self,
+        self: &Arc<Self>,
         user_id: UserId,
         requires_password_reset: bool,
     ) -> Result<Arc<UserInfo>> {
@@ -3530,7 +3723,7 @@ impl Catalog {
     }
 
     pub async fn create_refresh_token(
-        &self,
+        self: &Arc<Self>,
         user_id: UserId,
         token_hash: Arc<str>,
         expires_at: i64,
@@ -3546,7 +3739,10 @@ impl Catalog {
         Ok(())
     }
 
-    pub async fn revoke_all_refresh_tokens_for_user(&self, user_id: UserId) -> Result<()> {
+    pub async fn revoke_all_refresh_tokens_for_user(
+        self: &Arc<Self>,
+        user_id: UserId,
+    ) -> Result<()> {
         info!(%user_id, "revoke all refresh tokens");
         self.update::<RevokeAllRefreshTokensForUserOp>(RevokeAllRefreshTokensForUserArgs {
             user_id,
@@ -3573,7 +3769,7 @@ impl Catalog {
     }
 
     pub async fn create_role(
-        &self,
+        self: &Arc<Self>,
         name: influxdb3_authz::role::RoleName,
         description: influxdb3_authz::role::RoleDescription,
         permissions: Vec<influxdb3_authz::role::Permission>,
@@ -3591,7 +3787,7 @@ impl Catalog {
     }
 
     pub async fn update_role_permissions(
-        &self,
+        self: &Arc<Self>,
         role_id: RoleId,
         permissions: Vec<influxdb3_authz::role::Permission>,
     ) -> Result<Arc<Role>> {
@@ -3605,7 +3801,7 @@ impl Catalog {
     }
 
     pub async fn update_role(
-        &self,
+        self: &Arc<Self>,
         role_id: RoleId,
         name: Option<Arc<str>>,
         description: Option<influxdb3_authz::role::RoleDescription>,
@@ -3621,7 +3817,7 @@ impl Catalog {
     }
 
     /// Delete a role. Returns an error if the role is a required role.
-    pub async fn delete_role(&self, role_id: RoleId) -> Result<()> {
+    pub async fn delete_role(self: &Arc<Self>, role_id: RoleId) -> Result<()> {
         info!(%role_id, "delete role");
         self.update::<DeleteRoleOp>(DeleteRoleArgs {
             role_id,
@@ -3636,6 +3832,10 @@ impl Catalog {
 impl Catalog {
     /// Insert a fully-formed `NodeDefinition` directly into the catalog,
     /// bypassing the prepare/persist/apply path. Test-only.
+    ///
+    /// The node advertises `{node_id}:8181`, the way a node started with
+    /// `--conn-info` does, so it can join a query group. Use
+    /// [`Catalog::test_only_set_conn_info`] to take that address away again.
     pub fn test_only_insert_fake_running_node(
         &self,
         node_id: Arc<str>,
@@ -3646,6 +3846,7 @@ impl Catalog {
         row_delete_predicate_version: usize,
     ) {
         use crate::catalog::versions::v3::schema::node::{NodeDefinition, NodeState};
+        let conn_info = Arc::from(format!("{node_id}:8181").as_str());
         self.inner
             .write()
             .nodes
@@ -3660,13 +3861,36 @@ impl Catalog {
                     state: NodeState::Running {
                         registered_time_ns: 0,
                     },
-                    conn_info: None,
+                    conn_info: Some(conn_info),
                     cli_params: None,
                     feature_level: crate::format::derive_feature_level(),
                     row_delete_predicate_version: row_delete_predicate_version as u64,
                 },
             )
             .unwrap();
+    }
+
+    /// Set or clear a registered node's advertised address directly, bypassing
+    /// the prepare/persist/apply path. Test-only.
+    ///
+    /// Registering a node is the only way to write `conn_info` in production,
+    /// so this is how a test builds a node that a registration would not
+    /// produce.
+    ///
+    /// Panics if `node_id` is not registered.
+    #[cfg(any(test, feature = "test_helpers"))]
+    pub fn test_only_set_conn_info(&self, node_id: &str, conn_info: Option<Arc<str>>) {
+        let mut inner = self.inner.write();
+        let node = inner
+            .nodes
+            .get_by_name(node_id)
+            .unwrap_or_else(|| panic!("node '{node_id}' should be registered"));
+        let mut updated = (*node).clone();
+        updated.conn_info = conn_info;
+        inner
+            .nodes
+            .update(node.node_catalog_id, Arc::new(updated))
+            .expect("update node conn info");
     }
 
     /// Insert a fully-formed `DatabaseSchema` (with one table populated by
@@ -3700,6 +3924,7 @@ impl Catalog {
                 DatabaseSchema {
                     id: db_id,
                     name: db_name.into(),
+                    schema_mode: SchemaMode::Implicit,
                     tables,
                     retention_period: RetentionPeriod::Indefinite,
                     processing_engine_triggers: Repository::default(),

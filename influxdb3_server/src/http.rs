@@ -465,6 +465,15 @@ struct V2WriteApiError(Error);
 impl V2WriteApiError {
     fn to_code(&self) -> V2WriteErrorCode {
         match &self.0 {
+            // A full WAL buffer (--wal-max-buffered-writes) is saturation,
+            // not a client fault: 429 tells clients to back off and retry
+            // once the buffer flushes, matching iox's ingest memory
+            // pressure. This must stay ahead of the `Error::WriteBuffer(_)`
+            // arm below — v2 clients (Telegraf, client libraries) treat
+            // other 4xx responses as fatal and drop the batch.
+            Error::WriteBuffer(influxdb3_write::write_buffer::Error::WalError(
+                influxdb3_wal::Error::BufferFull(_),
+            )) => V2WriteErrorCode::TooManyRequests,
             Error::NonUtf8Body(_)
             | Error::NonUtf8ContentEncodingHeader(_)
             | Error::NonUtf8ContentTypeHeader(_)
@@ -486,6 +495,8 @@ impl V2WriteApiError {
                 CatalogError::AlreadyExists
                 | CatalogError::InvalidConfiguration { .. }
                 | CatalogError::InvalidColumnType { .. }
+                | CatalogError::UndeclaredTable { .. }
+                | CatalogError::UndeclaredColumn { .. }
                 | CatalogError::ReservedColumn(_)
                 | CatalogError::TooManyColumns { .. }
                 | CatalogError::TooManyTagColumns { .. }
@@ -517,6 +528,7 @@ enum V2WriteErrorCode {
     NotFound,
     RequestTooLarge,
     InternalError,
+    TooManyRequests,
 }
 
 impl V2WriteErrorCode {
@@ -528,6 +540,7 @@ impl V2WriteErrorCode {
             Self::NotFound => "not found",
             Self::RequestTooLarge => "request too large",
             Self::InternalError => "internal error",
+            Self::TooManyRequests => "too many requests",
         }
     }
 
@@ -539,6 +552,7 @@ impl V2WriteErrorCode {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::RequestTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 }
@@ -649,6 +663,7 @@ fn datafusion_error_status_code(err: &DataFusionError) -> StatusCode {
         | DataFusionError::ExecutionJoin(_)
         | DataFusionError::ResourcesExhausted(_)
         | DataFusionError::External(_)
+        | DataFusionError::Ffi(_)
         | DataFusionError::Substrait(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -661,15 +676,21 @@ impl IntoResponse for CatalogError {
             }
             Self::AlreadyExists
             | Self::AlreadyDeleted(_)
+            | Self::TokenHashAlreadyExists
             | Self::NodeNotFullyStopped { .. }
             | Self::NodeModeNotRemovable { .. }
-            | Self::NodeInQueryGroup { .. } => Either::Right(StatusCode::CONFLICT),
-            Self::InvalidConfiguration { .. }
+            | Self::NodeInQueryGroup { .. }
+            | Self::NodeAlreadyInQueryGroup { .. }
+            | Self::NodeConnInfoRequiredInQueryGroup { .. } => Either::Right(StatusCode::CONFLICT),
+            Self::QueryGroupMemberNotConnectable { .. }
+            | Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
             | Self::ReservedColumn(_)
             | Self::DuplicateColumn { .. }
             | Self::InvalidColumnType { .. }
+            | Self::UndeclaredTable { .. }
+            | Self::UndeclaredColumn { .. }
             | Self::NodeAlreadyStopped { .. } => Either::Right(StatusCode::BAD_REQUEST),
             Self::TooManyColumns { .. }
             | Self::TooManyTables { .. }
@@ -777,6 +798,17 @@ impl IntoResponse for Error {
                 ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
+                    .unwrap()
+            }
+            // A full WAL buffer (--wal-max-buffered-writes) is saturation:
+            // 429 tells clients to back off and retry once the buffer
+            // flushes, matching iox's ingest memory pressure.
+            Self::WriteBuffer(WriteBufferError::WalError(influxdb3_wal::Error::BufferFull(_))) => {
+                ResponseBuilder::new()
+                    .status(StatusCode::TOO_MANY_REQUESTS)
+                    .body(bytes_to_response_body(
+                        "wal buffer is full; writes are temporarily rejected, retry shortly",
+                    ))
                     .unwrap()
             }
             Self::WriteBuffer(err @ WriteBufferError::DatabaseDeleted(_)) => {
@@ -1019,7 +1051,6 @@ pub struct HttpApi {
 }
 
 impl HttpApi {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         common_state: CommonServerState,
         time_provider: Arc<dyn TimeProvider>,
@@ -1042,8 +1073,6 @@ impl HttpApi {
             false,
         )
     }
-
-    #[allow(clippy::too_many_arguments)]
     pub fn with_test_mode(
         common_state: CommonServerState,
         time_provider: Arc<dyn TimeProvider>,
@@ -1792,13 +1821,17 @@ impl HttpApi {
         let CreateDatabaseRequest {
             db,
             retention_period,
+            schema_mode,
         } = self.read_body_json(req).await?;
         validate_db_name(&db)?;
         self.write_buffer
             .catalog()
             .create_database_opts(
                 &db,
-                influxdb3_catalog::catalog::CreateDatabaseOptions { retention_period },
+                influxdb3_catalog::catalog::CreateDatabaseOptions {
+                    retention_period,
+                    schema_mode,
+                },
             )
             .await?;
         Ok(Response::new(empty_response_body()))
@@ -1961,6 +1994,36 @@ impl HttpApi {
         self.write_buffer
             .catalog()
             .create_table(
+                &db,
+                &table,
+                &tags,
+                &fields
+                    .into_iter()
+                    .map(|field| (field.name, field.r#type.into()))
+                    .collect::<Vec<(String, FieldDataType)>>(),
+            )
+            .await?;
+        Ok(Response::new(empty_response_body()))
+    }
+
+    async fn patch_table(&self, req: Request) -> Result<Response> {
+        let PatchTableRequest {
+            db,
+            table,
+            tags,
+            fields,
+        } = self.read_body_json(req).await?;
+        validate_db_name(&db)?;
+        // A request that names no columns would commit nothing; report that
+        // rather than returning 200 for a no-op.
+        if tags.is_empty() && fields.is_empty() {
+            return Err(Error::InvalidRequest(
+                "at least one of tags or fields is required".to_string(),
+            ));
+        }
+        self.write_buffer
+            .catalog()
+            .add_table_columns(
                 &db,
                 &table,
                 &tags,
@@ -2609,7 +2672,7 @@ pub(crate) async fn route_request(
     http_server: Arc<HttpApi>,
     req: Request,
     started_without_auth: bool,
-    paths_without_authz: &'static Vec<&'static str>,
+    paths_without_authz: &'static [&'static str],
 ) -> Result<Response, Infallible> {
     // extract from the request for logging before we pass it to perform_routing, which consumes it
     let method = req.method().clone();
@@ -2680,7 +2743,7 @@ async fn perform_routing(
     http_server: Arc<HttpApi>,
     mut req: Request,
     started_without_auth: bool,
-    paths_without_authz: &'static Vec<&'static str>,
+    paths_without_authz: &'static [&'static str],
 ) -> Result<Response, RoutingError> {
     let method = req.method().clone();
     let uri = req.uri().clone();
@@ -2840,6 +2903,7 @@ async fn perform_routing(
             http_server.delete_database(req).await
         }
         (Method::POST, all_paths::API_V3_CONFIGURE_TABLE) => http_server.create_table(req).await,
+        (Method::PATCH, all_paths::API_V3_CONFIGURE_TABLE) => http_server.patch_table(req).await,
         (Method::DELETE, all_paths::API_V3_CONFIGURE_TABLE) => http_server.delete_table(req).await,
         (Method::POST, all_paths::API_V3_TEST_WAL_ROUTE) => {
             http_server.test_processing_engine_wal_plugin(req).await

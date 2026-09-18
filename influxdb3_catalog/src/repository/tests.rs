@@ -123,3 +123,117 @@ fn modify_by_id_returns_closure_value() {
         .unwrap();
     assert_eq!(got, 7);
 }
+
+#[test]
+fn modify_by_id_in_place_mutates_without_reallocating() {
+    let (mut repo, id) = repo_with_one();
+    let before = Arc::as_ptr(&repo.get_by_id(&id).unwrap());
+
+    repo.modify_by_id_in_place::<(), RepositoryError<DbId>>(&id, |r| {
+        r.name = "renamed".into();
+        Ok(())
+    })
+    .unwrap();
+
+    // Nothing else held the resource, so `Arc::make_mut` wrote through the
+    // existing allocation instead of deep-copying it — this is the whole point
+    // of the method, so assert on the allocation rather than just the value.
+    assert_eq!(Arc::as_ptr(&repo.get_by_id(&id).unwrap()), before);
+    assert_eq!(repo.get_by_id(&id).unwrap().name().as_ref(), "renamed");
+    assert_eq!(repo.name_to_id("renamed"), Some(id));
+    assert_eq!(repo.name_to_id("original"), None);
+    assert_eq!(repo.id_to_name(&id).as_deref(), Some("renamed"));
+}
+
+#[test]
+fn modify_by_id_in_place_leaves_reader_snapshots_frozen() {
+    let (mut repo, id) = repo_with_one();
+    // A reader holding an `Arc` is exactly what the catalog hands out from
+    // `db_schema()`; it must keep observing the state it was given.
+    let snapshot = repo.get_by_id(&id).unwrap();
+
+    repo.modify_by_id_in_place::<(), RepositoryError<DbId>>(&id, |r| {
+        r.name = "renamed".into();
+        Ok(())
+    })
+    .unwrap();
+
+    assert_eq!(snapshot.name().as_ref(), "original");
+    assert_eq!(repo.get_by_id(&id).unwrap().name().as_ref(), "renamed");
+    assert_ne!(
+        Arc::as_ptr(&repo.get_by_id(&id).unwrap()),
+        Arc::as_ptr(&snapshot),
+        "the repository should have copied on write, not mutated the snapshot"
+    );
+}
+
+#[test]
+fn modify_by_id_in_place_returns_not_found_for_missing_id() {
+    let mut repo = Repository::<DbId, TestResource>::new();
+    let err = repo
+        .modify_by_id_in_place::<(), RepositoryError<DbId>>(&DbId::new(42), |_| Ok(()))
+        .unwrap_err();
+    assert!(matches!(err, RepositoryError::NotFound { .. }));
+}
+
+#[test]
+fn modify_by_id_in_place_rejects_rename_onto_existing_name() {
+    let (mut repo, a) = repo_with_one();
+    let b = DbId::new(1);
+    repo.insert(
+        b,
+        TestResource {
+            id: b,
+            name: "taken".into(),
+        },
+    )
+    .unwrap();
+
+    let err = repo
+        .modify_by_id_in_place::<(), RepositoryError<DbId>>(&a, |r| {
+            r.name = "taken".into();
+            Ok(())
+        })
+        .unwrap_err();
+
+    assert!(matches!(err, RepositoryError::AlreadyExistsByName { .. }));
+    // The rename cannot be undone once applied in place, but the bijection must
+    // survive intact: `b` keeps its name, and `a` is still indexed (under the
+    // name it had going in) rather than being dropped from the map entirely.
+    assert_eq!(repo.name_to_id("taken"), Some(b));
+    assert_eq!(repo.id_to_name(&a).as_deref(), Some("original"));
+    assert!(repo.id_exists(&a));
+}
+
+#[test]
+fn modify_by_id_in_place_returns_closure_value() {
+    let (mut repo, id) = repo_with_one();
+    let out = repo
+        .modify_by_id_in_place::<u32, RepositoryError<DbId>>(&id, |_| Ok(7))
+        .unwrap();
+    assert_eq!(out, 7);
+}
+
+#[test]
+fn insert_with_already_used_name_fails() {
+    let (mut repo, id) = repo_with_one();
+    let name = repo.get_by_id(&id).unwrap().name();
+
+    repo.insert(
+        DbId::new(20),
+        TestResource {
+            id: DbId::new(20),
+            name,
+        },
+    )
+    .unwrap_err();
+
+    repo.insert(
+        id,
+        TestResource {
+            id,
+            name: Arc::from("other_name"),
+        },
+    )
+    .unwrap_err();
+}

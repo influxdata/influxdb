@@ -1,5 +1,5 @@
 pub mod actions;
-#[allow(clippy::module_inception)]
+#[expect(clippy::module_inception)]
 pub mod role;
 pub mod role_defaults;
 pub mod role_permissions;

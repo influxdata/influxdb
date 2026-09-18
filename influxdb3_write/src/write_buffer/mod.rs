@@ -172,12 +172,12 @@ pub struct WriteBufferImpl {
     persister: Arc<Persister>,
     // NOTE(trevor): the parquet cache interface may be used to register other cache
     // requests from the write buffer, e.g., during query...
-    #[allow(dead_code)]
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
     wal: Arc<dyn Wal>,
+    time_provider: Arc<dyn TimeProvider>,
     metrics: WriteMetrics,
     distinct_cache: Arc<DistinctCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
@@ -334,9 +334,9 @@ impl WriteBufferImpl {
                         (None, None, None)
                     };
 
-                // Set the next file ID if available
+                // Advance the next file ID if available
                 if let Some(file_id) = next_file_id {
-                    file_id.set_next_id();
+                    file_id.advance_next_id();
                 }
 
                 let persisted_files = Arc::new(PersistedFiles::new_from_checkpoints_and_snapshots(
@@ -392,9 +392,9 @@ impl WriteBufferImpl {
                     .first()
                     .map(|s| s.snapshot_sequence_number);
 
-                // If we have any snapshots, set sequential IDs from the newest one.
+                // If we have any snapshots, advance sequential IDs from the newest one.
                 if let Some(first_snapshot) = persisted_snapshots.first() {
-                    first_snapshot.next_file_id.set_next_id();
+                    first_snapshot.next_file_id.advance_next_id();
                 }
 
                 let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
@@ -442,6 +442,7 @@ impl WriteBufferImpl {
             persister,
             wal_config,
             wal,
+            time_provider,
             distinct_cache,
             last_cache,
             persisted_files,
@@ -582,7 +583,7 @@ impl WriteBufferImpl {
         let span_ctx = ctx.span_ctx().map(|span| span.child("table_chunks"));
         let mut recorder = SpanRecorder::new(span_ctx);
 
-        let mut chunks = self.buffer.get_table_chunks(
+        let (mut chunks, parquet_files) = self.buffer.get_table_chunks_and_parquet_files(
             Arc::clone(&db_schema),
             Arc::clone(&table_def),
             filter,
@@ -595,9 +596,6 @@ impl WriteBufferImpl {
             MetaValue::Int(num_chunks_from_buffer as i64),
         );
 
-        let parquet_files =
-            self.persisted_files
-                .get_files_filtered(db_schema.id, table_def.table_id, filter);
         let num_parquet_files_needed = parquet_files.len();
         recorder.set_metadata(
             "parquet_files",
@@ -696,7 +694,7 @@ pub fn cache_parquet_files<T: AsRef<ParquetFile>>(
                 // cache might be handy for this case.
                 let f: &ParquetFile = file.borrow().as_ref();
                 let (cache_req, receiver) = CacheRequest::create_eventual_mode_cache_request(
-                    ObjPath::from(f.path.as_str()),
+                    ObjPath::from(f.path.as_ref()),
                     Some(f.timestamp_min_max()),
                 );
                 parquet_cache.register(cache_req);
@@ -843,9 +841,19 @@ impl LastCacheManager for WriteBufferImpl {
 
 impl WriteBuffer for WriteBufferImpl {}
 
+/// Periodically force a snapshot when the buffer is over
+/// `memory_threshold_bytes`, or when the oldest un-snapshotted WAL data is
+/// older than `max_unsnapshotted_age`.
+///
+/// Snapshots otherwise trigger only on the number of WAL periods, checked
+/// only when a flush has something to write, so a node receiving a trickle
+/// of writes — or none — can hold hours of data in RAM and WAL before its
+/// period count is reached. The age bound caps that wait, independent of
+/// write arrival (influxdb_pro#4078).
 pub async fn check_mem_and_force_snapshot_loop(
     write_buffer: Arc<WriteBufferImpl>,
     memory_threshold_bytes: usize,
+    max_unsnapshotted_age: Duration,
     check_interval: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -853,7 +861,12 @@ pub async fn check_mem_and_force_snapshot_loop(
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-            check_mem_and_force_snapshot(&write_buffer, memory_threshold_bytes).await;
+            check_mem_and_force_snapshot(
+                &write_buffer,
+                memory_threshold_bytes,
+                max_unsnapshotted_age,
+            )
+            .await;
         }
     })
 }
@@ -861,6 +874,7 @@ pub async fn check_mem_and_force_snapshot_loop(
 async fn check_mem_and_force_snapshot(
     write_buffer: &Arc<WriteBufferImpl>,
     memory_threshold_bytes: usize,
+    max_unsnapshotted_age: Duration,
 ) {
     let current_buffer_size_bytes = write_buffer.buffer.get_total_size_bytes();
     debug!(
@@ -873,26 +887,43 @@ async fn check_mem_and_force_snapshot(
             current_buffer_size_bytes,
             memory_threshold_bytes, "forcing snapshot as buffer size > mem threshold"
         );
+        force_snapshot(&write_buffer.wal).await;
+        return;
+    }
 
-        let wal = Arc::clone(&write_buffer.wal);
+    if let Some(since) = write_buffer.wal.unsnapshotted_since().await
+        && let Some(age) = write_buffer
+            .time_provider
+            .now()
+            .checked_duration_since(since)
+        && age >= max_unsnapshotted_age
+    {
+        info!(
+            unsnapshotted_age_secs = age.as_secs(),
+            max_unsnapshotted_age_secs = max_unsnapshotted_age.as_secs(),
+            "forcing snapshot as un-snapshotted WAL data is older than the maximum age"
+        );
+        force_snapshot(&write_buffer.wal).await;
+    }
+}
 
-        let cleanup_after_snapshot = wal.force_flush_buffer().await;
+/// Force a snapshot and clean up its WAL files in the background.
+async fn force_snapshot(wal: &Arc<dyn Wal>) {
+    let cleanup_after_snapshot = wal.force_flush_buffer().await;
 
-        // handle snapshot cleanup outside of the flush loop
-        if let Some((snapshot_complete, snapshot_info, snapshot_permit)) = cleanup_after_snapshot {
-            let snapshot_wal = Arc::clone(&wal);
-            tokio::spawn(async move {
-                let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                assert_eq!(snapshot_info, snapshot_details);
+    // handle snapshot cleanup outside of the flush loop
+    if let Some((snapshot_complete, snapshot_info, snapshot_permit)) = cleanup_after_snapshot {
+        let snapshot_wal = Arc::clone(wal);
+        tokio::spawn(async move {
+            let snapshot_details = snapshot_complete.await.expect("snapshot failed");
+            assert_eq!(snapshot_info, snapshot_details);
 
-                snapshot_wal
-                    .cleanup_snapshot(snapshot_info, snapshot_permit)
-                    .await;
-            });
-        }
+            snapshot_wal
+                .cleanup_snapshot(snapshot_info, snapshot_permit)
+                .await;
+        });
     }
 }
 
 #[cfg(test)]
-#[allow(clippy::await_holding_lock)]
 mod tests;

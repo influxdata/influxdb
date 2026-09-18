@@ -155,6 +155,7 @@ where
                     max_value,
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 }
             }
             _ => {
@@ -208,6 +209,7 @@ where
                     max_value,
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 }
             }
         };
@@ -318,6 +320,7 @@ mod tests {
                         max_value: Precision::Exact(dict("bbb")),
                         distinct_count: Precision::Absent,
                         sum_value: Precision::Absent,
+                        byte_size: Precision::Absent,
                     },
                     // tag2
                     ColumnStatistics::default(),
@@ -332,6 +335,7 @@ mod tests {
                         max_value: Precision::Exact(ScalarValue::from(20i64)),
                         distinct_count: Precision::Absent,
                         sum_value: Precision::Absent,
+                        byte_size: Precision::Absent,
                     },
                     // field_string
                     ColumnStatistics::default(),
@@ -344,6 +348,7 @@ mod tests {
                         max_value: Precision::Exact(timestamptz_nano(20)),
                         distinct_count: Precision::Absent,
                         sum_value: Precision::Absent,
+                        byte_size: Precision::Absent,
                     },
                 ],
             };
@@ -385,6 +390,7 @@ mod tests {
                     max_value: Precision::Exact(timestamptz_nano(20)),
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
             ],
         };
@@ -423,6 +429,7 @@ mod tests {
                     max_value: Precision::Exact(timestamptz_nano(22)),
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
             ],
         };

@@ -11,6 +11,7 @@ test-helpers = ["tokio"]
 [dependencies]
 # core deps
 iox_time = { path = "../core/iox_time" }
+metric = { path = "../core/metric" }
 observability_deps = { path = "../core/observability_deps" }
 
 # crates.io deps
@@ -20,6 +21,7 @@ bytes.workspace = true
 futures.workspace = true
 object_store.workspace = true
 tokio = { workspace = true, optional = true }
+uuid.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

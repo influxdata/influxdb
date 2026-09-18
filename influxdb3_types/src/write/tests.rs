@@ -277,6 +277,7 @@ fn test_write_line_error_serialize_truncates_at_utf8_boundary() {
     let err = WriteLineError {
         original_line: long_line,
         line_number: 1,
+        timestamp_rejection: None,
         error_message: "bad line".to_string(),
     };
     let json = serde_json::to_string(&err).expect("serialize must not panic");
@@ -293,11 +294,36 @@ fn test_write_line_error_serialize_truncates_at_utf8_boundary() {
     let err = WriteLineError {
         original_line: short.to_string(),
         line_number: 2,
+        timestamp_rejection: None,
         error_message: "bad".to_string(),
     };
     let json = serde_json::to_string(&err).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed["original_line"].as_str().unwrap(), short);
+}
+
+#[test]
+fn write_timestamp_rejection_is_not_serialized() {
+    for timestamp_rejection in [
+        None,
+        Some(WriteTimestampRejection::TooOld),
+        Some(WriteTimestampRejection::TooFuture),
+    ] {
+        let error = WriteLineError {
+            original_line: "cpu value=1 0".into(),
+            line_number: 1,
+            error_message: "timestamp rejected".into(),
+            timestamp_rejection,
+        };
+        assert_eq!(
+            serde_json::to_value(error).unwrap(),
+            serde_json::json!({
+                "original_line": "cpu value=1 0",
+                "line_number": 1,
+                "error_message": "timestamp rejected",
+            })
+        );
+    }
 }
 
 #[test]

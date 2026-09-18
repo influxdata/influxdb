@@ -199,18 +199,37 @@ async fn stopped_subscriber_is_skipped() {
 }
 
 #[tokio::test]
-async fn closed_subscriber_causes_send_failure() {
+async fn closed_subscriber_is_skipped_not_fatal() {
     let mut subs = CatalogSubscriptions::default();
     let mut rx = subs.subscribe("closed");
     rx.close();
     drop(rx);
 
-    let err = subs
-        .send_update(sample_update())
+    // A subscriber whose receiver is gone must not fail the broadcast (and thus
+    // the catalog write that drives it) -- its stale slot is simply skipped.
+    subs.send_update(sample_update())
         .await
-        .expect_err("send_update should fail when subscriber channel is closed");
-    let msg = format!("{err:#}");
-    assert!(msg.contains("closed"), "unexpected error: {msg}");
+        .expect("send_update skips a closed subscriber instead of failing");
+}
+
+#[tokio::test]
+async fn resubscribe_after_drop_reclaims_slot() {
+    let mut subs = CatalogSubscriptions::default();
+
+    // First subscriber tears down, dropping its receiver without unsubscribing.
+    let rx = subs.subscribe("a");
+    drop(rx);
+
+    // Re-subscribing under the same name must reclaim the stale slot rather
+    // than panic on the duplicate.
+    let mut rx2 = subs.subscribe("a");
+
+    // The reclaimed subscription is live and receives broadcasts.
+    let broadcast = tokio::spawn(async move { subs.send_update(sample_update()).await });
+    let received = rx2.recv().await.expect("resubscribed receiver gets update");
+    assert_eq!(received.events().count(), 1);
+    drop(received);
+    broadcast.await.unwrap().unwrap();
 }
 
 #[tokio::test]

@@ -16,6 +16,7 @@ fn states() -> [NodeState; 4] {
         NodeState::Removing {
             requested_time_ns: 30,
             final_snapshot_sequence: Some(SnapshotSequenceNumber::new(7)),
+            attestation: RemovalAttestation::NotForced,
         },
     ]
 }

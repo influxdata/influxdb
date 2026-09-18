@@ -838,6 +838,7 @@ async fn test_recovery_endpoint_auto_shutdown_after_regeneration() {
         .with_auth()
         .with_no_admin_token()
         .with_recovery_endpoint()
+        .with_capture_logs()
         .spawn()
         .await;
 
@@ -869,22 +870,15 @@ async fn test_recovery_endpoint_auto_shutdown_after_regeneration() {
     assert_contains!(&result, "New token created successfully!");
     let new_token = parse_token(result);
 
-    // Use the recovery endpoint to regenerate the token again, recovery server should have been
-    // shutdown
-    let result = run_cmd_with_result(
-        &["--tls-ca", "../testing-certs/rootCA.pem"],
-        Some("yes"),
-        vec![
-            "create",
-            "token",
-            "--admin",
-            "--regenerate",
-            "--host",
-            &recovery_addr,
-        ],
-    )
-    .unwrap();
-    assert_contains!(result, "ConnectError");
+    // The recovery server shuts down after the first regeneration. Assert the
+    // shutdown from the server logs. Do not probe the freed port: the OS can
+    // give that port to a server of a parallel test, and that server answers
+    // the probe.
+    server
+        .wait_for_log_message(
+            "Admin token recovery endpoint shutting down after token regeneration",
+        )
+        .await;
 
     // Verify tokens are different
     assert_ne!(

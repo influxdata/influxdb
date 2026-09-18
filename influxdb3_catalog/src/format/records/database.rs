@@ -5,15 +5,18 @@ use std::sync::Arc;
 use iox_time::Time;
 
 use super::conversions::soft_deleted_name;
-use super::impl_bitcode_encoding;
-use super::types::{DeletionScope, RetentionPeriod};
+use super::types::{DeletionScope, RetentionPeriod, SchemaMode};
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::deletes::DeletionScope as SchemaDeletionScope;
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::catalog::versions::v3::schema::database::DatabaseSchema;
+use crate::catalog::versions::v3::schema::database::{
+    DatabaseSchema, SchemaMode as SchemaSchemaMode,
+};
 use crate::catalog::versions::v3::schema::retention::RetentionPeriod as SchemaRetentionPeriod;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{RecordApply, record_ids};
 use indexmap::IndexMap;
 use influxdb3_authz::{ResourceIdentifier, ResourceMetadata};
 use influxdb3_id::DbId;
@@ -56,7 +59,7 @@ fn capture_db_name_in_tokens(catalog: &mut InnerCatalog, db_id: DbId, db_name: &
 }
 
 /// Create a new database.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_DATABASE, shape = 0x3c625810)]
 pub struct CreateDatabase {
     /// Database catalog ID.
     pub database_id: u32,
@@ -66,11 +69,7 @@ pub struct CreateDatabase {
     pub retention_period: RetentionPeriod,
 }
 
-impl CatalogRecord for CreateDatabase {
-    const ID: RecordId = record_ids::CREATE_DATABASE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateDatabase";
-
+impl RecordApply for CreateDatabase {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let mut db = DatabaseSchema::new(db_id, Arc::from(self.database_name.as_str()));
@@ -85,12 +84,39 @@ impl CatalogRecord for CreateDatabase {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateDatabase>()
+/// Set the schema mode of a database.
+///
+/// Emitted only by `CreateDatabaseOp`, and only for an explicit database, so a
+/// database's mode is fixed at creation and an implicit database adds no bytes
+/// to the catalog.
+#[catalog_record(id = record_ids::SET_DATABASE_SCHEMA_MODE, shape = 0x086e34c7)]
+#[derive(Copy)]
+pub struct SetDatabaseSchemaMode {
+    /// Database catalog ID.
+    pub database_id: u32,
+    /// Whether table schemas are declared or taken from writes.
+    pub schema_mode: SchemaMode,
+}
+
+impl RecordApply for SetDatabaseSchemaMode {
+    fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
+        let db_id = DbId::new(self.database_id);
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.schema_mode = SchemaSchemaMode::from(&self.schema_mode);
+            Ok(())
+        })
+    }
+
+    fn event(&self) -> CatalogEvent {
+        CatalogEvent::DatabaseSchemaModeSet {
+            db_id: DbId::new(self.database_id),
+        }
+    }
 }
 
 /// Soft delete a database (mark for deletion).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::SOFT_DELETE_DATABASE, shape = 0x428e5cfb)]
+#[derive(Copy)]
 pub struct SoftDeleteDatabase {
     /// Database catalog ID.
     pub database_id: u32,
@@ -102,11 +128,7 @@ pub struct SoftDeleteDatabase {
     pub hard_delete_scope: Option<DeletionScope>,
 }
 
-impl CatalogRecord for SoftDeleteDatabase {
-    const ID: RecordId = record_ids::SOFT_DELETE_DATABASE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "SoftDeleteDatabase";
-
+impl RecordApply for SoftDeleteDatabase {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let mut db = catalog.databases.require_by_id(&db_id)?;
@@ -186,22 +208,15 @@ impl CatalogRecord for SoftDeleteDatabase {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<SoftDeleteDatabase>()
-}
-
 /// Permanently delete a database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_DATABASE, shape = 0x0c40adea)]
+#[derive(Copy)]
 pub struct HardDeleteDatabase {
     /// Database catalog ID.
     pub db_id: u32,
 }
 
-impl CatalogRecord for HardDeleteDatabase {
-    const ID: RecordId = record_ids::DELETE_DATABASE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "HardDeleteDatabase";
-
+impl RecordApply for HardDeleteDatabase {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let mut db = catalog.databases.require_by_id(&db_id)?;
@@ -233,12 +248,6 @@ impl CatalogRecord for HardDeleteDatabase {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<HardDeleteDatabase>()
-}
-
-impl_bitcode_encoding!(CreateDatabase, SoftDeleteDatabase, HardDeleteDatabase);
 
 #[cfg(test)]
 mod tests;
