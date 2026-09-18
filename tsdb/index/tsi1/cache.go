@@ -5,6 +5,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -31,7 +32,26 @@ const (
 	statTagValueCacheShrinkEviction = "shrink_eviction"
 	statTagValueCacheSize           = "size"
 	statTagValueCacheCapacity       = "capacity"
+	statTagValueCacheBytes          = "bytes"
 )
+
+// valueMapEntryOverhead estimates the per-entry cost of the innermost
+// (tag value -> *list.Element) map: a 16-byte string header, an 8-byte element
+// pointer, the tophash byte, and a share of the bucket and load-factor slack.
+// Go's map internals are not introspectable, so this is a constant rather than
+// a measurement.
+const valueMapEntryOverhead = 48
+
+// seriesIDCacheEntryOverhead is the fixed structural cost of one cache entry,
+// excluding its series id set and its name/key/value bytes: the
+// seriesIDCacheElement itself, the list.Element that holds it in the evictor,
+// and its slot in the innermost map.
+//
+// The first two terms are exact. The outer measurement and tag key maps are
+// deliberately not counted: each is amortized across every entry beneath it, so
+// at the sizes that matter for memory planning their contribution is noise.
+var seriesIDCacheEntryOverhead = int64(unsafe.Sizeof(seriesIDCacheElement{})) +
+	int64(unsafe.Sizeof(list.Element{})) + valueMapEntryOverhead
 
 // maxShrinkEvictPerEvent caps the number of LRU-tail entries shed in a single
 // shrink event. The per-event bound limits how long the write lock is held
@@ -49,12 +69,19 @@ const maxShrinkEvictPerEvent = 1024
 // the shrink eviction-gate is derived against (Bernoulli "miss on full cache
 // → forced eviction"), and operators often want to distinguish "the cache is
 // under pressure" from "the cache is voluntarily releasing memory."
+//
+// Bytes is the estimated heap footprint of everything the cache holds. Unlike
+// Size (an entry count) it is maintained incrementally rather than read off the
+// evictor list, because computing it from scratch is O(entries * containers):
+// roaring's GetSizeInBytes walks a bitmap's container array on every call. See
+// accountBytes for how the increments are kept consistent.
 type TagValueSeriesIDCacheStatistics struct {
 	Hits            atomic.Int64
 	Misses          atomic.Int64
 	Evictions       atomic.Int64
 	ShrinkEvictions atomic.Int64
 	Size            atomic.Int64
+	Bytes           atomic.Int64
 }
 
 // resizeEvent describes a single capacity-change event (grow or shrink).
@@ -258,6 +285,7 @@ func (c *TagValueSeriesIDCache) Statistics(tags map[string]string) []models.Stat
 			statTagValueCacheShrinkEviction: c.stats.ShrinkEvictions.Load(),
 			statTagValueCacheSize:           c.stats.Size.Load(),
 			statTagValueCacheCapacity:       c.capacity.Load(),
+			statTagValueCacheBytes:          c.stats.Bytes.Load(),
 		},
 	}}
 }
@@ -343,12 +371,18 @@ func (c *TagValueSeriesIDCache) addToSet(name, key, value []byte, x uint64) {
 	if mmap, ok := c.cache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 			if ele, ok := tkmap[string(value)]; ok {
-				ss := ele.Value.(*seriesIDCacheElement).SeriesIDSet
-				if ss == nil {
-					ele.Value.(*seriesIDCacheElement).SeriesIDSet = tsdb.NewSeriesIDSet(x)
-					return
+				elem := ele.Value.(*seriesIDCacheElement)
+				if elem.SeriesIDSet == nil {
+					elem.SeriesIDSet = tsdb.NewSeriesIDSet(x)
+				} else {
+					elem.SeriesIDSet.Add(x)
 				}
-				ele.Value.(*seriesIDCacheElement).SeriesIDSet.Add(x)
+				// The set grew in place, so re-account: without this the bytes
+				// gauge would track only insertions and evictions and would
+				// steadily understate long-lived entries on a measurement that
+				// is still gaining series — exactly the entries most likely to
+				// be large.
+				c.accountBytes(elem)
 			}
 		}
 	}
@@ -391,13 +425,17 @@ func (c *TagValueSeriesIDCache) innerLockingPut(name, key, value []byte, ss *tsd
 		ss = ss.Clone()
 	}
 
-	// Create list item, and add to the front of the eviction list.
-	listElement := c.evictor.PushFront(&seriesIDCacheElement{
+	// Create list item, and add to the front of the eviction list. Account for
+	// its footprint before the eviction check below, so that if this very entry
+	// is the one evicted the subtraction matches what was just added.
+	elem := &seriesIDCacheElement{
 		name:        nameStr,
 		key:         keyStr,
 		value:       valueStr,
 		SeriesIDSet: ss,
-	})
+	}
+	c.accountBytes(elem)
+	listElement := c.evictor.PushFront(elem)
 
 	// Add the listElement to the set of items. The tuple cannot already
 	// exist here: the exists() check at the top of Put returns early if it
@@ -436,8 +474,12 @@ func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x uint64) {
 	if mmap, ok := c.cache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 			if ele, ok := tkmap[string(value)]; ok {
-				if ss := ele.Value.(*seriesIDCacheElement).SeriesIDSet; ss != nil {
-					ele.Value.(*seriesIDCacheElement).SeriesIDSet.Remove(x)
+				elem := ele.Value.(*seriesIDCacheElement)
+				if elem.SeriesIDSet != nil {
+					elem.SeriesIDSet.Remove(x)
+					// The set shrank in place; re-account so the gauge follows
+					// series drops as well as series creation.
+					c.accountBytes(elem)
 				}
 			}
 		}
@@ -492,6 +534,11 @@ func (c *TagValueSeriesIDCache) evictLRULocked() bool {
 	name := listElement.name
 	key := listElement.key
 	value := listElement.value
+
+	// Drop this entry's accounted footprint. Exact rather than recomputed: the
+	// write lock is held here, so no in-place mutator can be running, and the
+	// element's last-accounted size is what the gauge currently includes.
+	c.stats.Bytes.Add(-listElement.bytes.Load())
 
 	// If the boundary points at the element being evicted, recede it to the
 	// new back. This case fires only via the Put path on an all-warm cache
@@ -977,4 +1024,47 @@ type seriesIDCacheElement struct {
 	key         string
 	value       string
 	SeriesIDSet *tsdb.SeriesIDSet
+
+	// bytes is this entry's last-accounted footprint, the value that was most
+	// recently folded into the cache's Bytes gauge. Keeping it on the element
+	// lets eviction subtract exactly what was added, even though the set may
+	// have grown in place since insertion. Atomic because the in-place mutators
+	// run under the cache read lock and can race one another; see accountBytes.
+	bytes atomic.Int64
+}
+
+// computeBytes estimates this entry's total heap footprint: the fixed
+// structural overhead, the name/key/value bytes, and the series id set.
+//
+// The strings are counted once even though they appear both on this element and
+// as the cache's map keys, because Put interns a single copy of each and shares
+// the backing array between the two.
+func (e *seriesIDCacheElement) computeBytes() int64 {
+	b := seriesIDCacheEntryOverhead + int64(len(e.name)+len(e.key)+len(e.value))
+	if e.SeriesIDSet != nil {
+		b += int64(e.SeriesIDSet.Bytes())
+	}
+	return b
+}
+
+// accountBytes recomputes e's footprint and folds the difference into the
+// cache-level gauge, maintaining the invariant that stats.Bytes equals the sum
+// of the entries' last-accounted sizes.
+//
+// Both the per-element size and the gauge are atomic because the in-place
+// mutators (addToSet, delete) hold only the cache *read* lock and so may run
+// concurrently with one another. Swap-then-add telescopes correctly under that
+// concurrency: each update adjusts the gauge by exactly the difference from the
+// value it displaced, so whichever swap lands last leaves the gauge agreeing
+// with the size it published.
+//
+// If the set is mutated between the size computation and the swap the gauge is
+// momentarily stale; the next mutation of that entry, or its eviction, corrects
+// it. That is the right trade for a monitoring gauge: the alternative is taking
+// the cache write lock on the series-creation path, which would serialize every
+// write against every query.
+func (c *TagValueSeriesIDCache) accountBytes(e *seriesIDCacheElement) {
+	nb := e.computeBytes()
+	old := e.bytes.Swap(nb)
+	c.stats.Bytes.Add(nb - old)
 }
