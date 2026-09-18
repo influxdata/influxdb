@@ -89,7 +89,7 @@ impl U64Histogram {
     /// For example, if you want the median value, percentile(50) will return the 'le' threshold
     /// for the histogram bucket that contains the median sample.
     ///
-    /// A use case for for this function is:
+    /// A use case for this function is:
     ///     Use a histogram tracks the load placed on a system.
     ///     Set the buckets so they represent load levels of idle/low/medium/high/overloaded.
     ///     Then use percentile to determine how much of the time is spent at various load levels.
