@@ -184,9 +184,9 @@ mod cache_operations {
             TestStep::ExpectCacheMiss { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(3)) },
             TestStep::CacheOpGet { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(3)) }, // Should evict table 2
             TestStep::ExpectCacheSize { count: 2 }, // Still 2, but table 2 was evicted
-            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)), expected: false }, // Table 1 should still be cached
+            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)), expected: true }, // Table 1 should still be cached
             TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(3)), expected: true }, // Table 3 should be cached
-            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(2)), expected: true }, // Table 2 should be evicted
+            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(2)), expected: false }, // Table 2 should be evicted
         ],
     })]
     #[case::clear_operation(CacheTestCase {
