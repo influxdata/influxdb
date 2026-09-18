@@ -5,7 +5,7 @@ use crate::Schema;
 /// Helper that handles [Interning] for [`Schema`]s.
 ///
 /// Note that this is rather expensive since the interner needs to compare the entire schema, so if you find another
-/// key to to store your schema (e.g. a table ID), use a `HashMap<K, Arc<Schema>>` instead.
+/// key to store your schema (e.g. a table ID), use a `HashMap<K, Arc<Schema>>` instead.
 ///
 /// [Interning]: https://en.wikipedia.org/wiki/Interning_(computer_science)
 #[derive(Debug, Default)]
