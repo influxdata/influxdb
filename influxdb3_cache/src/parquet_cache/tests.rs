@@ -6,7 +6,9 @@ use data_types::TimestampMinMax;
 use influxdb3_test_helpers::object_store::{RequestCountedObjectStore, SynchronizedObjectStore};
 use iox_time::{MockProvider, Time, TimeProvider};
 use metric::{Attributes, Metric, Registry, U64Counter, U64Gauge};
-use object_store::{ObjectStore, PutPayload, PutResult, memory::InMemory, path::Path};
+use object_store::{
+    GetOptions, GetRange, ObjectStore, PutPayload, PutResult, memory::InMemory, path::Path,
+};
 
 use pretty_assertions::assert_eq;
 use tokio::sync::Notify;
@@ -644,4 +646,61 @@ fn test_should_request_be_cached_no_timestamp_set() {
     let file_timestamp_min_max = Some(TimestampMinMax::new(0, 100));
     let should_cache = should_request_be_cached(file_timestamp_min_max, &cache);
     assert!(!should_cache);
+}
+
+#[tokio::test]
+async fn cached_range_reads_match_object_store_semantics() {
+    let inner_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let (cached_store, oracle) = test_cached_obj_store_and_oracle(
+        Arc::clone(&inner_store) as _,
+        Arc::clone(&time_provider),
+        Default::default(),
+    );
+
+    let path = Path::from("0.parquet");
+    let payload = b"hello world";
+
+    let put_result = PutResult {
+        e_tag: Some("some-etag".to_string()),
+        version: Some("version-abc".to_string()),
+    };
+    let to_cache = ParquetFileDataToCache::new(
+        &path,
+        time_provider.now().date_time(),
+        Bytes::from_static(payload),
+        put_result,
+    );
+    let cache_request = CacheRequest::create_immediate_mode_cache_request(path.clone(), to_cache);
+    oracle.register(cache_request);
+
+    let get = |range: GetRange| {
+        let store = Arc::clone(&cached_store);
+        let path = path.clone();
+        async move {
+            store
+                .get_opts(
+                    &path,
+                    GetOptions {
+                        range: Some(range),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap()
+        }
+    };
+
+    // Suffix(n) is the last n bytes, not the first n
+    assert_eq!(&get(GetRange::Suffix(5)).await[..], b"world");
+    // Offset(n) is everything from byte n to the end
+    assert_eq!(&get(GetRange::Offset(6)).await[..], b"world");
+    // Bounded is the exact range
+    assert_eq!(&get(GetRange::Bounded(0..5)).await[..], b"hello");
+    // a bounded range past the end is clamped to the object length
+    assert_eq!(&get(GetRange::Bounded(6..100)).await[..], b"world");
 }
