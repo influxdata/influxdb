@@ -57,6 +57,23 @@ impl QueryChunk for BufferChunk {
         self.chunk_order
     }
 
+    fn row_order_range(&self) -> Option<std::ops::RangeInclusive<i64>> {
+        let row_count = self
+            .batches
+            .iter()
+            .map(RecordBatch::num_rows)
+            .sum::<usize>();
+        if row_count == 0 {
+            return None;
+        }
+        let offset = i64::try_from(row_count - 1).expect("buffer row count must fit in i64");
+        let end = self.chunk_order.get();
+        let start = end
+            .checked_sub(offset)
+            .expect("buffer row-order range must fit in i64");
+        Some(start..=end)
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }

@@ -1,11 +1,11 @@
 //! Holds a stream that ensures chunks have the same (uniform) schema
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
 
 use snafu::Snafu;
 use std::task::{Context, Poll};
 
 use arrow::{
-    array::new_null_array,
+    array::{Int64Array, new_null_array},
     datatypes::{DataType, SchemaRef},
     record_batch::RecordBatch,
 };
@@ -123,10 +123,27 @@ impl SchemaAdapterStream {
     /// If the underlying stream produces columns that DO NOT appear
     /// in the output schema, or are different types than the output
     /// schema, an error will be produced.
+    #[cfg(test)]
     pub(crate) fn try_new(
         input: SendableRecordBatchStream,
         output_schema: SchemaRef,
         virtual_columns: &HashMap<&str, ScalarValue>,
+        baseline_metrics: BaselineMetrics,
+    ) -> Result<Self> {
+        Self::try_new_with_sequences(
+            input,
+            output_schema,
+            virtual_columns,
+            &Default::default(),
+            baseline_metrics,
+        )
+    }
+
+    pub(crate) fn try_new_with_sequences(
+        input: SendableRecordBatchStream,
+        output_schema: SchemaRef,
+        virtual_columns: &HashMap<&str, ScalarValue>,
+        virtual_sequences: &HashMap<&str, RangeInclusive<i64>>,
         baseline_metrics: BaselineMetrics,
     ) -> Result<Self> {
         // record this setup time
@@ -148,6 +165,11 @@ impl SchemaAdapterStream {
 
                 if let Some(input_field_index) = input_field_index {
                     ColumnMapping::FromInput(input_field_index)
+                } else if let Some(range) = virtual_sequences.get(output_field.name().as_str()) {
+                    ColumnMapping::Sequence {
+                        next: Some(*range.start()),
+                        end: *range.end(),
+                    }
                 } else if let Some(value) = virtual_columns.get(output_field.name().as_str()) {
                     ColumnMapping::Virtual(value.clone())
                 } else {
@@ -173,7 +195,9 @@ impl SchemaAdapterStream {
                         .fail();
                     }
 
-                    if virtual_columns.contains_key(input_field.name().as_str()) {
+                    if virtual_columns.contains_key(input_field.name().as_str())
+                        || virtual_sequences.contains_key(input_field.name().as_str())
+                    {
                         return InternalColumnBothInInputAndVirtualSnafu {
                             field_name: input_field.name().clone(),
                         }
@@ -200,6 +224,16 @@ impl SchemaAdapterStream {
                         .fail();
                     }
                 }
+                ColumnMapping::Sequence { .. } => {
+                    if output_field.data_type() != &DataType::Int64 {
+                        return InternalDataTypeMismatchForVirtualSnafu {
+                            field_type: DataType::Int64,
+                            output_field_name: output_field.name(),
+                            output_field_type: output_field.data_type().clone(),
+                        }
+                        .fail();
+                    }
+                }
             }
         }
 
@@ -213,16 +247,40 @@ impl SchemaAdapterStream {
     }
 
     /// Extends the record batch, if needed, so that it matches the schema
-    fn extend_batch(&self, batch: RecordBatch) -> Result<RecordBatch, DataFusionError> {
+    fn extend_batch(&mut self, batch: RecordBatch) -> Result<RecordBatch, DataFusionError> {
+        let row_count = i64::try_from(batch.num_rows()).map_err(|_| {
+            DataFusionError::Execution("record batch row count exceeds i64".to_string())
+        })?;
         let output_columns = self
             .mappings
-            .iter()
+            .iter_mut()
             .map(|mapping| match mapping {
                 ColumnMapping::FromInput(input_index) => Ok(Arc::clone(batch.column(*input_index))),
                 ColumnMapping::MakeNull(data_type) => {
                     Ok(new_null_array(data_type, batch.num_rows()))
                 }
                 ColumnMapping::Virtual(value) => value.to_array_of_size(batch.num_rows()),
+                ColumnMapping::Sequence { next, end } => {
+                    if row_count == 0 {
+                        return Ok(Arc::new(Int64Array::new_null(0)) as _);
+                    }
+                    let start = next.ok_or_else(|| {
+                        DataFusionError::Execution(
+                            "virtual sequence exceeds its declared range".to_string(),
+                        )
+                    })?;
+                    let batch_end = start.checked_add(row_count - 1).ok_or_else(|| {
+                        DataFusionError::Execution("virtual sequence exceeds i64".to_string())
+                    })?;
+                    if batch_end > *end {
+                        return Err(DataFusionError::Execution(
+                            "virtual sequence exceeds its declared range".to_string(),
+                        ));
+                    }
+                    let values = Int64Array::from_iter_values(start..=batch_end);
+                    *next = (batch_end < *end).then(|| batch_end + 1);
+                    Ok(Arc::new(values) as _)
+                }
             })
             .collect::<Result<Vec<_>, DataFusionError>>()?;
 
@@ -248,9 +306,12 @@ impl Stream for SchemaAdapterStream {
     ) -> Poll<Option<Self::Item>> {
         // the Poll result is an Opton<Result<Batch>> so we need a few
         // layers of maps to get at the actual batch, if any
-        let poll = self.input.as_mut().poll_next(ctx).map(|maybe_result| {
-            maybe_result.map(|batch| batch.and_then(|batch| self.extend_batch(batch)))
-        });
+        let poll = match self.input.as_mut().poll_next(ctx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(Some(Err(error))) => Poll::Ready(Some(Err(error))),
+            Poll::Ready(Some(Ok(batch))) => Poll::Ready(Some(self.extend_batch(batch))),
+        };
         self.baseline_metrics.record_poll(poll)
     }
 
@@ -268,6 +329,9 @@ enum ColumnMapping {
 
     /// Create virtual chunk column
     Virtual(ScalarValue),
+
+    /// Create a strictly increasing virtual column across input batches.
+    Sequence { next: Option<i64>, end: i64 },
 }
 
 #[cfg(test)]
@@ -282,7 +346,7 @@ mod tests {
     };
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::{common::collect, metrics::ExecutionPlanMetricsSet};
-    use datafusion_util::stream_from_batch;
+    use datafusion_util::{stream_from_batch, stream_from_batches};
     use test_helpers::assert_contains;
 
     #[tokio::test]
@@ -310,6 +374,41 @@ mod tests {
             "| 2 | 5 | bar |",
             "| 3 | 6 | baz |",
             "+---+---+-----+",
+        ];
+        assert_batches_eq!(&expected, &output);
+    }
+
+    #[tokio::test]
+    async fn row_order_sequence_continues_across_batches() {
+        let batch = make_batch();
+        let input_stream =
+            stream_from_batches(batch.schema(), vec![batch.slice(0, 2), batch.slice(2, 1)]);
+        let output_schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int32, false),
+            Field::new("b", DataType::Int32, false),
+            Field::new("c", DataType::Utf8, false),
+            Field::new("row_order", DataType::Int64, false),
+        ]));
+        let adapter_stream = SchemaAdapterStream::try_new_with_sequences(
+            input_stream,
+            output_schema,
+            &Default::default(),
+            &HashMap::from([("row_order", 10..=12)]),
+            BaselineMetrics::new(&ExecutionPlanMetricsSet::new(), 0),
+        )
+        .unwrap();
+
+        let output = collect(Box::pin(adapter_stream))
+            .await
+            .expect("Running plan");
+        let expected = vec![
+            "+---+---+-----+-----------+",
+            "| a | b | c   | row_order |",
+            "+---+---+-----+-----------+",
+            "| 1 | 4 | foo | 10        |",
+            "| 2 | 5 | bar | 11        |",
+            "| 3 | 6 | baz | 12        |",
+            "+---+---+-----+-----------+",
         ];
         assert_batches_eq!(&expected, &output);
     }
