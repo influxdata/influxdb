@@ -43,7 +43,7 @@ macro_rules! tokio_rt_config {
         paste! {
             #[doc = "CLI config for tokio " $name " runtime."]
             #[derive(Debug, Clone, clap::Parser)]
-            #[allow(missing_copy_implementations)]
+            #[expect(missing_copy_implementations)]
             pub struct [<Tokio $name:camel Config>] {
                 #[doc = "Set the maximum number of " $name " runtime threads to use."]
                 #[doc = ""]
@@ -231,18 +231,16 @@ macro_rules! tokio_rt_config {
                         builder.thread_keep_alive(x);
                     }
 
-                    #[allow(unused)]
+                    #[cfg_attr(not(unix), expect(unused))]
                     if let Some(x) = self.thread_priority {
-                        #[cfg(unix)]
-                        {
-                            builder.on_thread_start(move || set_current_thread_priority(x));
-                        }
-                        #[cfg(not(unix))]
-                        {
-                            use observability_deps::tracing::warn;
+                        cfg_select! {
+                            unix => _ = builder.on_thread_start(move || set_current_thread_priority(x)),
+                            _ => {
+                                use observability_deps::tracing::warn;
 
-                            // use warning instead of hard error to allow for easier default settings
-                            warn!("Setting worker thread priority not supported on this platform");
+                                // use warning instead of hard error to allow for easier default settings
+                                warn!("Setting worker thread priority not supported on this platform");
+                            }
                         }
                     }
 

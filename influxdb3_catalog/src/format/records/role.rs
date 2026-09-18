@@ -2,29 +2,29 @@
 
 use std::sync::Arc;
 
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::format::apply::ApplyError;
-use crate::format::records::impl_bitcode_encoding;
 use crate::format::records::types::{
     RoleAdminTokenAction, RoleAdminTokenPermission, RoleDatabaseAction, RoleDatabasePermission,
-    RoleDatabaseResource, RolePermissionGrant, RoleRoleAction, RoleRolePermission,
-    RoleSystemAction, RoleSystemPermission, RoleSystemResource, RoleTokenAction,
+    RoleDatabaseResource, RolePermissionGrant, RoleRoleAction, RoleRolePermission, RoleTokenAction,
     RoleTokenPermission, RoleUserAction, RoleUserPermission,
 };
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 use influxdb3_authz::role::role_permissions::{
     AdminTokenPermission, DatabasePermission, RolePermission as RoleResourcePermission,
-    SystemPermission, TokenPermission, UserPermission,
+    TokenPermission, UserPermission,
 };
 use influxdb3_authz::role::{
     AdminTokenAction, DatabaseAction, Permission, ResourceIdentifier, Role, RoleAction,
-    RoleDescription, RoleName, SystemAction, SystemResource, TokenAction, UserAction,
+    RoleDescription, RoleName, TokenAction, UserAction,
 };
 use influxdb3_id::{DbId, RoleId};
 
 /// Create a new role.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_ROLE, shape = 0x106ac5f1)]
 pub struct CreateRole {
     /// Role ID.
     pub role_id: u64,
@@ -40,11 +40,7 @@ pub struct CreateRole {
     pub created_at: i64,
 }
 
-impl CatalogRecord for CreateRole {
-    const ID: RecordId = record_ids::CREATE_ROLE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateRole";
-
+impl RecordApply for CreateRole {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let role_id = RoleId::new(self.role_id);
         let name = RoleName::new(&self.name).map_err(|e| {
@@ -88,12 +84,8 @@ impl CatalogRecord for CreateRole {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateRole>()
-}
-
 /// Update the permissions for a role.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UPDATE_ROLE_PERMISSIONS, shape = 0x377b3f49)]
 pub struct UpdateRolePermissions {
     /// Role ID.
     pub role_id: u64,
@@ -103,11 +95,7 @@ pub struct UpdateRolePermissions {
     pub updated_at: i64,
 }
 
-impl CatalogRecord for UpdateRolePermissions {
-    const ID: RecordId = record_ids::UPDATE_ROLE_PERMISSIONS;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UpdateRolePermissions";
-
+impl RecordApply for UpdateRolePermissions {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let role_id = RoleId::new(self.role_id);
         let permissions: Vec<Permission> = self.permissions.iter().filter_map(Into::into).collect();
@@ -134,12 +122,8 @@ impl CatalogRecord for UpdateRolePermissions {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<UpdateRolePermissions>()
-}
-
 /// Update role metadata (name and/or description).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UPDATE_ROLE, shape = 0xec669eef)]
 pub struct UpdateRole {
     /// Role ID.
     pub role_id: u64,
@@ -151,11 +135,7 @@ pub struct UpdateRole {
     pub updated_at: i64,
 }
 
-impl CatalogRecord for UpdateRole {
-    const ID: RecordId = record_ids::UPDATE_ROLE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UpdateRole";
-
+impl RecordApply for UpdateRole {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let role_id = RoleId::new(self.role_id);
         let mut role = catalog.roles.get_by_id(&role_id).ok_or_else(|| {
@@ -195,12 +175,8 @@ impl CatalogRecord for UpdateRole {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<UpdateRole>()
-}
-
 /// Delete a role and remove it from all users.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_ROLE, shape = 0x11962ce7)]
 pub struct DeleteRole {
     /// Role ID.
     pub role_id: u64,
@@ -210,11 +186,7 @@ pub struct DeleteRole {
     pub deleted_at: i64,
 }
 
-impl CatalogRecord for DeleteRole {
-    const ID: RecordId = record_ids::DELETE_ROLE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteRole";
-
+impl RecordApply for DeleteRole {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let role_id = RoleId::new(self.role_id);
 
@@ -252,19 +224,20 @@ impl CatalogRecord for DeleteRole {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<DeleteRole>()
-}
-
-impl_bitcode_encoding!(CreateRole, UpdateRolePermissions, UpdateRole, DeleteRole,);
-
 // ---------------------------------------------------------------------------
 // Wire <-> authz conversions
 // ---------------------------------------------------------------------------
 
-impl From<&Permission> for RolePermissionGrant {
-    fn from(p: &Permission) -> Self {
-        match p {
+impl RolePermissionGrant {
+    /// Convert a runtime [`Permission`] into its persisted grant.
+    ///
+    /// Returns `None` for `Permission::System`, which has no persisted
+    /// representation (#4905) and so never reaches the catalog.
+    ///
+    /// Inherent function rather than a `From` impl because
+    /// `From<&Permission> for Option<Self>` is rejected by the orphan rule.
+    pub(crate) fn from_permission(p: &Permission) -> Option<Self> {
+        Some(match p {
             Permission::AccountAdminAll => RolePermissionGrant::AccountAdminAll,
             Permission::Database(db) => RolePermissionGrant::Database(RoleDatabasePermission {
                 action: db.action().into(),
@@ -284,11 +257,8 @@ impl From<&Permission> for RolePermissionGrant {
                     action: a.action().into(),
                 })
             }
-            Permission::System(s) => RolePermissionGrant::System(RoleSystemPermission {
-                action: s.action().into(),
-                resource: s.resource().into(),
-            }),
-        }
+            Permission::System(_) => return None,
+        })
     }
 }
 
@@ -316,9 +286,6 @@ impl From<&RolePermissionGrant> for Option<Permission> {
             }
             RolePermissionGrant::AdminToken(a) => {
                 Permission::AdminToken(AdminTokenPermission::new(a.action.into()))
-            }
-            RolePermissionGrant::System(s) => {
-                Permission::System(SystemPermission::new(s.action.into(), s.resource.into()))
             }
         })
     }
@@ -447,46 +414,6 @@ impl From<RoleAdminTokenAction> for AdminTokenAction {
         match a {
             RoleAdminTokenAction::Create => AdminTokenAction::Create,
             RoleAdminTokenAction::Delete => AdminTokenAction::Delete,
-        }
-    }
-}
-
-impl From<SystemAction> for RoleSystemAction {
-    fn from(a: SystemAction) -> Self {
-        match a {
-            SystemAction::Read => RoleSystemAction::Read,
-        }
-    }
-}
-
-impl From<RoleSystemAction> for SystemAction {
-    fn from(a: RoleSystemAction) -> Self {
-        match a {
-            RoleSystemAction::Read => SystemAction::Read,
-        }
-    }
-}
-
-impl From<ResourceIdentifier<SystemResource>> for RoleSystemResource {
-    fn from(r: ResourceIdentifier<SystemResource>) -> Self {
-        match r {
-            ResourceIdentifier::All => RoleSystemResource::All,
-            ResourceIdentifier::Identifier(SystemResource::Health) => RoleSystemResource::Health,
-            ResourceIdentifier::Identifier(SystemResource::Metrics) => RoleSystemResource::Metrics,
-            ResourceIdentifier::Identifier(SystemResource::Ping) => RoleSystemResource::Ping,
-            ResourceIdentifier::Identifier(SystemResource::Ready) => RoleSystemResource::Ready,
-        }
-    }
-}
-
-impl From<RoleSystemResource> for ResourceIdentifier<SystemResource> {
-    fn from(r: RoleSystemResource) -> Self {
-        match r {
-            RoleSystemResource::All => ResourceIdentifier::All,
-            RoleSystemResource::Health => ResourceIdentifier::Identifier(SystemResource::Health),
-            RoleSystemResource::Metrics => ResourceIdentifier::Identifier(SystemResource::Metrics),
-            RoleSystemResource::Ping => ResourceIdentifier::Identifier(SystemResource::Ping),
-            RoleSystemResource::Ready => ResourceIdentifier::Identifier(SystemResource::Ready),
         }
     }
 }

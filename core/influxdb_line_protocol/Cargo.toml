@@ -4,9 +4,7 @@ version = "1.0.0"
 authors = ["InfluxDB IOx Project Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-readme = "README.md"
 description = "InfluxDB line protocol parser and builder."
-homepage = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
 repository = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
 
 # Note this crate is published as its own crate on crates.io but kept in
@@ -33,3 +31,6 @@ test_helpers = { path = "../test_helpers" }
 [features]
 test_helpers = [ "dep:proptest", "dep:schema" ]
 large-strings = []
+
+[lints]
+workspace = true

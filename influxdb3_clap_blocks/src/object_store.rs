@@ -29,7 +29,7 @@ use tokio::sync::RwLock;
 use url::Url;
 
 #[derive(Debug, Snafu)]
-#[allow(missing_docs)]
+#[expect(missing_docs)]
 pub enum ParseError {
     #[snafu(display("Unable to create database directory {:?}: {}", path, source))]
     CreatingDatabaseDirectory {
@@ -1135,6 +1135,20 @@ impl ObjectStoreType {
             Self::Azure => "azure",
         }
     }
+
+    /// Whether the backend retains user-defined object metadata, which gates
+    /// nonce-tagged conditional creates.
+    pub fn supports_object_metadata(&self) -> bool {
+        match self {
+            // `InMemory` keeps the attributes it was given, and
+            // `ThrottledStore` passes them through to it.
+            Self::Memory | Self::MemoryThrottled => true,
+            // `LocalFileSystem` rejects a put carrying any attributes.
+            Self::File => false,
+            // User-defined metadata headers on the object.
+            Self::S3 | Self::Google | Self::Azure => true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1428,7 +1442,7 @@ impl object_store::ObjectStore for ReauthingObjectStore {
 }
 
 #[derive(Debug, Snafu)]
-#[allow(missing_docs)]
+#[expect(missing_docs)]
 pub enum CheckError {
     #[snafu(display("Cannot read from object store: {}", source))]
     CannotReadObjectStore { source: object_store::Error },

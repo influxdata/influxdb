@@ -2,22 +2,23 @@
 
 use std::sync::Arc;
 
-use super::impl_bitcode_encoding;
-use super::types::NodeMode;
+use super::types::{NodeMode, Reserved};
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::node::{
-    NodeDefinition, NodeMode as SchemaNodeMode, NodeState,
+    NodeDefinition, NodeMode as SchemaNodeMode, NodeState, RemovalAttestation,
 };
 use crate::format::FeatureLevel;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 use influxdb3_id::NodeId;
 use influxdb3_wal::SnapshotSequenceNumber;
 use uuid::Uuid;
 
 /// Register a node in the cluster.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::REGISTER_NODE, shape = 0x8c77919b)]
 pub struct RegisterNode {
     /// The node's catalog ID.
     pub node_catalog_id: u32,
@@ -44,11 +45,7 @@ pub struct RegisterNode {
     pub feature_level: FeatureLevel,
 }
 
-impl CatalogRecord for RegisterNode {
-    const ID: RecordId = record_ids::REGISTER_NODE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RegisterNode";
-
+impl RecordApply for RegisterNode {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
         let node_id: Arc<str> = Arc::from(self.node_id.as_str());
@@ -117,12 +114,8 @@ impl CatalogRecord for RegisterNode {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<RegisterNode>()
-}
-
 /// Stop a node in the cluster.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::STOP_NODE, shape = 0xe6e771f0)]
 pub struct StopNode {
     /// The node's catalog ID.
     pub node_catalog_id: u32,
@@ -134,14 +127,10 @@ pub struct StopNode {
     pub process_uuid: [u8; 16],
 }
 
-impl CatalogRecord for StopNode {
-    const ID: RecordId = record_ids::STOP_NODE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "StopNode";
-
+impl RecordApply for StopNode {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
-        catalog.nodes.modify_by_id(&node_catalog_id, |n| {
+        catalog.nodes.modify_by_id_in_place(&node_catalog_id, |n| {
             // Legacy StopNode carries no ack or final-snapshot information; use
             // `stopped_time_ns` as a synthetic ack timestamp so system tables don't
             // show epoch dates, and leave `final_snapshot_sequence` unset.
@@ -163,13 +152,9 @@ impl CatalogRecord for StopNode {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<StopNode>()
-}
-
 /// Request a graceful stop for a node. The node continues running until it
 /// acknowledges the stop via [`AckStopNode`] with its final snapshot sequence.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::REQUEST_STOP_NODE, shape = 0xe6e771f0)]
 pub struct RequestStopNode {
     /// The node's catalog ID.
     pub node_catalog_id: u32,
@@ -181,14 +166,10 @@ pub struct RequestStopNode {
     pub process_uuid: [u8; 16],
 }
 
-impl CatalogRecord for RequestStopNode {
-    const ID: RecordId = record_ids::REQUEST_STOP_NODE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RequestStopNode";
-
+impl RecordApply for RequestStopNode {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
-        catalog.nodes.modify_by_id(&node_catalog_id, |n| {
+        catalog.nodes.modify_by_id_in_place(&node_catalog_id, |n| {
             // Already past Running: leave the existing terminal/transitional
             // state in place rather than rewinding timestamps.
             if let NodeState::Running { .. } = n.state {
@@ -209,12 +190,8 @@ impl CatalogRecord for RequestStopNode {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<RequestStopNode>()
-}
-
 /// Acknowledge that a node has fully stopped (final snapshot persisted).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::ACK_STOP_NODE, shape = 0xccba2193)]
 pub struct AckStopNode {
     /// The node's catalog ID.
     pub node_catalog_id: u32,
@@ -229,14 +206,10 @@ pub struct AckStopNode {
     pub final_snapshot_sequence: Option<u64>,
 }
 
-impl CatalogRecord for AckStopNode {
-    const ID: RecordId = record_ids::ACK_STOP_NODE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "AckStopNode";
-
+impl RecordApply for AckStopNode {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
-        catalog.nodes.modify_by_id(&node_catalog_id, |n| {
+        catalog.nodes.modify_by_id_in_place(&node_catalog_id, |n| {
             if let NodeState::Stopping { stopped_time_ns } = n.state {
                 n.state = NodeState::Stopped {
                     stopped_time_ns,
@@ -259,12 +232,16 @@ impl CatalogRecord for AckStopNode {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<AckStopNode>()
-}
-
 /// Mark a node for permanent removal from the cluster.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+// The shape fingerprint changes because it hashes declared field *types*, and
+// `[u8; 16]` renders differently from `Reserved<16>`. It is a compile-time
+// tripwire only -- never emitted into generated code, never written to disk --
+// so the encoded bytes are unaffected.
+//
+// `remove_node_round_trip` pins that for this record: the same expected hex as
+// when the field was a bare array, asserted over the same sixteen bytes.
+// `reserved_encodes_as_a_bare_array` pins the property for the type itself.
+#[catalog_record(id = record_ids::REMOVE_NODE, shape = 0x4b6611ea)]
 pub struct RemoveNode {
     /// The node's catalog ID.
     pub node_catalog_id: u32,
@@ -272,20 +249,65 @@ pub struct RemoveNode {
     pub node_id: String,
     /// Removal-request timestamp in nanoseconds.
     pub requested_time_ns: i64,
-    /// Reserved for future use (e.g., issuer attribution); writers must set to nil.
-    pub process_uuid: [u8; 16],
+    /// Sixteen bytes carved up by byte index, not a single value:
+    ///
+    /// | Byte | Meaning |
+    /// |------|---------|
+    /// | 0    | [`RemovalAttestation`] tag, via [`Self::attestation`] |
+    /// | 1-15 | unallocated |
+    ///
+    /// These shipped as `process_uuid`, reserved for future use and written as
+    /// nil by every release, and unlike its four sibling node records this one
+    /// never read them. Retyping to [`Reserved`] moves no byte on disk, which
+    /// is the only reason a shipped record can carry a new fact at all -- the
+    /// "Structs: frozen" rule in `records::types` forbids adding a field, and
+    /// splitting these into a tag field plus a smaller reserved field would
+    /// relayout the record just as surely.
+    ///
+    /// So the name stays deliberately neutral. Whoever needs byte 1 next
+    /// should add an accessor beside [`Self::attestation`] and a row above,
+    /// rather than renaming the field for a second time.
+    pub reserved: Reserved<16>,
 }
 
-impl CatalogRecord for RemoveNode {
-    const ID: RecordId = record_ids::REMOVE_NODE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RemoveNode";
+/// Wire tags for [`RemovalAttestation`]. Not the enum's discriminants: these
+/// live in byte 0 of a [`Reserved`] whose zero value predates the field
+/// having a meaning, so 0 must stay `Unrecorded` whatever the enum does.
+mod attestation_tag {
+    pub(super) const UNRECORDED: u8 = 0;
+    pub(super) const NOT_FORCED: u8 = 1;
+    pub(super) const FORCED: u8 = 2;
+}
 
+impl RemoveNode {
+    pub fn attestation(&self) -> RemovalAttestation {
+        match self.reserved.tag() {
+            attestation_tag::UNRECORDED => RemovalAttestation::Unrecorded,
+            attestation_tag::FORCED => RemovalAttestation::Forced,
+            // `NOT_FORCED`, and any tag a later release introduces. Only an
+            // explicit `FORCED` authorises the delete, so an unreadable tag
+            // resolves the same way an absent decision does: refuse, and let
+            // the operator re-force, which writes a tag this binary
+            // understands.
+            _ => RemovalAttestation::NotForced,
+        }
+    }
+
+    pub fn encode_attestation(attestation: RemovalAttestation) -> Reserved<16> {
+        Reserved::<16>::from_tag(match attestation {
+            RemovalAttestation::Unrecorded => attestation_tag::UNRECORDED,
+            RemovalAttestation::NotForced => attestation_tag::NOT_FORCED,
+            RemovalAttestation::Forced => attestation_tag::FORCED,
+        })
+    }
+}
+
+impl RecordApply for RemoveNode {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
         catalog
             .nodes
-            .modify_by_id(&node_catalog_id, |n| match n.state {
+            .modify_by_id_in_place(&node_catalog_id, |n| match n.state {
                 NodeState::Stopped {
                     final_snapshot_sequence,
                     ..
@@ -293,10 +315,31 @@ impl CatalogRecord for RemoveNode {
                     n.state = NodeState::Removing {
                         requested_time_ns: self.requested_time_ns,
                         final_snapshot_sequence,
+                        attestation: self.attestation(),
                     };
                     Ok(())
                 }
-                NodeState::Removing { .. } => Ok(()),
+                // Already removing. A repeat is normally a controller retry and
+                // must stay a no-op, but an operator forcing a removal that the
+                // driver has since blocked is attesting after the fact, and
+                // `Removing` is terminal so this is their only way to say so.
+                // Upgrade the attestation; never downgrade it.
+                NodeState::Removing {
+                    requested_time_ns,
+                    final_snapshot_sequence,
+                    attestation,
+                } => {
+                    if self.attestation() == RemovalAttestation::Forced
+                        && attestation != RemovalAttestation::Forced
+                    {
+                        n.state = NodeState::Removing {
+                            requested_time_ns,
+                            final_snapshot_sequence,
+                            attestation: RemovalAttestation::Forced,
+                        };
+                    }
+                    Ok(())
+                }
                 _ => Err(ApplyError(format!(
                     "RemoveNode: node '{}' is not in Stopped state",
                     self.node_id
@@ -312,17 +355,13 @@ impl CatalogRecord for RemoveNode {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<RemoveNode>()
-}
-
 /// Permanently remove a node from the catalog.
 ///
 /// Unlike sibling node records, this carries no `process_uuid`: it is emitted
 /// by the compactor's `NodeRemovalDriver` after object-store cleanup, never
 /// by the node being unregistered, and no watcher filters on issuer identity
 /// for this terminal transition.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UNREGISTER_NODE, shape = 0x23bc05fe)]
 pub struct UnregisterNode {
     /// The node's catalog ID.
     pub node_catalog_id: u32,
@@ -332,11 +371,7 @@ pub struct UnregisterNode {
     pub unregistered_time_ns: i64,
 }
 
-impl CatalogRecord for UnregisterNode {
-    const ID: RecordId = record_ids::UNREGISTER_NODE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UnregisterNode";
-
+impl RecordApply for UnregisterNode {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
         if let Some(node) = catalog.nodes.get_by_id(&node_catalog_id)
@@ -358,10 +393,6 @@ impl CatalogRecord for UnregisterNode {
             node_catalog_id: NodeId::new(self.node_catalog_id),
         }
     }
-}
-
-inventory::submit! {
-    RegisteredRecord::new::<UnregisterNode>()
 }
 
 impl From<NodeMode> for SchemaNodeMode {
@@ -389,15 +420,6 @@ impl From<&SchemaNodeMode> for NodeMode {
         }
     }
 }
-
-impl_bitcode_encoding!(
-    RegisterNode,
-    StopNode,
-    RequestStopNode,
-    AckStopNode,
-    RemoveNode,
-    UnregisterNode
-);
 
 #[cfg(test)]
 mod tests;

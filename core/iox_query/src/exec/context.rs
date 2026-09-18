@@ -38,7 +38,7 @@ use datafusion::{
     prelude::*,
 };
 use datafusion::{catalog::Session, config::TableOptions};
-use datafusion_udf_wasm_host::{AllowCertainHttpRequests, WasmPermissions};
+use datafusion_udf_wasm_host::{HttpConfig, WasmPermissions};
 use datafusion_udf_wasm_query::ParsedQuery;
 use datafusion_util::config::{
     DEFAULT_CATALOG, iox_file_formats, iox_session_config, table_parquet_options,
@@ -510,13 +510,9 @@ impl IOxSessionContext {
             .unwrap_or_default();
 
         let sql = if config_ext.udfs_enabled {
-            let mut http_permissions = AllowCertainHttpRequests::new();
-            config_ext
-                .udfs_http_allow_list
-                .0
-                .into_iter()
-                .for_each(|matcher| http_permissions.allow(matcher));
-            let permissions = WasmPermissions::new().with_http(http_permissions);
+            let http_config =
+                HttpConfig::default().with_validator(config_ext.udfs_http_permissions);
+            let permissions = WasmPermissions::new().with_http(http_config);
 
             let rt_io = get_io_runtime();
 

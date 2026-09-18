@@ -200,7 +200,6 @@ impl std::error::Error for StringError {}
 mod tests {
     use std::{error::Error, time::Duration};
 
-    use futures::FutureExt as _;
     use futures_concurrency::future::FutureExt as _;
     use futures_test_utils::{AssertFutureExt, FutureObserver};
     use tokio::sync::Barrier;

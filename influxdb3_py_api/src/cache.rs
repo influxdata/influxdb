@@ -229,6 +229,11 @@ impl CacheStore {
         self.namespaces
             .retain(|id, _| !matches!(id, CacheId::Trigger { db_id: d, .. } if *d == db_id));
     }
+
+    /// Clear all caches. used during catalog restore.
+    pub fn drop_all_caches(&mut self) {
+        self.namespaces.clear();
+    }
 }
 
 // Python class for Cache

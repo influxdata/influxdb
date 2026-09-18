@@ -52,7 +52,7 @@ pub struct DisabledManager;
 fn is_valid_venv(venv_path: &Path) -> bool {
     cfg_select! {
         windows => venv_path.join("Scripts").join("activate.bat").exists(),
-        _ => venv_path.join("bin").join("activate").exists()
+        _ => venv_path.join("bin").join("activate").exists(),
     }
 }
 
@@ -352,7 +352,7 @@ impl ReadyVenv {
         // may be absent.
         let venv_python = cfg_select! {
             windows => self.path.join("Scripts").join("python.exe"),
-            _ => self.path.join("bin").join("python")
+            _ => self.path.join("bin").join("python"),
         };
         debug!("Running: {} -m pip --version", venv_python.display());
         let pip_available = Command::new(&venv_python)

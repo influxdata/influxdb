@@ -1470,7 +1470,7 @@ mod test {
 
     #[test]
     fn test_drop_measurement_statement() {
-        insta::assert_yaml_snapshot!(visit_statement!("DROP MEASUREMENT cpu"))
+        insta::assert_yaml_snapshot!(visit_statement!("DROP MEASUREMENT cpu"));
     }
 
     #[test]

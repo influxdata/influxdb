@@ -1,49 +1,30 @@
-use std::{any::Any, collections::HashMap, ops::Deref, sync::Arc};
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 use datafusion::{
-    catalog::SchemaProvider,
+    catalog::{SchemaProvider, Session},
     datasource::TableProvider,
     error::DataFusionError,
-    logical_expr::{BinaryExpr, Expr, Operator, col},
-    scalar::ScalarValue,
+    logical_expr::Expr,
 };
-use generations::GenerationDurationsTable;
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME};
+use influxdb3_authz::TokenInfo;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME, TableDefinition};
+use influxdb3_id::{DbId, TableId};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
-use influxdb3_write::WriteBuffer;
-use iox_query::query_log::QueryLog;
+use influxdb3_py_api::logging::processing_engine_logs_schema;
+use influxdb3_system_tables_common::{
+    DatabasesTable, DistinctCachesTable, GenerationDurationsTable, InfluxdbSchemaTable,
+    LastCachesTable, NodeSystemTable, ParquetFileRow, ParquetFilesSource, ParquetFilesTable,
+    PluginFileRow, PluginsSource, PluginsTable, ProcessingEngineLogsSource,
+    ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable, ProcessingEngineTriggerTable,
+    QueriesTable, TablesTable, TokenPermissionsFormatter, TokenSystemTable,
+    processing_engine_logs_view,
+};
+use influxdb3_write::{ChunkFilter, WriteBuffer};
+use iox_query::{QueryChunk, query_log::QueryLog};
 use iox_system_tables::SystemTableProvider;
 use observability_deps::tracing::warn;
 use tonic::async_trait;
 
-mod databases;
-use databases::DatabasesTable;
-mod distinct_caches;
-use distinct_caches::DistinctCachesTable;
-mod generations;
-mod influxdb_schema;
-use influxdb_schema::InfluxdbSchemaTable;
-mod last_caches;
-use last_caches::LastCachesTable;
-mod nodes;
-use nodes::NodeSystemTable;
-mod parquet_files;
-use parquet_files::ParquetFilesTable;
-mod plugins;
-use plugins::PluginsTable;
-mod python_call;
-use python_call::{
-    ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable, ProcessingEngineTriggerTable,
-    processing_engine_logs_view,
-};
-mod queries;
-use queries::QueriesTable;
-mod tables;
-use tables::TablesTable;
-mod tokens;
-use tokens::TokenSystemTable;
-/// The default timezone used in the system schema.
-pub const DEFAULT_TIMEZONE: &str = "UTC";
 /// Global system schema name used in queries
 ///
 /// # Example
@@ -51,7 +32,6 @@ pub const DEFAULT_TIMEZONE: &str = "UTC";
 /// SELECT * FROM system.queries;
 /// ```
 pub const SYSTEM_SCHEMA_NAME: &str = "system";
-pub const TABLE_NAME_PREDICATE: &str = "table_name";
 
 pub const QUERIES_TABLE_NAME: &str = "queries";
 pub const LAST_CACHES_TABLE_NAME: &str = "last_caches";
@@ -139,7 +119,7 @@ impl AllSystemSchemaTablesProvider {
         tables.insert(DISTINCT_CACHES_TABLE_NAME, distinct_caches);
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
             db_schema.id,
-            Arc::clone(&buffer),
+            Arc::new(WriteBufferParquetFilesSource(Arc::clone(&buffer))),
         ))));
         tables.insert(
             PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
@@ -168,7 +148,8 @@ impl AllSystemSchemaTablesProvider {
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         let logs_table: Arc<dyn TableProvider> = Arc::new(ProcessingEngineLogsTable::new(
             Arc::clone(&db_schema),
-            Arc::clone(&buffer),
+            Arc::new(WriteBufferProcessingEngineLogsSource(Arc::clone(&buffer))),
+            Arc::new(processing_engine_logs_schema()),
         ));
         let logs_provider = match processing_engine_logs_view(Arc::clone(&logs_table)) {
             Ok(view) => view,
@@ -193,12 +174,13 @@ impl AllSystemSchemaTablesProvider {
                 Arc::new(SystemTableProvider::new(Arc::new(TokenSystemTable::new(
                     Arc::clone(&catalog),
                     started_with_auth,
+                    Arc::new(CoreTokenPermissionsFormatter),
                 )))),
             );
             tables.insert(
                 PLUGIN_FILES_TABLE_NAME,
                 Arc::new(SystemTableProvider::new(Arc::new(PluginsTable::new(
-                    processing_engine,
+                    processing_engine.map(|pe| Arc::new(ProcessingEnginePluginsSource(pe)) as _),
                 )))),
             );
             tables.insert(
@@ -255,31 +237,97 @@ impl SchemaProvider for AllSystemSchemaTablesProvider {
     }
 }
 
-/// Used in queries to the system.{table_name} table
-///
-/// # Example
-/// ```sql
-/// SELECT * FROM system.parquet_files WHERE table_name = 'foo'
-/// ```
-pub fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<Arc<str>> {
-    filters.map(|all_filters| {
-        all_filters.iter().find_map(|f| match f {
-            Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
-                if left.deref() == &col(TABLE_NAME_PREDICATE) && op == &Operator::Eq {
-                    match right.deref() {
-                        Expr::Literal(
-                            ScalarValue::Utf8(Some(s))
-                            | ScalarValue::LargeUtf8(Some(s))
-                            | ScalarValue::Utf8View(Some(s)),
-                            _,
-                        ) => Some(s.as_str().into()),
-                        _ => None,
-                    }
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        })
-    })?
+/// Implement API to provide information about Parquet files for the
+/// `system.parquet_files` system table for [`WriteBuffer`]
+#[derive(Debug)]
+struct WriteBufferParquetFilesSource(Arc<dyn WriteBuffer>);
+
+impl ParquetFilesSource for WriteBufferParquetFilesSource {
+    fn catalog(&self) -> Arc<Catalog> {
+        self.0.catalog()
+    }
+
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFileRow> {
+        self.0
+            .parquet_files(db_id, table_id)
+            .into_iter()
+            .map(|file| ParquetFileRow {
+                path: file.path,
+                size_bytes: file.size_bytes,
+                row_count: file.row_count,
+                min_time: file.min_time,
+                max_time: file.max_time,
+            })
+            .collect()
+    }
+}
+
+/// Implement [`ProcessingEngineLogsSource`] for [`WriteBuffer`], used by the
+/// `system.processing_engine_logs` system table.
+#[derive(Debug)]
+struct WriteBufferProcessingEngineLogsSource(Arc<dyn WriteBuffer>);
+
+impl ProcessingEngineLogsSource for WriteBufferProcessingEngineLogsSource {
+    fn catalog(&self) -> Arc<Catalog> {
+        self.0.catalog()
+    }
+
+    fn chunks(
+        &self,
+        internal_db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        ctx: &dyn Session,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let mut filter = ChunkFilter::new(&table_def, filters)
+            .map_err(|error| DataFusionError::External(Box::new(error)))?;
+
+        let catalog = self.0.catalog();
+        if let Some(retention_cutoff) = internal_db_schema.get_retention_period_cutoff_ts_nanos(
+            catalog.time_provider().now(),
+            &table_def.table_id,
+        ) {
+            filter.time_lower_bound_ns = filter
+                .time_lower_bound_ns
+                .map(|lb| lb.max(retention_cutoff.timestamp_nanos()))
+                .or(Some(retention_cutoff.timestamp_nanos()));
+        }
+
+        self.0
+            .get_table_chunks(internal_db_schema, table_def, &filter, projection, ctx)
+    }
+}
+
+/// Implement [`PluginsSource`] for [`ProcessingEngineManagerImpl`]
+#[derive(Debug)]
+struct ProcessingEnginePluginsSource(Arc<ProcessingEngineManagerImpl>);
+
+#[async_trait]
+impl PluginsSource for ProcessingEnginePluginsSource {
+    async fn list_plugin_files(&self) -> Vec<PluginFileRow> {
+        self.0
+            .list_plugin_files()
+            .await
+            .into_iter()
+            .map(|f| PluginFileRow {
+                plugin_name: f.plugin_name,
+                file_name: f.file_name,
+                file_path: f.file_path,
+                size_bytes: f.size_bytes,
+                last_modified_millis: f.last_modified_millis,
+            })
+            .collect()
+    }
+}
+
+/// Format the `permissions` column of `system.tokens`. Core doesn't track
+/// per-resource permissions, so every token reports full access.
+#[derive(Debug)]
+struct CoreTokenPermissionsFormatter;
+
+impl TokenPermissionsFormatter for CoreTokenPermissionsFormatter {
+    fn format_permissions(&self, tokens: &[Arc<TokenInfo>]) -> Vec<String> {
+        tokens.iter().map(|_| "*:*:*".to_string()).collect()
+    }
 }

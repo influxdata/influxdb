@@ -4,13 +4,13 @@ use influxdb3_wal::SnapshotSequenceNumber;
 use uuid::Uuid;
 
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::catalog::versions::v3::schema::node::NodeState;
+use crate::catalog::versions::v3::schema::node::{NodeState, RemovalAttestation};
 use crate::format::records::assert_roundtrip;
 use crate::format::records::node::{
     AckStopNode, RegisterNode, RemoveNode, RequestStopNode, StopNode, UnregisterNode,
 };
-use crate::format::records::types::NodeMode;
-use crate::format::{CatalogRecord, FeatureLevel};
+use crate::format::records::types::{NodeMode, Reserved};
+use crate::format::{CatalogRecord, FeatureLevel, RecordApply};
 
 /// Helper to create a test catalog.
 fn test_catalog() -> InnerCatalog {
@@ -280,6 +280,10 @@ fn ack_stop_node_round_trip() {
     );
 }
 
+/// The expected bytes are unchanged from when this field was declared
+/// `process_uuid: [u8; 16]`, and the value is the same sixteen bytes. That is
+/// the assertion that matters: retyping the field to `Reserved<16>` gave a
+/// shipped record a new fact to carry without moving a byte on disk.
 #[test]
 fn remove_node_round_trip() {
     assert_roundtrip!(
@@ -287,10 +291,84 @@ fn remove_node_round_trip() {
             node_catalog_id: 42,
             node_id: "node-1".to_string(),
             requested_time_ns: 1234567890,
-            process_uuid: [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+            reserved: Reserved::<16>([16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
         },
         "042a066e6f64652d3102d20296490101efcdab8967452301"
     );
+}
+
+/// A record written by any prior release decodes to `Unrecorded`, distinctly
+/// from `NotForced` so a log can tell "declined to force" from "never had the
+/// choice" -- and, like every state but `Forced`, it refuses. Such a removal
+/// was as likely unforced as forced, and permitting it would delete
+/// un-absorbed gen0 nobody authorised. The refusal is recoverable: the
+/// operator re-forces, which is why it can be safe here.
+#[test]
+fn remove_node_reads_a_pre_attestation_record_as_unrecorded_and_refusing() {
+    let legacy = RemoveNode {
+        node_catalog_id: 42,
+        node_id: "node-1".to_string(),
+        requested_time_ns: 1234567890,
+        reserved: Reserved::<16>::ZERO,
+    };
+    assert_eq!(legacy.attestation(), RemovalAttestation::Unrecorded);
+    assert_ne!(legacy.attestation(), RemovalAttestation::NotForced);
+    assert!(!legacy.attestation().permits_unabsorbed_delete());
+}
+
+/// A tag from a later release carries no explicit forced attestation, and only
+/// `Forced` authorises deleting un-absorbed data. So an unreadable tag resolves
+/// the way an absent decision does, rather than the way a permissive one would:
+/// guessing in favour of an irreversible delete is the wrong way to be wrong.
+/// Refusing is recoverable -- the operator re-forces, which writes a tag this
+/// binary understands.
+#[test]
+fn remove_node_reads_an_unknown_attestation_tag_as_refusing() {
+    for unknown_tag in [3u8, 4, 200, 255] {
+        let record = RemoveNode {
+            node_catalog_id: 42,
+            node_id: "node-1".to_string(),
+            requested_time_ns: 1234567890,
+            reserved: Reserved::<16>::from_tag(unknown_tag),
+        };
+        assert_eq!(record.attestation(), RemovalAttestation::NotForced);
+        assert!(
+            !record.attestation().permits_unabsorbed_delete(),
+            "tag {unknown_tag} must not authorise deleting un-absorbed data"
+        );
+    }
+}
+
+#[test]
+fn remove_node_attestation_round_trips_through_the_reserved_bytes() {
+    for attestation in [
+        RemovalAttestation::Unrecorded,
+        RemovalAttestation::NotForced,
+        RemovalAttestation::Forced,
+    ] {
+        let record = RemoveNode {
+            node_catalog_id: 42,
+            node_id: "node-1".to_string(),
+            requested_time_ns: 1234567890,
+            reserved: RemoveNode::encode_attestation(attestation),
+        };
+        assert_eq!(record.attestation(), attestation);
+        assert_eq!(
+            record.reserved.0[1..],
+            [0; 15],
+            "only byte 0 carries the tag; the rest stay reserved"
+        );
+    }
+    assert!(RemovalAttestation::Forced.permits_unabsorbed_delete());
+    for refusing in [
+        RemovalAttestation::NotForced,
+        RemovalAttestation::Unrecorded,
+    ] {
+        assert!(
+            !refusing.permits_unabsorbed_delete(),
+            "{refusing:?} is not an operator decision to accept the loss"
+        );
+    }
 }
 
 #[test]
@@ -524,7 +602,7 @@ fn remove_node_rejects_running() {
         node_catalog_id: 1,
         node_id: "node-a".to_string(),
         requested_time_ns: 4000,
-        process_uuid: [0u8; 16],
+        reserved: Reserved::<16>::ZERO,
     }
     .apply(&mut catalog)
     .expect_err("RemoveNode should reject Running state");
@@ -541,7 +619,7 @@ fn remove_node_rejects_stopping() {
         node_catalog_id: 1,
         node_id: "node-a".to_string(),
         requested_time_ns: 4000,
-        process_uuid: [0u8; 16],
+        reserved: Reserved::<16>::ZERO,
     }
     .apply(&mut catalog)
     .expect_err("RemoveNode should reject Stopping state");
@@ -558,7 +636,7 @@ fn remove_node_transitions_stopped_to_removing() {
         node_catalog_id: 1,
         node_id: "node-a".to_string(),
         requested_time_ns: 4000,
-        process_uuid: [0u8; 16],
+        reserved: Reserved::<16>::ZERO,
     }
     .apply(&mut catalog)
     .unwrap();
@@ -571,6 +649,7 @@ fn remove_node_transitions_stopped_to_removing() {
         NodeState::Removing {
             requested_time_ns,
             final_snapshot_sequence,
+            ..
         } => {
             assert_eq!(requested_time_ns, 4000);
             assert_eq!(
@@ -589,7 +668,7 @@ fn remove_node_idempotent_when_removing() {
         node_catalog_id: 1,
         node_id: "node-a".to_string(),
         requested_time_ns: 4000,
-        process_uuid: [0u8; 16],
+        reserved: Reserved::<16>::ZERO,
     }
     .apply(&mut catalog)
     .unwrap();
@@ -597,7 +676,7 @@ fn remove_node_idempotent_when_removing() {
         node_catalog_id: 1,
         node_id: "node-a".to_string(),
         requested_time_ns: 5000,
-        process_uuid: [0u8; 16],
+        reserved: Reserved::<16>::ZERO,
     }
     .apply(&mut catalog)
     .unwrap();
@@ -610,6 +689,7 @@ fn remove_node_idempotent_when_removing() {
         NodeState::Removing {
             requested_time_ns,
             final_snapshot_sequence,
+            ..
         } => {
             assert_eq!(requested_time_ns, 4000);
             assert_eq!(
@@ -628,7 +708,7 @@ fn unregister_node_purges_entry() {
         node_catalog_id: 1,
         node_id: "node-a".to_string(),
         requested_time_ns: 4000,
-        process_uuid: [0u8; 16],
+        reserved: Reserved::<16>::ZERO,
     }
     .apply(&mut catalog)
     .unwrap();
@@ -673,7 +753,7 @@ fn unregister_node_idempotent_when_already_gone() {
         node_catalog_id: 1,
         node_id: "node-a".to_string(),
         requested_time_ns: 4000,
-        process_uuid: [0u8; 16],
+        reserved: Reserved::<16>::ZERO,
     }
     .apply(&mut catalog)
     .unwrap();

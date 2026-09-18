@@ -1,7 +1,9 @@
 ---
-source: iox_query_influxql/src/plan/planner.rs
+source: core/iox_query_influxql/src/plan/planner.rs
 expression: "plan(\"SELECT MEAN(str_field) FROM data\")"
 ---
-Error during planning: Execution error: Function 'avg' user-defined coercion failed with "Error during planning: Avg does not support inputs of type Utf8." No function matches the given name and argument types 'avg(Utf8)'. You might need to add explicit type casts.
+Error during planning: Function 'avg' requires one of TypeSignatureClass::Decimal, TypeSignatureClass::Duration, TypeSignatureClass::Native(LogicalType(Native(Float64), Float64)), but received String (DataType: Utf8). No function matches the given name and argument types 'avg(Utf8)'. You might need to add explicit type casts.
 	Candidate functions:
-	avg(UserDefined)
+	avg(Coercion(TypeSignatureClass::Decimal))
+	avg(Coercion(TypeSignatureClass::Duration))
+	avg(Coercion(TypeSignatureClass::Native(LogicalType(Native(Float64), Float64)), implicit_coercion=ImplicitCoercion([Integer, Float], default_type=Float64))

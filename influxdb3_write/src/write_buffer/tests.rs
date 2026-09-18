@@ -803,6 +803,144 @@ async fn catalog_snapshots_only_if_updated() {
     verify_snapshot_count(3, &write_buffer.persister).await;
 }
 
+/// Drive a snapshot and wait for it to finish, returning the sequence number the
+/// tracker handed out.
+async fn force_snapshot(write_buffer: &Arc<WriteBufferImpl>) -> SnapshotSequenceNumber {
+    let (snapshot_done, snapshot_info, snapshot_permit) = write_buffer
+        .wal
+        .force_flush_buffer()
+        .await
+        .expect("a forced flush always produces a snapshot");
+    snapshot_done.await.expect("snapshot completes");
+    write_buffer
+        .wal
+        .cleanup_snapshot(snapshot_info, snapshot_permit)
+        .await;
+    snapshot_info.snapshot_sequence_number
+}
+
+/// A forced snapshot over an empty buffer still consumes a sequence number, so its
+/// manifest must be written -- empty, but present -- rather than skipped. Skipping
+/// would leave a hole a sequential consumer cannot tell apart from a failed persist
+/// (influxdb_pro#4827).
+#[tokio::test]
+async fn forced_empty_snapshot_writes_manifest() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let (write_buffer, _ctx, _time_provider) = setup(
+        Time::from_timestamp_nanos(0),
+        Arc::clone(&object_store),
+        WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(5),
+            // high enough that the tracker never snapshots on its own; every
+            // snapshot below is driven explicitly
+            snapshot_size: 100,
+            ..Default::default()
+        },
+    )
+    .await;
+
+    // seq 1 holds data, so it gets a normal manifest
+    do_writes(
+        "test_db",
+        write_buffer.as_ref(),
+        &[TestWrite {
+            lp: "cpu bar=1",
+            time_seconds: 10,
+        }],
+    )
+    .await;
+    let first = force_snapshot(&write_buffer).await;
+    assert_eq!(first, SnapshotSequenceNumber::new(1));
+
+    // nothing was written since, so this forced snapshot drains an empty buffer
+    let empty = force_snapshot(&write_buffer).await;
+    assert_eq!(empty, SnapshotSequenceNumber::new(2));
+
+    // the manifest for the empty sequence exists at its exact key and carries the
+    // empty-snapshot sentinels
+    let path = SnapshotInfoFilePath::new("test_host", empty);
+    let bytes = object_store
+        .get(&path)
+        .await
+        .expect("the empty snapshot must still write a manifest")
+        .bytes()
+        .await
+        .unwrap();
+    let snapshot: PersistedSnapshot = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(snapshot.snapshot_sequence_number, empty);
+    assert!(snapshot.databases.is_empty());
+    assert_eq!(snapshot.row_count, 0);
+    assert_eq!(snapshot.min_time, i64::MAX);
+    assert_eq!(snapshot.max_time, i64::MIN);
+}
+
+/// Density invariant: a workload mixing normal snapshots with a forced-empty
+/// snapshot must leave a contiguous run of sequence numbers in object store with no
+/// gaps. This is what keeps the compactor and read replicas from stalling on a hole
+/// (influxdb_pro#4827).
+#[tokio::test]
+async fn snapshot_sequence_has_no_holes() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let (write_buffer, _ctx, _time_provider) = setup(
+        Time::from_timestamp_nanos(0),
+        Arc::clone(&object_store),
+        WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(5),
+            snapshot_size: 100,
+            ..Default::default()
+        },
+    )
+    .await;
+
+    // 1: data -> normal manifest
+    do_writes(
+        "test_db",
+        write_buffer.as_ref(),
+        &[TestWrite {
+            lp: "cpu bar=1",
+            time_seconds: 10,
+        }],
+    )
+    .await;
+    let first = force_snapshot(&write_buffer).await;
+
+    // 2: drained buffer -> forced-empty snapshot
+    let empty = force_snapshot(&write_buffer).await;
+
+    // 3: data again -> normal manifest
+    do_writes(
+        "test_db",
+        write_buffer.as_ref(),
+        &[TestWrite {
+            lp: "cpu bar=2",
+            time_seconds: 20,
+        }],
+    )
+    .await;
+    let third = force_snapshot(&write_buffer).await;
+
+    assert_eq!(first, SnapshotSequenceNumber::new(1));
+    assert_eq!(empty, SnapshotSequenceNumber::new(2));
+    assert_eq!(third, SnapshotSequenceNumber::new(3));
+
+    let mut persisted: Vec<u64> = write_buffer
+        .persister
+        .load_snapshots(1000)
+        .await
+        .unwrap()
+        .iter()
+        .map(|PersistedSnapshotVersion::V1(s)| s.snapshot_sequence_number.as_u64())
+        .collect();
+    persisted.sort_unstable();
+    assert_eq!(persisted, vec![1, 2, 3]);
+
+    assert_snapshot_sequence_has_no_holes(&object_store, "test_host").await;
+}
+
 /// Check that when a WriteBuffer is initialized with existing snapshot files, that newly
 /// generated snapshot files use the next sequence number.
 #[tokio::test]
@@ -812,8 +950,6 @@ async fn new_snapshots_use_correct_sequence() {
         Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
 
     // create a snapshot file that will be loaded on initialization of the write buffer:
-    // Set ParquetFileId to a non zero number for the snapshot
-    ParquetFileId::from(500).set_next_id();
     let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
     let prev_snapshot = PersistedSnapshot::new(
         Arc::from("test_host"),
@@ -822,9 +958,6 @@ async fn new_snapshots_use_correct_sequence() {
         CatalogSequenceNumber::new(0),
     );
     let snapshot_json = serde_json::to_vec(&PersistedSnapshotVersion::V1(prev_snapshot)).unwrap();
-    // set ParquetFileId to be 0 so that we can make sure when it's loaded from the
-    // snapshot that it becomes the expected number
-    ParquetFileId::from(0).set_next_id();
 
     // put the snapshot file in object store:
     object_store
@@ -849,8 +982,10 @@ async fn new_snapshots_use_correct_sequence() {
     )
     .await;
 
-    // Assert that loading the snapshots sets ParquetFileId to the correct id number
-    assert_eq!(ParquetFileId::new().as_u64(), 500);
+    // the process-global ParquetFileId counter is shared with concurrently running tests
+    // under plain `cargo test`, so this test asserts nothing about it (see #5585);
+    // next_id_is_correct_number covers file-id restoration from a loaded snapshot
+    // (race-safe only together with the monotonic restore from #5586).
 
     // there should be one snapshot already, i.e., the one we created above:
     verify_snapshot_count(1, &wbuf.persister).await;
@@ -919,9 +1054,6 @@ async fn next_id_is_correct_number() {
     let object_store: Arc<dyn ObjectStore> =
         Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
 
-    // Record the starting counter value (may not be 0 if other tests run in parallel)
-    let starting_id = ParquetFileId::next_id().as_u64();
-
     let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
     let mut prev_snapshot = PersistedSnapshot::new(
         Arc::from("test_host"),
@@ -930,15 +1062,19 @@ async fn next_id_is_correct_number() {
         CatalogSequenceNumber::new(0),
     );
 
-    // next_file_id should be at least starting_id (PersistedSnapshot::new uses next_id())
-    assert!(prev_snapshot.next_file_id.as_u64() >= starting_id);
-
+    // allocate ids from the process-global ParquetFileId counter, recording each one. Under
+    // plain `cargo test` other tests in this process allocate from (and restore) the same
+    // counter concurrently, so asserts compare against the recorded ids and the snapshot's
+    // own fields rather than exact global-counter values (see #5586):
+    let mut added_ids = Vec::new();
     for _ in 0..=5 {
+        let id = ParquetFileId::new();
+        added_ids.push(id);
         prev_snapshot.add_parquet_file(
             DbId::from(0),
             TableId::from(0),
             ParquetFile {
-                id: ParquetFileId::new(),
+                id,
                 path: "file/path2".into(),
                 size_bytes: 20,
                 row_count: 1,
@@ -952,16 +1088,19 @@ async fn next_id_is_correct_number() {
     assert_eq!(prev_snapshot.databases.len(), 1);
     let files = prev_snapshot.databases[&DbId::from(0)].tables[&TableId::from(0)].clone();
 
-    // Assert that next_file_id advanced by 6 (one for each file added)
-    // and that files were assigned sequential IDs
-    let expected_next_id = starting_id + 6;
-    assert_eq!(prev_snapshot.next_file_id.as_u64(), expected_next_id);
+    // the snapshot holds the added files, in order, with the ids they were allocated, and
+    // its next_file_id lies beyond all of them:
     assert_eq!(files.len(), 6);
-    for (i, file) in files.iter().enumerate() {
-        assert_ne!(file.id, ParquetFileId::from(expected_next_id));
-        assert!(file.id.as_u64() < expected_next_id);
-        assert_eq!(file.id.as_u64(), starting_id + i as u64);
+    for (file, added_id) in files.iter().zip(&added_ids) {
+        assert_eq!(file.id, *added_id);
+        assert!(file.id.as_u64() < prev_snapshot.next_file_id.as_u64());
     }
+    // raise the snapshot's next_file_id well above anything this process has allocated:
+    // observing the counter at or above it after startup then proves the load restored the
+    // snapshot's id sequence (concurrent tests advance the shared counter, and restores
+    // never move it backwards, so a lower bound is sound; see #5586):
+    let snapshot_next_file_id = prev_snapshot.next_file_id.as_u64() + 10_000;
+    prev_snapshot.next_file_id = ParquetFileId::from(snapshot_next_file_id);
 
     let snapshot_json = serde_json::to_vec(&PersistedSnapshotVersion::V1(prev_snapshot)).unwrap();
 
@@ -988,10 +1127,9 @@ async fn next_id_is_correct_number() {
     )
     .await;
 
-    // Test that the next_file_id has been set properly from the loaded snapshot
-    // The loaded snapshot had next_file_id = expected_next_id, so after set_next_id(),
-    // the global counter should be that value
-    assert_eq!(ParquetFileId::next_id().as_u64(), expected_next_id);
+    // loading the snapshot advances the global ParquetFileId counter to its `next_file_id`;
+    // concurrent tests may advance the counter further, so assert a lower bound only:
+    assert!(ParquetFileId::next_id().as_u64() >= snapshot_next_file_id);
 }
 
 #[test_log::test(tokio::test)]
@@ -1482,7 +1620,7 @@ async fn test_parquet_cache() {
     // get the path for the created parquet file:
     let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
     assert_eq!(1, persisted_files.len());
-    let path = ObjPath::from(persisted_files[0].path.as_str());
+    let path = ObjPath::from(persisted_files[0].path.as_ref());
 
     // check the number of requests to that path before making a query:
     // there should be no get request, made by the cache oracle:
@@ -1591,7 +1729,7 @@ async fn test_no_parquet_cache() {
     // get the path for the created parquet file:
     let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
     assert_eq!(1, persisted_files.len());
-    let path = ObjPath::from(persisted_files[0].path.as_str());
+    let path = ObjPath::from(persisted_files[0].path.as_ref());
 
     // check the number of requests to that path before making a query:
     // there should be no get or get_range requests since nothing has asked for this file yet:
@@ -1873,6 +2011,66 @@ async fn write_metrics() {
     );
 }
 
+/// A single WAL period never reaches the count-based snapshot trigger.
+/// The age-based check leaves it alone while it is younger than the
+/// maximum age and forces a snapshot once it is older.
+#[test_log::test(tokio::test)]
+async fn test_check_age_and_force_snapshot() {
+    let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let (write_buffer, _, time_provider, persister) = setup_with_checkpointing(
+        Time::from_timestamp_nanos(0),
+        Arc::clone(&obj_store),
+        WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100_000,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 10,
+            ..Default::default()
+        },
+        Duration::from_secs(3_600),
+    )
+    .await;
+    do_writes(
+        "sample",
+        write_buffer.as_ref(),
+        &[TestWrite {
+            lp: "cpu,host=a usage=10",
+            time_seconds: 1,
+        }],
+    )
+    .await;
+    let max_age = Duration::from_secs(30 * 60);
+    let since = write_buffer
+        .wal
+        .unsnapshotted_since()
+        .await
+        .expect("one period is waiting for a snapshot");
+
+    // Younger than the maximum age: nothing happens.
+    time_provider.set(since + max_age - Duration::from_secs(1));
+    check_mem_and_force_snapshot(&write_buffer, usize::MAX, max_age).await;
+    assert!(persister.load_snapshots(10).await.unwrap().is_empty());
+    assert_eq!(write_buffer.wal.unsnapshotted_since().await, Some(since));
+
+    // At the maximum age: snapshot forced, nothing left waiting.
+    time_provider.set(since + max_age);
+    check_mem_and_force_snapshot(&write_buffer, usize::MAX, max_age).await;
+    assert_eq!(write_buffer.wal.unsnapshotted_since().await, None);
+    // Persistence runs in the background of the forced flush.
+    let start = std::time::Instant::now();
+    loop {
+        let snapshots = persister.load_snapshots(10).await.unwrap();
+        if snapshots.len() == 1 {
+            break;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "forced snapshot was not persisted: {snapshots:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
 #[test_log::test(tokio::test)]
 async fn test_check_mem_and_force_snapshot() {
     let tmp_dir = test_helpers::tmp_dir().unwrap();
@@ -1927,13 +2125,13 @@ async fn test_check_mem_and_force_snapshot() {
     debug!(?total_buffer_size_bytes_before, "total buffer size");
 
     debug!("1st snapshot..");
-    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50).await;
+    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50, Duration::MAX).await;
 
     // check memory has gone down after forcing first snapshot
     let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
     debug!(?total_buffer_size_bytes_after, "total buffer size");
     assert!(total_buffer_size_bytes_before > total_buffer_size_bytes_after);
-    assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
+    assert_snapshot_sequence_has_no_holes(&obj_store, "test_host").await;
 
     let total_buffer_size_bytes_before = total_buffer_size_bytes_after;
     debug!("2nd snapshot..");
@@ -1958,17 +2156,18 @@ async fn test_check_mem_and_force_snapshot() {
     // the query buffer. But when there's nothing evicted then the min/max stays
     // the same as what they were initialized to i64::MAX/i64::MIN respectively.
     //
-    // This however does not stop loading the data into memory as no empty
-    // parquet files are written out. But this test recreates that issue and checks
-    // object store directly to make sure inconsistent snapshot file isn't written
-    // out in the first place
-    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50).await;
+    // This empty snapshot still consumes a sequence number, so its manifest must
+    // be written out even though it holds no databases. Skipping it would leave a
+    // hole in the sequence that stalls the compactor and read replicas
+    // (influxdb_pro#4827). The assertion below checks object store directly to
+    // confirm the sequence stays contiguous.
+    check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50, Duration::MAX).await;
     let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
     // no other writes so nothing can be snapshotted, so mem should stay same
     assert!(total_buffer_size_bytes_before == total_buffer_size_bytes_after);
 
     drop(write_buffer);
-    assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
+    assert_snapshot_sequence_has_no_holes(&obj_store, "test_host").await;
 
     // dropping write_buffer does not kill any background task (like snapshot which does a
     // WAL file cleanup) which means when we start the buffer again it sees the WAL file but
@@ -1990,7 +2189,7 @@ async fn test_check_mem_and_force_snapshot() {
     )
     .await;
 
-    assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
+    assert_snapshot_sequence_has_no_holes(&obj_store, "test_host").await;
     drop(write_buffer_after_restart);
 
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -2008,7 +2207,7 @@ async fn test_check_mem_and_force_snapshot() {
         },
     )
     .await;
-    assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
+    assert_snapshot_sequence_has_no_holes(&obj_store, "test_host").await;
 }
 
 #[test_log::test(tokio::test)]
@@ -2315,7 +2514,7 @@ async fn test_query_path_parquet_cache() {
         .persisted_files()
         .get_files(DbId::from(1), TableId::from(0));
     assert_eq!(1, persisted_files.len());
-    let path = ObjPath::from(persisted_files[0].path.as_str());
+    let path = ObjPath::from(persisted_files[0].path.as_ref());
 
     let batches = write_buffer
         .get_record_batches_unchecked(db_name, "temp", &ctx)
@@ -2941,25 +3140,57 @@ async fn get_table_batches_from_query_buffer(
     batches
 }
 
-async fn assert_dbs_not_empty_in_snapshot_file(obj_store: &Arc<dyn ObjectStore>, host: &str) {
+/// Every snapshot sequence number the tracker hands out must land a manifest in
+/// object store, so the persisted sequences form a contiguous run with no gaps.
+/// A skipped (empty) snapshot leaves a hole that a sequential consumer -- the
+/// compactor point-GETting `marker + 1`, or a read replica waiting on the next
+/// manifest -- cannot distinguish from a failed persist, so it stalls forever
+/// (influxdb_pro#4827).
+///
+/// Snapshots persist on a background task, so this polls until the set of manifests
+/// stops changing before asserting contiguity.
+async fn assert_snapshot_sequence_has_no_holes(obj_store: &Arc<dyn ObjectStore>, host: &str) {
     let from = Path::from(format!("{host}/snapshots/"));
-    let file_paths = load_files_from_obj_store(obj_store, &from).await;
-    debug!(?file_paths, "obj store snapshots");
-    for file_path in file_paths {
-        let bytes = obj_store
-            .get(&file_path)
-            .await
-            .unwrap()
-            .bytes()
-            .await
-            .unwrap();
-        let persisted_snapshot: PersistedSnapshot = serde_json::from_slice(&bytes).unwrap();
-        // dbs not empty
-        assert!(!persisted_snapshot.databases.is_empty());
-        // min and max times aren't defaults
-        assert!(persisted_snapshot.min_time != i64::MAX);
-        assert!(persisted_snapshot.max_time != i64::MIN);
+    let mut sequences: Vec<u64> = Vec::new();
+    let mut stable_checks = 0;
+    for _ in 0..40 {
+        let file_paths = load_files_from_obj_store(obj_store, &from).await;
+        let mut observed = Vec::with_capacity(file_paths.len());
+        for file_path in file_paths {
+            let bytes = obj_store
+                .get(&file_path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap();
+            let persisted_snapshot: PersistedSnapshot = serde_json::from_slice(&bytes).unwrap();
+            observed.push(persisted_snapshot.snapshot_sequence_number.as_u64());
+        }
+        observed.sort_unstable();
+        if !observed.is_empty() && observed == sequences {
+            stable_checks += 1;
+            if stable_checks > 3 {
+                break;
+            }
+        } else {
+            stable_checks = 0;
+            sequences = observed;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
     }
+    debug!(?sequences, "obj store snapshot sequences");
+    assert!(
+        !sequences.is_empty(),
+        "expected at least one persisted snapshot manifest"
+    );
+    let min = *sequences.first().unwrap();
+    let max = *sequences.last().unwrap();
+    let expected: Vec<u64> = (min..=max).collect();
+    assert_eq!(
+        sequences, expected,
+        "snapshot sequence has a hole (a consumed sequence number with no manifest)"
+    );
 }
 
 async fn load_files_from_obj_store(object_store: &Arc<dyn ObjectStore>, path: &Path) -> Vec<Path> {

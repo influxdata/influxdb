@@ -828,7 +828,6 @@ impl QueryLog {
     ///
     /// This is used by the enterprise query executor to pass through
     /// a query ID from an external source (e.g., a flight ticket).
-    #[expect(clippy::too_many_arguments)]
     pub fn push_with_query_id(
         &self,
         query_id: Uuid,
@@ -851,8 +850,6 @@ impl QueryLog {
             trace_id,
         )
     }
-
-    #[expect(clippy::too_many_arguments)]
     pub fn push(
         &self,
         namespace_id: NamespaceId,
@@ -874,8 +871,6 @@ impl QueryLog {
             trace_id,
         )
     }
-
-    #[expect(clippy::too_many_arguments)]
     fn push_entry(
         &self,
         query_id: Uuid,

@@ -9,11 +9,8 @@ use datafusion::{
         tree_node::{Transformed, TreeNode},
     },
     config::ConfigOptions,
-    datasource::{
-        physical_plan::{FileScanConfig, FileScanConfigBuilder},
-        source::DataSourceExec,
-    },
-    error::{DataFusionError, Result},
+    datasource::source::DataSourceExec,
+    error::Result,
     physical_expr::{LexOrdering, PhysicalSortExpr, utils::collect_columns},
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{
@@ -95,64 +92,28 @@ fn optimize_plan(plan: Arc<dyn ExecutionPlan>) -> Result<Transformed<Arc<dyn Exe
             .collect::<Result<Vec<_>>>()?;
         let new_union = UnionExec::try_new(new_inputs)?;
         return Ok(Transformed::yes(new_union));
-    } else if let Some(child_parquet) = child_any.downcast_ref::<DataSourceExec>() {
-        let Some(file_scan_config) = child_parquet
-            .data_source()
-            .as_any()
-            .downcast_ref::<FileScanConfig>()
-        else {
-            return Ok(Transformed::no(plan));
-        };
-        // Get existing projection indices from the config
-        let existing_projection = file_scan_config
-            .projection_exprs
-            .as_ref()
-            .map(|p| p.ordered_column_indices());
-
-        let projection = match existing_projection.as_ref() {
-            Some(projection) => column_indices
-                .into_iter()
-                .map(|idx| {
-                    projection
-                        .get(idx)
-                        .copied()
-                        .ok_or_else(|| DataFusionError::Execution("Projection broken".to_string()))
-                })
-                .collect::<Result<Vec<_>>>()?,
-            None => column_indices,
-        };
-
-        let col_map = columns
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(idx, col)| (col, idx))
-            .collect();
-        let output_ordering = file_scan_config
-            .output_ordering
-            .iter()
-            .map(|output_ordering| project_output_ordering(output_ordering, &col_map))
-            .collect::<Result<Vec<_>>>()?;
-        // if there's any empty output order, we need to drop everything, at least until https://github.com/apache/datafusion/issues/17354 is fixed
-        let output_ordering = output_ordering.into_iter().try_fold(
-            Vec::with_capacity(file_scan_config.output_ordering.len()),
-            |mut out, next| {
-                let next = next?;
-                out.push(next);
-                Some(out)
-            },
-        );
-
-        let mut file_scan_config_builder = FileScanConfigBuilder::from(file_scan_config.clone())
-            .with_projection_indices(Some(projection));
-        if let Some(output_ordering) = output_ordering {
-            file_scan_config_builder =
-                file_scan_config_builder.with_output_ordering(output_ordering);
+    } else if child_any.is::<DataSourceExec>() {
+        // Delegate to DataFusion's own projection-pushdown on `DataSourceExec`,
+        // which calls `FileSource::try_pushdown_projection` in the file
+        // source's projected-schema index space (where `ProjectionExprs::try_merge`
+        // substitutes correctly) and lets the file source recompute its
+        // equivalence properties from its own internal state.
+        //
+        // Fixes both:
+        //   - influxdata/influxdb_pro#3579 — the IOx hand-rolled path built
+        //     `top` in table-schema space, which `try_merge` then misread as
+        //     base-output-space indices, silently swapping column references
+        //     behind correct-looking aliases.
+        //   - influxdata/influxdb_pro#3578 — the IOx hand-rolled path also
+        //     pre-remapped `output_ordering` to projected-schema indices, but
+        //     `FileScanConfig::eq_properties` then re-applied the projection
+        //     mapping itself, so the cached equivalence properties dropped
+        //     the ordering; `EnforceDistribution` then saw no ordering and
+        //     bin-packed parquet files.
+        if let Some(new_plan) = child.try_swapping_with_projection(projection_exec)? {
+            return Ok(Transformed::yes(new_plan));
         }
-        let file_scan_config = file_scan_config_builder.build();
-        return Ok(Transformed::yes(DataSourceExec::from_data_source(
-            file_scan_config,
-        )));
+        return Ok(Transformed::no(plan));
     } else if let Some(child_filter) = child_any.downcast_ref::<FilterExec>() {
         let filter_required_cols = collect_columns(child_filter.predicate());
 
@@ -266,52 +227,6 @@ fn optimize_plan(plan: Arc<dyn ExecutionPlan>) -> Result<Transformed<Arc<dyn Exe
     }
 
     Ok(Transformed::no(plan))
-}
-
-/// Given the output ordering and a projected schema, returns the
-/// largest prefix of the ordering that is in the projection
-///
-/// For example,
-///
-/// ```text
-/// output_ordering: a, b, c
-/// projection: a, c
-/// returns --> a
-/// ```
-///
-/// To see why the input has to be a prefix, consider this input:
-///
-/// ```text
-/// a    b
-/// 1    1
-/// 2    2
-/// 3    1
-/// ``
-///
-/// It is sorted on `a,b` but *not* sorted on `b`
-fn project_output_ordering(
-    output_ordering: &LexOrdering,
-    col_map: &HashMap<Column, usize>,
-) -> Result<Option<LexOrdering>> {
-    // take longest prefix
-    let sort_exprs = output_ordering
-        .iter()
-        .take_while(|expr| {
-            if let Some(col) = expr.expr.as_any().downcast_ref::<Column>() {
-                col_map.contains_key(col)
-            } else {
-                // do not keep exprs like `a+1` or `-a` as they may
-                // not maintain ordering
-                false
-            }
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-
-    Ok(LexOrdering::new(reassign_sort_exprs_columns(
-        &sort_exprs,
-        col_map,
-    )?))
 }
 
 /// remap the column references in the expression to the new
@@ -455,10 +370,13 @@ mod tests {
     };
     use datafusion::{
         common::NullEquality,
-        datasource::physical_plan::{FileScanConfigBuilder, ParquetSource},
+        datasource::{
+            physical_plan::{FileScanConfigBuilder, ParquetSource},
+            table_schema::TableSchema,
+        },
+        error::DataFusionError,
     };
     use datafusion_util::config::table_parquet_options;
-    use serde::Serialize;
 
     use crate::{
         physical_optimizer::test_util::{OptimizationTest, assert_unknown_partitioning},
@@ -726,6 +644,18 @@ mod tests {
         );
     }
 
+    /// Regression test for [influxdata/influxdb_pro#3579][i]: the IOx
+    /// `ProjectionPushdown` parquet branch used to swap column references
+    /// behind correct-looking aliases when the underlying `FileSource` already
+    /// had a non-identity projection (set up here with `with_projection_indices`
+    /// for `[field, tag3, tag2]`). The `ProjectionExec` over the scan asks for
+    /// `[tag2, tag3]`; with the bug the pushed-down projection rendered as
+    /// `[tag3@2 as tag2, tag2@1 as tag3]` and `Column::evaluate` (which reads
+    /// by index) would return the wrong physical column at runtime. The
+    /// expected output below is the correct, swap-free
+    /// `projection=[tag2, tag3]` plan.
+    ///
+    /// [i]: https://github.com/influxdata/influxdb_pro/issues/3579
     #[test]
     fn test_parquet() {
         let schema = Arc::new(Schema::new(vec![
@@ -736,15 +666,15 @@ mod tests {
         ]));
         let projection = vec![3, 2, 1];
         let schema_projected = Arc::new(schema.project(&projection).unwrap());
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options())
+            .with_predicate(expr_string_cmp("tag1", &schema));
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(
-                ParquetSource::new(table_parquet_options())
-                    .with_predicate(expr_string_cmp("tag1", &schema)),
-            ),
+            Arc::new(parquet_source),
         )
         .with_projection_indices(Some(projection))
+        .unwrap()
         .with_output_ordering(vec![
             LexOrdering::new(vec![
                 PhysicalSortExpr {
@@ -806,10 +736,11 @@ mod tests {
             Field::new("tag1", DataType::Utf8, true),
             Field::new("tag2", DataType::Utf8, true),
         ]));
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_output_ordering(vec![
             LexOrdering::new(vec![PhysicalSortExpr {
@@ -1607,10 +1538,11 @@ mod tests {
             Field::new("field1", DataType::UInt64, true),
             Field::new("field2", DataType::UInt64, true),
         ]));
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .build();
         let plan = DataSourceExec::from_data_source(file_scan_config);
@@ -1659,253 +1591,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_project_output_ordering_keep() {
-        let schema = schema();
-        let projection = vec!["tag1", "tag2"];
-        let output_ordering = LexOrdering::new(vec![
-            PhysicalSortExpr {
-                expr: expr_col("tag1", &schema),
-                options: Default::default(),
-            },
-            PhysicalSortExpr {
-                expr: expr_col("tag2", &schema),
-                options: Default::default(),
-            },
-        ])
-        .unwrap();
-
-        insta::assert_yaml_snapshot!(
-            ProjectOutputOrdering::new(&schema, output_ordering, projection),
-            @r"
-        output_ordering:
-          - tag1@0
-          - tag2@1
-        projection:
-          - tag1
-          - tag2
-        projected_ordering:
-          - tag1@0
-          - tag2@1
-        "
-        );
-    }
-
-    #[test]
-    fn test_project_output_ordering_project_prefix() {
-        let schema = schema();
-        let projection = vec!["tag1"]; // prefix of the sort key
-        let output_ordering = LexOrdering::new(vec![
-            PhysicalSortExpr {
-                expr: expr_col("tag1", &schema),
-                options: Default::default(),
-            },
-            PhysicalSortExpr {
-                expr: expr_col("tag2", &schema),
-                options: Default::default(),
-            },
-        ])
-        .unwrap();
-
-        insta::assert_yaml_snapshot!(
-            ProjectOutputOrdering::new(&schema, output_ordering, projection),
-            @r"
-        output_ordering:
-          - tag1@0
-          - tag2@1
-        projection:
-          - tag1
-        projected_ordering:
-          - tag1@0
-        "
-        );
-    }
-
-    #[test]
-    fn test_project_output_ordering_project_non_prefix() {
-        let schema = schema();
-        let projection = vec!["tag2"]; // in sort key, but not prefix
-        let output_ordering = LexOrdering::new(vec![
-            PhysicalSortExpr {
-                expr: expr_col("tag1", &schema),
-                options: Default::default(),
-            },
-            PhysicalSortExpr {
-                expr: expr_col("tag2", &schema),
-                options: Default::default(),
-            },
-        ])
-        .unwrap();
-
-        insta::assert_yaml_snapshot!(
-            ProjectOutputOrdering::new(&schema, output_ordering, projection),
-            @r"
-        output_ordering:
-          - tag1@0
-          - tag2@1
-        projection:
-          - tag2
-        projected_ordering: []
-        "
-        );
-    }
-
-    #[test]
-    fn test_project_output_ordering_projection_reorder() {
-        let schema = schema();
-        let projection = vec!["tag2", "tag1", "field"]; // in different order than sort key
-        let output_ordering = LexOrdering::new(vec![
-            PhysicalSortExpr {
-                expr: expr_col("tag1", &schema),
-                options: Default::default(),
-            },
-            PhysicalSortExpr {
-                expr: expr_col("tag2", &schema),
-                options: Default::default(),
-            },
-        ])
-        .unwrap();
-
-        insta::assert_yaml_snapshot!(
-            ProjectOutputOrdering::new(&schema, output_ordering, projection),
-            @r"
-        output_ordering:
-          - tag1@0
-          - tag2@1
-        projection:
-          - tag2
-          - tag1
-          - field
-        projected_ordering:
-          - tag1@1
-          - tag2@0
-        "
-        );
-    }
-
-    #[test]
-    fn test_project_output_ordering_constant() {
-        let schema = schema();
-        let projection = vec!["tag2"];
-        let output_ordering = LexOrdering::new(vec![
-            // ordering by a constant is ignored
-            PhysicalSortExpr {
-                expr: datafusion::physical_plan::expressions::lit(1),
-                options: Default::default(),
-            },
-            PhysicalSortExpr {
-                expr: expr_col("tag2", &schema),
-                options: Default::default(),
-            },
-        ])
-        .unwrap();
-
-        insta::assert_yaml_snapshot!(
-            ProjectOutputOrdering::new(&schema, output_ordering, projection),
-            @r#"
-        output_ordering:
-          - "1"
-          - tag2@1
-        projection:
-          - tag2
-        projected_ordering: []
-        "#
-        );
-    }
-
-    #[test]
-    fn test_project_output_ordering_constant_second_position() {
-        let schema = schema();
-        let projection = vec!["tag2"];
-        let output_ordering = LexOrdering::new(vec![
-            PhysicalSortExpr {
-                expr: expr_col("tag2", &schema),
-                options: Default::default(),
-            },
-            // ordering by a constant is ignored
-            PhysicalSortExpr {
-                expr: datafusion::physical_plan::expressions::lit(1),
-                options: Default::default(),
-            },
-        ])
-        .unwrap();
-
-        insta::assert_yaml_snapshot!(
-            ProjectOutputOrdering::new(&schema, output_ordering, projection),
-            @r#"
-        output_ordering:
-          - tag2@1
-          - "1"
-        projection:
-          - tag2
-        projected_ordering:
-          - tag2@0
-        "#
-        );
-    }
-
-    /// project the output_ordering with the projection,
-    // derive serde to make a nice 'insta' snapshot
-    #[derive(Debug, Serialize)]
-    struct ProjectOutputOrdering {
-        output_ordering: Vec<String>,
-        projection: Vec<String>,
-        projected_ordering: Vec<String>,
-    }
-
-    impl ProjectOutputOrdering {
-        fn new(
-            schema: &Schema,
-            output_ordering: LexOrdering,
-            projection: Vec<&'static str>,
-        ) -> Self {
-            let col_map = projection
-                .iter()
-                .map(|field_name| {
-                    Column::new(
-                        field_name,
-                        schema.index_of(field_name).expect("finding field"),
-                    )
-                })
-                .enumerate()
-                .map(|(idx, col)| (col, idx))
-                .collect();
-
-            let projected_ordering = project_output_ordering(&output_ordering, &col_map);
-
-            let projected_ordering = match projected_ordering {
-                Ok(Some(projected_ordering)) => format_sort_exprs(&projected_ordering),
-                Ok(None) => {
-                    vec![]
-                }
-                Err(e) => vec![e.to_string()],
-            };
-
-            Self {
-                output_ordering: format_sort_exprs(&output_ordering),
-                projection: projection.iter().map(|s| s.to_string()).collect(),
-                projected_ordering,
-            }
-        }
-    }
-
     fn schema() -> SchemaRef {
         Arc::new(Schema::new(vec![
             Field::new("tag1", DataType::Utf8, true),
             Field::new("tag2", DataType::Utf8, true),
             Field::new("field", DataType::UInt64, true),
         ]))
-    }
-
-    /// Take a series of sort_exprs, and convert to strings.
-    fn format_sort_exprs(sort_exprs: &[PhysicalSortExpr]) -> Vec<String> {
-        sort_exprs
-            .iter()
-            .map(|expr| {
-                let PhysicalSortExpr { expr, options: _ } = expr;
-                expr.to_string()
-            })
-            .collect::<Vec<_>>()
     }
 
     fn expr_col(name: &str, schema: &SchemaRef) -> Arc<dyn PhysicalExpr> {

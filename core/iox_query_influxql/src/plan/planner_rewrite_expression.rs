@@ -1293,9 +1293,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(u64_lit() + i64_field()),
-            @r"
+            @"
             field: err: Error during planning: cannot use + with an integer field and unsigned literal
-        condition: ok: UInt64(1) + nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64))
+        condition: ok: UInt64(1) + CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END
         ",
         );
         assert_snapshot!(
@@ -1323,9 +1323,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(u64_lit() / i64_field()),
-            @r"
+            @"
             field: err: Error during planning: cannot use / with an integer field and unsigned literal
-        condition: ok: CASE WHEN nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) = UInt64(0) THEN UInt64(0) ELSE UInt64(1) / nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) END
+        condition: ok: CASE WHEN CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END = UInt64(0) THEN UInt64(0) ELSE UInt64(1) / CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END END
         ",
         );
         assert_snapshot!(
@@ -1346,9 +1346,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(i64_field() + u64_lit()),
-            @r"
+            @"
             field: err: Error during planning: cannot use + with an integer field and unsigned literal
-        condition: ok: nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) + UInt64(1)
+        condition: ok: CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END + UInt64(1)
         ",
         );
         assert_snapshot!(
@@ -1360,9 +1360,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(i64_field() + u64_field()),
-            @r"
+            @"
             field: err: Error during planning: cannot use + between an integer and unsigned, an explicit cast is required
-        condition: ok: nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) + unsigned_field
+        condition: ok: CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END + unsigned_field
         ",
         );
 
@@ -1376,9 +1376,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(i64_field() / u64_lit()),
-            @r"
+            @"
             field: err: Error during planning: cannot use / with an integer field and unsigned literal
-        condition: ok: nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64))
+        condition: ok: CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END
         ",
         );
         assert_snapshot!(
@@ -1390,9 +1390,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(i64_field() / u64_field()),
-            @r"
+            @"
             field: err: Error during planning: cannot use / between an integer and unsigned, an explicit cast is required
-        condition: ok: CASE WHEN unsigned_field = UInt64(0) AND nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) IS NOT NULL THEN UInt64(0) ELSE nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) / unsigned_field END
+        condition: ok: CASE WHEN unsigned_field = UInt64(0) AND CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END IS NOT NULL THEN UInt64(0) ELSE CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END / unsigned_field END
         ",
         );
 
@@ -1413,9 +1413,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(u64_field() + i64_field()),
-            @r"
+            @"
             field: err: Error during planning: cannot use + between an integer and unsigned, an explicit cast is required
-        condition: ok: unsigned_field + nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64))
+        condition: ok: unsigned_field + CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END
         ",
         );
         assert_snapshot!(
@@ -1443,9 +1443,9 @@ mod test {
         );
         assert_snapshot!(
             rewrite(u64_field() / i64_field()),
-            @r"
+            @"
             field: err: Error during planning: cannot use / between an integer and unsigned, an explicit cast is required
-        condition: ok: CASE WHEN nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) = UInt64(0) AND unsigned_field IS NOT NULL THEN UInt64(0) ELSE unsigned_field / nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) END
+        condition: ok: CASE WHEN CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END = UInt64(0) AND unsigned_field IS NOT NULL THEN UInt64(0) ELSE unsigned_field / CASE WHEN TRY_CAST(integer_field AS UInt64) IS NOT NULL THEN TRY_CAST(integer_field AS UInt64) ELSE UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64) END END
         ",
         );
         assert_snapshot!(

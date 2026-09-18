@@ -128,13 +128,12 @@ impl DataSourceExecInput {
     ) -> Result<Vec<RecordBatch>, DataFusionError> {
         // Compute final (output) schema after selection
         let schema = Arc::new(projection.project_schema(&schema).as_ref().clone());
-        let file_scan_config = FileScanConfigBuilder::new(
-            self.object_store_url.clone(),
-            schema,
-            Arc::new(ParquetSource::new(table_parquet_options())),
-        )
-        .with_file(PartitionedFile::from(self.object_meta.clone()))
-        .build();
+        let parquet_source = ParquetSource::new(Arc::clone(&schema))
+            .with_table_parquet_options(table_parquet_options());
+        let file_scan_config =
+            FileScanConfigBuilder::new(self.object_store_url.clone(), Arc::new(parquet_source))
+                .with_file(PartitionedFile::from(self.object_meta.clone()))
+                .build();
         let exec = DataSourceExec::from_data_source(file_scan_config);
         let exec_schema = exec.schema();
         datafusion::physical_plan::collect(exec, session_ctx.task_ctx())
@@ -802,7 +801,7 @@ mod tests {
         assert_schema_check_fail(
             other_batch,
             schema,
-            "Error during planning: Cannot cast file schema field a of type Int64 to table schema field of type Interval(MonthDayNano)",
+            "Execution error: Cannot cast column 'a' from 'Int64' (physical data type) to 'Interval(MonthDayNano)' (logical data type)",
         ).await;
     }
 
@@ -814,8 +813,9 @@ mod tests {
         assert_schema_check_fail(
             other_batch,
             schema,
-            "Arrow error: Invalid argument error: Column 'a' is declared as non-nullable but contains null values",
-        ).await;
+            "Execution error: Non-nullable column 'a' is missing from the physical schema",
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -830,8 +830,9 @@ mod tests {
         assert_schema_check_fail(
             other_batch,
             schema,
-            "Arrow error: Invalid argument error: Column 'b' is declared as non-nullable but contains null values",
-        ).await;
+            "Execution error: Non-nullable column 'b' is missing from the physical schema",
+        )
+        .await;
     }
 
     /// This test, and the following test [`test_schema_check_ignore_additional_metadata_in_file`]

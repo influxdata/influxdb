@@ -1,5 +1,3 @@
-#![allow(unreachable_pub, dead_code, clippy::wrong_self_convention)]
-
 use crate::catalog::CatalogSequenceNumber;
 use crate::catalog::versions::v2::{
     ColumnDefinition, DeletionScope, FieldColumn, FieldFamilyMode, FieldFamilyName, TagColumn,

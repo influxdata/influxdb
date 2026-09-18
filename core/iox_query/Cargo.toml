@@ -46,6 +46,7 @@ tracing = { workspace = true }
 parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 query_functions = { path = "../query_functions" }
+regex-syntax = "0.8"
 schema = { path = "../schema" }
 snafu = "0.9"
 tokio = { version = "1.52", features = ["macros", "parking_lot"] }
@@ -69,4 +70,8 @@ test_helpers = { path = "../test_helpers" }
 
 [[bench]]
 name = "deduplicate"
+harness = false
+
+[[bench]]
+name = "run_optimized_merge"
 harness = false

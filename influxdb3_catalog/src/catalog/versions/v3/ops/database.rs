@@ -10,10 +10,12 @@ use crate::CatalogError;
 use crate::catalog::INTERNAL_DB_NAME;
 use crate::catalog::versions::v3::deletes::DeletionScope;
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::catalog::versions::v3::schema::database::DatabaseSchema;
+use crate::catalog::versions::v3::schema::database::{DatabaseSchema, SchemaMode};
 use crate::catalog::versions::v3::usage::{CatalogLimiter, CurrentCatalogUsage};
 use crate::format::RecordBatch;
-use crate::format::records::{CreateDatabase, HardDeleteDatabase, SoftDeleteDatabase};
+use crate::format::records::{
+    CreateDatabase, HardDeleteDatabase, SetDatabaseSchemaMode, SoftDeleteDatabase,
+};
 use crate::resource::CatalogResource;
 use influxdb3_id::DbId;
 
@@ -25,6 +27,7 @@ use influxdb3_id::DbId;
 pub(crate) struct CreateDatabaseArgs {
     pub name: String,
     pub retention_period: Option<Duration>,
+    pub schema_mode: SchemaMode,
 }
 
 pub(crate) struct CreateDatabaseOp {
@@ -62,6 +65,14 @@ impl CatalogOp for CreateDatabaseOp {
             database_name: args.name.clone(),
             retention_period: args.retention_period.into(),
         });
+        // Emitted only for an explicit database, so an implicit one adds no
+        // bytes and older catalogs are unchanged.
+        if args.schema_mode.is_explicit() {
+            records.push(&SetDatabaseSchemaMode {
+                database_id: db_id.get(),
+                schema_mode: (&args.schema_mode).into(),
+            });
+        }
         Ok(Self { db_id })
     }
 

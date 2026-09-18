@@ -227,6 +227,53 @@ fn warning_arg_ids_exist_on_serve_command() {
 }
 
 #[test]
+fn max_concurrent_queries_too_low_warning_fires_for_explicit_low_value() {
+    use std::num::NonZeroUsize;
+
+    // Below the CPU count with DataFusion threads unset (threads then default
+    // to the CPU count).
+    let warning = super::max_concurrent_queries_too_low_warning(8, None, 16)
+        .expect("limit below cpu parallelism warns");
+    assert!(warning.contains("(8)"));
+    assert!(warning.contains("16"));
+
+    // DataFusion threads above the CPU count add no parallelism; the CPU
+    // count stays the threshold.
+    assert!(super::max_concurrent_queries_too_low_warning(8, NonZeroUsize::new(32), 16).is_some());
+
+    // Below the advisory minimum the warning fires regardless of how little
+    // parallelism the node has, matching the runtime configure API's floor.
+    let warning = super::max_concurrent_queries_too_low_warning(15, None, 2)
+        .expect("limit below the advisory minimum warns");
+    assert!(warning.contains("advisory minimum"));
+    assert!(super::max_concurrent_queries_too_low_warning(4, NonZeroUsize::new(4), 16).is_some());
+    assert!(super::max_concurrent_queries_too_low_warning(3, NonZeroUsize::new(4), 16).is_some());
+}
+
+#[test]
+fn max_concurrent_queries_too_low_warning_silent_cases() {
+    use std::num::NonZeroUsize;
+
+    // At or above both the effective parallelism and the advisory minimum.
+    for limit in [16, 17, usize::MAX] {
+        assert_eq!(
+            super::max_concurrent_queries_too_low_warning(limit, None, 16),
+            None
+        );
+    }
+    // The advisory minimum satisfies a low-parallelism node.
+    assert_eq!(
+        super::max_concurrent_queries_too_low_warning(16, None, 2),
+        None
+    );
+    // Threads above the CPU count do not raise the threshold past it.
+    assert_eq!(
+        super::max_concurrent_queries_too_low_warning(20, NonZeroUsize::new(32), 16),
+        None
+    );
+}
+
+#[test]
 fn async_trigger_concurrency_warning_fires_for_unlimited_default() {
     use std::num::NonZeroUsize;
 

@@ -95,6 +95,16 @@ pub trait Wal: Debug + Send + Sync + 'static {
         OwnedSemaphorePermit,
     )>;
 
+    /// Wall-clock time the oldest WAL period still waiting for a snapshot
+    /// was written or replayed, or `None` when nothing is waiting. Drives
+    /// the age-based forced snapshot: snapshots otherwise trigger on the
+    /// number of periods, which a trickle or idle node may never reach.
+    ///
+    /// Defaults to `None` for implementations that track no periods.
+    async fn unsnapshotted_since(&self) -> Option<Time> {
+        None
+    }
+
     /// Removes any snapshot wal files
     async fn cleanup_snapshot(
         &self,

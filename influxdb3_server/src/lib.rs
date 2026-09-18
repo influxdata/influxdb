@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! InfluxDB 3 Core server implementation
 //!
 //! The server is responsible for handling the HTTP API
@@ -14,6 +15,7 @@ clippy::future_not_send
 pub mod all_paths;
 mod grpc;
 pub mod http;
+mod route_template;
 mod unified_service;
 
 use crate::grpc::make_flight_server;
@@ -21,8 +23,6 @@ use crate::http::HttpApi;
 use crate::http::RecoveryHttpApi;
 use authz::Authorizer;
 use http::route_admin_token_recovery_request;
-use hyper::Request;
-use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnectionBuilder;
 use hyper_util::server::graceful::GracefulShutdown;
@@ -192,10 +192,13 @@ impl<'a> Server<'a> {
     fn create_http_trace_layer(&self) -> TraceLayer {
         TraceLayer::new(
             self.common_state.trace_header_parser(),
-            Arc::new(RequestMetrics::new(
-                self.common_state.metric_registry(),
-                MetricFamily::HttpServer,
-            )),
+            Arc::new(
+                RequestMetrics::new(
+                    self.common_state.metric_registry(),
+                    MetricFamily::HttpServer,
+                )
+                .with_path_normalizer(route_template::route_template),
+            ),
             self.common_state.trace_collector(),
             "influxdb3_server_http",
             ServiceProtocol::Http,
@@ -360,23 +363,12 @@ pub async fn serve_admin_token_recovery_endpoint(
     Ok(())
 }
 
-/// Determines if an HTTP request is a gRPC request based on version and content-type
-pub(crate) fn is_grpc_request(req: &Request<Incoming>) -> bool {
-    req.version() == hyper::Version::HTTP_2
-        && req
-            .headers()
-            .get(hyper::header::CONTENT_TYPE)
-            .and_then(|ct| ct.to_str().ok())
-            .map(|ct| ct.starts_with("application/grpc"))
-            .unwrap_or(false)
-}
-
 pub async fn serve(
     server: Server<'_>,
     shutdown: CancellationToken,
     startup_timer: Instant,
     without_auth: bool,
-    paths_without_authz: &'static Vec<&'static str>,
+    paths_without_authz: &'static [&'static str],
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
     let shutdown_timeout = server.shutdown_timeout;

@@ -1,4 +1,4 @@
-use super::common::InfluxDb3Config;
+use super::common::{DataType, InfluxDb3Config, parse_key_val};
 use humantime::Duration;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
@@ -17,8 +17,37 @@ pub struct Config {
 pub enum SubCommand {
     /// Update a database
     Database(UpdateDatabase),
+    /// Add tag and field columns to a table
+    Table(UpdateTable),
     /// Update a trigger's plugin file
     Trigger(UpdateTrigger),
+}
+
+#[derive(Debug, clap::Args)]
+pub struct UpdateTable {
+    #[clap(flatten)]
+    influxdb3_config: InfluxDb3Config,
+
+    /// The list of tag names to add to the table. Tags are alphanumeric, can contain - and _, and start with a letter or number
+    /// This flag takes one or more values, so put the table name before it: `update table -d mydb mytable --tags a,b`
+    #[clap(long = "tags", value_delimiter = ',', num_args = 1..)]
+    tags: Option<Vec<String>>,
+
+    /// The list of field names and their data type to add to the table. Fields are alphanumeric, can contain - and _, and start with a letter or number
+    /// The expected format is a list like so: 'field_name:data_type'. Valid data types are: int64, uint64, float64, utf8, and bool
+    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, value_delimiter = ',')]
+    fields: Vec<(String, DataType)>,
+
+    /// The name of the table to update
+    table_name: String,
+
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -94,6 +123,42 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             } else {
                 return Err("--retention-period is required for update database".into());
             }
+        }
+        SubCommand::Table(UpdateTable {
+            influxdb3_config:
+                InfluxDb3Config {
+                    host_url,
+                    auth_token,
+                    database_name,
+                    ..
+                },
+            tags,
+            fields,
+            table_name,
+            ca_cert,
+            tls_no_verify,
+        }) => {
+            let mut client = Client::new(host_url, ca_cert, tls_no_verify)?;
+            if let Some(token) = &auth_token {
+                client = client.with_auth_token(token.expose_secret());
+            }
+
+            let tags = tags.unwrap_or_default();
+            if tags.is_empty() && fields.is_empty() {
+                return Err("one of --tags or --fields is required for update table".into());
+            }
+
+            let n_tags = tags.len();
+            let n_fields = fields.len();
+            client
+                .api_v3_configure_table_add_columns(&database_name, &table_name, tags, fields)
+                .await?;
+
+            // Adding a column that already exists at its declared type is a
+            // no-op, so report what was requested rather than what changed.
+            println!(
+                "Table \"{database_name}\".\"{table_name}\" updated with {n_tags} tag(s) and {n_fields} field(s)"
+            );
         }
         SubCommand::Trigger(UpdateTrigger {
             influxdb3_config:

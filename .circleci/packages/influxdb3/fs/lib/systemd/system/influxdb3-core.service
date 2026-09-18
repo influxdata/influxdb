@@ -14,7 +14,7 @@ ExecReload=
 WorkingDirectory=/var/lib/influxdb3
 StateDirectory=influxdb3
 # Logs default to journald (StandardOutput/Error); you may optionally set
-# LOG_DESTINATION=file:/var/log/influxdb3/influxdb3.log to use LogsDirectory.
+# INFLUXDB3_LOG_DESTINATION=file:/var/log/influxdb3/influxdb3.log to use LogsDirectory.
 LogsDirectory=influxdb3
 StandardOutput=journal
 StandardError=journal
@@ -65,10 +65,18 @@ ProtectSystem=strict
 #     access. AppArmor or SELinux can be used to mediate these further
 #  c) anonymous sockets aren't a concern since this process won't have the fd
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-# Disallow well-known system services' sockets
-InaccessiblePaths=-/run/avahi-daemon -/run/cups -/run/snapd.socket -/run/dbus/system_bus_socket
-# Disallow well-known desktop services' sockets
+# Disallow well-known system services' runtime directories
+InaccessiblePaths=-/run/avahi-daemon -/run/cups -/run/dbus
+# Disallow well-known desktop services' runtime directories
 InaccessiblePaths=-/tmp/.X11-unix -/tmp/.XIM-unix -/tmp/.ICE-unix -/tmp/.font-unix -/run/user
+# systemd 240 made a denied namespace mount fatal. RHEL-family policy gives
+# init_t no 'mounton' on this socket's type, so masking a socket fails the
+# service with 226 there; measured on Rocky 9 and Rocky 10, and expected on
+# Fedora and SUSE. The generator adds this on the Debian family, and
+# elsewhere only when SELinux is off for the boot; snapd mediates non-root
+# access.
+# See https://github.com/influxdata/influxdb/issues/27329
+#InaccessiblePaths=-/run/snapd.socket
 # Disallow use of all namespaces
 RestrictNamespaces=true
 # Limit syscalls (systemd-analyze syscall-filter) to reduce kernel surface.

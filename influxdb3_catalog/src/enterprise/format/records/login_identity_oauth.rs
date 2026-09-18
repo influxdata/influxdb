@@ -2,16 +2,17 @@
 
 use std::sync::Arc;
 
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::user::LoginIdentityOAuth;
 use crate::format::apply::ApplyError;
-use crate::format::records::impl_bitcode_encoding;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 use influxdb3_id::UserId;
 
 /// Add an OAuth login identity to a user.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_LOGIN_IDENTITY_OAUTH, shape = 0x7bd5ec8d)]
 pub struct CreateLoginIdentityOAuth {
     /// User ID.
     pub user_id: u64,
@@ -21,11 +22,7 @@ pub struct CreateLoginIdentityOAuth {
     pub created_at: i64,
 }
 
-impl CatalogRecord for CreateLoginIdentityOAuth {
-    const ID: RecordId = record_ids::CREATE_LOGIN_IDENTITY_OAUTH;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateLoginIdentityOAuth";
-
+impl RecordApply for CreateLoginIdentityOAuth {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         let identity = LoginIdentityOAuth {
@@ -52,22 +49,15 @@ impl CatalogRecord for CreateLoginIdentityOAuth {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateLoginIdentityOAuth>()
-}
-
 /// Delete the OAuth login identity for a user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_LOGIN_IDENTITY_OAUTH, shape = 0x12f9b977)]
+#[derive(Copy)]
 pub struct DeleteLoginIdentityOAuth {
     /// User ID.
     pub user_id: u64,
 }
 
-impl CatalogRecord for DeleteLoginIdentityOAuth {
-    const ID: RecordId = record_ids::DELETE_LOGIN_IDENTITY_OAUTH;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteLoginIdentityOAuth";
-
+impl RecordApply for DeleteLoginIdentityOAuth {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         catalog
@@ -88,12 +78,6 @@ impl CatalogRecord for DeleteLoginIdentityOAuth {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<DeleteLoginIdentityOAuth>()
-}
-
-impl_bitcode_encoding!(CreateLoginIdentityOAuth, DeleteLoginIdentityOAuth);
 
 #[cfg(test)]
 mod tests;

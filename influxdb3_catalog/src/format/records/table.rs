@@ -5,13 +5,14 @@ use std::sync::Arc;
 use iox_time::Time;
 
 use super::conversions::soft_deleted_name;
-use super::impl_bitcode_encoding;
 use super::types::{
     ColumnDefinition as WireColumnDef, DeletionScope as WireDeletionScope,
     FieldDataType as WireFieldDataType, FieldFamilyDefinition as WireFieldFamilyDef,
     FieldFamilyMode as WireFieldFamilyMode, FieldFamilyName as WireFieldFamilyName,
     RetentionPeriod as WireRetentionPeriod,
 };
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::deletes::DeletionScope;
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
@@ -22,12 +23,12 @@ use crate::catalog::versions::v3::schema::column::{
 use crate::catalog::versions::v3::schema::retention::RetentionPeriod as SchemaRetentionPeriod;
 use crate::catalog::versions::v3::schema::table::TableDefinition;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 use influxdb3_id::{ColumnId, DbId, FieldFamilyId, FieldId, FieldIdentifier, TableId, TagId};
 use schema::InfluxFieldType;
 
 /// Create a new table.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_TABLE, shape = 0xc1a8cd3d)]
 pub struct CreateTable {
     /// Database catalog ID.
     pub database_id: u32,
@@ -43,11 +44,7 @@ pub struct CreateTable {
     pub field_family_mode: WireFieldFamilyMode,
 }
 
-impl CatalogRecord for CreateTable {
-    const ID: RecordId = record_ids::CREATE_TABLE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateTable";
-
+impl RecordApply for CreateTable {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
@@ -60,7 +57,7 @@ impl CatalogRecord for CreateTable {
         );
         new_table.retention_period = SchemaRetentionPeriod::from(&self.retention_period);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
             db.tables.insert(table_id, new_table)?;
             Ok(())
         })
@@ -74,12 +71,9 @@ impl CatalogRecord for CreateTable {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateTable>()
-}
-
 /// Soft delete a table (mark for deletion).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::SOFT_DELETE_TABLE, shape = 0x4ec1c12b)]
+#[derive(Copy)]
 pub struct SoftDeleteTable {
     /// Database catalog ID.
     pub database_id: u32,
@@ -93,11 +87,7 @@ pub struct SoftDeleteTable {
     pub hard_delete_scope: Option<WireDeletionScope>,
 }
 
-impl CatalogRecord for SoftDeleteTable {
-    const ID: RecordId = record_ids::SOFT_DELETE_TABLE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "SoftDeleteTable";
-
+impl RecordApply for SoftDeleteTable {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
@@ -129,12 +119,9 @@ impl CatalogRecord for SoftDeleteTable {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<SoftDeleteTable>()
-}
-
 /// Permanently delete a table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_TABLE, shape = 0x4fa490e5)]
+#[derive(Copy)]
 pub struct HardDeleteTable {
     /// Database catalog ID.
     pub db_id: u32,
@@ -142,11 +129,7 @@ pub struct HardDeleteTable {
     pub table_id: u32,
 }
 
-impl CatalogRecord for HardDeleteTable {
-    const ID: RecordId = record_ids::DELETE_TABLE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "HardDeleteTable";
-
+impl RecordApply for HardDeleteTable {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let table_id = TableId::new(self.table_id);
@@ -175,12 +158,8 @@ impl CatalogRecord for HardDeleteTable {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<HardDeleteTable>()
-}
-
 /// Add columns to a table. Also carries field family definitions for new columns.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::ADD_COLUMNS, shape = 0x5304e53b)]
 pub struct AddColumns {
     /// Database catalog ID.
     pub database_id: u32,
@@ -192,16 +171,18 @@ pub struct AddColumns {
     pub field_families: Vec<WireFieldFamilyDef>,
 }
 
-impl CatalogRecord for AddColumns {
-    const ID: RecordId = record_ids::ADD_COLUMNS;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "AddColumns";
-
+impl RecordApply for AddColumns {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
+        // The outer call is in place: cloning a `DatabaseSchema` copies its whole
+        // table map, which is what makes replaying a large catalog quadratic. The
+        // inner one is not, because the closure below applies several fallible
+        // mutations in sequence and a partial application would leave the table
+        // holding field families whose columns never arrived. Cloning a single
+        // `TableDefinition` to get that back is cheap by comparison.
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
             db.tables.modify_by_id(&table_id, |t| {
                 // Insert field family definitions before adding columns — add_columns panics
                 // if a field column references a family that doesn't exist yet.
@@ -246,10 +227,6 @@ impl CatalogRecord for AddColumns {
             table_id: TableId::new(self.table_id),
         }
     }
-}
-
-inventory::submit! {
-    RegisteredRecord::new::<AddColumns>()
 }
 
 // ---------------------------------------------------------------------------
@@ -342,8 +319,6 @@ impl From<&FieldDataType> for WireFieldDataType {
         }
     }
 }
-
-impl_bitcode_encoding!(CreateTable, SoftDeleteTable, HardDeleteTable, AddColumns);
 
 #[cfg(test)]
 mod tests;

@@ -139,6 +139,11 @@ packages:
 
       - owner: root
         group: root
+        perms: 0755
+        target: usr/lib/influxdb3/influxdb3-core-generator
+
+      - owner: root
+        group: root
         perms: 0644
         target: lib/systemd/system/influxdb3-core.service
 

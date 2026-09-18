@@ -1,7 +1,11 @@
 ---
-source: iox_query_influxql/src/plan/planner.rs
+source: core/iox_query_influxql/src/plan/planner.rs
 expression: "plan(\"SELECT SUM(bool_field) FROM data\")"
 ---
-Error during planning: Execution error: Function 'sum' user-defined coercion failed with "Execution error: Sum not supported for Boolean" No function matches the given name and argument types 'sum(Boolean)'. You might need to add explicit type casts.
+Error during planning: Sum not supported for Boolean No function matches the given name and argument types 'sum(Boolean)'. You might need to add explicit type casts.
 	Candidate functions:
-	sum(UserDefined)
+	sum(Coercion(TypeSignatureClass::Decimal))
+	sum(Coercion(TypeSignatureClass::Native(LogicalType(Native(UInt64), UInt64)), implicit_coercion=ImplicitCoercion([Native(LogicalType(Native(UInt8), UInt8)), Native(LogicalType(Native(UInt16), UInt16)), Native(LogicalType(Native(UInt32), UInt32))], default_type=UInt64))
+	sum(Coercion(TypeSignatureClass::Native(LogicalType(Native(Int64), Int64)), implicit_coercion=ImplicitCoercion([Native(LogicalType(Native(Int8), Int8)), Native(LogicalType(Native(Int16), Int16)), Native(LogicalType(Native(Int32), Int32))], default_type=Int64))
+	sum(Coercion(TypeSignatureClass::Native(LogicalType(Native(Float64), Float64)), implicit_coercion=ImplicitCoercion([Float], default_type=Float64))
+	sum(Coercion(TypeSignatureClass::Duration))

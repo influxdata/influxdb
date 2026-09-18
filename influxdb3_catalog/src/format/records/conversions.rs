@@ -6,8 +6,9 @@ use std::time::Duration;
 
 use iox_time::Time;
 
-use super::types::{DeletionScope, NodeSpec, RetentionPeriod};
+use super::types::{DeletionScope, NodeSpec, RetentionPeriod, SchemaMode};
 use crate::catalog::versions::v3::deletes::DeletionScope as SchemaDeletionScope;
+use crate::catalog::versions::v3::schema::database::SchemaMode as SchemaSchemaMode;
 use crate::catalog::versions::v3::schema::node::NodeSpec as SchemaNodeSpec;
 use crate::catalog::versions::v3::schema::retention::RetentionPeriod as SchemaRetentionPeriod;
 use influxdb3_id::NodeId;
@@ -42,6 +43,24 @@ impl From<&RetentionPeriod> for SchemaRetentionPeriod {
             RetentionPeriod::Duration { duration_secs } => {
                 Self::Duration(std::time::Duration::from_secs(*duration_secs))
             }
+        }
+    }
+}
+
+impl From<&SchemaMode> for SchemaSchemaMode {
+    fn from(value: &SchemaMode) -> Self {
+        match value {
+            SchemaMode::Implicit => Self::Implicit,
+            SchemaMode::Explicit => Self::Explicit,
+        }
+    }
+}
+
+impl From<&SchemaSchemaMode> for SchemaMode {
+    fn from(value: &SchemaSchemaMode) -> Self {
+        match value {
+            SchemaSchemaMode::Implicit => Self::Implicit,
+            SchemaSchemaMode::Explicit => Self::Explicit,
         }
     }
 }

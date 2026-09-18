@@ -23,12 +23,12 @@ use sha2::Digest;
 /// GIT hash of the commit in <https://github.com/influxdata/datafusion-udf-wasm>.
 ///
 /// See module level comment on how to update this.
-const COMMIT: &str = "89ab4ae6312c3a44859ddd43d9df4d4300d3086a";
+const COMMIT: &str = "171fb4746619c95167162a89f289633e9891a3f9";
 
 /// Timestamp of the WASM build.
 ///
 /// See module level comment on how to update this.
-const BUILD_TIMESTAMP: &str = "2026-01-28T11:46:19+00:00";
+const BUILD_TIMESTAMP: &str = "2026-08-24T15:37:49+00:00";
 
 /// SHA256 checksum of the `sha256sum.txt` release artifact.
 ///
@@ -36,7 +36,7 @@ const BUILD_TIMESTAMP: &str = "2026-01-28T11:46:19+00:00";
 ///
 /// See module level comment on how to update this.
 const SHA256_TXT_CHECKSUM: &str =
-    "sha256:1fcd991e5e03f9c2e56e7ba5e9d56af9343b53bf9c3383b19e7ca985a9d3d823";
+    "sha256:a25fec27067332f63cd342e5a87967b0848d836124387a0d9f48f7b56fc99fd7";
 
 fn main() {
     let sha256sum_txt_checksum = SHA256_TXT_CHECKSUM.to_lowercase().replace("sha256:", "");
@@ -139,13 +139,28 @@ fn sha256(path: &Path) -> String {
         .collect::<String>()
 }
 
+fn get_cargo_target_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let skip_triple = std::env::var("TARGET")? == std::env::var("HOST")?;
+    let skip_parent_dirs = if skip_triple { 4 } else { 5 };
+
+    let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR")?);
+    let mut current = out_dir.as_path();
+    for _ in 0..skip_parent_dirs {
+        current = current.parent().ok_or("not found")?;
+    }
+
+    Ok(std::path::PathBuf::from(current))
+}
+
 /// Get download location.
 fn download_target_location(name: &str) -> PathBuf {
-    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    let download_dir = out_dir.join("iox_query_udf_download");
+    let out_dir = get_cargo_target_dir().unwrap();
+    let download_dir = out_dir
+        .join("cfg_independent_downloads")
+        .join("iox_query_udf");
 
     if !download_dir.is_dir() {
-        std::fs::create_dir(&download_dir).unwrap();
+        std::fs::create_dir_all(&download_dir).unwrap();
     }
 
     download_dir.join(name)

@@ -580,6 +580,32 @@ fn test_truncate_for_logging_utf8() {
     assert_eq!(truncate_for_logging(s, 1), "");
 }
 
+#[test]
+fn catalog_error_status_codes_for_an_unreachable_query_group_member() {
+    use influxdb3_catalog::CatalogError;
+    use influxdb3_id::QueryGroupId;
+
+    // A member that advertises no address is bad input on the request.
+    assert_eq!(
+        super::IntoResponse::into_response(CatalogError::QueryGroupMemberNotConnectable {
+            node_id: "query-node-0".into(),
+        })
+        .status(),
+        StatusCode::BAD_REQUEST,
+    );
+    // Clearing the address conflicts with the node's current membership, so it
+    // answers 409 beside the other node-state conflicts.
+    assert_eq!(
+        super::IntoResponse::into_response(CatalogError::NodeConnInfoRequiredInQueryGroup {
+            node_id: "query-node-0".into(),
+            query_group_name: "analytics".into(),
+            query_group_id: QueryGroupId::new(1),
+        })
+        .status(),
+        StatusCode::CONFLICT,
+    );
+}
+
 #[tokio::test]
 async fn test_datafusion_plan_error_maps_to_bad_request() {
     let err = Error::Query(super::QueryExecutorError::QueryPlanning(
@@ -638,4 +664,34 @@ async fn test_v2_write_api_error_resource_auth_unauthorized_maps_to_403() {
     let body = read_body_bytes_for_tests(response.into_body()).await;
     let json: Value = serde_json::from_slice(&body).expect("response body should be valid JSON");
     assert_eq!(json["code"], "forbidden");
+}
+
+// A full WAL buffer (--wal-max-buffered-writes) is saturation, so it
+// surfaces as 429 (the code clients back off and retry on, and the one
+// iox uses for ingest memory pressure), not the write-buffer catch-all
+// 400, which v2 clients treat as fatal and drop the batch on.
+#[tokio::test]
+async fn test_v2_write_api_error_wal_buffer_full_maps_to_429() {
+    let err = super::V2WriteApiError(Error::WriteBuffer(
+        influxdb3_write::write_buffer::Error::WalError(influxdb3_wal::Error::BufferFull(100_000)),
+    ));
+    let response = super::IntoResponse::into_response(err);
+
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let body = read_body_bytes_for_tests(response.into_body()).await;
+    let json: Value = serde_json::from_slice(&body).expect("response body should be valid JSON");
+    assert_eq!(json["code"], "too many requests");
+}
+
+// Guards the v1/v3 write paths, which surface `Error` directly rather than
+// through `V2WriteApiError`.
+#[tokio::test]
+async fn test_write_api_error_wal_buffer_full_maps_to_429() {
+    let err = Error::WriteBuffer(influxdb3_write::write_buffer::Error::WalError(
+        influxdb3_wal::Error::BufferFull(100_000),
+    ));
+    let response = super::IntoResponse::into_response(err);
+
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
 }

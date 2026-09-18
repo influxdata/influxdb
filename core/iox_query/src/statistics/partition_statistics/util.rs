@@ -34,6 +34,7 @@ pub(super) fn make_column_statistics_inexact(
                  max_value,
                  distinct_count,
                  sum_value,
+                 byte_size,
              }| {
                 ColumnStatistics {
                     null_count: make_inexact_or_keep_absent(null_count),
@@ -41,6 +42,7 @@ pub(super) fn make_column_statistics_inexact(
                     max_value: make_inexact_or_keep_absent(max_value),
                     distinct_count: make_inexact_or_keep_absent(distinct_count),
                     sum_value: make_inexact_or_keep_absent(sum_value),
+                    byte_size: make_inexact_or_keep_absent(byte_size),
                 }
             },
         )
@@ -97,5 +99,6 @@ pub(crate) fn merge_col_stats(a: ColumnStatistics, b: &ColumnStatistics) -> Colu
         max_value: a.max_value.max(&b.max_value),
         distinct_count: Precision::Absent,
         sum_value: Precision::Absent,
+        byte_size: Precision::Absent,
     }
 }

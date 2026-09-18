@@ -114,6 +114,7 @@ mod test {
                     min_value: Exact(Dictionary(Int32, Utf8(NULL))),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Exact(0),
@@ -121,6 +122,7 @@ mod test {
                     min_value: Exact(Dictionary(Int32, Utf8("AL"))),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Absent,
@@ -128,6 +130,7 @@ mod test {
                     min_value: Exact(Int64(0)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Exact(42),
@@ -135,6 +138,7 @@ mod test {
                     min_value: Exact(Int64(NULL)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Exact(0),
@@ -142,6 +146,7 @@ mod test {
                     min_value: Exact(TimestampNanosecond(10, None)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
             ],
         }

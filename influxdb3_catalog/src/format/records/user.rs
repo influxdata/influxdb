@@ -5,18 +5,19 @@
 
 use std::sync::Arc;
 
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::user::{
     LoginIdentityUsernamePassword, RefreshTokenInfo, UserInfo,
 };
 use crate::format::apply::ApplyError;
-use crate::format::records::impl_bitcode_encoding;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 use influxdb3_id::{RoleId, UserId};
 
 /// Create a new user.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_USER, shape = 0x52df4d7a)]
 pub struct CreateUser {
     /// User ID.
     pub user_id: u64,
@@ -26,11 +27,7 @@ pub struct CreateUser {
     pub created_at: i64,
 }
 
-impl CatalogRecord for CreateUser {
-    const ID: RecordId = record_ids::CREATE_USER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateUser";
-
+impl RecordApply for CreateUser {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         let user = UserInfo::new(user_id, self.display_name.clone(), self.created_at);
@@ -50,12 +47,8 @@ impl CatalogRecord for CreateUser {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateUser>()
-}
-
 /// Update a user's display name.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UPDATE_USER_DISPLAY_NAME, shape = 0x52df4d7a)]
 pub struct UpdateUserDisplayName {
     /// User ID.
     pub user_id: u64,
@@ -65,11 +58,7 @@ pub struct UpdateUserDisplayName {
     pub updated_at: i64,
 }
 
-impl CatalogRecord for UpdateUserDisplayName {
-    const ID: RecordId = record_ids::UPDATE_USER_DISPLAY_NAME;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UpdateUserDisplayName";
-
+impl RecordApply for UpdateUserDisplayName {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         let mut user = catalog.users.get_by_id(&user_id).ok_or_else(|| {
@@ -94,12 +83,9 @@ impl CatalogRecord for UpdateUserDisplayName {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<UpdateUserDisplayName>()
-}
-
 /// Soft delete a user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_USER, shape = 0xa1a5e3bd)]
+#[derive(Copy)]
 pub struct DeleteUser {
     /// User ID.
     pub user_id: u64,
@@ -107,11 +93,7 @@ pub struct DeleteUser {
     pub deleted_at: i64,
 }
 
-impl CatalogRecord for DeleteUser {
-    const ID: RecordId = record_ids::DELETE_USER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteUser";
-
+impl RecordApply for DeleteUser {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         let mut user = catalog.users.get_by_id(&user_id).ok_or_else(|| {
@@ -138,12 +120,8 @@ impl CatalogRecord for DeleteUser {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<DeleteUser>()
-}
-
 /// Restore a deleted user.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::RESTORE_USER, shape = 0x52df4d7a)]
 pub struct RestoreUser {
     /// User ID.
     pub user_id: u64,
@@ -153,11 +131,7 @@ pub struct RestoreUser {
     pub restored_at: i64,
 }
 
-impl CatalogRecord for RestoreUser {
-    const ID: RecordId = record_ids::RESTORE_USER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RestoreUser";
-
+impl RecordApply for RestoreUser {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         catalog
@@ -179,12 +153,8 @@ impl CatalogRecord for RestoreUser {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<RestoreUser>()
-}
-
 /// Add a username/password login identity to a user.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_LOGIN_IDENTITY_USERNAME_PASSWORD, shape = 0xaf84d6fe)]
 pub struct CreateLoginIdentityUsernamePassword {
     /// User ID.
     pub user_id: u64,
@@ -198,11 +168,7 @@ pub struct CreateLoginIdentityUsernamePassword {
     pub created_at: i64,
 }
 
-impl CatalogRecord for CreateLoginIdentityUsernamePassword {
-    const ID: RecordId = record_ids::CREATE_LOGIN_IDENTITY_USERNAME_PASSWORD;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateLoginIdentityUsernamePassword";
-
+impl RecordApply for CreateLoginIdentityUsernamePassword {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         let identity = LoginIdentityUsernamePassword::new(
@@ -231,12 +197,8 @@ impl CatalogRecord for CreateLoginIdentityUsernamePassword {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateLoginIdentityUsernamePassword>()
-}
-
 /// Update the password hash for a user's login identity.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UPDATE_LOGIN_IDENTITY_PASSWORD_HASH, shape = 0x7bd5ec8d)]
 pub struct UpdateLoginIdentityPasswordHash {
     /// User ID.
     pub user_id: u64,
@@ -246,11 +208,7 @@ pub struct UpdateLoginIdentityPasswordHash {
     pub updated_at: i64,
 }
 
-impl CatalogRecord for UpdateLoginIdentityPasswordHash {
-    const ID: RecordId = record_ids::UPDATE_LOGIN_IDENTITY_PASSWORD_HASH;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UpdateLoginIdentityPasswordHash";
-
+impl RecordApply for UpdateLoginIdentityPasswordHash {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         catalog
@@ -276,12 +234,9 @@ impl CatalogRecord for UpdateLoginIdentityPasswordHash {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<UpdateLoginIdentityPasswordHash>()
-}
-
 /// Update the requires_password_reset flag for a user's login identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UPDATE_LOGIN_IDENTITY_REQUIRES_PASSWORD_RESET, shape = 0xc670f27e)]
+#[derive(Copy)]
 pub struct UpdateLoginIdentityRequiresPasswordReset {
     /// User ID.
     pub user_id: u64,
@@ -291,11 +246,7 @@ pub struct UpdateLoginIdentityRequiresPasswordReset {
     pub updated_at: i64,
 }
 
-impl CatalogRecord for UpdateLoginIdentityRequiresPasswordReset {
-    const ID: RecordId = record_ids::UPDATE_LOGIN_IDENTITY_REQUIRES_PASSWORD_RESET;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UpdateLoginIdentityRequiresPasswordReset";
-
+impl RecordApply for UpdateLoginIdentityRequiresPasswordReset {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         catalog
@@ -321,22 +272,15 @@ impl CatalogRecord for UpdateLoginIdentityRequiresPasswordReset {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<UpdateLoginIdentityRequiresPasswordReset>()
-}
-
 /// Delete the username/password login identity for a user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_LOGIN_IDENTITY_USERNAME_PASSWORD, shape = 0x12f9b977)]
+#[derive(Copy)]
 pub struct DeleteLoginIdentityUsernamePassword {
     /// User ID.
     pub user_id: u64,
 }
 
-impl CatalogRecord for DeleteLoginIdentityUsernamePassword {
-    const ID: RecordId = record_ids::DELETE_LOGIN_IDENTITY_USERNAME_PASSWORD;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteLoginIdentityUsernamePassword";
-
+impl RecordApply for DeleteLoginIdentityUsernamePassword {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         catalog
@@ -358,12 +302,8 @@ impl CatalogRecord for DeleteLoginIdentityUsernamePassword {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<DeleteLoginIdentityUsernamePassword>()
-}
-
 /// Create a refresh token for a user.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_REFRESH_TOKEN, shape = 0x7446b063)]
 pub struct CreateRefreshToken {
     /// User ID.
     pub user_id: u64,
@@ -375,11 +315,7 @@ pub struct CreateRefreshToken {
     pub expires_at: i64,
 }
 
-impl CatalogRecord for CreateRefreshToken {
-    const ID: RecordId = record_ids::CREATE_REFRESH_TOKEN;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateRefreshToken";
-
+impl RecordApply for CreateRefreshToken {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         let token = RefreshTokenInfo {
@@ -407,12 +343,8 @@ impl CatalogRecord for CreateRefreshToken {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateRefreshToken>()
-}
-
 /// Revoke a specific refresh token.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::REVOKE_REFRESH_TOKEN, shape = 0x7bd5ec8d)]
 pub struct RevokeRefreshToken {
     /// User ID (stored during prepare for correct event emission).
     pub user_id: u64,
@@ -422,11 +354,7 @@ pub struct RevokeRefreshToken {
     pub revoked_at: i64,
 }
 
-impl CatalogRecord for RevokeRefreshToken {
-    const ID: RecordId = record_ids::REVOKE_REFRESH_TOKEN;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RevokeRefreshToken";
-
+impl RecordApply for RevokeRefreshToken {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         if catalog
             .users
@@ -454,12 +382,9 @@ impl CatalogRecord for RevokeRefreshToken {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<RevokeRefreshToken>()
-}
-
 /// Revoke all refresh tokens for a user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::REVOKE_ALL_REFRESH_TOKENS_FOR_USER, shape = 0xa1a5e3bd)]
+#[derive(Copy)]
 pub struct RevokeAllRefreshTokensForUser {
     /// User ID.
     pub user_id: u64,
@@ -467,11 +392,7 @@ pub struct RevokeAllRefreshTokensForUser {
     pub revoked_at: i64,
 }
 
-impl CatalogRecord for RevokeAllRefreshTokensForUser {
-    const ID: RecordId = record_ids::REVOKE_ALL_REFRESH_TOKENS_FOR_USER;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RevokeAllRefreshTokensForUser";
-
+impl RecordApply for RevokeAllRefreshTokensForUser {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         catalog
@@ -488,12 +409,8 @@ impl CatalogRecord for RevokeAllRefreshTokensForUser {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<RevokeAllRefreshTokensForUser>()
-}
-
 /// Update the roles assigned to a user.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::UPDATE_USER_ROLES, shape = 0x11962ce7)]
 pub struct UpdateUserRoles {
     /// User ID.
     pub user_id: u64,
@@ -503,11 +420,7 @@ pub struct UpdateUserRoles {
     pub updated_at: i64,
 }
 
-impl CatalogRecord for UpdateUserRoles {
-    const ID: RecordId = record_ids::UPDATE_USER_ROLES;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "UpdateUserRoles";
-
+impl RecordApply for UpdateUserRoles {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let user_id = UserId::new(self.user_id);
         let mut user = catalog.users.get_by_id(&user_id).ok_or_else(|| {
@@ -532,25 +445,6 @@ impl CatalogRecord for UpdateUserRoles {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<UpdateUserRoles>()
-}
-
-impl_bitcode_encoding!(
-    CreateUser,
-    UpdateUserDisplayName,
-    DeleteUser,
-    RestoreUser,
-    CreateLoginIdentityUsernamePassword,
-    UpdateLoginIdentityPasswordHash,
-    UpdateLoginIdentityRequiresPasswordReset,
-    DeleteLoginIdentityUsernamePassword,
-    CreateRefreshToken,
-    RevokeRefreshToken,
-    RevokeAllRefreshTokensForUser,
-    UpdateUserRoles,
-);
 
 #[cfg(test)]
 mod tests;

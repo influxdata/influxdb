@@ -143,10 +143,11 @@ use generated_types::tonic::{Code, Status};
 use tokio::time::{Interval, MissedTickBehavior};
 use tracing::{info, warn};
 
+// this only goes over clippy's limit for large enum variants when (`cfg(tokio_unstable)` and
+// `tokio`'s `tracing` feature is active) OR `cfg(target_os = "macos")`. That second condition is
+// not something we can put into a `cfg`, so we just have to umbrella-allow it here.
 #[pin_project::pin_project(project = MaybeSleepProj)]
-// tokio::time::Sleep exceeds the large_enum_variant threshold on macOS but not
-// Linux due to platform-dependent type sizes in tokio's timer internals.
-#[allow(clippy::allow_attributes)]
+#[expect(clippy::allow_attributes)]
 #[allow(clippy::large_enum_variant)]
 enum MaybeSleep {
     Sleep(#[pin] tokio::time::Sleep),

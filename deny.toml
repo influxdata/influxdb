@@ -45,74 +45,6 @@ ignore = [
     # remaining 0.102.x path.
     "RUSTSEC-2026-0104",
 
-    # wasmtime 41.0.4 advisories (transitive dep via datafusion-udf-wasm)
-    #
-    # Wasm UDFs are disabled by default (udfs_enabled = false in iox_query config).
-    # The Wasm component model code path is never entered unless explicitly enabled.
-    # Additionally, none of the advisories match our runtime configuration:
-    #
-    # Winch compiler backend required (we use Cranelift, the default):
-    "RUSTSEC-2026-0086", # GHSA-m9w2-8782-2946: host data leakage with 64-bit tables and Winch
-    "RUSTSEC-2026-0089", # GHSA-q49f-xg75-m9xw: host panic on table.fill with Winch
-    "RUSTSEC-2026-0094", # GHSA-f984-pcp8-v2p7: improperly masked table.grow return with Winch
-    "RUSTSEC-2026-0095", # GHSA-xx5w-cvp6-jv83: Winch sandbox-escaping memory access
-    #
-    # Non-default runtime config required (we use defaults: spectre on, on-demand allocator):
-    "RUSTSEC-2026-0087", # GHSA-qqfj-4vcm-26hv: f64x2.splat segfault (requires signals-based-traps disabled)
-    "RUSTSEC-2026-0088", # GHSA-6wgr-89rj-399p: pooling allocator data leakage (requires pooling allocator)
-    "RUSTSEC-2026-0096", # GHSA-jhxm-h53p-jm7w: aarch64 sandbox escape (requires spectre mitigations disabled)
-    #
-    # Component model features we don't use (no flags types, no cross-component string passing):
-    "RUSTSEC-2026-0085", # GHSA-m758-wjhj-p3jq: panic lifting flags component value (no flags in our WIT)
-    "RUSTSEC-2026-0092", # GHSA-jxhv-7h78-9775: panic on misaligned UTF-16 strings (cross-component only)
-    "RUSTSEC-2026-0093", # GHSA-hx6p-xpx3-jvvv: heap OOB read in UTF-16 transcoding (cross-component only)
-    #
-    # Guest realloc validation (single-component host-guest interaction; low risk given UDFs are disabled):
-    "RUSTSEC-2026-0091", # GHSA-394w-hwhg-8vgm: OOB write from unvalidated guest realloc
-    #
-    # Guest-controllable panic (unreachable when UDFs are disabled):
-    "RUSTSEC-2026-0114", # panic when allocating a wasm table exceeding host address space
-    #
-    # wasmtime-wasi 41.0.4 WASI path_open(TRUNCATE) bypasses FilePerms::WRITE host
-    # restriction (https://rustsec.org/advisories/RUSTSEC-2026-0149). Same transitive
-    # path via datafusion-udf-wasm; only reachable if a Wasm UDF is loaded with WASI
-    # filesystem preopens granted, and UDFs are disabled by default
-    # (udfs_enabled = false). Fix requires wasmtime-wasi >=44.0.2, which needs an
-    # upstream datafusion-udf-wasm bump.
-    "RUSTSEC-2026-0149",
-    #
-    # Another wasmtime advisory:
-    "RUSTSEC-2026-0182",
-    #
-    # wasmtime-wasi 41.0.4 WASI hard links and renames bypass FilePerms for the
-    # destination (https://rustsec.org/advisories/RUSTSEC-2026-0188). Same transitive
-    # path via datafusion-udf-wasm; only reachable if a Wasm UDF is loaded with WASI
-    # filesystem preopens granted, and UDFs are disabled by default
-    # (udfs_enabled = false). Fix requires wasmtime-wasi >=45.0.3, which needs an
-    # upstream datafusion-udf-wasm bump.
-    "RUSTSEC-2026-0188",
-    #
-    # wasmtime 41.0.4 stores can mix up type indices between engines
-    # (https://rustsec.org/advisories/RUSTSEC-2026-0222). Same transitive path via
-    # datafusion-udf-wasm; only reachable if a Wasm UDF is loaded, and UDFs are
-    # disabled by default (udfs_enabled = false). The 41.x line has no patched
-    # release. The fix requires wasmtime >=46.0.2, which needs an upstream
-    # datafusion-udf-wasm bump to a DataFusion 52 rev.
-    "RUSTSEC-2026-0222",
-    #
-    # TODO: update wasmtime-wasi via datafusion-udf-wasm to a patched version (>=45.0.3; >=46.0.1 is also fixed)
-    #
-    # pyo3 0.24-0.28 out-of-bounds read in Iterator::nth/nth_back on
-    # PyList/PyTuple iterators; fix is only in pyo3 0.29 (API-breaking bump,
-    # tracked in influxdb_pro#4072). Not reachable here: no nth/nth_back calls
-    # in our pyo3-consuming crates, and the overflow needs a Rust-side n near
-    # usize::MAX, which our embedding never produces.
-    "RUSTSEC-2026-0176",
-    #
-    # pyo3 0.15-0.29 unsoundness bug. Possible data race in functions supplied
-    # to PyCFunction::new_closure, or PyCFunction::new_closure_bound.
-    # Neither of these methods are used in this code.
-    "RUSTSEC-2026-0177",
 ]
 git-fetch-with-cli = true
 
@@ -130,16 +62,8 @@ allow = [
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
-    "NCSA",
-    "Unicode-DFS-2016",
     "Unicode-3.0",
     "Zlib",
-]
-exceptions = [
-    # We should probably NOT bundle CA certs but use the OS ones.
-    { name = "webpki-roots", allow = ["MPL-2.0"] },
-    # aws sdk-s3 uses aws-lc-sys for rustls
-    { name = "aws-lc-sys", allow = ["OpenSSL"] },
 ]
 
 [[licenses.clarify]]

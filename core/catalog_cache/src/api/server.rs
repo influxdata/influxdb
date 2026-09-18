@@ -157,7 +157,7 @@ impl CatalogRequestFuture {
                         Some(x) if x == LIST_PROTOCOL_V2 => {
                             let encoder = v2::ListEncoder::new(entries).with_max_value_size(size);
                             let stream = futures::stream::iter(encoder);
-                            let stream = BatchedBytesStream::new(stream, size);
+                            let stream = BatchedBytesStream::new(stream, batch_size(size));
                             let response = ResponseBuilder::new()
                                 .header(CONTENT_TYPE, &LIST_PROTOCOL_V2)
                                 .body(stream_bytes_to_response_body(stream))?;
@@ -286,6 +286,26 @@ impl CatalogCacheServer {
     }
 }
 
+/// Minimum size of a chunk of a list response body.
+///
+/// The list `size` parameter bounds the payload carried per entry, and a
+/// metadata-only list -- the first replica read of a warmup -- passes zero. It
+/// must not double as the response batch size: batching at zero flushes after
+/// every entry, so a metadata-only list of a real catalog emits thousands of
+/// DATA frames of a few dozen bytes each.
+///
+/// HTTP/2 peers budget the framing overhead of small DATA frames. `h2` charges
+/// every non-final frame under 256 bytes against a per-connection budget and,
+/// once it is exhausted, closes the connection with `ENHANCE_YOUR_CALM`; the
+/// listing client tears down its own connection part-way through the response.
+/// Batching to at least this size keeps frames well clear of that threshold.
+const MIN_LIST_BATCH_SIZE: usize = 8 * 1024;
+
+/// Size to batch a list response body into, for a list request of `size`.
+fn batch_size(size: usize) -> usize {
+    size.max(MIN_LIST_BATCH_SIZE)
+}
+
 /// Stream that batches a number of small response elements into a
 /// single, larger, buffer. The input values are never split and are
 /// batched until whilst the combined size is below the given batch
@@ -327,6 +347,14 @@ where
                 Some(b) => {
                     let b = b.as_ref();
                     let buf = this.buf.as_mut().unwrap();
+                    if buf.is_empty() && b.len() > this.batch_size {
+                        // Values are never split, so an oversized one is emitted
+                        // on its own. Return it directly: swapping it into the
+                        // buffer would emit the empty buffer ahead of it, and a
+                        // zero-length chunk is precisely the framing overhead
+                        // that batching exists to avoid.
+                        return Poll::Ready(Some(BytesMut::from(b)));
+                    }
                     if buf.len() + b.len() > this.batch_size {
                         let mut nbuf = BytesMut::with_capacity(this.batch_size);
                         nbuf.extend_from_slice(b);
@@ -484,7 +512,9 @@ pub mod test_util {
 mod tests {
     use super::*;
 
+    use crate::CacheKey;
     use futures::stream::StreamExt;
+    use iox_http_util::{RequestBuilder, empty_request_body};
 
     #[tokio::test]
     async fn test_batched_bytes_stream() {
@@ -524,5 +554,93 @@ mod tests {
             b"1234567890123456789012345"
         );
         assert!(stream.next().await.is_none());
+    }
+
+    /// A value larger than the batch size is emitted on its own, and never
+    /// behind an empty chunk.
+    #[tokio::test]
+    async fn oversized_value_is_not_preceded_by_an_empty_chunk() {
+        // Oversized first: nothing is buffered ahead of it to flush.
+        let bufs = ["1234567890123456789012345", "12345"];
+        let mut stream = BatchedBytesStream::new(futures::stream::iter(&bufs), 10);
+
+        assert_eq!(
+            stream.next().await.unwrap().as_ref(),
+            b"1234567890123456789012345"
+        );
+        assert_eq!(stream.next().await.unwrap().as_ref(), b"12345");
+        assert!(stream.next().await.is_none());
+
+        // Oversized after a partial batch: the batch flushes first.
+        let bufs = ["12345", "1234567890123456789012345"];
+        let mut stream = BatchedBytesStream::new(futures::stream::iter(&bufs), 10);
+
+        assert_eq!(stream.next().await.unwrap().as_ref(), b"12345");
+        assert_eq!(
+            stream.next().await.unwrap().as_ref(),
+            b"1234567890123456789012345"
+        );
+        assert!(stream.next().await.is_none());
+    }
+
+    /// A metadata-only list -- `size=0`, the first replica read of a warmup --
+    /// must not be emitted as one DATA frame per entry.
+    ///
+    /// `h2` charges every non-final DATA frame under 256 bytes against a
+    /// per-connection budget and closes the connection with `ENHANCE_YOUR_CALM`
+    /// once it is exhausted, so a per-entry response aborted catalog cache
+    /// warmup part-way through the listing.
+    #[tokio::test]
+    async fn metadata_only_list_does_not_emit_small_frames() {
+        /// The frame size below which `h2` charges framing overhead.
+        const H2_SMALL_FRAME_THRESHOLD: usize = 256;
+        const ENTRIES: usize = 1000;
+
+        let server = CatalogCacheServer::new(Arc::new(CatalogCache::default()));
+        for i in 0..ENTRIES {
+            server
+                .cache()
+                .insert(
+                    CacheKey::Partition(i as i64),
+                    CacheValue::new(Bytes::from(vec![0; 128]), 1),
+                )
+                .unwrap();
+        }
+
+        let request = RequestBuilder::new()
+            .method(Method::GET)
+            .uri("/v1/?size=0")
+            .header(ACCEPT, &LIST_PROTOCOL_V2)
+            .body(empty_request_body())
+            .unwrap();
+
+        let response = server.service().call(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut body = response.into_body();
+        let mut frames = vec![];
+        while let Some(frame) = std::future::poll_fn(|cx| Pin::new(&mut body).poll_frame(cx)).await
+        {
+            if let Some(data) = frame.unwrap().data_ref() {
+                frames.push(data.len());
+            }
+        }
+
+        assert!(
+            frames.len() > 1,
+            "expected the response to be streamed in several frames: {frames:?}"
+        );
+        // Only the final frame may fall short; it carries whatever is left over.
+        let small = frames[..frames.len() - 1]
+            .iter()
+            .filter(|len| **len < H2_SMALL_FRAME_THRESHOLD)
+            .count();
+        assert_eq!(
+            small,
+            0,
+            "{small} of {} non-final frames are under {H2_SMALL_FRAME_THRESHOLD} bytes and would \
+             charge the peer's h2 framing budget: {frames:?}",
+            frames.len() - 1,
+        );
     }
 }

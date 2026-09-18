@@ -2,3 +2,11 @@
 # Terminate any test still running after 10 minutes (terminate-after × period).
 # Bounds a hung or deadlocked test instead of letting it run to CI's job timeout.
 slow-timeout = { period = "60s", terminate-after = 10 }
+
+[profile.ci]
+# Keeps the normal terminal output text visible in CircleCI logs
+failure-output = "immediate-final"
+
+# Silently generates the XML format report into a background file
+[profile.ci.junit]
+path = "junit.xml"

@@ -6,6 +6,7 @@
 
 use crate::{Gen1Duration, SnapshotDetails, SnapshotSequenceNumber, WalFileSequenceNumber};
 use data_types::Timestamp;
+use iox_time::Time;
 use observability_deps::tracing::{debug, info, trace};
 
 /// A struct that tracks the WAL periods (files if using object store) and decides when to snapshot the WAL.
@@ -16,6 +17,14 @@ pub(crate) struct SnapshotTracker {
     wal_periods: Vec<WalPeriod>,
     snapshot_size: usize,
     gen1_duration: Gen1Duration,
+}
+
+impl WalPeriod {
+    /// Stamp the period with the wall-clock time it entered the tracker.
+    pub(crate) fn added_at(mut self, at: Time) -> Self {
+        self.added_at = Some(at);
+        self
+    }
 }
 
 impl SnapshotTracker {
@@ -34,6 +43,13 @@ impl SnapshotTracker {
             snapshot_size,
             gen1_duration,
         }
+    }
+
+    /// When the oldest period still waiting for a snapshot entered the
+    /// tracker, if it recorded that: how long data has been sitting
+    /// un-snapshotted, independent of how many periods there are.
+    pub(crate) fn oldest_period_added_at(&self) -> Option<Time> {
+        self.wal_periods.first().and_then(|period| period.added_at)
     }
 
     /// Add a wal period to the tracker. This should be called when a new wal file is created.
@@ -102,11 +118,7 @@ impl SnapshotTracker {
 
         // if force_snapshot is set, we don't need to check wal periods len or num periods we
         // snapshot immediately
-        if !force_snapshot && self.wal_periods.len() < self.number_of_periods_to_snapshot_after() {
-            return false;
-        }
-
-        true
+        force_snapshot || self.wal_periods.len() >= self.number_of_periods_to_snapshot_after()
     }
 
     pub(crate) fn snapshot_in_order_wal_periods(&mut self) -> Option<SnapshotDetails> {
@@ -148,7 +160,7 @@ impl SnapshotTracker {
     }
 
     fn snapshot_all(&mut self) -> Option<SnapshotDetails> {
-        let wal_periods: Vec<WalPeriod> = self.wal_periods.drain(..).collect();
+        let wal_periods: Vec<WalPeriod> = std::mem::take(&mut self.wal_periods);
         let max_time = wal_periods.iter().map(|period| period.max_time).max()?;
         let t = max_time - (max_time.get() % self.gen1_duration.as_nanos())
             + self.gen1_duration.as_nanos();
@@ -199,6 +211,10 @@ pub(crate) struct WalPeriod {
     pub(crate) wal_file_number: WalFileSequenceNumber,
     pub(crate) min_time: Timestamp,
     pub(crate) max_time: Timestamp,
+    /// Wall-clock time the period entered the tracker (written or
+    /// replayed), for the age-based snapshot trigger. `None` when the
+    /// caller does not track it.
+    pub(crate) added_at: Option<Time>,
 }
 
 impl WalPeriod {
@@ -219,6 +235,7 @@ impl WalPeriod {
             wal_file_number,
             min_time,
             max_time,
+            added_at: None,
         }
     }
 }

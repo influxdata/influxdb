@@ -19,16 +19,16 @@ fn parsing_is_case_insensitive_and_allows_whitespace() {
 }
 
 #[test]
-fn bare_numbers_are_bytes() {
-    assert_eq!("8192".parse::<DiskSize>().unwrap().as_num_bytes(), 8192);
-    assert_eq!(" 8192 ".parse::<DiskSize>().unwrap().as_num_bytes(), 8192);
-    // Floored to the block size
-    assert_eq!("8195".parse::<DiskSize>().unwrap().as_num_bytes(), 8192);
-    // Bare values below the block size are still an error
-    let err = "1024".parse::<DiskSize>().unwrap_err();
-    assert!(err.contains("less than minimum block size"), "{err}");
-    // Bare-number overflow is an error, not a wrap
-    assert!("99999999999999999999999999".parse::<DiskSize>().is_err());
+fn bare_numbers_are_rejected() {
+    for bare in ["8192", " 8192 ", "1024", "99999999999999999999999999"] {
+        let err = bare.parse::<DiskSize>().unwrap_err();
+        assert!(
+            err.contains("unit suffix"),
+            "error for '{bare}' should demand a unit, got: {err}"
+        );
+    }
+    // Explicit-unit values floor to the block size
+    assert_eq!("8195b".parse::<DiskSize>().unwrap().as_num_bytes(), 8192);
 }
 
 #[test]

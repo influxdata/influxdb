@@ -172,7 +172,7 @@ impl TableIndexSnapshot {
             .put_with_default_retries(
                 path.as_ref(),
                 json.into(),
-                format!(
+                &format!(
                     "Persisting table index snapshot for table {} at sequence {}",
                     self.id.table_id(),
                     self.snapshot_sequence_number
@@ -193,7 +193,7 @@ impl TableIndexSnapshot {
         let bytes = object_store
             .get_with_default_retries(
                 location.as_ref(),
-                format!("Loading persisted snapshot from {}", location.as_ref()),
+                &format!("Loading persisted snapshot from {}", location.as_ref()),
             )
             .await
             .map_err(TableIndexError::ObjectStore)?
@@ -287,7 +287,7 @@ impl CoreTableIndex {
             .put_with_default_retries(
                 path.as_ref(),
                 json.into(),
-                format!(
+                &format!(
                     "Persisting core table index for table {}",
                     self.id.table_id()
                 ),
@@ -307,7 +307,7 @@ impl CoreTableIndex {
         let mut table_index = match object_store
             .get_with_default_retries(
                 path.as_ref(),
-                format!("Loading table index for {}", path.full_table_id()),
+                &format!("Loading table index for {}", path.full_table_id()),
             )
             .await
         {
@@ -342,7 +342,7 @@ impl CoreTableIndex {
                 .put_with_default_retries(
                     path.as_ref(),
                     json.into(),
-                    format!("Initial persist of table index for {}", table_index.id),
+                    &format!("Initial persist of table index for {}", table_index.id),
                 )
                 .await
                 .map_err(TableIndexError::PersistIndex)?;
@@ -370,7 +370,8 @@ impl CoreTableIndex {
                 format!(
                     "Listing table index snapshots for table {}",
                     self.id.table_id()
-                ),
+                )
+                .into(),
             )
             .collect::<Vec<_>>()
             .await
@@ -414,7 +415,7 @@ impl CoreTableIndex {
                 let result = match store
                     .get_with_default_retries(
                         &location,
-                        format!("Loading table index snapshot at sequence {}", sequence),
+                        &format!("Loading table index snapshot at sequence {sequence}"),
                     )
                     .await
                 {
@@ -476,7 +477,7 @@ impl CoreTableIndex {
             .put_with_default_retries(
                 path.as_ref(),
                 json.into(),
-                format!(
+                &format!(
                     "Persisting updated table index for table {}",
                     self.id.table_id()
                 ),
@@ -494,7 +495,7 @@ impl CoreTableIndex {
                     store
                         .delete_with_default_retries(
                             &location,
-                            format!("Deleting merged table index snapshot at {}", location),
+                            &format!("Deleting merged table index snapshot at {location}"),
                         )
                         .await
                         .map_err(TableIndexError::DeleteSnapshot)
