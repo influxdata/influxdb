@@ -251,7 +251,7 @@ impl Predicate {
     /// Sets the timestamp range
     pub fn with_range(mut self, start: i64, end: i64) -> Self {
         // Without more thought, redefining the timestamp range would
-        // lose the old range. Asser that that cannot happen.
+        // lose the old range. Assert that it cannot happen.
         assert!(
             self.range.is_none(),
             "Unexpected re-definition of timestamp range"

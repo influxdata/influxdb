@@ -49,7 +49,7 @@ impl Client {
 
     /// Create a namespace
     ///
-    /// `retention_period_ns` is the the retention period in nanoseconds,
+    /// `retention_period_ns` is the retention period in nanoseconds,
     /// measured from `now()`. `None` represents infinite retention (i.e. never
     /// drop data), and 0 is also mapped to `None` on the server side.
     ///
@@ -76,7 +76,7 @@ impl Client {
 
     /// Update retention for a namespace
     ///
-    /// `retention_period_ns` is the the retention period in nanoseconds,
+    /// `retention_period_ns` is the retention period in nanoseconds,
     /// measured from `now()`. `None` represents infinite retention (i.e. never
     /// drop data), and 0 is also mapped to `None` on the server side.
     ///

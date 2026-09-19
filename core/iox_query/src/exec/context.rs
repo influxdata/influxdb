@@ -294,7 +294,7 @@ impl IOxSessionConfig {
         // memory pool from the runtime. Otherwise, it creates a new `PerQueryMemoryPool`
         // with a minimum memory budget, ensuring each query has a reserved amount of
         // memory. This prevents the query from being starved of resources and allows it
-        // it to use the central memory pool if the budget is exhausted.
+        // to use the central memory pool if the budget is exhausted.
         let memory_pool: Arc<dyn MemoryPool> = match self.per_query_mem_pool_size {
             0 => Arc::clone(&self.runtime.memory_pool),
             per_query_mem_pool_size => {
