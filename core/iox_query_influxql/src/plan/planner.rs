@@ -2304,7 +2304,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     /// - `input`: The plan to apply the limit to.
     /// - `offset`: The number of input rows to skip.
     /// - `limit`: The maximum number of rows to return in the output plan per group.
-    /// - `time_sort_expr`: An `Expr::Sort` referring to the `time` column of the input.
+    /// - `fill_clause`: The fill policy applied to the interval windows.
+    /// - `sort_exprs`: Sort expressions referring to the `time` column of the input.
     /// - `group_by_tag_set`: Tag columns from the `input` plan that should be used to partition
     ///   the `input` plan and sort the `output` plan.
     /// - `projection_tag_set`: Additional tag columns that should be used to sort the `output`
