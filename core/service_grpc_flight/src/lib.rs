@@ -512,7 +512,7 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'sta
 ///
 /// 1. Encode the query in a `CommandStatementQuery` FlightSQL structure in a [`FlightDescriptor`]
 ///
-/// 2. Call the `GetFlightInfo` method with the the [`FlightDescriptor`]
+/// 2. Call the `GetFlightInfo` method with the [`FlightDescriptor`]
 ///
 /// 3. Receive a `Ticket` in the returned [`FlightInfo`]. The Ticket is opaque (uninterpreted) by
 ///    the client. It contains an [`IoxGetRequest`] with the `CommandStatementQuery` request.
@@ -556,13 +556,13 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'sta
 ///
 /// 1. Encode the query in a `ActionCreatePreparedStatementRequest` request structure
 ///
-/// 2. Call `DoAction` method with the the request
+/// 2. Call `DoAction` method with the request
 ///
 /// 3. Receive a `ActionCreatePreparedStatementResponse`, which contains a prepared statement
 ///    "handle".
 ///
 /// 4. Encode the handle in a `CommandPreparedStatementQuery` FlightSQL structure in a
-///    [`FlightDescriptor`] and call the `GetFlightInfo` method with the the [`FlightDescriptor`]
+///    [`FlightDescriptor`] and call the `GetFlightInfo` method with the [`FlightDescriptor`]
 ///
 /// 5. Steps 5,6,7 proceed the same as for a FlightSQL ad-hoc query
 ///
@@ -603,7 +603,7 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'sta
 ///
 /// 1. Encode the query in a `ActionCreatePreparedStatementRequest` request structure
 ///
-/// 2. Call `DoAction` method with the the request
+/// 2. Call `DoAction` method with the request
 ///
 /// 3. Receive a `ActionCreatePreparedStatementResponse`, which contains a prepared statement
 ///    "handle".
@@ -616,7 +616,7 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'sta
 ///    to use with the subsequent steps.
 ///
 /// 7. Encode the updated handle in a `CommandPreparedStatementQuery` FlightSQL structure in a
-///    [`FlightDescriptor`] and call the `GetFlightInfo` method with the the [`FlightDescriptor`]
+///    [`FlightDescriptor`] and call the `GetFlightInfo` method with the [`FlightDescriptor`]
 ///
 /// 8. Steps 8,9,10 proceed the same as for a FlightSQL ad-hoc query
 ///
