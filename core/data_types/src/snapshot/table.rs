@@ -233,7 +233,7 @@ impl TableSnapshotPartition {
     ///
     /// This is a no-op operation and should be rather fast.
     ///
-    /// See [`partition_key`](Self::partition_key) if need need the decoded form.
+    /// See [`partition_key`](Self::partition_key) if you need the decoded form.
     pub fn key(&self) -> &[u8] {
         &self.key
     }
