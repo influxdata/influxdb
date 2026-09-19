@@ -18,13 +18,13 @@ pub static INFLUXDB3_VERSION: LazyLock<&'static str> = LazyLock::new(|| {
 /// Build-time GIT revision hash.
 pub static INFLUXDB3_GIT_HASH: &str = env!(
     "GIT_HASH",
-    "Can not find find GIT HASH in build environment"
+    "Cannot find GIT_HASH in build environment"
 );
 
 /// Build-time GIT revision hash.
 pub static INFLUXDB3_GIT_HASH_SHORT: &str = env!(
     "GIT_HASH_SHORT",
-    "Can not find find GIT HASH in build environment"
+    "Cannot find GIT_HASH_SHORT in build environment"
 );
 
 /// Build a version string with a product name, version, and git hash.
