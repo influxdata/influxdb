@@ -464,7 +464,17 @@ jobs:
       - run:
           name: Cargo release build
           command: |
-            target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+            if [ "<< parameters.target >>" != "x86_64-pc-windows-gnu" ] ; then
+                target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+            else
+                # target-env sets the linker to mingw gcc, which drives binutils
+                # 2.40: too old to read the base64 long section names LLVM writes
+                # for a fat-LTO object. Link with rust-lld instead.
+                rustup target add '<< parameters.target >>'
+                export TARGET_CC=/usr/bin/x86_64-w64-mingw32-gcc
+                export JEMALLOC_OVERRIDE=/jemalloc/x86_64-pc-windows-gnu/libjemalloc.a
+                cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+            fi
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 60m
       - when:
