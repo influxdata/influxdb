@@ -19,8 +19,8 @@ func TestEventRecorder_UserResponseBytes(t *testing.T) {
 		{OrgID: 1, UserID: 10, Endpoint: "/query", ResponseBytes: 50, Status: 200},
 		{OrgID: 1, UserID: 10, Endpoint: "/api/v2/query", ResponseBytes: 7, Status: 200},
 		{OrgID: 1, UserID: 11, Endpoint: "/query", ResponseBytes: 3, Status: 500},
-		// Failed before authentication: no user to attribute to.
-		{Endpoint: "/query", ResponseBytes: 69, Status: 401},
+		// Authorizer without a user ID: nothing to attribute to.
+		{OrgID: 1, Endpoint: "/query", ResponseBytes: 69, Status: 200},
 	}
 
 	t.Run("disabled by default", func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestEventRecorder_UserResponseBytes(t *testing.T) {
 		// Org-level metrics are unaffected.
 		m := promtest.MustFindMetric(t, promtest.MustGather(t, reg), "http_query_response_bytes",
 			map[string]string{"org_id": "0000000000000001", "endpoint": "/query", "status": "200"})
-		require.Equal(t, float64(150), m.GetCounter().GetValue())
+		require.Equal(t, float64(219), m.GetCounter().GetValue())
 	})
 
 	t.Run("enabled", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestEventRecorder_UserResponseBytes(t *testing.T) {
 			}
 		}
 		m = promtest.MustFindMetric(t, mfs, "http_query_response_bytes",
-			map[string]string{"org_id": "", "endpoint": "/query", "status": "401"})
-		require.Equal(t, float64(69), m.GetCounter().GetValue())
+			map[string]string{"org_id": "0000000000000001", "endpoint": "/query", "status": "200"})
+		require.Equal(t, float64(219), m.GetCounter().GetValue())
 	})
 }

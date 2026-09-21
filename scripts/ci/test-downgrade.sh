@@ -66,13 +66,15 @@ function test_downgrade_target () {
     wait "$influxd_pid" || true
 }
 
+# /health is served before the API is installed (see HEALTH_READY.md), so it
+# is not a readiness signal. /ready only returns 200 once startup completes.
 function wait_for_influxd () {
     local -r influxd_pid=$1
     local ping_count=0
     while kill -0 "${influxd_pid}" && [ ${ping_count} -lt ${INIT_PING_ATTEMPTS} ]; do
         sleep 1
         ping_count=$((ping_count+1))
-        if [[ "$(curl -s -o /dev/null "http://localhost:8086/health" -w "%{http_code}")" = "200" ]]; then
+        if [[ "$(curl -s -o /dev/null "http://localhost:8086/ready" -w "%{http_code}")" = "200" ]]; then
             return
         fi
     done
@@ -91,9 +93,13 @@ function setup_influxd () {
     local -r influxd_pid="$!"
 
     wait_for_influxd "$influxd_pid"
-    curl -s -o /dev/null -XPOST \
+    local -r setup_code="$(curl -s -o /dev/null -XPOST \
         -d '{"username":"default","password":"fakepassword","org":"'$TEST_ORG'","bucket":"unused","token":"'$TEST_TOKEN'"}' \
-        http://localhost:8086/api/v2/setup
+        http://localhost:8086/api/v2/setup -w "%{http_code}")"
+    if [[ "$setup_code" != "201" ]]; then
+        >&2 echo Error: "Setup failed with HTTP $setup_code"
+        exit 1
+    fi
 
     kill -TERM "$influxd_pid"
     wait "$influxd_pid" || true

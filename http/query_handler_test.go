@@ -448,6 +448,60 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	})
 }
 
+type captureEventRecorder struct {
+	events []metric.Event
+}
+
+func (r *captureEventRecorder) Record(_ context.Context, e metric.Event) {
+	r.events = append(r.events, e)
+}
+
+func TestFluxHandler_PostQuery_RecordsEvent(t *testing.T) {
+	defer tracetesting.SetupInMemoryTracing(t.Name())()
+
+	store := itesting.NewTestInmemStore(t)
+	orgSVC := tenant.NewService(tenant.NewStore(store))
+	org := influxdb.Organization{Name: t.Name()}
+	require.NoError(t, orgSVC.CreateOrganization(context.Background(), &org))
+
+	rec := &captureEventRecorder{}
+	b := &FluxBackend{
+		HTTPErrorHandler:    kithttp.NewErrorHandler(zaptest.NewLogger(t)),
+		log:                 zaptest.NewLogger(t),
+		QueryEventRecorder:  rec,
+		OrganizationService: orgSVC,
+		ProxyQueryService: &mock.ProxyQueryService{
+			QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+				_, err := io.WriteString(w, "good")
+				return flux.Statistics{}, err
+			},
+		},
+		FluxLanguageService: fluxlang.DefaultService,
+		Flagger:             feature.DefaultFlagger(),
+	}
+	h := NewFluxHandler(zaptest.NewLogger(t), b)
+
+	const q = "buckets()"
+	req, err := http.NewRequest("POST", "/api/v2/query?orgID="+org.ID.String(), strings.NewReader(q))
+	require.NoError(t, err)
+	authz := &influxdb.Authorization{UserID: 42, OrgID: org.ID}
+	req = req.WithContext(icontext.SetAuthorizer(req.Context(), authz))
+	req.Header.Set("Content-Type", "application/vnd.flux")
+
+	w := httptest.NewRecorder()
+	h.handleQuery(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	require.Equal(t, []metric.Event{{
+		OrgID:         org.ID,
+		UserID:        42,
+		Endpoint:      "/api/v2/query",
+		RequestBytes:  len(q),
+		ResponseBytes: 4,
+		Status:        http.StatusOK,
+	}}, rec.events)
+}
+
 func TestFluxService_Query_gzip(t *testing.T) {
 	// orgService is just to mock out orgs by returning
 	// the same org every time.

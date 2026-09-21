@@ -819,11 +819,11 @@ jobs:
           background: true
       - run: mkdir -p ~/project/results
       - run:
-          name: Wait for influxd to bind HTTP port
+          name: Wait for influxd to become ready
           command: |
             attempts=0
             max_attempts=30
-            while ! curl localhost:8086/health; do
+            while ! curl -sf localhost:8086/ready; do
               attempts=$((attempts+1))
               if [[ $attempts = $max_attempts ]]; then
                 >&2 echo influxd "didn't" start in time
