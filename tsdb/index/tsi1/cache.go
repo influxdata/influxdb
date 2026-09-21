@@ -733,7 +733,7 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 			return resizeEvent{}, false
 		}
 		var evict int64
-		newCap, evict, shrink = decideColdTail(size, c.warmCountLocked(), c.minCapacity)
+		_, evict, shrink = decideColdTail(size, c.warmCountLocked(), c.minCapacity)
 		if !shrink {
 			return resizeEvent{}, false
 		}
