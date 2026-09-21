@@ -464,7 +464,20 @@ jobs:
       - run:
           name: Cargo release build
           command: |
-            target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+            if [ "<< parameters.target >>" != "x86_64-pc-windows-gnu" ] ; then
+                target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+            else
+                # target-env sets the linker to mingw gcc, which drives binutils
+                # 2.40: too old to read the base64 long section names LLVM writes
+                # for a fat-LTO object. Link with rust-lld instead.
+                rustup target add '<< parameters.target >>'
+                export TARGET_CC=/usr/bin/x86_64-w64-mingw32-gcc
+                export JEMALLOC_OVERRIDE=/jemalloc/x86_64-pc-windows-gnu/libjemalloc.a
+                cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+                echo "== probe: build finished"
+                ls -la target/<< parameters.target >>/<< parameters.profile >>/influxdb3.exe
+                x86_64-w64-mingw32-objdump -f target/<< parameters.target >>/<< parameters.profile >>/influxdb3.exe | head -3
+            fi
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 60m
       - when:
@@ -781,225 +794,11 @@ jobs:
 
 workflows:
   version: 2
-  snapshot:
+  probe-core-windows:
     jobs:
-      - fetch-python:
-          <<: *main_filter
+      - fetch-python
       - build-release:
-          <<: *main_filter
-          name: build-snapshot-<< matrix.target >>
-          matrix:
-            parameters:
-              profile:
-                - release
-              target:
-                - aarch64-apple-darwin
-                - aarch64-unknown-linux-gnu
-                - x86_64-pc-windows-gnu
-                - x86_64-unknown-linux-gnu
+          name: probe-core-windows
+          target: x86_64-pc-windows-gnu
           requires:
             - fetch-python
-      - build-packages:
-          <<: *main_filter
-          requires:
-            - build-release
-      - sign-packages:
-          <<: *main_filter
-          requires:
-            - build-packages
-      - publish-packages:
-          <<: *main_filter
-          matrix:
-            parameters:
-              destination: [ snapshots ]
-          requires:
-            - build-release
-            - sign-packages
-  ci:
-    jobs:
-      - fmt:
-          <<: *any_filter
-      - lint:
-          <<: *any_filter
-      - inclusivity:
-          <<: *any_filter
-      - cargo-audit:
-          <<: *any_filter
-      - fetch-python:
-          <<: *any_filter
-      - test:
-          <<: *any_filter
-          requires:
-            - fetch-python
-      - build-dev:
-          # This workflow requires secrets stored in the environment.
-          # These are not passed to workflows executed on forked
-          # repositories. In this case, skip the workflow, as it
-          # will be executed on merge to main anyways.
-          <<: *nofork_filter
-          name: build-dev-<< matrix.target >>
-          matrix:
-            parameters:
-              target:
-                - aarch64-apple-darwin
-                - aarch64-unknown-linux-gnu
-                - x86_64-pc-windows-gnu
-                - x86_64-unknown-linux-gnu
-          requires:
-            - fetch-python
-      - test-launcher:
-          <<: *nofork_filter
-          requires:
-            - fetch-python
-      - doc:
-          <<: *any_filter
-      - build-release:
-          <<: *release_filter
-          name: build-release-<< matrix.target >>
-          matrix:
-            parameters:
-              target:
-                - aarch64-apple-darwin
-                - aarch64-unknown-linux-gnu
-                - x86_64-pc-windows-gnu
-                - x86_64-unknown-linux-gnu
-          requires:
-            - fetch-python
-      - build-packages:
-          <<: *release_filter
-          requires:
-            - build-release
-      - check_package_deb_arm64:
-          <<: *release_filter
-          requires:
-            - build-packages
-      - check_package_deb_amd64:
-          <<: *release_filter
-          requires:
-            - build-packages
-      - check_package_rpm_arm64:
-          <<: *nofork_filter
-          name:
-            check_package_rpm_arm64
-          requires:
-            - build-packages
-      - check_package_rpm_amd64:
-          <<: *nofork_filter
-          name:
-            check_package_rpm_amd64
-          requires:
-            - build-packages
-      - sign-packages:
-          <<: *release_filter
-          requires:
-            - build-packages
-            - check_package_rpm_arm64
-            - check_package_rpm_amd64
-            - check_package_deb_arm64
-            - check_package_deb_amd64
-            - test
-      - publish-packages:
-          <<: *release_filter
-          matrix:
-            parameters:
-              destination: [ releases ]
-          requires:
-            - build-release
-            - sign-packages
-            - test
-            - doc
-            - lint
-            - fmt
-            - cargo-audit
-      - build-docker:
-          <<: *docker_filter
-          name: build-docker-amd64
-          platform: amd64
-          resource_class: runner-ns/clustered-linux-vm
-      - build-docker:
-          <<: *docker_filter
-          name: build-docker-arm64
-          platform: arm64
-          resource_class: runner-ns/clustered-linux-vm-arm
-      - publish-docker:
-          <<: *docker_filter
-          requires:
-            - build-docker-amd64
-            - build-docker-arm64
-
-  # Conditional package building for PRs (when build_and_persist_packages parameter is true)
-  ci-build-packages-for-prs:
-    when: << pipeline.parameters.build_and_persist_packages >>
-    jobs:
-      - fetch-python:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-      - build-release:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-          name: build-for-prs-<< matrix.target >>
-          matrix:
-            parameters:
-              profile:
-                - << pipeline.parameters.pr_build_profile >>
-              target:
-                - aarch64-apple-darwin
-                - aarch64-unknown-linux-gnu
-                - x86_64-pc-windows-gnu
-                - x86_64-unknown-linux-gnu
-          requires:
-            - fetch-python
-      - build-packages:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-          name: build-linux-packages-for-prs
-          requires:
-            - build-for-prs-aarch64-apple-darwin
-            - build-for-prs-aarch64-unknown-linux-gnu
-            - build-for-prs-x86_64-pc-windows-gnu
-            - build-for-prs-x86_64-unknown-linux-gnu
-      - check_package_deb_amd64:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-          name: check-linux-packages-for-prs-deb-amd64
-          requires:
-            - build-linux-packages-for-prs
-      - check_package_deb_arm64:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-          name: check-linux-packages-for-prs-deb-arm64
-          requires:
-            - build-linux-packages-for-prs
-      - check_package_rpm_amd64:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-          name: check-linux-packages-for-prs-rpm-amd64
-          requires:
-            - build-linux-packages-for-prs
-      - check_package_rpm_arm64:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-          name: check-linux-packages-for-prs-rpm-arm64
-          requires:
-            - build-linux-packages-for-prs
