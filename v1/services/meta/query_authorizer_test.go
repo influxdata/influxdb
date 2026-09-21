@@ -42,7 +42,7 @@ func TestQueryAuthorizer_AuthorizeQuery_ShowStats(t *testing.T) {
 	})
 
 	t.Run("SHOW STATS FOR module also requires admin", func(t *testing.T) {
-		qm, err := influxql.ParseQuery("SHOW STATS FOR 'userquerybytes'")
+		qm, err := influxql.ParseQuery("SHOW STATS FOR 'httpd'")
 		require.NoError(t, err)
 
 		a := NewQueryAuthorizer(newTestClient([]UserInfo{adminUser, regularUser}))

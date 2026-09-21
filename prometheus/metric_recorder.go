@@ -96,7 +96,10 @@ func (r *EventRecorder) Record(ctx context.Context, e metric.Event) {
 	r.requestBytes.With(labels).Add(float64(e.RequestBytes))
 	r.responseBytes.With(labels).Add(float64(e.ResponseBytes))
 
-	if r.userResponseBytes != nil {
+	// Requests that fail before authentication (or authorizers without a
+	// user, e.g. JWTs lacking a uid claim) have no user to attribute to;
+	// they remain in the aggregate counters above only.
+	if r.userResponseBytes != nil && e.UserID.Valid() {
 		r.userResponseBytes.With(prometheus.Labels{
 			"user_id":  e.UserID.String(),
 			"endpoint": e.Endpoint,

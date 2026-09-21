@@ -19,6 +19,8 @@ func TestEventRecorder_UserResponseBytes(t *testing.T) {
 		{OrgID: 1, UserID: 10, Endpoint: "/query", ResponseBytes: 50, Status: 200},
 		{OrgID: 1, UserID: 10, Endpoint: "/api/v2/query", ResponseBytes: 7, Status: 200},
 		{OrgID: 1, UserID: 11, Endpoint: "/query", ResponseBytes: 3, Status: 500},
+		// Failed before authentication: no user to attribute to.
+		{Endpoint: "/query", ResponseBytes: 69, Status: 401},
 	}
 
 	t.Run("disabled by default", func(t *testing.T) {
@@ -58,5 +60,22 @@ func TestEventRecorder_UserResponseBytes(t *testing.T) {
 		m = promtest.MustFindMetric(t, mfs, "http_query_user_response_bytes",
 			map[string]string{"user_id": "000000000000000b", "endpoint": "/query"})
 		require.Equal(t, float64(3), m.GetCounter().GetValue())
+
+		// The unattributed request lands in the aggregate counter only.
+		for _, mf := range mfs {
+			if mf.GetName() != "http_query_user_response_bytes" {
+				continue
+			}
+			for _, m := range mf.GetMetric() {
+				for _, l := range m.GetLabel() {
+					if l.GetName() == "user_id" {
+						require.NotEmpty(t, l.GetValue(), "per-user series recorded with empty user_id")
+					}
+				}
+			}
+		}
+		m = promtest.MustFindMetric(t, mfs, "http_query_response_bytes",
+			map[string]string{"org_id": "", "endpoint": "/query", "status": "401"})
+		require.Equal(t, float64(69), m.GetCounter().GetValue())
 	})
 }
