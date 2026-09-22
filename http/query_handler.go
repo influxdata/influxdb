@@ -135,13 +135,14 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
-	var orgID platform.ID
+	var orgID, userID platform.ID
 	var requestBytes int
 	sw := kithttp.NewStatusResponseWriter(w)
 	w = sw
 	defer func() {
 		h.EventRecorder.Record(ctx, metric.Event{
 			OrgID:         orgID,
+			UserID:        userID,
 			Endpoint:      r.URL.Path, // This should be sufficient for the time being as it should only be single endpoint.
 			RequestBytes:  requestBytes,
 			ResponseBytes: sw.ResponseBytes(),
@@ -160,6 +161,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	userID = a.GetUserID()
 
 	req, n, err := decodeProxyQueryRequest(ctx, r, a, h.OrganizationService)
 	if err != nil && err != influxdb.ErrAuthorizerNotSupported {

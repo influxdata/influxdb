@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/influxql"
 	imock "github.com/influxdata/influxdb/v2/influxql/mock"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -61,6 +63,7 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 		wantCode   int
 		wantHeader http.Header
 		wantBody   []byte
+		wantEvent  *metric.Event
 	}{
 		{
 			name: "no token causes http error",
@@ -73,7 +76,8 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 				"X-Platform-Error-Code": {"internal error"},
 				"Content-Type":          {"application/json; charset=utf-8"},
 			},
-			wantBody: []byte(`{"code":"internal error","message":"authorizer not found on context"}`),
+			wantBody:  []byte(`{"code":"internal error","message":"authorizer not found on context"}`),
+			wantEvent: &metric.Event{Endpoint: "/query", ResponseBytes: 69, Status: http.StatusInternalServerError},
 		},
 		{
 			name:    "inactive authorizer",
@@ -199,11 +203,11 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 		},
 		{
 			name:    "good query",
-			context: pcontext.SetAuthorizer(ctx, &platform.Authorization{Status: platform.Active}),
+			context: pcontext.SetAuthorizer(ctx, &platform.Authorization{Status: platform.Active, UserID: 42}),
 			fields: fields{
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-						return &platform.Organization{}, nil
+						return &platform.Organization{ID: 7}, nil
 					},
 				},
 				ProxyQueryService: &imock.ProxyQueryService{
@@ -214,7 +218,7 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 				},
 			},
 			args: args{
-				r: httptest.NewRequest("POST", "/query", nil).WithContext(ctx),
+				r: httptest.NewRequest("POST", "/query", strings.NewReader("SELECT 1")).WithContext(ctx),
 				w: httptest.NewRecorder(),
 			},
 			wantBody: []byte("good"),
@@ -222,14 +226,19 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 			wantHeader: http.Header{
 				"Content-Type": {"application/json"},
 			},
+			wantEvent: &metric.Event{OrgID: 7, UserID: 42, Endpoint: "/query", RequestBytes: 8, ResponseBytes: 4, Status: http.StatusOK},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var events []metric.Event
 			b := &InfluxQLBackend{
 				HTTPErrorHandler:      kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 				OrganizationService:   tt.fields.OrganizationService,
 				InfluxqldQueryService: tt.fields.ProxyQueryService,
+				EventRecorder: eventRecorderFunc(func(_ context.Context, e metric.Event) {
+					events = append(events, e)
+				}),
 			}
 
 			h := NewInfluxQLHandler(b, *NewHandlerConfig())
@@ -254,6 +263,12 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 			if got, want := tt.args.w.Body.Bytes(), tt.wantBody; !cmp.Equal(got, want) {
 				t.Errorf("HandleQuery() body = got(-)/want(+) %s", cmp.Diff(string(got), string(want)))
 			}
+
+			if tt.wantEvent != nil {
+				if got, want := events, []metric.Event{*tt.wantEvent}; !cmp.Equal(got, want) {
+					t.Errorf("HandleQuery() recorded events = got(-)/want(+) %s", cmp.Diff(got, want))
+				}
+			}
 		})
 	}
 }
@@ -262,3 +277,7 @@ func WithHeader(r *http.Request, key, value string) *http.Request {
 	r.Header.Set(key, value)
 	return r
 }
+
+type eventRecorderFunc func(context.Context, metric.Event)
+
+func (f eventRecorderFunc) Record(ctx context.Context, e metric.Event) { f(ctx, e) }

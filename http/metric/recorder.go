@@ -14,6 +14,7 @@ type EventRecorder interface {
 // Event represents the meta data associated with an API request.
 type Event struct {
 	OrgID         platform.ID
+	UserID        platform.ID
 	Endpoint      string
 	RequestBytes  int
 	ResponseBytes int

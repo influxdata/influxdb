@@ -14,6 +14,28 @@ type EventRecorder struct {
 	count         *prometheus.CounterVec
 	requestBytes  *prometheus.CounterVec
 	responseBytes *prometheus.CounterVec
+
+	// userResponseBytes is nil unless WithUserResponseBytes was given.
+	userResponseBytes *prometheus.CounterVec
+}
+
+// EventRecorderOption configures an EventRecorder.
+type EventRecorderOption func(*EventRecorder, string)
+
+// WithUserResponseBytes additionally records response bytes per user as
+//
+// http_<subsystem>_user_response_bytes{user_id=<user_id>, endpoint=<endpoint>} ...
+//
+// It is opt-in because the series count grows with the number of users.
+func WithUserResponseBytes() EventRecorderOption {
+	return func(r *EventRecorder, subsystem string) {
+		r.userResponseBytes = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "http",
+			Subsystem: subsystem,
+			Name:      "user_response_bytes",
+			Help:      "Count of bytes returned, per user",
+		}, []string{"user_id", "endpoint"})
+	}
 }
 
 // NewEventRecorder returns an instance of a metric event recorder. Subsystem is expected to be
@@ -25,7 +47,7 @@ type EventRecorder struct {
 // http_<subsystem>_request_count{org_id=<org_id>, status=<status>, endpoint=<endpoint>} ...
 // http_<subsystem>_request_bytes{org_id=<org_id>, status=<status>, endpoint=<endpoint>} ...
 // http_<subsystem>_response_bytes{org_id=<org_id>, status=<status>, endpoint=<endpoint>} ...
-func NewEventRecorder(subsystem string) *EventRecorder {
+func NewEventRecorder(subsystem string, opts ...EventRecorderOption) *EventRecorder {
 	const namespace = "http"
 
 	labels := []string{"org_id", "status", "endpoint"}
@@ -51,11 +73,15 @@ func NewEventRecorder(subsystem string) *EventRecorder {
 		Help:      "Count of bytes returned",
 	}, labels)
 
-	return &EventRecorder{
+	r := &EventRecorder{
 		count:         count,
 		requestBytes:  requestBytes,
 		responseBytes: responseBytes,
 	}
+	for _, opt := range opts {
+		opt(r, subsystem)
+	}
+	return r
 }
 
 // Record metric records the request count, response bytes, and request bytes with labels
@@ -69,13 +95,27 @@ func (r *EventRecorder) Record(ctx context.Context, e metric.Event) {
 	r.count.With(labels).Inc()
 	r.requestBytes.With(labels).Add(float64(e.RequestBytes))
 	r.responseBytes.With(labels).Add(float64(e.ResponseBytes))
+
+	// Events without a valid user (e.g. an authorizer with no user ID such
+	// as a JWT lacking a uid claim) are not attributable; they are counted
+	// in the aggregate series above only.
+	if r.userResponseBytes != nil && e.UserID.Valid() {
+		r.userResponseBytes.With(prometheus.Labels{
+			"user_id":  e.UserID.String(),
+			"endpoint": e.Endpoint,
+		}).Add(float64(e.ResponseBytes))
+	}
 }
 
 // PrometheusCollectors exposes the prometheus collectors associated with a metric recorder.
 func (r *EventRecorder) PrometheusCollectors() []prometheus.Collector {
-	return []prometheus.Collector{
+	cs := []prometheus.Collector{
 		r.count,
 		r.requestBytes,
 		r.responseBytes,
 	}
+	if r.userResponseBytes != nil {
+		cs = append(cs, r.userResponseBytes)
+	}
+	return cs
 }

@@ -795,6 +795,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 
 	errorHandler := kithttp.NewErrorHandler(m.log.With(zap.String("handler", "error_logger")))
+	var queryRecorderOpts []infprom.EventRecorderOption
+	if opts.UserQueryBytesEnabled {
+		queryRecorderOpts = append(queryRecorderOpts, infprom.WithUserResponseBytes())
+	}
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           opts.AssetsPath,
 		UIDisabled:           opts.UIDisabled,
@@ -854,7 +858,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		DocumentService:                 m.kvService,
 		OrgLookupService:                resourceResolver,
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
-		QueryEventRecorder:              infprom.NewEventRecorder("query"),
+		QueryEventRecorder:              infprom.NewEventRecorder("query", queryRecorderOpts...),
 		Flagger:                         m.flagger,
 		FlagsHandler:                    feature.NewFlagsHandler(errorHandler, feature.ByKey),
 	}

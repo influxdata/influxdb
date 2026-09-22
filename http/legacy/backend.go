@@ -27,6 +27,7 @@ type Backend struct {
 	MaxBatchSizeBytes int64
 
 	WriteEventRecorder    metric.EventRecorder
+	QueryEventRecorder    metric.EventRecorder
 	AuthorizationService  influxdb.AuthorizationService
 	OrganizationService   influxdb.OrganizationService
 	BucketService         influxdb.BucketService

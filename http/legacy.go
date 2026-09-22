@@ -18,6 +18,7 @@ func newLegacyBackend(b *APIBackend) *legacy.Backend {
 		DBRPMappingService:    b.DBRPService,
 		InfluxqldQueryService: b.InfluxqldService,
 		WriteEventRecorder:    b.WriteEventRecorder,
+		QueryEventRecorder:    b.QueryEventRecorder,
 	}
 }
 

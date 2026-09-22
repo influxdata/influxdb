@@ -9,11 +9,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/influxql"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -41,11 +43,28 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	defer r.Body.Close()
 
+	var orgID, userID platform.ID
+	body := &countReader{ReadCloser: r.Body}
+	r.Body = body
+	sw := kithttp.NewStatusResponseWriter(w)
+	w = sw
+	defer func() {
+		h.EventRecorder.Record(ctx, metric.Event{
+			OrgID:         orgID,
+			UserID:        userID,
+			Endpoint:      r.URL.Path,
+			RequestBytes:  body.bytesRead,
+			ResponseBytes: sw.ResponseBytes(),
+			Status:        sw.Code(),
+		})
+	}()
+
 	auth, err := getAuthorization(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	userID = auth.GetUserID()
 
 	if !auth.IsActive() {
 		h.HandleHTTPError(ctx, &errors.Error{
@@ -62,6 +81,7 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	orgID = o.ID
 
 	var query string
 	// Attempt to read the form value from the "q" form value.
@@ -162,13 +182,9 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		ChunkSize:      chunkSize,
 	}
 
-	var respSize int64
-	cw := iocounter.Writer{Writer: w}
-	_, err = h.InfluxqldQueryService.Query(ctx, &cw, req)
-	respSize = cw.Count()
-
+	_, err = h.InfluxqldQueryService.Query(ctx, w, req)
 	if err != nil {
-		if respSize == 0 {
+		if sw.ResponseBytes() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -179,4 +195,15 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 			zap.Error(err),
 		)
 	}
+}
+
+type countReader struct {
+	bytesRead int
+	io.ReadCloser
+}
+
+func (r *countReader) Read(p []byte) (n int, err error) {
+	n, err = r.ReadCloser.Read(p)
+	r.bytesRead += n
+	return n, err
 }
