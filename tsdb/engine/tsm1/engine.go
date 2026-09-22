@@ -780,6 +780,7 @@ func (e *Engine) RemoveMetrics() {
 	}
 	if e.Stats != nil {
 		e.Stats.remove()
+
 	}
 }
 
