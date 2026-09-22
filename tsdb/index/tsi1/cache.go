@@ -582,7 +582,21 @@ func decideResize(hits, misses, lastHits, lastMisses, capacity, maxCapacity, min
 	if gets == 0 {
 		return capacity, gets, rate, false
 	}
-	if gets < minSamples {
+	// Clamp the sample floor to capacity: the grow path fires once per
+	// `capacity` forced evictions, and each forced eviction follows a Get miss,
+	// so a thrashing cache (low hit rate — precisely the workload growth exists
+	// to fix) produces only ~capacity Gets per window. Demanding more than
+	// capacity samples would therefore gate growth off entirely for any cache
+	// configured smaller than minSamples, which cannot physically clear the
+	// floor. Clamping lets a sub-minSamples cache grow on the evidence one full
+	// window provides, while leaving minSamples in force for caches large enough
+	// to supply it. minSamples may be 0, and capacity is always >= 1 here, so the
+	// clamp never lowers the floor below what the gets == 0 check already gated.
+	effMinSamples := minSamples
+	if effMinSamples > capacity {
+		effMinSamples = capacity
+	}
+	if gets < effMinSamples {
 		return capacity, gets, rate, false
 	}
 

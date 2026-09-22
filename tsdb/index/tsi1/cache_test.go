@@ -443,6 +443,26 @@ func TestDecideResize_PolicyTable(t *testing.T) {
 			minSamples: 100, target: target,
 			wantNewCap: initialCap * 2, wantGrow: true,
 		},
+		{
+			// Regression: a cache configured smaller than minSamples still grows.
+			// Its window is only ~capacity Gets long under thrash, so the raw
+			// minSamples floor could never be cleared; the floor is clamped to
+			// capacity. Here capacity 50 < minSamples 100, gets == capacity, rate
+			// 0 (< target), so growth must fire despite gets < minSamples.
+			name: "sub-minSamples cache grows on a full-window thrash",
+			hits: 0, misses: 50, capacity: 50, maxCap: maxCap,
+			minSamples: 100, target: target,
+			wantNewCap: 100, wantGrow: true,
+		},
+		{
+			// The clamp lowers the floor to capacity, not to zero: a sub-minSamples
+			// cache with fewer than capacity Gets still has too little evidence and
+			// must not grow. capacity 50, gets 30 < 50 → gated.
+			name: "sub-minSamples cache below its clamped floor does not grow",
+			hits: 0, misses: 30, capacity: 50, maxCap: maxCap,
+			minSamples: 100, target: target,
+			wantNewCap: 50, wantGrow: false,
+		},
 	}
 
 	for _, tt := range tests {
