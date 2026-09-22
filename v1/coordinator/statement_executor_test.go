@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -715,4 +716,230 @@ func (itr *FloatIterator) Next() (*query.FloatPoint, error) {
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
 	return v, nil
+}
+
+// TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial covers the
+// contract change in executeShowMeasurementsStatement where TSDBStore.MeasurementNames
+// may now return (some-names, err) on a partially-successful fan-out. The
+// executor must surface those names with a warning Message rather than
+// throwing the data away with Result.Err set.
+func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T) {
+	const (
+		db1Name = "db1"
+
+		measurementCPU = "cpu"
+		measurementMem = "mem"
+
+		queryShowOnDB0      = "SHOW MEASUREMENTS ON " + DefaultDatabase
+		queryShowOnWildcard = "SHOW MEASUREMENTS ON *.*"
+
+		colName            = "name"
+		colDatabase        = "database"
+		colRetentionPolicy = "retention policy"
+
+		// Source labels match influxql.QuoteIdent: simple names emit unquoted,
+		// joined by '.'. Update these alongside formatMeasurementSource if the
+		// labeling format changes.
+		quotedDB0RP0 = DefaultDatabase + "." + DefaultRetentionPolicy
+		quotedDB1RP0 = db1Name + "." + DefaultRetentionPolicy
+	)
+
+	var (
+		orgID     = platform.ID(0xff00)
+		db0Bucket = platform.ID(0xffe0)
+		db1Bucket = platform.ID(0xffe1)
+		db0       = DefaultDatabase
+		isDefault = true
+
+		// SHOW MEASUREMENTS ON db0 resolves the default RP of db0.
+		singleFilter = influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db0, Default: &isDefault}
+		singleDBs    = []*influxdb.DBRPMapping{
+			{Database: DefaultDatabase, RetentionPolicy: DefaultRetentionPolicy, OrganizationID: orgID, BucketID: db0Bucket, Default: true},
+		}
+
+		// SHOW MEASUREMENTS ON *.* fans out to every mapping in the org.
+		wildcardFilter = influxdb.DBRPMappingFilter{OrgID: &orgID}
+		wildcardDBs    = []*influxdb.DBRPMapping{
+			{Database: DefaultDatabase, RetentionPolicy: DefaultRetentionPolicy, OrganizationID: orgID, BucketID: db0Bucket, Default: true},
+			{Database: db1Name, RetentionPolicy: DefaultRetentionPolicy, OrganizationID: orgID, BucketID: db1Bucket, Default: true},
+		}
+	)
+
+	// newExecutor wires a DBRP mock answering filter with mappings, so the
+	// executor's sources are exactly mappings.
+	newExecutor := func(t *testing.T, filter influxdb.DBRPMappingFilter, mappings []*influxdb.DBRPMapping) *QueryExecutor {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+		dbrp := mocks.NewMockDBRPMappingService(ctrl)
+		dbrp.EXPECT().FindMany(gomock.Any(), filter).Return(mappings, len(mappings), nil)
+		return NewQueryExecutor(t, WithDBRP(dbrp))
+	}
+
+	// measurementNamesFn maps the bucket-id string handed to
+	// TSDBStore.MeasurementNames back to a per-source result.
+	type sourceResult struct {
+		names [][]byte
+		err   error
+	}
+	measurementNamesFn := func(t *testing.T, results map[string]sourceResult) func(context.Context, query.Authorizer, string, influxql.Expr) ([][]byte, error) {
+		return func(_ context.Context, _ query.Authorizer, bucketID string, _ influxql.Expr) ([][]byte, error) {
+			r, ok := results[bucketID]
+			require.True(t, ok, "unexpected bucket %q", bucketID)
+			return r.names, r.err
+		}
+	}
+
+	run := func(t *testing.T, e *QueryExecutor, q string) *query.Result {
+		t.Helper()
+		got := ReadAllResults(e.ExecuteQuery(context.Background(), q, "", 0, orgID))
+		require.Len(t, got, 1)
+		return got[0]
+	}
+
+	t.Run("all_succeed", func(t *testing.T) {
+		e := newExecutor(t, singleFilter, singleDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {names: [][]byte{[]byte(measurementCPU), []byte(measurementMem)}},
+		})
+
+		r := run(t, e, queryShowOnDB0)
+		require.NoError(t, r.Err)
+		require.Empty(t, r.Messages)
+		require.Len(t, r.Series, 1)
+		require.Equal(t, "measurements", r.Series[0].Name)
+		require.Equal(t, []string{colName}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{measurementCPU}, {measurementMem}}, r.Series[0].Values)
+	})
+
+	t.Run("all_fail_single_source", func(t *testing.T) {
+		e := newExecutor(t, singleFilter, singleDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {err: errors.New("node 1: down")},
+		})
+
+		r := run(t, e, queryShowOnDB0)
+		require.Error(t, r.Err)
+		require.ErrorContains(t, r.Err, quotedDB0RP0+": node 1: down")
+		require.Empty(t, r.Series)
+		require.Empty(t, r.Messages)
+	})
+
+	t.Run("partial_names_with_error", func(t *testing.T) {
+		e := newExecutor(t, singleFilter, singleDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {names: [][]byte{[]byte(measurementCPU), []byte(measurementMem)}, err: errors.New("node 2: timeout")},
+		})
+
+		r := run(t, e, queryShowOnDB0)
+		require.NoError(t, r.Err)
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, "partial results for "+quotedDB0RP0+":")
+		require.Contains(t, r.Messages[0].Text, "node 2: timeout")
+		require.Len(t, r.Series, 1)
+		require.Equal(t, []string{colName}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{measurementCPU}, {measurementMem}}, r.Series[0].Values)
+	})
+
+	t.Run("wildcard_one_source_dead", func(t *testing.T) {
+		e := newExecutor(t, wildcardFilter, wildcardDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {names: [][]byte{[]byte(measurementCPU)}},
+			db1Bucket.String(): {err: errors.New("all nodes down")},
+		})
+
+		r := run(t, e, queryShowOnWildcard)
+		require.NoError(t, r.Err)
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, quotedDB1RP0)
+		require.Contains(t, r.Messages[0].Text, "all nodes down")
+		require.Len(t, r.Series, 1)
+		require.Equal(t, []string{colName, colDatabase, colRetentionPolicy}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{measurementCPU, DefaultDatabase, DefaultRetentionPolicy}}, r.Series[0].Values)
+	})
+
+	// When every wildcard source fails, the joined error must carry a per-source
+	// label applied by the executor itself — so use a generic, source-agnostic
+	// error in the mock. If the executor stopped labeling, neither quoted
+	// identifier would appear in r.Err and the assertions below would catch it.
+	t.Run("wildcard_all_sources_dead", func(t *testing.T) {
+		const genericErr = "connection refused"
+		e := newExecutor(t, wildcardFilter, wildcardDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {err: errors.New(genericErr)},
+			db1Bucket.String(): {err: errors.New(genericErr)},
+		})
+
+		r := run(t, e, queryShowOnWildcard)
+		require.Error(t, r.Err)
+		require.ErrorContains(t, r.Err, quotedDB0RP0+": "+genericErr)
+		require.ErrorContains(t, r.Err, quotedDB1RP0+": "+genericErr)
+		require.Empty(t, r.Series)
+		require.Empty(t, r.Messages)
+	})
+
+	// Mixed wildcard fan-out: one source errors, the other succeeds with zero
+	// rows. Pre-fix this collapsed to a hard error because the predicate was
+	// "no rows AND any error"; the correct behavior is an empty-success result
+	// with the surviving warning, since not every source failed.
+	t.Run("wildcard_one_error_one_empty_success", func(t *testing.T) {
+		e := newExecutor(t, wildcardFilter, wildcardDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {err: errors.New("node 1: down")},
+			db1Bucket.String(): {},
+		})
+
+		r := run(t, e, queryShowOnWildcard)
+		require.NoError(t, r.Err)
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, quotedDB0RP0)
+		require.Contains(t, r.Messages[0].Text, "node 1: down")
+		require.Empty(t, r.Series, "no rows came back, but this is not a total failure")
+	})
+
+	// Regression: when OFFSET trims away every surviving row on a partial
+	// fan-out, the warning Messages must still reach the caller — otherwise
+	// the user sees an empty success and never learns a source failed.
+	t.Run("wildcard_offset_past_partial_rows_keeps_warnings", func(t *testing.T) {
+		e := newExecutor(t, wildcardFilter, wildcardDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {names: [][]byte{[]byte(measurementCPU)}, err: errors.New(DefaultDatabase + ": timeout")},
+			db1Bucket.String(): {names: [][]byte{[]byte(measurementMem)}},
+		})
+
+		r := run(t, e, queryShowOnWildcard+" LIMIT 1 OFFSET 10")
+		require.NoError(t, r.Err)
+		require.Empty(t, r.Series, "OFFSET trimmed all rows, so no series should be sent")
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, quotedDB0RP0)
+		require.Contains(t, r.Messages[0].Text, "timeout")
+	})
+
+	t.Run("wildcard_partial_per_source", func(t *testing.T) {
+		e := newExecutor(t, wildcardFilter, wildcardDBs)
+		e.TSDBStore.MeasurementNamesFn = measurementNamesFn(t, map[string]sourceResult{
+			db0Bucket.String(): {names: [][]byte{[]byte(measurementCPU)}, err: errors.New(DefaultDatabase + ": timeout")},
+			db1Bucket.String(): {names: [][]byte{[]byte(measurementMem)}, err: errors.New(db1Name + ": refused")},
+		})
+
+		r := run(t, e, queryShowOnWildcard)
+		require.NoError(t, r.Err)
+		require.Len(t, r.Messages, 2)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, quotedDB0RP0)
+		require.Contains(t, r.Messages[0].Text, "timeout")
+		require.Equal(t, query.WarningLevel, r.Messages[1].Level)
+		require.Contains(t, r.Messages[1].Text, quotedDB1RP0)
+		require.Contains(t, r.Messages[1].Text, "refused")
+		require.Len(t, r.Series, 1)
+		require.Equal(t, []string{colName, colDatabase, colRetentionPolicy}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{
+			{measurementCPU, DefaultDatabase, DefaultRetentionPolicy},
+			{measurementMem, db1Name, DefaultRetentionPolicy},
+		}, r.Series[0].Values)
+	})
 }
