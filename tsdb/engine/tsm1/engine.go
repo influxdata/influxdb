@@ -641,6 +641,7 @@ func PrometheusCollectors() []prometheus.Collector {
 		globalCompactionMetrics.Active,
 		globalCompactionMetrics.Failed,
 		globalCompactionMetrics.Queued,
+		globalCompactionMetrics.PlannerCalls,
 	}
 	collectors = append(collectors, FileStoreCollectors()...)
 	collectors = append(collectors, CacheCollectors()...)
@@ -658,6 +659,16 @@ const (
 	levelFull        = "full"
 	levelKey         = "level"
 	levelCache       = "cache"
+
+	// Values of the "method" label on the planner_calls counter, one per
+	// CompactionPlanner method invoked by PlanCompactions.
+	plannerMethodKey             = "method"
+	plannerMethodFindGenerations = "find_generations"
+	plannerMethodPlanLevel1      = "plan_level_1"
+	plannerMethodPlanLevel2      = "plan_level_2"
+	plannerMethodPlanLevel3      = "plan_level_3"
+	plannerMethodPlan            = "plan"
+	plannerMethodPlanOptimize    = "plan_optimize"
 )
 
 func labelForLevel(l int) prometheus.Labels {
@@ -672,8 +683,29 @@ func labelForLevel(l int) prometheus.Labels {
 	panic(fmt.Sprintf("labelForLevel: level out of range %d", l))
 }
 
+// plannerMethodForLevel returns the "method" label value for a
+// CompactionPlanner.PlanLevel call at level l, or "" when l is out of range.
+// The set of values is fixed at compile time so the exported series set stays
+// bounded; an out-of-range level (a programming error, since PlanLevel is only
+// ever called with levels 1..LevelCompactionCount) is not counted rather than
+// allowed to grow the label set.
+func plannerMethodForLevel(l int) string {
+	switch l {
+	case 1:
+		return plannerMethodPlanLevel1
+	case 2:
+		return plannerMethodPlanLevel2
+	case 3:
+		return plannerMethodPlanLevel3
+	}
+	return ""
+}
+
 func newAllCompactionMetrics(labelNames []string) *compactionMetrics {
-	labelNamesWithLevel := append(labelNames, levelKey)
+	// Copy before appending so the two label sets never alias a shared
+	// backing array.
+	labelNamesWithLevel := append(append(make([]string, 0, len(labelNames)+1), labelNames...), levelKey)
+	labelNamesWithMethod := append(append(make([]string, 0, len(labelNames)+1), labelNames...), plannerMethodKey)
 	return &compactionMetrics{
 		Duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: storageNamespace,
@@ -701,6 +733,12 @@ func newAllCompactionMetrics(labelNames []string) *compactionMetrics {
 			Name:      "queued",
 			Help:      "Counter of TSM compactions (by level) that are currently queued",
 		}, labelNamesWithLevel),
+		PlannerCalls: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: engineSubsystem,
+			Name:      "planner_calls",
+			Help:      "Counter of calls to each CompactionPlanner method (by method) made while planning compactions",
+		}, labelNamesWithMethod),
 	}
 }
 
@@ -727,13 +765,17 @@ func (c *compactionCounter) countForLevel(l int) *int64 {
 // engineMetrics holds statistics across all instantiated engines
 type compactionMetrics struct {
 	// engineLabels are this engine's labels (without the per-level "level"
-	// label). They are retained so this shard's children can be deleted from
-	// the global vectors when the shard is permanently removed.
+	// or per-method "method" label). They are retained so this shard's
+	// children can be deleted from the global vectors when the shard is
+	// permanently removed.
 	engineLabels prometheus.Labels
 	Duration     prometheus.ObserverVec
 	Active       *prometheus.GaugeVec
 	Queued       *prometheus.GaugeVec
 	Failed       *prometheus.CounterVec
+	// PlannerCalls counts calls to each CompactionPlanner method, keyed by the
+	// "method" label (see plannerMethod* constants).
+	PlannerCalls *prometheus.CounterVec
 }
 
 func newEngineMetrics(tags tsdb.EngineTags) *compactionMetrics {
@@ -744,14 +786,15 @@ func newEngineMetrics(tags tsdb.EngineTags) *compactionMetrics {
 		Active:       globalCompactionMetrics.Active.MustCurryWith(engineLabels),
 		Failed:       globalCompactionMetrics.Failed.MustCurryWith(engineLabels),
 		Queued:       globalCompactionMetrics.Queued.MustCurryWith(engineLabels),
+		PlannerCalls: globalCompactionMetrics.PlannerCalls.MustCurryWith(engineLabels),
 	}
 }
 
 // remove deletes this shard's compaction child series from the global vectors.
-// The global vectors carry an extra "level" label, so one shard owns several
-// children; DeletePartialMatch on the engine-label subset removes every level
-// variant. The curried vecs held on this struct do not support deletion, so the
-// underlying global vectors are used directly.
+// The global vectors carry an extra "level" (or "method") label, so one shard
+// owns several children; DeletePartialMatch on the engine-label subset removes
+// every variant. The curried vecs held on this struct do not support deletion,
+// so the underlying global vectors are used directly.
 func (m *compactionMetrics) remove() {
 	if hv, ok := globalCompactionMetrics.Duration.(*prometheus.HistogramVec); ok {
 		hv.DeletePartialMatch(m.engineLabels)
@@ -759,6 +802,7 @@ func (m *compactionMetrics) remove() {
 	globalCompactionMetrics.Active.DeletePartialMatch(m.engineLabels)
 	globalCompactionMetrics.Queued.DeletePartialMatch(m.engineLabels)
 	globalCompactionMetrics.Failed.DeletePartialMatch(m.engineLabels)
+	globalCompactionMetrics.PlannerCalls.DeletePartialMatch(m.engineLabels)
 }
 
 // RemoveMetrics deletes all of this engine's per-shard Prometheus child series
@@ -780,7 +824,6 @@ func (e *Engine) RemoveMetrics() {
 	}
 	if e.Stats != nil {
 		e.Stats.remove()
-
 	}
 }
 
@@ -2330,11 +2373,15 @@ func makePlannedCompactionGroup(groups []CompactionGroup, pointsPerBlock int) []
 }
 
 func (e *Engine) planCompactionsLevel(generations TsmGenerations, level int) []PlannedCompactionGroup {
+	if method := plannerMethodForLevel(level); method != "" {
+		e.Stats.PlannerCalls.WithLabelValues(method).Inc()
+	}
 	groups, _ := e.CompactionPlan.PlanLevel(generations, level)
 	return makePlannedCompactionGroup(groups, tsdb.DefaultMaxPointsPerBlock)
 }
 
 func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
+	e.Stats.PlannerCalls.WithLabelValues(plannerMethodFindGenerations).Inc()
 	generations := e.CompactionPlan.FindGenerations()
 
 	// Find our compaction plans
@@ -2342,7 +2389,9 @@ func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedComp
 	level2Groups := e.planCompactionsLevel(generations, 2)
 	level3Groups := e.planCompactionsLevel(generations, 3)
 	lastModified := e.LastModified()
+	e.Stats.PlannerCalls.WithLabelValues(plannerMethodPlan).Inc()
 	l4Groups, _ := e.CompactionPlan.Plan(generations, lastModified)
+	e.Stats.PlannerCalls.WithLabelValues(plannerMethodPlanOptimize).Inc()
 	l5Groups, _, l5GenCount := e.CompactionPlan.PlanOptimize(generations, lastModified)
 
 	// Some groups in level 4 may contain already optimized files. In these cases, it is

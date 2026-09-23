@@ -37,6 +37,7 @@ func TestTSM1Metrics_remove(t *testing.T) {
 	em.Queued.With(labelForLevel(2)).Set(1)
 	em.Failed.With(labelForLevel(3)).Inc()
 	em.Duration.With(labelForLevel(1)).Observe(1)
+	em.PlannerCalls.WithLabelValues(plannerMethodFindGenerations).Inc()
 
 	reg := prometheus.NewRegistry()
 	// PrometheusCollectors includes the cache, WAL, file store, and compaction
