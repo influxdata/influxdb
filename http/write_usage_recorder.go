@@ -24,9 +24,10 @@ func (w *WriteUsageRecorder) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func (w *WriteUsageRecorder) Record(ctx context.Context, requestBytes int, orgID platform.ID, endpoint string) {
+func (w *WriteUsageRecorder) Record(ctx context.Context, requestBytes int, orgID, userID platform.ID, endpoint string) {
 	w.EventRecorder.Record(ctx, metric.Event{
 		OrgID:         orgID,
+		UserID:        userID,
 		Endpoint:      endpoint,
 		RequestBytes:  requestBytes,
 		ResponseBytes: w.Writer.ResponseBytes(),

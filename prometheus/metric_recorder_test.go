@@ -79,3 +79,66 @@ func TestEventRecorder_UserResponseBytes(t *testing.T) {
 		require.Equal(t, float64(219), m.GetCounter().GetValue())
 	})
 }
+
+func TestEventRecorder_UserRequestBytes(t *testing.T) {
+	ctx := context.Background()
+	events := []metric.Event{
+		{OrgID: 1, UserID: 10, Endpoint: "/write", RequestBytes: 100, Status: 204},
+		{OrgID: 1, UserID: 10, Endpoint: "/write", RequestBytes: 50, Status: 204},
+		{OrgID: 1, UserID: 10, Endpoint: "/api/v2/write", RequestBytes: 7, Status: 204},
+		// Early errors record zero bytes but still attribute the request.
+		{OrgID: 1, UserID: 11, Endpoint: "/write", RequestBytes: 0, Status: 404},
+		// Authorizer without a user ID: nothing to attribute to.
+		{OrgID: 1, Endpoint: "/write", RequestBytes: 69, Status: 204},
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		reg := prom.NewRegistry(zaptest.NewLogger(t))
+		r := prometheus.NewEventRecorder("write")
+		reg.MustRegister(r.PrometheusCollectors()...)
+		for _, e := range events {
+			r.Record(ctx, e)
+		}
+		for _, mf := range promtest.MustGather(t, reg) {
+			require.NotEqual(t, "http_write_user_request_bytes", mf.GetName())
+		}
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		reg := prom.NewRegistry(zaptest.NewLogger(t))
+		r := prometheus.NewEventRecorder("write", prometheus.WithUserRequestBytes())
+		reg.MustRegister(r.PrometheusCollectors()...)
+		for _, e := range events {
+			r.Record(ctx, e)
+		}
+
+		mfs := promtest.MustGather(t, reg)
+		for _, mf := range mfs {
+			// Enabling request bytes must not enable response bytes.
+			require.NotEqual(t, "http_write_user_response_bytes", mf.GetName())
+		}
+		m := promtest.MustFindMetric(t, mfs, "http_write_user_request_bytes",
+			map[string]string{"user_id": "000000000000000a", "endpoint": "/write"})
+		require.Equal(t, float64(150), m.GetCounter().GetValue())
+
+		m = promtest.MustFindMetric(t, mfs, "http_write_user_request_bytes",
+			map[string]string{"user_id": "000000000000000a", "endpoint": "/api/v2/write"})
+		require.Equal(t, float64(7), m.GetCounter().GetValue())
+
+		m = promtest.MustFindMetric(t, mfs, "http_write_user_request_bytes",
+			map[string]string{"user_id": "000000000000000b", "endpoint": "/write"})
+		require.Equal(t, float64(0), m.GetCounter().GetValue())
+
+		// Attributable bytes sum to the aggregate minus the unattributed request.
+		var userSum float64
+		for _, mf := range mfs {
+			if mf.GetName() != "http_write_user_request_bytes" {
+				continue
+			}
+			for _, m := range mf.GetMetric() {
+				userSum += m.GetCounter().GetValue()
+			}
+		}
+		require.Equal(t, float64(157), userSum)
+	})
+}

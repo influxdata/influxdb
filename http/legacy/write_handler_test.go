@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/dbrp"
+	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/http/mocks"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -75,8 +76,10 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 		EXPECT().
 		WritePoints(gomock.Any(), orgID, bucket.ID, pointsMatcher{points}).Return(nil)
 
+	var gotEvent metric.Event
 	recordWriteEvent := eventRecorder.EXPECT().
-		Record(gomock.Any(), gomock.Any())
+		Record(gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, e metric.Event) { gotEvent = e })
 
 	gomock.InOrder(
 		findAutogenMapping,
@@ -87,6 +90,7 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 
 	perms := newPermissions(influxdb.WriteAction, influxdb.BucketsResourceType, &orgID, nil)
 	auth := newAuthorization(orgID, perms...)
+	auth.UserID = generator.ID()
 	ctx := pcontext.SetAuthorizer(context.Background(), auth)
 	r := newWriteRequest(ctx, lineProtocolBody)
 	params := r.URL.Query()
@@ -106,6 +110,12 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 	handler.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.Equal(t, "", w.Body.String())
+	// The v1 write is attributed to the writing user with its body size, so
+	// per-user write byte metrics can be derived from the event.
+	assert.Equal(t, orgID, gotEvent.OrgID)
+	assert.Equal(t, auth.UserID, gotEvent.UserID)
+	assert.Equal(t, "/write", gotEvent.Endpoint)
+	assert.Equal(t, len(lineProtocolBody), gotEvent.RequestBytes)
 }
 
 func TestWriteHandler_BucketAndMappingExistsSpecificRP(t *testing.T) {

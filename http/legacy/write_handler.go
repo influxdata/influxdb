@@ -129,7 +129,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	var requestBytes int
 	defer func() {
 		// Close around the requestBytes variable to placate the linter.
-		recorder.Record(ctx, requestBytes, auth.OrgID, r.URL.Path)
+		recorder.Record(ctx, requestBytes, auth.OrgID, auth.GetUserID(), r.URL.Path)
 	}()
 
 	req, err := decodeWriteRequest(ctx, r, h.maxBatchSizeBytes)
@@ -155,6 +155,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, sw)
 		return
 	}
+	requestBytes = parsed.RawSize
 
 	if err := h.PointsWriter.WritePoints(ctx, auth.OrgID, bucket.ID, parsed.Points); err != nil {
 		if partialErr, ok := err.(tsdb.PartialWriteError); ok {

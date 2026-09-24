@@ -15,6 +15,8 @@ type EventRecorder struct {
 	requestBytes  *prometheus.CounterVec
 	responseBytes *prometheus.CounterVec
 
+	// userRequestBytes is nil unless WithUserRequestBytes was given.
+	userRequestBytes *prometheus.CounterVec
 	// userResponseBytes is nil unless WithUserResponseBytes was given.
 	userResponseBytes *prometheus.CounterVec
 }
@@ -34,6 +36,22 @@ func WithUserResponseBytes() EventRecorderOption {
 			Subsystem: subsystem,
 			Name:      "user_response_bytes",
 			Help:      "Count of bytes returned, per user",
+		}, []string{"user_id", "endpoint"})
+	}
+}
+
+// WithUserRequestBytes additionally records request bytes per user as
+//
+// http_<subsystem>_user_request_bytes{user_id=<user_id>, endpoint=<endpoint>} ...
+//
+// It is opt-in because the series count grows with the number of users.
+func WithUserRequestBytes() EventRecorderOption {
+	return func(r *EventRecorder, subsystem string) {
+		r.userRequestBytes = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "http",
+			Subsystem: subsystem,
+			Name:      "user_request_bytes",
+			Help:      "Count of bytes received, per user",
 		}, []string{"user_id", "endpoint"})
 	}
 }
@@ -99,11 +117,21 @@ func (r *EventRecorder) Record(ctx context.Context, e metric.Event) {
 	// Events without a valid user (e.g. an authorizer with no user ID such
 	// as a JWT lacking a uid claim) are not attributable; they are counted
 	// in the aggregate series above only.
-	if r.userResponseBytes != nil && e.UserID.Valid() {
-		r.userResponseBytes.With(prometheus.Labels{
-			"user_id":  e.UserID.String(),
-			"endpoint": e.Endpoint,
-		}).Add(float64(e.ResponseBytes))
+	if !e.UserID.Valid() {
+		return
+	}
+	if r.userRequestBytes == nil && r.userResponseBytes == nil {
+		return
+	}
+	userLabels := prometheus.Labels{
+		"user_id":  e.UserID.String(),
+		"endpoint": e.Endpoint,
+	}
+	if r.userRequestBytes != nil {
+		r.userRequestBytes.With(userLabels).Add(float64(e.RequestBytes))
+	}
+	if r.userResponseBytes != nil {
+		r.userResponseBytes.With(userLabels).Add(float64(e.ResponseBytes))
 	}
 }
 
@@ -113,6 +141,9 @@ func (r *EventRecorder) PrometheusCollectors() []prometheus.Collector {
 		r.count,
 		r.requestBytes,
 		r.responseBytes,
+	}
+	if r.userRequestBytes != nil {
+		cs = append(cs, r.userRequestBytes)
 	}
 	if r.userResponseBytes != nil {
 		cs = append(cs, r.userResponseBytes)
