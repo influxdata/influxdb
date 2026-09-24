@@ -41,6 +41,7 @@ type StatementExecutor struct {
 	MaxSelectPointN   int
 	MaxSelectSeriesN  int
 	MaxSelectBucketsN int
+	MaxTimeRange      time.Duration
 }
 
 // ExecuteStatement executes the given statement with the given execution context.
@@ -148,10 +149,11 @@ func (e *StatementExecutor) ExecuteStatement(ctx context.Context, stmt influxql.
 
 func (e *StatementExecutor) executeExplainStatement(ctx context.Context, q *influxql.ExplainStatement, ectx *query.ExecutionContext) (models.Rows, error) {
 	opt := query.SelectOptions{
-		OrgID:       ectx.OrgID,
-		NodeID:      ectx.ExecutionOptions.NodeID,
-		MaxSeriesN:  e.MaxSelectSeriesN,
-		MaxBucketsN: e.MaxSelectBucketsN,
+		OrgID:        ectx.OrgID,
+		NodeID:       ectx.ExecutionOptions.NodeID,
+		MaxSeriesN:   e.MaxSelectSeriesN,
+		MaxBucketsN:  e.MaxSelectBucketsN,
+		MaxTimeRange: e.MaxTimeRange,
 	}
 
 	// Prepare the query for execution, but do not actually execute it.
@@ -306,6 +308,7 @@ func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.
 		MaxSeriesN:         e.MaxSelectSeriesN,
 		MaxPointN:          e.MaxSelectPointN,
 		MaxBucketsN:        e.MaxSelectBucketsN,
+		MaxTimeRange:       e.MaxTimeRange,
 		StatisticsGatherer: gatherer,
 	}
 

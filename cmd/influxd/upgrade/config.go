@@ -40,6 +40,7 @@ var passthroughConfigRules = map[string]string{
 	"coordinator.max-select-point":                         "influxql-max-select-point",
 	"coordinator.max-select-series":                        "influxql-max-select-series",
 	"coordinator.max-select-buckets":                       "influxql-max-select-buckets",
+	"coordinator.max-time-range":                           "influxql-max-time-range",
 	"logging.level":                                        "log-level",
 	"http.bind-address":                                    "http-bind-address",
 	"http.https-certificate":                               "tls-cert",
