@@ -36,7 +36,14 @@ func errInvalidFlags(flags []string, configFile string) error {
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
 func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
-	o := NewOpts(v)
+	return newInfluxdCommand(ctx, NewOpts(v))
+}
+
+// newInfluxdCommand builds the command around an InfluxdOpts the caller owns,
+// so a test can observe the option resolution the wiring performs without
+// executing the server.
+func newInfluxdCommand(ctx context.Context, o *InfluxdOpts) (*cobra.Command, error) {
+	v := o.Viper
 	cliOpts := o.BindCliOpts()
 
 	prog := cli.Program{
@@ -203,8 +210,13 @@ type InfluxdOpts struct {
 	StrictTransportSecurityMaxAge int
 	// TemplateFileUrlsDisabled disables file protocol URIs in templates.
 	TemplateFileUrlsDisabled bool
-	StrongPasswords          bool
-	UseHashedTokens          bool
+	// HealthAuthMode says whether /health and /ready require operator
+	// permissions to read check detail: HealthAuthAuto follows
+	// HardeningEnabled, HealthAuthRequired and HealthAuthDisabled override it.
+	// healthAuthRequired resolves the two.
+	HealthAuthMode  HealthAuthMode
+	StrongPasswords bool
+	UseHashedTokens bool
 }
 
 // NewOpts constructs options with default values.
@@ -264,8 +276,34 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		HardeningEnabled:              false,
 		StrictTransportSecurityMaxAge: 31536000, // 1 year
 		TemplateFileUrlsDisabled:      false,
-		StrongPasswords:               false,
-		UseHashedTokens:               true,
+		// Load-bearing for --help: pflag snapshots the printed default from the
+		// value already in the field when the flag is registered, before
+		// cli.BindOptions applies Opt.Default.
+		HealthAuthMode:  HealthAuthAuto,
+		StrongPasswords: false,
+		UseHashedTokens: true,
+	}
+}
+
+// healthAuthRequired resolves --health-auth-mode against --hardening-enabled.
+//
+// --hardening-enabled means "every hardening feature", but an implication with
+// no way out is a trap when the feature changes an API contract: health auth
+// reshapes the /health and /ready bodies, and an operator whose monitoring
+// parses them needs to keep the rest of the hardening -- notably the flux/pkger
+// IP validator, which has no per-feature flag -- without it. HealthAuthDisabled
+// is that way out; HealthAuthRequired is the same answer without hardening.
+//
+// The zero value of a hand-built InfluxdOpts (tests, embedders) resolves like
+// HealthAuthAuto, so --hardening-enabled keeps implying health auth for them.
+func (o *InfluxdOpts) healthAuthRequired() bool {
+	switch o.HealthAuthMode {
+	case HealthAuthRequired:
+		return true
+	case HealthAuthDisabled:
+		return false
+	default: // HealthAuthAuto, ""
+		return o.HardeningEnabled
 	}
 }
 
@@ -709,18 +747,20 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		// --hardening-enabled is meant to enable all hardening
 		// options in one go. Today it enables the IP validator for
 		// flux and pkger templates HTTP requests, disables file://
-		// protocol for pkger templates, and sets the
-		// Strict-Transport-Security response header. In the future,
-		// --hardening-enabled might be used to enable other security
-		// features, at which point we can add per-feature flags so
-		// that users can either opt into all features
+		// protocol for pkger templates, sets the
+		// Strict-Transport-Security response header, and requires
+		// operator permissions to read check detail from /health and
+		// /ready. Per-feature flags exist for the features that have
+		// them (--template-file-urls-disabled, --health-auth-mode)
+		// so that users can either opt into all features
 		// (--hardening-enabled) or to precisely the features they
-		// require (e.g. --hardening-ip-validation-enabled or similar).
+		// require. --health-auth-mode=disabled opts back out of that
+		// one feature; see healthAuthRequired.
 		{
 			DestP:   &o.HardeningEnabled,
 			Flag:    "hardening-enabled",
 			Default: o.HardeningEnabled,
-			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests; disable file URLs in templates; set the Strict-Transport-Security response header)",
+			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests; disable file URLs in templates; set the Strict-Transport-Security response header; require operator permissions for /health and /ready detail unless --health-auth-mode=disabled)",
 		},
 
 		// --strict-transport-security-max-age sets the max-age, in
@@ -743,6 +783,20 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "template-file-urls-disabled",
 			Default: o.TemplateFileUrlsDisabled,
 			Desc:    "disable template file URLs",
+		},
+
+		// --health-auth-mode=required withholds the failure message and
+		// the per-check responses, which carry raw error text such as
+		// filesystem paths and shard ids. auto follows
+		// --hardening-enabled; disabled opts out of it alone, so an
+		// operator whose monitoring parses those bodies can harden
+		// everything else. No backticks in Desc: pflag would take the
+		// first backticked word as the --help placeholder.
+		{
+			DestP:   &o.HealthAuthMode,
+			Flag:    "health-auth-mode",
+			Default: o.HealthAuthMode,
+			Desc:    "whether /health and /ready require operator permissions to read check detail (unauthorized callers still receive the correct status code with a reduced body): auto follows --hardening-enabled; required and disabled override it",
 		},
 		{
 			DestP:   &o.StrongPasswords,
