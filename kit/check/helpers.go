@@ -67,13 +67,21 @@ func (r renamedResponse) Status() Status    { return r.inner.Status() }
 func (r renamedResponse) Message() string   { return r.inner.Message() }
 func (r renamedResponse) Checks() Responses { return r.inner.Checks() }
 
+// Snapshot implements Snapshotter by delegating to the inner Response, so a
+// rename does not cost the caller the single coherent read: without this, a
+// renamed *FreshnessResponse would be flattened through the four accessors and
+// could report a status from one observation with a message from the next.
+func (r renamedResponse) Snapshot() BasicResponse {
+	if s, ok := r.inner.(Snapshotter); ok {
+		return s.Snapshot().WithName(r.name)
+	}
+	return NewBasicResponse(r.name, r.inner.Status(), r.inner.Message(), r.inner.Checks())
+}
+
+// MarshalJSON emits the renamed wire shape from a single snapshot, for the
+// reason FreshnessResponse.MarshalJSON does.
 func (r renamedResponse) MarshalJSON() ([]byte, error) {
-	return json.Marshal(wireResponse{
-		Name:    r.name,
-		Status:  r.inner.Status(),
-		Message: r.inner.Message(),
-		Checks:  r.inner.Checks(),
-	})
+	return json.Marshal(r.Snapshot())
 }
 
 // Named returns a NamedChecker that delegates to checker and stamps name

@@ -31,9 +31,13 @@ type FreshnessResponse struct {
 	snap      atomic.Pointer[freshnessSnapshot]
 }
 
+// msgNoProbe is what a FreshnessResponse reports before its first Update:
+// the probe has not run yet, which is distinct from having run and aged out.
+const msgNoProbe = "no probe completed yet"
+
 // NewFreshnessResponse returns an empty FreshnessResponse with the given
 // name and staleness budget. Until Update is first called, Status()
-// returns StatusFail and Message() reports "no probe completed yet".
+// returns StatusFail and Message() reports msgNoProbe.
 func NewFreshnessResponse(name string, staleness time.Duration) *FreshnessResponse {
 	return &FreshnessResponse{name: name, staleness: staleness}
 }
@@ -65,7 +69,7 @@ func (f *FreshnessResponse) Status() Status {
 func (f *FreshnessResponse) Message() string {
 	s := f.snap.Load()
 	if s == nil {
-		return "no probe completed yet"
+		return msgNoProbe
 	}
 	if age := time.Since(s.at); age > f.staleness {
 		return staleMessage(age, f.staleness)
@@ -83,29 +87,35 @@ func (f *FreshnessResponse) Checks() Responses {
 	return s.resp.Checks()
 }
 
-// MarshalJSON emits a wireResponse derived from one atomic snapshot
-// load. Reading every field through the four interface methods would
-// be correct (each does its own atomic load) but could observe two
-// different snapshots across the call sequence; a single load here
-// guarantees the rendered JSON object reflects exactly one state.
-func (f *FreshnessResponse) MarshalJSON() ([]byte, error) {
-	w := wireResponse{Name: f.name}
+// Snapshot renders f from one atomic load, implementing Snapshotter.
+// Reading every field through the four interface methods would be
+// correct (each does its own atomic load) but could observe two
+// different snapshots across the call sequence, yielding a combination
+// that was never true: a stale status carried alongside the previous
+// probe's empty message, which /health renders as the bare word "fail".
+//
+// The returned BasicResponse fixes f's own fields. Its Checks are the
+// underlying probe's, which this type does not own and does not copy.
+func (f *FreshnessResponse) Snapshot() BasicResponse {
 	s := f.snap.Load()
-	switch {
-	case s == nil:
-		w.Status = StatusFail
-		w.Message = "no probe completed yet"
-	default:
-		if age := time.Since(s.at); age > f.staleness {
-			w.Status = StatusFail
-			w.Message = staleMessage(age, f.staleness)
-		} else {
-			w.Status = s.resp.Status()
-			w.Message = s.resp.Message()
-			w.Checks = s.resp.Checks()
-		}
+	if s == nil {
+		return NewBasicResponse(f.name, StatusFail, msgNoProbe, nil)
 	}
-	return json.Marshal(w)
+	if age := time.Since(s.at); age > f.staleness {
+		return NewBasicResponse(f.name, StatusFail, staleMessage(age, f.staleness), nil)
+	}
+	if inner, ok := s.resp.(Snapshotter); ok {
+		return inner.Snapshot().WithName(f.name)
+	}
+	return NewBasicResponse(f.name, s.resp.Status(), s.resp.Message(), s.resp.Checks())
+}
+
+// MarshalJSON emits the wire shape from a single snapshot, so the
+// rendered JSON object reflects exactly one state. BasicResponse embeds
+// wireResponse, whose exported fields encoding/json promotes, so this
+// marshals byte-identically to building the wireResponse here.
+func (f *FreshnessResponse) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Snapshot())
 }
 
 func staleMessage(age, threshold time.Duration) string {
