@@ -91,7 +91,7 @@ func decodeBody(t *testing.T, res *http.Response) map[string]any {
 // all, exactly as before this feature existed.
 func TestHealthReadyHandler_Auth_Disabled_ServesFullDetail(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "open /var/lib/influxdb/influxd.bolt: permission denied"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "open /var/lib/influxdb/influxd.bolt: permission denied"}))
 
 	res := doRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -146,7 +146,7 @@ func TestHealthReadyHandler_Auth_PermissionMatrix(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h, resolver := authHandler(t, tt.perms)
-			h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+			require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 
 			res := doAuthRequest(t, h, http.MethodGet, "/health")
 			defer closeBody(t, res)
@@ -181,7 +181,7 @@ func TestHealthReadyHandler_Auth_UnresolvableCredential(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	h.SetHealthAuthRequired(true)
 	h.SetCredentialResolver(&stubResolver{err: errors.New("token required")})
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 
 	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -202,7 +202,7 @@ func TestHealthReadyHandler_Auth_UnresolvableCredential(t *testing.T) {
 // exist to bound. See HealthReadyHandler.resolve.
 func TestHealthReadyHandler_Auth_NoCredentialSkipsResolution(t *testing.T) {
 	h, resolver := authHandler(t, platform.OperPermissions())
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 
 	res := doRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -248,9 +248,9 @@ func startupWindowHandler(t *testing.T) *HealthReadyHandler {
 	t.Helper()
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	h.SetHealthAuthRequired(true)
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "open /var/lib/influxdb/influxd.bolt: permission denied"})
-	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"})
-	h.AddNamedReadyCheck(staticChecker{name: "sqlite", resp: check.NamedPass("sqlite")})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "open /var/lib/influxdb/influxd.bolt: permission denied"}))
+	require.NoError(t, h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"}))
+	require.NoError(t, h.AddNamedReadyCheck(staticChecker{name: "sqlite", resp: check.NamedPass("sqlite")}))
 	return h
 }
 
@@ -360,8 +360,8 @@ func TestHealthReadyHandler_Auth_StartupWindowClosesOnResolver(t *testing.T) {
 // gate is enabled.
 func TestHealthReadyHandler_Auth_ReadyDetailForOperator(t *testing.T) {
 	h, resolver := authHandler(t, platform.OperPermissions())
-	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"})
-	h.AddNamedReadyCheck(staticChecker{name: "kv", resp: check.NamedPass("kv")})
+	require.NoError(t, h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"}))
+	require.NoError(t, h.AddNamedReadyCheck(staticChecker{name: "kv", resp: check.NamedPass("kv")}))
 
 	res := doAuthRequest(t, h, http.MethodGet, "/ready")
 	defer closeBody(t, res)
@@ -396,8 +396,8 @@ func TestHealthReadyHandler_Auth_ReadyDetailForOperator(t *testing.T) {
 func TestHealthReadyHandler_Auth_DependencyFailingSkipsResolution(t *testing.T) {
 	h, resolver := authHandler(t, platform.OperPermissions())
 	h.SetAuthDependencyChecker(failingChecker{name: "kv", message: "stale"})
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
-	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
+	require.NoError(t, h.AddNamedReadyCheck(failingChecker{name: "engine", message: "secret detail"}))
 
 	want := map[string]map[string]string{
 		"/health": {"kv": "fail"},
@@ -449,7 +449,7 @@ func (b *blockingResolver) Authorize(*http.Request) (platform.Authorizer, error)
 func TestHealthReadyHandler_Auth_ResolutionIsBounded(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	h.SetHealthAuthRequired(true)
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 
 	resolver := &blockingResolver{
 		entered: make(chan struct{}, maxInflightResolutions),
@@ -519,7 +519,7 @@ func TestHealthReadyHandler_Auth_ResolutionIsBounded(t *testing.T) {
 // on how fast the test machine issues requests.
 func TestHealthReadyHandler_Auth_OverBudgetIsAnsweredAsRejected(t *testing.T) {
 	h, resolver := authHandler(t, platform.OperPermissions())
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 	h.resolveBudget = rate.NewLimiter(0, 0) // never allows
 
 	res := doAuthRequest(t, h, http.MethodGet, "/health")
@@ -548,7 +548,7 @@ func TestHealthReadyHandler_Auth_ResolutionIsRateLimited(t *testing.T) {
 	const extra = 8
 
 	h, resolver := authHandler(t, platform.OperPermissions())
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 
 	detailed := 0
 	rejected := 0
@@ -580,7 +580,7 @@ func TestHealthReadyHandler_Auth_ResolutionIsRateLimited(t *testing.T) {
 // credentialed operator probe the budget exists to protect.
 func TestHealthReadyHandler_Auth_NoCredentialCostsNoBudget(t *testing.T) {
 	h, _ := authHandler(t, platform.OperPermissions())
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 
 	for range resolutionBurst * 4 {
 		closeBody(t, doRequest(t, h, http.MethodGet, "/health"))
@@ -615,7 +615,7 @@ func TestHealthReadyHandler_Auth_StartupWindowSurvivesWedgedDependency(t *testin
 func TestHealthReadyHandler_Auth_DependencyPassingAllowsResolution(t *testing.T) {
 	h, resolver := authHandler(t, platform.OperPermissions())
 	h.SetAuthDependencyChecker(staticChecker{name: "kv", resp: check.NamedPass("kv")})
-	h.AddNamedHealthCheck(failingChecker{name: "engine", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "engine", message: "secret detail"}))
 
 	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -667,7 +667,7 @@ func TestHealthReadyHandler_Auth_RedactedHealthWireFormat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h, _ := authHandler(t, nil)
 			if tt.checker != nil {
-				h.AddNamedHealthCheck(tt.checker)
+				require.NoError(t, h.AddNamedHealthCheck(tt.checker))
 			}
 
 			res := doAuthRequest(t, h, http.MethodGet, "/health")
@@ -696,8 +696,8 @@ func TestHealthReadyHandler_Auth_RedactedHealthWireFormat(t *testing.T) {
 // broken the day --hardening-enabled is turned on.
 func TestHealthReadyHandler_Auth_PassingBodyKeepsDocumentedShape(t *testing.T) {
 	h, resolver := authHandler(t, platform.ReadAllPermissions())
-	h.AddNamedHealthCheck(staticChecker{name: "kv", resp: check.NamedPass("kv")})
-	h.AddNamedHealthCheck(staticChecker{name: "task-scheduler", resp: check.NewBasicResponse("task-scheduler", check.StatusPass, "idle", nil)})
+	require.NoError(t, h.AddNamedHealthCheck(staticChecker{name: "kv", resp: check.NamedPass("kv")}))
+	require.NoError(t, h.AddNamedHealthCheck(staticChecker{name: "task-scheduler", resp: check.NewBasicResponse("task-scheduler", check.StatusPass, "idle", nil)}))
 
 	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -723,7 +723,7 @@ func TestHealthReadyHandler_Auth_PassingBodyKeepsDocumentedShape(t *testing.T) {
 // the build fields the reduced body drops.
 func TestHealthReadyHandler_Auth_PassingBodyOperatorGetsBuildInfo(t *testing.T) {
 	h, _ := authHandler(t, platform.OperPermissions())
-	h.AddNamedHealthCheck(staticChecker{name: "task-scheduler", resp: check.NewBasicResponse("task-scheduler", check.StatusPass, "next run in 12s", nil)})
+	require.NoError(t, h.AddNamedHealthCheck(staticChecker{name: "task-scheduler", resp: check.NewBasicResponse("task-scheduler", check.StatusPass, "next run in 12s", nil)}))
 
 	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -748,7 +748,7 @@ func TestHealthReadyHandler_Auth_PassingBodyOperatorGetsBuildInfo(t *testing.T) 
 // uptime should keep working.
 func TestHealthReadyHandler_Auth_RedactedReady(t *testing.T) {
 	h, _ := authHandler(t, nil)
-	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"})
+	require.NoError(t, h.AddNamedReadyCheck(failingChecker{name: "engine", message: "loading shards 34.0% (17 / 50)"}))
 
 	res := doAuthRequest(t, h, http.MethodGet, "/ready")
 	defer closeBody(t, res)
@@ -790,8 +790,8 @@ func TestHealthReadyHandler_Auth_StatusCodesMatch(t *testing.T) {
 			h.SetHealthAuthRequired(true)
 			h.SetCredentialResolver(&stubResolver{err: errors.New("token required")})
 		}
-		h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
-		h.AddNamedReadyCheck(failingChecker{name: "engine", message: "secret detail"})
+		require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
+		require.NoError(t, h.AddNamedReadyCheck(failingChecker{name: "engine", message: "secret detail"}))
 		return h
 	}
 

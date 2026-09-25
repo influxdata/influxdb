@@ -90,7 +90,7 @@ func (f failingChecker) Check(context.Context) check.Response {
 
 func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
-	h.AddNamedHealthCheck(failingChecker{name: "query", message: "unreachable"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "query", message: "unreachable"}))
 
 	res := doRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -109,7 +109,7 @@ func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
 func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
-	h.AddNamedReadyCheck(gate)
+	require.NoError(t, h.AddNamedReadyCheck(gate))
 
 	res := doRequest(t, h, http.MethodGet, "/ready")
 	defer closeBody(t, res)
@@ -131,7 +131,7 @@ func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
 func TestHealthReadyHandler_Ready_PassingGateOmitsChecks(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
-	h.AddNamedReadyCheck(gate)
+	require.NoError(t, h.AddNamedReadyCheck(gate))
 	gate.Ready()
 
 	res := doRequest(t, h, http.MethodGet, "/ready")
@@ -229,7 +229,7 @@ func TestHealthReadyHandler_DelegateInstalled_ForwardsNonCheckRequests(t *testin
 func TestHealthReadyHandler_TrailingSlashServedLocally(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
-	h.AddNamedReadyCheck(gate)
+	require.NoError(t, h.AddNamedReadyCheck(gate))
 	gate.Ready()
 
 	h.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -267,7 +267,7 @@ func TestHealthReadyHandler_TrailingSlashServedLocally(t *testing.T) {
 func TestHealthReadyHandler_PathVariants(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
-	h.AddNamedReadyCheck(gate)
+	require.NoError(t, h.AddNamedReadyCheck(gate))
 	gate.Ready()
 	h.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTeapot)

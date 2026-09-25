@@ -467,12 +467,20 @@ func (m *Launcher) Done() <-chan struct{} {
 // is what makes failSubsystem unable to pair a subsystem name with another
 // subsystem's gate. m.startupProgress is deliberately not a gate: it owns
 // SubsystemShards and latches its own failure through Finish.
-func (m *Launcher) initReadyChecks() {
+//
+// A registration error means two checks share a name, which is a programming
+// error. Every gate is still created and assigned, so later code that fires
+// or unreadies a gate never sees nil; the errors are joined and returned for
+// run to abort on.
+func (m *Launcher) initReadyChecks() error {
+	var errs []error
 	m.readyGates = make(map[string]*check.ReadyGate)
 	newGate := func(name string) *check.ReadyGate {
 		g := check.NewReadyGate(name)
 		m.readyGates[name] = g
-		m.checkHandler.AddNamedReadyCheck(g)
+		if err := m.checkHandler.AddNamedReadyCheck(g); err != nil {
+			errs = append(errs, err)
+		}
 		return g
 	}
 
@@ -487,8 +495,13 @@ func (m *Launcher) initReadyChecks() {
 	m.startupProgress = run.NewStartupProgressLogger(
 		SubsystemShards,
 		m.log.With(zap.String("service", "startup-progress")))
-	m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker())
-	m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker())
+	if err := m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker()); err != nil {
+		errs = append(errs, err)
+	}
+	if err := m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker()); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // failSubsystem records err as the initialization failure of the subsystem
@@ -506,12 +519,14 @@ func (m *Launcher) initReadyChecks() {
 // has fired — gets a failing /ready check registered for it, which is what
 // stops /ready reporting "ready" through a late startup failure.
 //
-// The no-duplicate-names invariant: every subsystem that registers a health
-// check of its own does so only after it is fully up (bolt, sqlite, query,
-// task-scheduler, influxql), and every error site for that subsystem precedes
-// that registration, so a subsystem's failure check and its normal check are
-// mutually exclusive by construction. check.Check holds health checks in an
-// append-only slice with no name map: nothing but this ordering enforces it.
+// Names are unique within each of /health and /ready, and check.Check rejects
+// a duplicate registration. None is expected here: every subsystem that
+// registers a health check of its own does so only after it is fully up
+// (bolt, sqlite, query, task-scheduler, influxql), and every error site for
+// that subsystem precedes that registration, so a subsystem's failure check
+// and its normal check are mutually exclusive by construction. Should that
+// ordering ever break, the rejection is logged rather than returned, so err
+// still reaches the caller unchanged; the earlier check keeps the name.
 func (m *Launcher) failSubsystem(name, msg string, err error, fields ...zap.Field) error {
 	m.log.Error(msg, append([]zap.Field{zap.String("subsystem", name), zap.Error(err)}, fields...)...)
 
@@ -531,11 +546,13 @@ func (m *Launcher) failSubsystem(name, msg string, err error, fields ...zap.Fiel
 		return err
 	}
 
-	m.checkHandler.AddNamedHealthCheck(check.Named(name, check.ErrCheck(func() error { return detail })))
+	if regErr := m.checkHandler.AddNamedHealthCheck(check.Named(name, check.ErrCheck(func() error { return detail }))); regErr != nil {
+		m.log.Error("Failed to register failure check", zap.String("subsystem", name), zap.Error(regErr))
+	}
 	if gate, ok := m.readyGates[name]; ok {
 		gate.Fail(detail)
-	} else {
-		m.checkHandler.AddNamedReadyCheck(check.Named(name, check.ErrCheck(func() error { return detail })))
+	} else if regErr := m.checkHandler.AddNamedReadyCheck(check.Named(name, check.ErrCheck(func() error { return detail }))); regErr != nil {
+		m.log.Error("Failed to register failure check", zap.String("subsystem", name), zap.Error(regErr))
 	}
 	return err
 }
@@ -686,7 +703,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		// rejected credential. The matching line is at SetCredentialResolver.
 		m.log.Info("Check detail on /health and /ready requires operator permissions; until the authorization store opens, both report check names and statuses without messages")
 	}
-	m.initReadyChecks()
+	if err := m.initReadyChecks(); err != nil {
+		return fmt.Errorf("initializing ready checks: %w", err)
+	}
 
 	// Under NoTasks the tasks subsystem and scheduler never start; pre-fire
 	// their gates so /ready does not block forever waiting on subsystems
@@ -730,7 +749,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// NamedChecker impl; its CheckName was set to SubsystemKV at construction
 	// (see bolt.WithCheckName), so no extra Named wrap is needed here.
 	if boltKV, ok := m.kvStore.(*bolt.KVStore); ok {
-		m.checkHandler.AddNamedHealthCheck(boltKV)
+		if err := m.checkHandler.AddNamedHealthCheck(boltKV); err != nil {
+			return fmt.Errorf("starting %s: %w", SubsystemKV, err)
+		}
 		// Credential resolution for /health and /ready reads this store, and a
 		// bolt View cannot be cancelled, so the store's own prober-backed check
 		// gates whether resolution is attempted at all. In-memory KV (testing)
@@ -782,7 +803,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		// Attributed inside migrateSQLStore.
 		return err
 	}
-	m.checkHandler.AddNamedHealthCheck(m.sqlStore)
+	if err := m.checkHandler.AddNamedHealthCheck(m.sqlStore); err != nil {
+		return fmt.Errorf("starting %s: %w", SubsystemSQLite, err)
+	}
 	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	serviceConfig := kv.ServiceConfig{
@@ -962,7 +985,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
-	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemQuery, storageQueryService))
+	if err := m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemQuery, storageQueryService)); err != nil {
+		return fmt.Errorf("starting %s: %w", SubsystemQuery, err)
+	}
 	var taskSvc taskmodel.TaskService
 	{
 		// create the task stack
@@ -1030,7 +1055,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.schedulerReady.Ready()
 			// Register a pulse health check for the real tree scheduler.
 			// NoopScheduler has no pulse to monitor; skip it.
-			m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemTaskScheduler, run.NewSchedulerPulseCheck(treeSch, run.DefaultSchedulerPulseThreshold)))
+			pulse := check.Named(SubsystemTaskScheduler, run.NewSchedulerPulseCheck(treeSch, run.DefaultSchedulerPulseThreshold))
+			if err := m.checkHandler.AddNamedHealthCheck(pulse); err != nil {
+				return fmt.Errorf("starting %s: %w", SubsystemTaskScheduler, err)
+			}
 		}
 
 		m.scheduler = sch
@@ -1074,7 +1102,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	qe := iqlquery.NewExecutor(m.log, cm)
 	influxqlProxy := iqlquery.NewProxyExecutor(m.log, qe)
-	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemInfluxQL, influxqlProxy))
+	if err := m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemInfluxQL, influxqlProxy)); err != nil {
+		return fmt.Errorf("starting %s: %w", SubsystemInfluxQL, err)
+	}
 	se := &iqlcoordinator.StatementExecutor{
 		MetaClient:        metaClient,
 		TSDBStore:         m.engine.TSDBStore(),

@@ -74,9 +74,9 @@ func NewSqlStore(path string, log *zap.Logger, opts ...SqlStoreOption) (*SqlStor
 	return s, nil
 }
 
-// CheckName satisfies check.NamedChecker so registration via
-// AddHealthCheck takes the named-fast-path without an extra wrapper.
-// Returns the name configured by WithCheckName, or "" if unset.
+// CheckName satisfies check.NamedChecker so the store can be passed to
+// AddNamedHealthCheck without an extra wrapper. Returns the name configured
+// by WithCheckName, or "" if unset, which registration rejects.
 func (s *SqlStore) CheckName() string { return s.name }
 
 // open the file at the specified path
