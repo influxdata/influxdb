@@ -34,7 +34,7 @@ use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{
     ApiNodeSpec, CatalogSequenceNumber, DeletionScope, FieldDataType, HardDeletionTime, PluginType,
-    TriggerSpecificationDefinition,
+    SchemaMode, TriggerSpecificationDefinition,
 };
 use influxdb3_catalog::log::{CatalogBatch, DatabaseBatch, DatabaseCatalogOp, OrderedCatalogBatch};
 use influxdb3_id::TokenId;
@@ -390,6 +390,9 @@ pub enum Error {
 
     #[error("invalid request: {0}")]
     InvalidRequest(String),
+
+    #[error("{0} is only available in InfluxDB 3 Enterprise")]
+    EnterpriseOnly(&'static str),
 
     #[error(transparent)]
     LegacyWriteParse(#[from] WriteParseError),
@@ -977,7 +980,7 @@ impl IntoResponse for Error {
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            Self::InvalidRequest(_) => ResponseBuilder::new()
+            Self::InvalidRequest(_) | Self::EnterpriseOnly(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
@@ -1824,6 +1827,9 @@ impl HttpApi {
             schema_mode,
         } = self.read_body_json(req).await?;
         validate_db_name(&db)?;
+        if matches!(schema_mode, SchemaMode::Explicit) {
+            return Err(Error::EnterpriseOnly("explicit schema mode"));
+        }
         self.write_buffer
             .catalog()
             .create_database_opts(

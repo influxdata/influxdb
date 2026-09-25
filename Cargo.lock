@@ -427,7 +427,7 @@ dependencies = [
 
 [[package]]
 name = "arrow_util"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "ahash",
  "arrow",
@@ -519,7 +519,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "authz"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "backoff"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "rand 0.9.4",
  "snafu 0.9.2",
@@ -976,7 +976,7 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "catalog_cache"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "bytes",
  "criterion 0.8.2",
@@ -1125,14 +1125,14 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cli_types"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "tokio",
 ]
 
 [[package]]
 name = "client_util"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "http 1.5.0",
  "iox_http_util",
@@ -1660,7 +1660,7 @@ dependencies = [
 
 [[package]]
 name = "data_types"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -1695,7 +1695,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -1749,7 +1749,7 @@ dependencies = [
 [[package]]
 name = "datafusion-catalog"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1773,7 +1773,7 @@ dependencies = [
 [[package]]
 name = "datafusion-catalog-listing"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1795,7 +1795,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "ahash",
  "arrow",
@@ -1818,7 +1818,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common-runtime"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "futures",
  "log",
@@ -1828,7 +1828,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-compression",
@@ -1862,7 +1862,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-arrow"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "arrow-ipc",
@@ -1885,7 +1885,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-csv"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1907,7 +1907,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-json"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1928,7 +1928,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-parquet"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1957,12 +1957,12 @@ dependencies = [
 [[package]]
 name = "datafusion-doc"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 
 [[package]]
 name = "datafusion-execution"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1982,7 +1982,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -2004,7 +2004,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr-common"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -2016,7 +2016,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -2045,7 +2045,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "ahash",
  "arrow",
@@ -2065,7 +2065,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate-common"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "ahash",
  "arrow",
@@ -2077,7 +2077,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-nested"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "arrow-ord",
@@ -2099,7 +2099,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-table"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "async-trait",
@@ -2114,7 +2114,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-window"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -2131,7 +2131,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-window-common"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "datafusion-common",
  "datafusion-physical-expr-common",
@@ -2140,7 +2140,7 @@ dependencies = [
 [[package]]
 name = "datafusion-macros"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "datafusion-doc",
  "quote",
@@ -2150,7 +2150,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "chrono",
@@ -2169,7 +2169,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "ahash",
  "arrow",
@@ -2192,7 +2192,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr-adapter"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -2206,7 +2206,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr-common"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "ahash",
  "arrow",
@@ -2222,7 +2222,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-optimizer"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -2240,7 +2240,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-plan"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "ahash",
  "arrow",
@@ -2270,7 +2270,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "chrono",
@@ -2296,7 +2296,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto-common"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -2306,7 +2306,7 @@ dependencies = [
 [[package]]
 name = "datafusion-pruning"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -2322,7 +2322,7 @@ dependencies = [
 [[package]]
 name = "datafusion-session"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "async-trait",
  "datafusion-common",
@@ -2335,7 +2335,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "52.5.0"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=e9e2e6d36bf63e39f746f82ee9b33c47feb65361#e9e2e6d36bf63e39f746f82ee9b33c47feb65361"
+source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=676dd338f8fe8464a861b5c74ec3c4de8325d382#676dd338f8fe8464a861b5c74ec3c4de8325d382"
 dependencies = [
  "arrow",
  "bigdecimal",
@@ -2401,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion_util"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -2527,7 +2527,7 @@ dependencies = [
 
 [[package]]
 name = "dml"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow_util",
  "data_types",
@@ -2639,7 +2639,7 @@ dependencies = [
 
 [[package]]
 name = "error_reporting"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "datafusion",
  "snafu 0.9.2",
@@ -2669,7 +2669,7 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures",
  "metric",
@@ -2722,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "flightsql"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2935,7 +2935,7 @@ dependencies = [
 
 [[package]]
 name = "futures_test_utils"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "clap",
  "futures",
@@ -2946,7 +2946,7 @@ dependencies = [
 
 [[package]]
 name = "generated_types"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "bytes",
  "pbjson",
@@ -3605,7 +3605,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb2_client"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "bytes",
  "futures",
@@ -3624,7 +3624,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3718,7 +3718,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_authz"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "authz",
@@ -3736,7 +3736,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_cache"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3771,7 +3771,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_catalog"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3830,7 +3830,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_catalog_macros"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3839,7 +3839,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_clap_blocks"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3874,7 +3874,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_client"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "bytes",
  "flate2",
@@ -3895,7 +3895,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_commands"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3923,7 +3923,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_id"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "criterion 0.5.1",
  "indexmap 2.14.1",
@@ -3935,7 +3935,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_internal_api"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3956,7 +3956,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_process"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "iox_time",
  "uuid",
@@ -3964,7 +3964,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_processing_engine"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -4013,7 +4013,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_processing_engine_telemetry"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "hashbrown 0.14.5",
  "influxdb3_catalog",
@@ -4023,7 +4023,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_py_api"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -4047,7 +4047,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_query_executor"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4098,7 +4098,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_server"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4184,7 +4184,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_shutdown"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures",
  "futures-util",
@@ -4199,7 +4199,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_startup"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "chrono",
  "observability_deps",
@@ -4209,7 +4209,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_sys_events"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4225,7 +4225,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_system_tables"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4256,7 +4256,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_system_tables_common"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4277,7 +4277,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_telemetry"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures-util",
  "mockall",
@@ -4297,7 +4297,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_test_helpers"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4310,7 +4310,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_types"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4330,7 +4330,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_wal"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "bitcode",
@@ -4361,7 +4361,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_write"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb_influxql_parser"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "assert_matches",
  "chrono",
@@ -4445,7 +4445,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb_iox_client"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -4474,7 +4474,7 @@ dependencies = [
 
 [[package]]
 name = "ingester_query_grpc"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "base64 0.22.1",
  "data_types",
@@ -4546,7 +4546,7 @@ checksum = "2f0fb0570afe1fed943c5c3d4102d5358592d8625fda6a0007fdbe65a92fba96"
 
 [[package]]
 name = "iox_http"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -4566,7 +4566,7 @@ dependencies = [
 
 [[package]]
 name = "iox_http_util"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures",
  "http 1.5.0",
@@ -4577,7 +4577,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -4627,7 +4627,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -4654,7 +4654,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql_rewrite"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror 2.0.18",
@@ -4662,7 +4662,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_params"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -4676,7 +4676,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_udf"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "datafusion-udf-wasm-host",
  "datafusion-udf-wasm-query",
@@ -4687,7 +4687,7 @@ dependencies = [
 
 [[package]]
 name = "iox_system_tables"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "async-trait",
@@ -4697,7 +4697,7 @@ dependencies = [
 
 [[package]]
 name = "iox_time"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -4706,7 +4706,7 @@ dependencies = [
 
 [[package]]
 name = "iox_v1_query_api"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4820,7 +4820,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jemalloc_pprof_http"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "http-body-util",
  "hyper 1.11.1",
@@ -4833,7 +4833,7 @@ dependencies = [
 
 [[package]]
 name = "jemalloc_stats"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures",
  "snafu 0.9.2",
@@ -5104,7 +5104,7 @@ dependencies = [
 
 [[package]]
 name = "linear_buffer"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 
 [[package]]
 name = "linux-raw-sys"
@@ -5142,7 +5142,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "logfmt"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "humantime",
  "parking_lot",
@@ -5227,14 +5227,14 @@ dependencies = [
 
 [[package]]
 name = "metric"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "parking_lot",
 ]
 
 [[package]]
 name = "metric_exporters"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "metric",
  "mockito",
@@ -5359,7 +5359,7 @@ checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
 
 [[package]]
 name = "mutable_batch"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -5377,7 +5377,7 @@ dependencies = [
 
 [[package]]
 name = "mutable_batch_lp"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow_util",
  "assert_matches",
@@ -5393,7 +5393,7 @@ dependencies = [
 
 [[package]]
 name = "mutable_batch_pb"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow_util",
  "criterion 0.8.2",
@@ -5637,7 +5637,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_limit"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5649,7 +5649,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_mem_cache"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "bincode",
@@ -5677,7 +5677,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_metrics"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "bloom2",
@@ -5702,7 +5702,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_mock"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5716,7 +5716,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_size_hinting"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "chrono",
  "http 1.5.0",
@@ -5726,7 +5726,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_utils"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "backon",
@@ -5742,7 +5742,7 @@ dependencies = [
 
 [[package]]
 name = "observability_deps"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "tracing",
 ]
@@ -5816,7 +5816,7 @@ dependencies = [
 
 [[package]]
 name = "panic_logging"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "metric",
  "test_helpers",
@@ -5891,7 +5891,7 @@ dependencies = [
 
 [[package]]
 name = "parquet_file"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -5922,7 +5922,7 @@ dependencies = [
 
 [[package]]
 name = "partition"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -6228,7 +6228,7 @@ dependencies = [
 
 [[package]]
 name = "predicate"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "async-trait",
@@ -6551,7 +6551,7 @@ dependencies = [
 
 [[package]]
 name = "query_functions"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "chrono",
@@ -7259,7 +7259,7 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -7438,7 +7438,7 @@ dependencies = [
 
 [[package]]
 name = "service_common"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -7452,7 +7452,7 @@ dependencies = [
 
 [[package]]
 name = "service_grpc_flight"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -7528,7 +7528,7 @@ dependencies = [
 
 [[package]]
 name = "sharder"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "criterion 0.8.2",
  "data_types",
@@ -8055,7 +8055,7 @@ dependencies = [
 
 [[package]]
 name = "table_batch"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "arrow_util",
  "bitvec",
@@ -8132,7 +8132,7 @@ dependencies = [
 
 [[package]]
 name = "test_helpers"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "dotenvy",
@@ -8151,7 +8151,7 @@ dependencies = [
 
 [[package]]
 name = "test_helpers_authz"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures",
  "generated_types",
@@ -8437,7 +8437,7 @@ dependencies = [
 
 [[package]]
 name = "tokio_metrics_bridge"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "metric",
  "parking_lot",
@@ -8446,7 +8446,7 @@ dependencies = [
 
 [[package]]
 name = "tokio_watchdog"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "metric",
  "test_helpers",
@@ -8669,7 +8669,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tower_trailer"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures",
  "http 1.5.0",
@@ -8681,7 +8681,7 @@ dependencies = [
 
 [[package]]
 name = "trace"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -8691,7 +8691,7 @@ dependencies = [
 
 [[package]]
 name = "trace_exporters"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -8708,7 +8708,7 @@ dependencies = [
 
 [[package]]
 name = "trace_http"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "bytes",
  "futures",
@@ -8803,7 +8803,7 @@ dependencies = [
 
 [[package]]
 name = "tracker"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "futures",
  "hashbrown 0.14.5",
@@ -8823,7 +8823,7 @@ dependencies = [
 
 [[package]]
 name = "trogging"
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 dependencies = [
  "clap",
  "logfmt",

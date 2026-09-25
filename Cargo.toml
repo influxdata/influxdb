@@ -129,7 +129,7 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.12.0-0.rc.1"
+version = "3.12.0-0.rc.2"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -334,9 +334,9 @@ debug = false
 # NOTE: This is an incomplete list of datafusion dependencies, but enough to get all dependencies to use our forked
 #       version. Should you ever encounter a `datafusion-*` crate that is duplicated (i.e. `Cargo.lock` lists both the
 #       crates.io release and our fork), just add it to this list here.
-datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "e9e2e6d36bf63e39f746f82ee9b33c47feb65361" }
-datafusion-common = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "e9e2e6d36bf63e39f746f82ee9b33c47feb65361" }
-datafusion-execution = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "e9e2e6d36bf63e39f746f82ee9b33c47feb65361" }
-datafusion-expr = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "e9e2e6d36bf63e39f746f82ee9b33c47feb65361" }
-datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "e9e2e6d36bf63e39f746f82ee9b33c47feb65361" }
-datafusion-sql = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "e9e2e6d36bf63e39f746f82ee9b33c47feb65361" }
+datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "676dd338f8fe8464a861b5c74ec3c4de8325d382" }
+datafusion-common = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "676dd338f8fe8464a861b5c74ec3c4de8325d382" }
+datafusion-execution = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "676dd338f8fe8464a861b5c74ec3c4de8325d382" }
+datafusion-expr = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "676dd338f8fe8464a861b5c74ec3c4de8325d382" }
+datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "676dd338f8fe8464a861b5c74ec3c4de8325d382" }
+datafusion-sql = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "676dd338f8fe8464a861b5c74ec3c4de8325d382" }

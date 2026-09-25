@@ -153,7 +153,8 @@ pub struct DatabaseConfig {
 
     /// Where table schemas come from: "implicit" (the default) grows them from incoming writes;
     /// "explicit" requires every table and column to be created with `influxdb3 create table`
-    /// first, and rejects writes naming anything undefined. Fixed when the database is created
+    /// first, and rejects writes naming anything undefined. Fixed when the database is created.
+    /// "explicit" is available on InfluxDB 3 Enterprise servers only
     #[clap(long = "schema-mode", value_enum, default_value_t = SchemaMode::Implicit)]
     pub schema_mode: SchemaMode,
 
