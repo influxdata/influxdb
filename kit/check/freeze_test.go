@@ -58,8 +58,8 @@ func TestCheck_Freeze_PinsValues(t *testing.T) {
 	c := NewCheck()
 	h := newMutableCheck("h", StatusPass, "healthy")
 	r := newMutableCheck("r", StatusFail, "why it failed")
-	c.AddNamedHealthCheck(h)
-	c.AddNamedReadyCheck(r)
+	require.NoError(t, c.AddNamedHealthCheck(h))
+	require.NoError(t, c.AddNamedReadyCheck(r))
 
 	c.Freeze(ctx)
 
@@ -95,7 +95,7 @@ func TestCheck_Freeze_FlattensFreshnessResponse(t *testing.T) {
 	f.Update(Pass())
 
 	c := NewCheck()
-	c.AddNamedHealthCheck(fixedChecker{name: "probed", resp: f})
+	require.NoError(t, c.AddNamedHealthCheck(fixedChecker{name: "probed", resp: f}))
 	c.Freeze(ctx)
 
 	time.Sleep(3 * staleness)
@@ -121,7 +121,7 @@ func TestCheck_Freeze_FlattensNestedChecks(t *testing.T) {
 	outer := NewBasicResponse("outer", StatusPass, "", Responses{inner})
 
 	c := NewCheck()
-	c.AddNamedHealthCheck(fixedChecker{name: "outer", resp: outer})
+	require.NoError(t, c.AddNamedHealthCheck(fixedChecker{name: "outer", resp: outer}))
 	c.Freeze(ctx)
 
 	time.Sleep(3 * staleness)
@@ -146,14 +146,42 @@ func TestCheck_Freeze_PreservesReadyCheckNames(t *testing.T) {
 	// Deliberately not alphabetical, and deliberately not sorted by status
 	// either, so a set rebuilt from the sorted aggregate could not match.
 	for _, name := range []string{"zulu", "alpha", "mike"} {
-		c.AddNamedReadyCheck(newMutableCheck(name, StatusFail, MsgNotReady))
+		require.NoError(t, c.AddNamedReadyCheck(newMutableCheck(name, StatusFail, MsgNotReady)))
 	}
-	c.AddNamedReadyCheck(newMutableCheck("bravo", StatusPass, ""))
+	require.NoError(t, c.AddNamedReadyCheck(newMutableCheck("bravo", StatusPass, "")))
 
 	before := c.ReadyCheckNames()
 	c.Freeze(ctx)
 	require.Equal(t, before, c.ReadyCheckNames())
 	require.Equal(t, []string{"zulu", "alpha", "mike", "bravo"}, c.ReadyCheckNames())
+}
+
+// TestCheck_Freeze_KeepsRegistrationNames pins that a frozen entry keeps the
+// name it was registered under even when its checker breaks the NamedChecker
+// contract and stamps some other name -- here, the name of a sibling. Were the
+// frozen set indexed by the response name, the freeze would rename one entry
+// and make two of them collide.
+func TestCheck_Freeze_KeepsRegistrationNames(t *testing.T) {
+	ctx := context.Background()
+	c := NewCheck()
+	misnamed := fixedChecker{name: "alpha", resp: NamedPass("bravo")}
+	require.NoError(t, c.AddNamedReadyCheck(misnamed))
+	require.NoError(t, c.AddNamedReadyCheck(fixedChecker{name: "bravo", resp: NamedPass("bravo")}))
+	require.NoError(t, c.AddNamedHealthCheck(misnamed))
+
+	before := c.ReadyCheckNames()
+	c.Freeze(ctx)
+	require.Equal(t, before, c.ReadyCheckNames())
+	require.Equal(t, []string{"alpha", "bravo"}, c.ReadyCheckNames())
+
+	// The name index is rebuilt from registration names as well, so it still
+	// holds each name once.
+	c.mu.RLock()
+	require.Contains(t, c.ready.names, "alpha")
+	require.Contains(t, c.ready.names, "bravo")
+	require.Contains(t, c.health.names, "alpha")
+	require.Len(t, c.ready.names, 2)
+	c.mu.RUnlock()
 }
 
 // TestCheck_Freeze_IsTerminal pins first-freeze-wins and the registration
@@ -164,7 +192,7 @@ func TestCheck_Freeze_IsTerminal(t *testing.T) {
 	ctx := context.Background()
 	c := NewCheck()
 	h := newMutableCheck("h", StatusPass, "first")
-	c.AddNamedHealthCheck(h)
+	require.NoError(t, c.AddNamedHealthCheck(h))
 
 	c.Freeze(ctx)
 	require.Equal(t, int64(1), h.calls.Load())
@@ -173,13 +201,12 @@ func TestCheck_Freeze_IsTerminal(t *testing.T) {
 	c.Freeze(ctx)
 	require.Equal(t, int64(1), h.calls.Load(), "a second Freeze re-evaluated the checkers")
 
-	// All three registration paths: the named health check, the anonymous one,
-	// and the ready check.
-	c.AddNamedHealthCheck(newMutableCheck("late-named", StatusFail, "after the freeze"))
-	c.AddHealthCheck(CheckerFunc(func(context.Context) Response {
-		return NamedFail("late-anonymous", "after the freeze")
-	}))
-	c.AddNamedReadyCheck(newMutableCheck("late-ready", StatusFail, "after the freeze"))
+	// Both registration paths are dropped without error, including a name
+	// that duplicates a frozen one: the frozen guard runs before the
+	// uniqueness check.
+	require.NoError(t, c.AddNamedHealthCheck(newMutableCheck("late-named", StatusFail, "after the freeze")))
+	require.NoError(t, c.AddNamedHealthCheck(newMutableCheck("h", StatusFail, "duplicate after the freeze")))
+	require.NoError(t, c.AddNamedReadyCheck(newMutableCheck("late-ready", StatusFail, "after the freeze")))
 
 	health := c.CheckHealth(ctx)
 	require.Equal(t, StatusPass, health.Status())
@@ -221,25 +248,25 @@ func TestCheck_Freeze_BoundsEachProbeSeparately(t *testing.T) {
 
 	// Sorts first and spends its entire probe budget. Under one shared budget
 	// it would spend everyone else's with it.
-	c.AddNamedHealthCheck(NamedFunc("a-slow", func(ctx context.Context) Response {
+	require.NoError(t, c.AddNamedHealthCheck(NamedFunc("a-slow", func(ctx context.Context) Response {
 		<-ctx.Done()
 		return NamedFail("a-slow", ctx.Err().Error())
-	}))
+	})))
 	// Reports whether it was given any time of its own.
-	c.AddNamedHealthCheck(NamedFunc("b-fast", func(ctx context.Context) Response {
+	require.NoError(t, c.AddNamedHealthCheck(NamedFunc("b-fast", func(ctx context.Context) Response {
 		if err := ctx.Err(); err != nil {
 			return NamedFail("b-fast", err.Error())
 		}
 		return NamedPass("b-fast")
-	}))
+	})))
 	// The ready set is evaluated after the health set, so a shared budget is
 	// already gone by the time it is reached.
-	c.AddNamedReadyCheck(NamedFunc("c-ready", func(ctx context.Context) Response {
+	require.NoError(t, c.AddNamedReadyCheck(NamedFunc("c-ready", func(ctx context.Context) Response {
 		if err := ctx.Err(); err != nil {
 			return NamedFail("c-ready", err.Error())
 		}
 		return NamedPass("c-ready")
-	}))
+	})))
 
 	// No deadline of its own: whatever bounds a probe here, Freeze applied.
 	c.Freeze(context.Background())

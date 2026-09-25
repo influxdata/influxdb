@@ -320,7 +320,7 @@ func TestReadyGate_IntegrationWithCheck_NamedWrapping(t *testing.T) {
 	const gateName = "metastores"
 	c := NewCheck()
 	gate := NewReadyGate(gateName)
-	c.AddNamedReadyCheck(gate)
+	require.NoError(t, c.AddNamedReadyCheck(gate))
 
 	resp := c.CheckReady(context.Background())
 	require.Equal(t, StatusFail, resp.Status())

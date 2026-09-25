@@ -2,6 +2,7 @@ package check
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,7 +12,7 @@ import (
 )
 
 // TestCheck_ConcurrentRegistrationAndEvaluation exercises the RWMutex
-// protecting Check's healthChecks and readyChecks slices: N goroutines
+// protecting Check's health and ready sets: N goroutines
 // register checkers while N goroutines concurrently call CheckHealth and
 // CheckReady. Under -race this fails without the mutex.
 //
@@ -40,7 +41,7 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 	var wg sync.WaitGroup
 	startMu.Lock()
 
-	for range numRegisterers {
+	for g := range numRegisterers {
 		wg.Add(1)
 		go func() {
 			startMu.RLock()
@@ -54,10 +55,14 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 				}
 			}
 			for i := range numChecksEach {
+				// Names are unique per registration: this test is about the
+				// lock, not about duplicate rejection.
 				if i%2 == 0 {
-					c.AddHealthCheck(mockPass(healthName))
+					name := fmt.Sprintf("%s-%d-%d", healthName, g, i)
+					assert.NoError(t, c.AddNamedHealthCheck(mockPass(name)))
 				} else {
-					c.AddNamedReadyCheck(Named(readyName, mockPass(readyName)))
+					name := fmt.Sprintf("%s-%d-%d", readyName, g, i)
+					assert.NoError(t, c.AddNamedReadyCheck(mockPass(name)))
 				}
 			}
 			concurrency.Add(-1)
@@ -128,8 +133,8 @@ func TestCheck_ConcurrentFreeze(t *testing.T) {
 
 	// Registered up front so every freezer has something to snapshot even if it
 	// wins the race against every registerer.
-	c.AddNamedHealthCheck(Named(healthName, mockPass(healthName)))
-	c.AddNamedReadyCheck(Named(readyName, mockPass(readyName)))
+	require.NoError(t, c.AddNamedHealthCheck(Named(healthName, mockPass(healthName))))
+	require.NoError(t, c.AddNamedReadyCheck(Named(readyName, mockPass(readyName))))
 
 	var (
 		startMu        sync.RWMutex
@@ -166,16 +171,21 @@ func TestCheck_ConcurrentFreeze(t *testing.T) {
 		}()
 	}
 
-	for range numRegisterers {
+	for g := range numRegisterers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			defer enter()()
 			for i := range numChecksEach {
+				// Unique names, distinct from the up-front ones: a
+				// registration either lands before the freeze or is dropped
+				// after it, and neither is an error.
 				if i%2 == 0 {
-					c.AddHealthCheck(mockPass(healthName))
+					name := fmt.Sprintf("%s-%d-%d", healthName, g, i)
+					assert.NoError(t, c.AddNamedHealthCheck(mockPass(name)))
 				} else {
-					c.AddNamedReadyCheck(Named(readyName, mockPass(readyName)))
+					name := fmt.Sprintf("%s-%d-%d", readyName, g, i)
+					assert.NoError(t, c.AddNamedReadyCheck(mockPass(name)))
 				}
 			}
 		}()
@@ -220,4 +230,96 @@ func TestCheck_ConcurrentFreeze(t *testing.T) {
 	// bounded by what was registered before it.
 	require.LessOrEqual(t, len(first.Checks()), 1+numRegisterers*(numChecksEach/2))
 	require.GreaterOrEqual(t, len(first.Checks()), 1)
+}
+
+// TestCheck_ConcurrentDuplicateRegistration races many registrations of one
+// name into each set. Exactly one per set may win; every other must be
+// rejected as a duplicate, and each set must end with a single entry. Under
+// -race this also fails if the name index is touched outside the lock.
+//
+// The start gate releases every goroutine together, and the arrival barrier
+// then holds each one until all have entered, so the overlap assertion holds
+// even at -cpu=1.
+func TestCheck_ConcurrentDuplicateRegistration(t *testing.T) {
+	const (
+		numRegisterers = 32
+		name           = "same"
+	)
+
+	c := NewCheck()
+	ctx := context.Background()
+
+	// Created up front so the goroutines do nothing but register.
+	health := make([]NamedChecker, numRegisterers)
+	ready := make([]NamedChecker, numRegisterers)
+	for i := range numRegisterers {
+		health[i] = namedErrCheck(name, fmt.Sprintf("health-%d", i))
+		ready[i] = namedErrCheck(name, fmt.Sprintf("ready-%d", i))
+	}
+
+	var (
+		startMu        sync.RWMutex
+		arrived        sync.WaitGroup
+		concurrency    atomic.Int64
+		maxConcurrency atomic.Int64
+	)
+	healthErrs := make([]error, numRegisterers)
+	readyErrs := make([]error, numRegisterers)
+
+	var wg sync.WaitGroup
+	arrived.Add(numRegisterers)
+	startMu.Lock()
+	for i := range numRegisterers {
+		wg.Add(1)
+		go func() {
+			startMu.RLock()
+			defer startMu.RUnlock()
+			defer wg.Done()
+			cur := concurrency.Add(1)
+			for {
+				old := maxConcurrency.Load()
+				if cur <= old || maxConcurrency.CompareAndSwap(old, cur) {
+					break
+				}
+			}
+			arrived.Done()
+			arrived.Wait()
+			healthErrs[i] = c.AddNamedHealthCheck(health[i])
+			readyErrs[i] = c.AddNamedReadyCheck(ready[i])
+			concurrency.Add(-1)
+		}()
+	}
+	startMu.Unlock()
+	wg.Wait()
+
+	t.Logf("max concurrency: %d", maxConcurrency.Load())
+	require.Equal(t, int64(numRegisterers), maxConcurrency.Load(), "registrations did not overlap")
+
+	// winner returns the index of the one successful registration, after
+	// checking every other was rejected as a duplicate.
+	winner := func(kind string, errs []error) int {
+		t.Helper()
+		won := -1
+		for i, err := range errs {
+			if err == nil {
+				require.Equalf(t, -1, won, "%s: registrations %d and %d both succeeded", kind, won, i)
+				won = i
+				continue
+			}
+			require.ErrorIsf(t, err, ErrDuplicateCheckName, "%s[%d]", kind, i)
+		}
+		require.NotEqualf(t, -1, won, "%s: no registration succeeded", kind)
+		return won
+	}
+	hw := winner("health", healthErrs)
+	rw := winner("ready", readyErrs)
+
+	// The entry served is the winner's, not some other goroutine's.
+	h := c.CheckHealth(ctx).Checks()
+	require.Len(t, h, 1)
+	require.Equal(t, fmt.Sprintf("health-%d", hw), h[0].Message())
+	r := c.CheckReady(ctx).Checks()
+	require.Len(t, r, 1)
+	require.Equal(t, fmt.Sprintf("ready-%d", rw), r[0].Message())
+	require.Equal(t, []string{name}, c.ReadyCheckNames())
 }

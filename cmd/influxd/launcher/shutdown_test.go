@@ -179,7 +179,7 @@ func TestLauncher_HoldForStartupError_NoWait(t *testing.T) {
 			require.Empty(t, order, "the hold tore something down")
 
 			// Not frozen: a check registered afterwards still appears.
-			m.checkHandler.AddNamedHealthCheck(check.Named("late", check.ErrCheck(func() error { return nil })))
+			require.NoError(t, m.checkHandler.AddNamedHealthCheck(check.Named("late", check.ErrCheck(func() error { return nil }))))
 			require.Contains(t, healthCheckNames(t, m), "late")
 		})
 	}
@@ -289,12 +289,12 @@ func TestLauncher_FreezeChecks_PinsStartupAttribution(t *testing.T) {
 
 	m.freezeChecks(ctx)
 
-	m.checkHandler.AddNamedHealthCheck(check.Named("late", check.ErrCheck(func() error {
+	require.NoError(t, m.checkHandler.AddNamedHealthCheck(check.Named("late", check.ErrCheck(func() error {
 		return errors.New("registered while tearing down")
-	})))
-	m.checkHandler.AddNamedReadyCheck(check.Named("late", check.ErrCheck(func() error {
+	}))))
+	require.NoError(t, m.checkHandler.AddNamedReadyCheck(check.Named("late", check.ErrCheck(func() error {
 		return errors.New("registered while tearing down")
-	})))
+	}))))
 
 	healthAfter, healthStatusAfter := serveCheck(t, m, "/health")
 	readyAfter, readyStatusAfter := serveCheck(t, m, "/ready")
