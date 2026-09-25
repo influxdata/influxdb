@@ -603,10 +603,13 @@ func (s *Store) loadShards() error {
 				log.Error("Failed to open shard", zap.Error(res.err))
 			}
 
-			shardResC <- res
+			// Record completion before handing the result off: once the last
+			// result is received, loadShards returns, and progress must already
+			// reflect every loaded shard.
 			if s.startupProgressMetrics != nil {
 				s.startupProgressMetrics.CompletedShard()
 			}
+			shardResC <- res
 		}(log.With(logger.Shard(sh.id), zap.String("path", loader.path)))
 	}
 
