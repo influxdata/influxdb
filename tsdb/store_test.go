@@ -152,7 +152,7 @@ func TestStore_CreateShard(t *testing.T) {
 func TestStore_StartupShardProgress(t *testing.T) {
 	t.Parallel()
 
-	test := func(index string) {
+	test := func(t *testing.T, index string) {
 		s := MustOpenStore(t, index)
 		defer s.CloseStore(t, index)
 
@@ -174,16 +174,16 @@ func TestStore_StartupShardProgress(t *testing.T) {
 		// Equality check to make sure shards are always added prior to
 		// completion being called. This test opens 3 total shards - 1 shard
 		// fails, but we still want to track that it was attempted to be opened.
-		require.Equal(t, msl.Tracked(), []string{
+		require.Equal(t, []string{
 			"shard-add",
 			"shard-add",
 			"shard-complete",
 			"shard-complete",
-		})
+		}, msl.Tracked())
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
@@ -192,7 +192,7 @@ func TestStore_StartupShardProgress(t *testing.T) {
 func TestStore_BadShardLoading(t *testing.T) {
 	t.Parallel()
 
-	test := func(index string) {
+	test := func(t *testing.T, index string) {
 		s := MustOpenStore(t, index)
 		defer s.CloseStore(t, index)
 
@@ -223,18 +223,18 @@ func TestStore_BadShardLoading(t *testing.T) {
 		// Equality check to make sure shards are always added prior to
 		// completion being called. This test opens 3 total shards - 1 shard
 		// fails, but we still want to track that it was attempted to be opened.
-		require.Equal(t, msl.Tracked(), []string{
+		require.Equal(t, []string{
 			"shard-add",
 			"shard-add",
 			"shard-add",
 			"shard-complete",
 			"shard-complete",
 			"shard-complete",
-		})
+		}, msl.Tracked())
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
