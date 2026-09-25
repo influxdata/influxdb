@@ -25,13 +25,13 @@ func TestCheckHandler_WireFormat_PassRoundtrip(t *testing.T) {
 
 	// One BasicResponse-backed checker, one FreshnessResponse-backed
 	// checker. Both should render through the same wire shape.
-	h.AddHealthCheck(check.Named("static", check.CheckerFunc(func(context.Context) check.Response {
+	require.NoError(t, h.AddNamedHealthCheck(check.Named("static", check.CheckerFunc(func(context.Context) check.Response {
 		return check.NamedPass("static")
-	})))
+	}))))
 
 	fresh := check.NewFreshnessResponse("fresh", time.Hour)
 	fresh.Update(check.Pass())
-	h.AddHealthCheck(staticChecker{name: "fresh", resp: fresh})
+	require.NoError(t, h.AddNamedHealthCheck(staticChecker{name: "fresh", resp: fresh}))
 
 	res := doRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -77,7 +77,7 @@ func TestCheckHandler_WireFormat_FreshnessFailMessage(t *testing.T) {
 	fresh := check.NewFreshnessResponse("svc", 10*time.Millisecond)
 	fresh.Update(check.Pass())
 	time.Sleep(30 * time.Millisecond)
-	h.AddHealthCheck(staticChecker{name: "svc", resp: fresh})
+	require.NoError(t, h.AddNamedHealthCheck(staticChecker{name: "svc", resp: fresh}))
 
 	res := doRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -132,9 +132,9 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 
 	t.Run("health 200 with one passing named check", func(t *testing.T) {
 		h := NewHealthReadyHandler(zaptest.NewLogger(t))
-		h.AddNamedHealthCheck(check.Named("alpha", check.CheckerFunc(func(context.Context) check.Response {
+		require.NoError(t, h.AddNamedHealthCheck(check.Named("alpha", check.CheckerFunc(func(context.Context) check.Response {
 			return check.NamedPass("alpha")
-		})))
+		}))))
 
 		res := doRequest(t, h, http.MethodGet, "/health")
 		defer closeBody(t, res)
@@ -187,7 +187,7 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 
 	t.Run("health 503 with one failing named check", func(t *testing.T) {
 		h := NewHealthReadyHandler(zaptest.NewLogger(t))
-		h.AddNamedHealthCheck(failingChecker{name: "query", message: "unreachable"})
+		require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "query", message: "unreachable"}))
 
 		res := doRequest(t, h, http.MethodGet, "/health")
 		defer closeBody(t, res)
@@ -238,7 +238,7 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 
 	t.Run("ready 503 with one failing ReadyGate", func(t *testing.T) {
 		h := NewHealthReadyHandler(zaptest.NewLogger(t))
-		h.AddNamedReadyCheck(check.NewReadyGate("metastores"))
+		require.NoError(t, h.AddNamedReadyCheck(check.NewReadyGate("metastores")))
 
 		res := doRequest(t, h, http.MethodGet, "/ready")
 		defer closeBody(t, res)

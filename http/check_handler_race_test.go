@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -32,8 +34,8 @@ func TestHealthReadyHandler_ConcurrentAuthWiring(t *testing.T) {
 
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	h.SetHealthAuthRequired(true)
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "detail"})
-	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "detail"}))
+	require.NoError(t, h.AddNamedReadyCheck(failingChecker{name: "engine", message: "detail"}))
 
 	// Build everything the goroutines publish before the gate opens, so no
 	// allocation happens inside the measured window.
@@ -109,7 +111,10 @@ func TestHealthReadyHandler_ConcurrentAuthWiring(t *testing.T) {
 			h.SetCredentialResolver(resolvers[idx])
 			h.SetAuthDependencyChecker(staticChecker{name: "kv", resp: check.NamedPass("kv")})
 			h.SetHandler(http.NotFoundHandler())
-			h.AddNamedHealthCheck(failingChecker{name: "late", message: "detail"})
+			// One name per wirer: health names are unique, and this test is
+			// about registration racing the serving path, not about
+			// duplicate rejection.
+			assert.NoError(t, h.AddNamedHealthCheck(failingChecker{name: fmt.Sprintf("late-%d", idx), message: "detail"}))
 		}(i)
 	}
 
@@ -129,7 +134,7 @@ func TestHealthReadyHandler_ConcurrentAuthWiring(t *testing.T) {
 // for the same reason: a published nil would panic every subsequent request.
 func TestHealthReadyHandler_SetCredentialResolver_NilIgnored(t *testing.T) {
 	h, resolver := authHandler(t, platform.OperPermissions())
-	h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"})
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "kv", message: "secret detail"}))
 
 	h.SetCredentialResolver(nil)
 	h.SetAuthDependencyChecker(nil)

@@ -47,12 +47,12 @@ func normalizedBody(t *testing.T, res *http.Response) map[string]any {
 // to a scraper except that the answer stops moving.
 func TestHealthReadyHandler_FreezeChecks_BodiesUnchanged(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
-	h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"})
-	h.AddNamedHealthCheck(check.Named("bolt", check.CheckerFunc(func(context.Context) check.Response {
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"}))
+	require.NoError(t, h.AddNamedHealthCheck(check.Named("bolt", check.CheckerFunc(func(context.Context) check.Response {
 		return check.NamedPass("bolt")
-	})))
-	h.AddNamedReadyCheck(check.NewReadyGate("bolt"))
-	h.AddNamedReadyCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"})
+	}))))
+	require.NoError(t, h.AddNamedReadyCheck(check.NewReadyGate("bolt")))
+	require.NoError(t, h.AddNamedReadyCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"}))
 
 	beforeHealth, beforeReady := captureCheckDocuments(t, h)
 
@@ -82,13 +82,13 @@ func TestHealthReadyHandler_FreezeChecks_PinsTornDownSubsystem(t *testing.T) {
 	// bolt sorts ahead of engine, so once it starts failing it owns the
 	// top-level message.
 	var boltClosed bool
-	h.AddNamedHealthCheck(check.Named("bolt", check.CheckerFunc(func(context.Context) check.Response {
+	require.NoError(t, h.AddNamedHealthCheck(check.Named("bolt", check.CheckerFunc(func(context.Context) check.Response {
 		if boltClosed {
 			return check.NamedFail("bolt", "stale: last probe 6s ago (threshold 5s)")
 		}
 		return check.NamedPass("bolt")
-	})))
-	h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"})
+	}))))
+	require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"}))
 
 	h.FreezeChecks(context.Background())
 	boltClosed = true
@@ -118,7 +118,7 @@ func TestHealthReadyHandler_FreezeChecks_RetiresAuthDependency(t *testing.T) {
 	t.Run("with an auth dependency installed", func(t *testing.T) {
 		h, resolver := authHandler(t, platform.OperPermissions())
 		h.SetAuthDependencyChecker(staticChecker{name: "bolt", resp: check.NamedPass("bolt")})
-		h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"})
+		require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"}))
 
 		// Before the freeze an operator reads everything.
 		res := doAuthRequest(t, h, http.MethodGet, "/health")
@@ -159,7 +159,7 @@ func TestHealthReadyHandler_FreezeChecks_RetiresAuthDependency(t *testing.T) {
 		// SetAuthDependencyChecker only for the in-memory KV store, which is
 		// test-only. Pinned anyway, because the branch exists.
 		h, _ := authHandler(t, platform.OperPermissions())
-		h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"})
+		require.NoError(t, h.AddNamedHealthCheck(failingChecker{name: "engine", message: "failed to open engine: not a directory"}))
 
 		h.FreezeChecks(context.Background())
 
