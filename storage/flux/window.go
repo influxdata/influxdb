@@ -96,6 +96,10 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 				done:   done,
 			}
 			if err := f(table); err != nil {
+				// Same abandonment as the cancellation case below: an erroring
+				// callback has not queued the table for a consumer, so nobody
+				// else will release the buffer.
+				table.abandon(done)
 				return err
 			}
 
@@ -158,11 +162,14 @@ func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
 			Msg:  "table already read",
 		}
 	}
+	// Release via defer so a panic in f - which flux's dispatcher recovers, so
+	// the process outlives it - cannot leak the buffer, matching (*table).do's
+	// deferred release. Defers run LIFO, so the buffer is released before done
+	// closes.
 	defer close(w.done)
+	defer w.buffer.Release()
 
-	err := f(&w.buffer)
-	w.buffer.Release()
-	return err
+	return f(&w.buffer)
 }
 
 func (w *windowTableRow) Done() {

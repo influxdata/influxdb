@@ -916,6 +916,17 @@ func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
 	return ti.handleRead(f, rs)
 }
 
+// deliverTable hands a finished metadata table to f and settles ownership on
+// rejection: an erroring callback has not queued the table for a consumer, so
+// nobody else will release it.
+func deliverTable(f func(flux.Table) error, tbl flux.Table) error {
+	if err := f(tbl); err != nil {
+		tbl.Done()
+		return err
+	}
+	return nil
+}
+
 func (ti *tagKeysIterator) handleRead(f func(flux.Table) error, rs cursors.StringIterator) error {
 	key := execute.NewGroupKey(nil, nil)
 	builder := execute.NewColListTableBuilder(key, ti.alloc)
@@ -959,7 +970,8 @@ func (ti *tagKeysIterator) handleRead(f func(flux.Table) error, rs cursors.Strin
 
 	// Release the references to the arrays held by the builder.
 	builder.ClearData()
-	return f(tbl)
+
+	return deliverTable(f, tbl)
 }
 
 func (ti *tagKeysIterator) Statistics() cursors.CursorStats {
@@ -1036,7 +1048,8 @@ func (ti *tagValuesIterator) handleRead(f func(flux.Table) error, rs cursors.Str
 
 	// Release the references to the arrays held by the builder.
 	builder.ClearData()
-	return f(tbl)
+
+	return deliverTable(f, tbl)
 }
 
 func (ti *tagValuesIterator) Statistics() cursors.CursorStats {
@@ -1107,7 +1120,8 @@ func (si *seriesCardinalityIterator) handleRead(f func(flux.Table) error, rs cur
 
 	// Release the references to the arrays held by the builder.
 	builder.ClearData()
-	return f(tbl)
+
+	return deliverTable(f, tbl)
 }
 
 func (si *seriesCardinalityIterator) Statistics() cursors.CursorStats {
