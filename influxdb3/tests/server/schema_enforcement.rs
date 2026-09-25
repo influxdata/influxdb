@@ -1,5 +1,7 @@
-//! End-to-end coverage for explicit schema mode in the oss workspace, which
-//! runs the Parquet engine only. The ent suite covers PachaTree as well.
+//! End-to-end coverage for the schema enforcement surface in the oss
+//! workspace: Core refuses to create an explicit database and names
+//! Enterprise in the error, and `PATCH /api/v3/configure/table` declares
+//! columns on the implicit databases Core does create.
 
 use influxdb3_catalog::catalog::SchemaMode;
 use influxdb3_client::Precision;
@@ -9,14 +11,14 @@ use serde_json::json;
 
 use crate::server::TestServer;
 
-const DB: &str = "enforced";
+const DB: &str = "sensors";
 const TABLE: &str = "cpu";
 
-async fn declared_server(server: &TestServer) {
+async fn server_with_table(server: &TestServer) {
     server
-        .api_v3_create_database_with_schema_mode(DB, None, SchemaMode::Explicit)
+        .api_v3_create_database(DB, None)
         .await
-        .expect("create explicit database");
+        .expect("create database");
     server
         .api_v3_create_table(
             DB,
@@ -28,67 +30,70 @@ async fn declared_server(server: &TestServer) {
             )],
         )
         .await
-        .expect("declare table");
+        .expect("create table");
 }
 
+/// Core rejects `schema_mode: explicit` before touching the catalog, and the
+/// error says where the feature is available. The same name can be created
+/// afterwards, so nothing was left behind.
 #[tokio::test]
-async fn explicit_schema_is_enforced() {
+async fn explicit_schema_mode_is_enterprise_only() {
     let server = TestServer::spawn().await;
-    declared_server(&server).await;
+
+    let err = server
+        .api_v3_create_database_with_schema_mode(DB, None, SchemaMode::Explicit)
+        .await
+        .expect_err("explicit schema mode should be refused");
+    let influxdb3_client::Error::ApiError { code, message, .. } = err else {
+        panic!("expected an API error, got {err}");
+    };
+    assert_eq!(code, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        message,
+        "explicit schema mode is only available in InfluxDB 3 Enterprise"
+    );
 
     server
-        .write_lp_to_db(
-            DB,
-            format!("{TABLE},host=a usage=1.0 1000"),
-            Precision::Second,
-        )
+        .api_v3_create_database(DB, None)
         .await
-        .expect("declared write should be accepted");
-
-    let err = server
-        .write_lp_to_db(
-            DB,
-            format!("{TABLE},host=a,region=west usage=1.0 2000"),
-            Precision::Second,
-        )
-        .await
-        .expect_err("undeclared tag should be rejected");
-    assert!(err.to_string().contains("region"), "got {err}");
-
-    let err = server
-        .write_lp_to_db(DB, "mem,host=a used=1.0 3000", Precision::Second)
-        .await
-        .expect_err("undeclared table should be rejected");
-    assert!(err.to_string().contains("mem"), "got {err}");
+        .expect("the refused request should not have created the database");
 }
 
+/// `schema_mode: implicit` is accepted and means what the default means.
 #[tokio::test]
-async fn implicit_is_the_default_and_unchanged() {
+async fn implicit_schema_mode_is_accepted() {
     let server = TestServer::spawn().await;
+
+    server
+        .api_v3_create_database_with_schema_mode(DB, None, SchemaMode::Implicit)
+        .await
+        .expect("create database with schema_mode: implicit");
     server
         .api_v3_create_database("open", None)
         .await
-        .expect("create database without the flag");
+        .expect("create database without schema_mode");
 
-    server
-        .write_lp_to_db("open", "cpu,host=a usage=1.0 1000", Precision::Second)
-        .await
-        .expect("first write creates the table");
-    server
-        .write_lp_to_db(
-            "open",
-            "cpu,host=a,region=west usage=1.0,free=2i 2000",
-            Precision::Second,
-        )
-        .await
-        .expect("later write widens the schema");
+    for db in [DB, "open"] {
+        server
+            .write_lp_to_db(db, "cpu,host=a usage=1.0 1000", Precision::Second)
+            .await
+            .expect("first write creates the table");
+        server
+            .write_lp_to_db(
+                db,
+                "cpu,host=a,region=west usage=1.0,free=2i 2000",
+                Precision::Second,
+            )
+            .await
+            .expect("later write widens the schema");
+    }
 }
 
-/// `PATCH /api/v3/configure/table` is new in oss.
+/// Declared columns bind their type: a write at another type is rejected.
 #[tokio::test]
 async fn patch_table_adds_columns() {
     let server = TestServer::spawn().await;
-    declared_server(&server).await;
+    server_with_table(&server).await;
 
     let resp = server
         .http_client()
@@ -111,13 +116,23 @@ async fn patch_table_adds_columns() {
             Precision::Second,
         )
         .await
-        .expect("write should be accepted once the columns are declared");
+        .expect("write at the declared types should be accepted");
+
+    let err = server
+        .write_lp_to_db(
+            DB,
+            format!("{TABLE},host=a,region=west usage=1.0,free=2.0 5000"),
+            Precision::Second,
+        )
+        .await
+        .expect_err("write at another type should be rejected");
+    assert!(err.to_string().contains("free"), "got {err}");
 }
 
 #[tokio::test]
 async fn patch_table_is_add_only() {
     let server = TestServer::spawn().await;
-    declared_server(&server).await;
+    server_with_table(&server).await;
 
     // Re-declaring a column at a different type is rejected.
     let resp = server
@@ -139,7 +154,7 @@ async fn patch_table_is_add_only() {
 #[tokio::test]
 async fn patch_table_rejects_an_empty_request() {
     let server = TestServer::spawn().await;
-    declared_server(&server).await;
+    server_with_table(&server).await;
 
     let resp = server
         .http_client()
@@ -154,7 +169,7 @@ async fn patch_table_rejects_an_empty_request() {
 #[tokio::test]
 async fn patch_table_requires_an_existing_table() {
     let server = TestServer::spawn().await;
-    declared_server(&server).await;
+    server_with_table(&server).await;
 
     let resp = server
         .http_client()
@@ -164,45 +179,4 @@ async fn patch_table_requires_an_existing_table() {
         .await
         .expect("unknown table");
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-}
-
-/// Inspection goes through the query API rather than a dedicated endpoint:
-/// `system.databases.schema_mode` says which databases are enforced, and
-/// joining `system.tables` on `database_name` says which tables they hold.
-#[tokio::test]
-async fn system_tables_report_enforced_databases_and_tables() {
-    let server = TestServer::spawn().await;
-    declared_server(&server).await;
-    server
-        .api_v3_create_database("open", None)
-        .await
-        .expect("create implicit database");
-    server
-        .write_lp_to_db("open", "mem,host=a used=1.0 1000", Precision::Second)
-        .await
-        .expect("create an implicit table");
-
-    let body = server
-        .api_v3_query_sql(&[
-            ("db", "_internal"),
-            ("format", "json"),
-            (
-                "q",
-                "SELECT t.database_name, t.table_name \
-                 FROM system.tables t \
-                 JOIN system.databases d ON d.database_name = t.database_name \
-                 WHERE d.schema_mode = 'explicit' \
-                 ORDER BY t.table_name",
-            ),
-        ])
-        .await
-        .text()
-        .await
-        .expect("read query response");
-
-    assert_eq!(
-        body,
-        format!("[{{\"database_name\":\"{DB}\",\"table_name\":\"{TABLE}\"}}]"),
-        "only the explicit database's tables should be listed"
-    );
 }
