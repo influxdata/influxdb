@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/pkg/tracing"
@@ -190,6 +191,11 @@ type floatIterator struct {
 	}
 	opt query.IteratorOptions
 
+	// dpCond is non-nil when the condition uses date_part. It owns the
+	// rewritten condition (stored back into itr.opt.Condition) and publishes
+	// per-point part values into itr.m via SetTime.
+	dpCond *query.DatePartCondition
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.FloatPoint       // reusable buffer
 
@@ -214,11 +220,27 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	}
 	itr.stats = itr.statsBuf
 
+	// When the condition uses date_part (opt.NeedTimeRef), rewrite it once so
+	// no function call is evaluated per point: date_part calls become reserved
+	// variable references resolved by dpCond.SetTime in Next. itr.opt is this
+	// iterator's own copy, so storing the rewritten condition there leaves the
+	// caller's condition untouched.
+	if opt.NeedTimeRef {
+		if dp := query.NewDatePartCondition(opt.Condition, opt.Location); dp != nil {
+			itr.dpCond = dp
+			itr.opt.Condition = dp.Expr()
+		}
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to
+	// evaluate. opt.NeedTimeRef is kept in the guard because the two fields are
+	// encoded independently over the iterator wire codec and a
+	// NeedTimeRef=true / Condition=nil options struct must stay safe.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -277,9 +299,32 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Publish the date_part values referenced by the condition for this
+		// point's timestamp.
+		if itr.dpCond != nil {
+			itr.dpCond.SetTime(seek, itr.m)
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -670,6 +715,11 @@ type integerIterator struct {
 	}
 	opt query.IteratorOptions
 
+	// dpCond is non-nil when the condition uses date_part. It owns the
+	// rewritten condition (stored back into itr.opt.Condition) and publishes
+	// per-point part values into itr.m via SetTime.
+	dpCond *query.DatePartCondition
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.IntegerPoint     // reusable buffer
 
@@ -694,11 +744,27 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.stats = itr.statsBuf
 
+	// When the condition uses date_part (opt.NeedTimeRef), rewrite it once so
+	// no function call is evaluated per point: date_part calls become reserved
+	// variable references resolved by dpCond.SetTime in Next. itr.opt is this
+	// iterator's own copy, so storing the rewritten condition there leaves the
+	// caller's condition untouched.
+	if opt.NeedTimeRef {
+		if dp := query.NewDatePartCondition(opt.Condition, opt.Location); dp != nil {
+			itr.dpCond = dp
+			itr.opt.Condition = dp.Expr()
+		}
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to
+	// evaluate. opt.NeedTimeRef is kept in the guard because the two fields are
+	// encoded independently over the iterator wire codec and a
+	// NeedTimeRef=true / Condition=nil options struct must stay safe.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -757,9 +823,32 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Publish the date_part values referenced by the condition for this
+		// point's timestamp.
+		if itr.dpCond != nil {
+			itr.dpCond.SetTime(seek, itr.m)
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -1150,6 +1239,11 @@ type unsignedIterator struct {
 	}
 	opt query.IteratorOptions
 
+	// dpCond is non-nil when the condition uses date_part. It owns the
+	// rewritten condition (stored back into itr.opt.Condition) and publishes
+	// per-point part values into itr.m via SetTime.
+	dpCond *query.DatePartCondition
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.UnsignedPoint    // reusable buffer
 
@@ -1174,11 +1268,27 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	}
 	itr.stats = itr.statsBuf
 
+	// When the condition uses date_part (opt.NeedTimeRef), rewrite it once so
+	// no function call is evaluated per point: date_part calls become reserved
+	// variable references resolved by dpCond.SetTime in Next. itr.opt is this
+	// iterator's own copy, so storing the rewritten condition there leaves the
+	// caller's condition untouched.
+	if opt.NeedTimeRef {
+		if dp := query.NewDatePartCondition(opt.Condition, opt.Location); dp != nil {
+			itr.dpCond = dp
+			itr.opt.Condition = dp.Expr()
+		}
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to
+	// evaluate. opt.NeedTimeRef is kept in the guard because the two fields are
+	// encoded independently over the iterator wire codec and a
+	// NeedTimeRef=true / Condition=nil options struct must stay safe.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -1237,9 +1347,32 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Publish the date_part values referenced by the condition for this
+		// point's timestamp.
+		if itr.dpCond != nil {
+			itr.dpCond.SetTime(seek, itr.m)
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -1630,6 +1763,11 @@ type stringIterator struct {
 	}
 	opt query.IteratorOptions
 
+	// dpCond is non-nil when the condition uses date_part. It owns the
+	// rewritten condition (stored back into itr.opt.Condition) and publishes
+	// per-point part values into itr.m via SetTime.
+	dpCond *query.DatePartCondition
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.StringPoint      // reusable buffer
 
@@ -1654,11 +1792,27 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	}
 	itr.stats = itr.statsBuf
 
+	// When the condition uses date_part (opt.NeedTimeRef), rewrite it once so
+	// no function call is evaluated per point: date_part calls become reserved
+	// variable references resolved by dpCond.SetTime in Next. itr.opt is this
+	// iterator's own copy, so storing the rewritten condition there leaves the
+	// caller's condition untouched.
+	if opt.NeedTimeRef {
+		if dp := query.NewDatePartCondition(opt.Condition, opt.Location); dp != nil {
+			itr.dpCond = dp
+			itr.opt.Condition = dp.Expr()
+		}
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to
+	// evaluate. opt.NeedTimeRef is kept in the guard because the two fields are
+	// encoded independently over the iterator wire codec and a
+	// NeedTimeRef=true / Condition=nil options struct must stay safe.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -1717,9 +1871,32 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Publish the date_part values referenced by the condition for this
+		// point's timestamp.
+		if itr.dpCond != nil {
+			itr.dpCond.SetTime(seek, itr.m)
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -2110,6 +2287,11 @@ type booleanIterator struct {
 	}
 	opt query.IteratorOptions
 
+	// dpCond is non-nil when the condition uses date_part. It owns the
+	// rewritten condition (stored back into itr.opt.Condition) and publishes
+	// per-point part values into itr.m via SetTime.
+	dpCond *query.DatePartCondition
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.BooleanPoint     // reusable buffer
 
@@ -2134,11 +2316,27 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.stats = itr.statsBuf
 
+	// When the condition uses date_part (opt.NeedTimeRef), rewrite it once so
+	// no function call is evaluated per point: date_part calls become reserved
+	// variable references resolved by dpCond.SetTime in Next. itr.opt is this
+	// iterator's own copy, so storing the rewritten condition there leaves the
+	// caller's condition untouched.
+	if opt.NeedTimeRef {
+		if dp := query.NewDatePartCondition(opt.Condition, opt.Location); dp != nil {
+			itr.dpCond = dp
+			itr.opt.Condition = dp.Expr()
+		}
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to
+	// evaluate. opt.NeedTimeRef is kept in the guard because the two fields are
+	// encoded independently over the iterator wire codec and a
+	// NeedTimeRef=true / Condition=nil options struct must stay safe.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -2197,9 +2395,32 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Publish the date_part values referenced by the condition for this
+		// point's timestamp.
+		if itr.dpCond != nil {
+			itr.dpCond.SetTime(seek, itr.m)
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.

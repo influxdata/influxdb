@@ -603,7 +603,7 @@ func (e *StatementExecutor) executeSelectStatement(ctx *query.ExecutionContext, 
 			Messages: messages,
 			Series: []*models.Row{{
 				Name:    "result",
-				Columns: []string{"time", "written"},
+				Columns: []string{models.TimeString, "written"},
 				Values:  [][]interface{}{{time.Unix(0, 0).UTC(), writeN}},
 			}},
 		})
@@ -1380,12 +1380,35 @@ var errNoDatabaseInTarget = errors.New("no database in target")
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
 func convertRowToPoints(measurementName string, row *models.Row, strictErrorHandling bool) ([]models.Point, error) {
-	// figure out which parts of the result are the time and which are the fields
+	// figure out which parts of the result are the time, the GROUP BY date_part
+	// grouping dimensions, and which are the regular fields.
+	//
+	// A GROUP BY date_part dimension (e.g. "year") is injected as an output column
+	// and recorded in row.GroupingKeys, but it identifies the series rather than
+	// carrying a value: every group shares the same representative bucket timestamp
+	// and the same base tag set (single window, Interval=0). Writing such a column
+	// as a field would collapse every group onto an identical series+timestamp
+	// (last-write-wins, silent data loss), so promote these columns to tags instead
+	// — mirroring how GROUP BY <tag> INTO writes its grouping tag.
+	var groupingCols map[string]struct{}
+	if len(row.GroupingKeys) > 0 {
+		groupingCols = make(map[string]struct{}, len(row.GroupingKeys))
+		for _, k := range row.GroupingKeys {
+			groupingCols[k] = struct{}{}
+		}
+	}
+
 	timeIndex := -1
-	fieldIndexes := make(map[string]int)
+	// fields = all columns minus the grouping dimensions and the time column.
+	fieldIndexes := make(map[string]int, (len(row.Columns)-len(row.GroupingKeys))-1)
+	tagIndexes := make(map[string]int, len(row.GroupingKeys))
 	for i, c := range row.Columns {
-		if c == "time" {
+		if c == models.TimeString {
 			timeIndex = i
+		} else if _, ok := groupingCols[c]; ok {
+			// A GROUP BY date_part grouping dimension is written as a tag
+			// rather than a field.
+			tagIndexes[c] = i
 		} else {
 			fieldIndexes[c] = i
 		}
@@ -1409,7 +1432,7 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 			}
 		}
 
-		p, err := models.NewPoint(measurementName, models.NewTags(row.Tags), vals, v[timeIndex].(time.Time))
+		p, err := models.NewPoint(measurementName, groupingTags(row.Tags, tagIndexes, v), vals, v[timeIndex].(time.Time))
 		if err != nil {
 			if !strictErrorHandling {
 				// Drop points that can't be stored
@@ -1422,6 +1445,48 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 		points = append(points, p)
 	}
 	return points, nil
+}
+
+// groupingTags builds the tag set for a single INTO point. It starts from the
+// row's base tags (shared by every group) and adds the per-group date_part
+// dimension values from tagIndexes so each group becomes a distinct series. When
+// there are no grouping dimensions this is equivalent to models.NewTags(base).
+func groupingTags(base map[string]string, tagIndexes map[string]int, v []interface{}) models.Tags {
+	if len(tagIndexes) == 0 {
+		return models.NewTags(base)
+	}
+
+	merged := make(map[string]string, len(base)+len(tagIndexes))
+	for k, val := range base {
+		merged[k] = val
+	}
+	for tagName, tagIndex := range tagIndexes {
+		if s, ok := tagValueString(v[tagIndex]); ok {
+			merged[tagName] = s
+		}
+	}
+	return models.NewTags(merged)
+}
+
+// tagValueString renders a date_part dimension value as a tag value. date_part
+// dimensions are emitted as int64 (influxql.Integer); other types are rendered
+// defensively. A nil value yields ok=false so the tag is omitted rather than
+// written as an empty (and therefore dropped) tag.
+func tagValueString(val interface{}) (string, bool) {
+	switch x := val.(type) {
+	case nil:
+		return "", false
+	case int64:
+		return strconv.FormatInt(x, 10), true
+	case int:
+		return strconv.FormatInt(int64(x), 10), true
+	case int32:
+		return strconv.FormatInt(int64(x), 10), true
+	case string:
+		return x, x != ""
+	default:
+		return fmt.Sprintf("%v", x), true
+	}
 }
 
 // NormalizeStatement adds a default database and policy to the measurements in statement.

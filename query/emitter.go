@@ -1,6 +1,9 @@
 package query
 
 import (
+	"maps"
+	"sort"
+
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -9,9 +12,10 @@ type Emitter struct {
 	cur       Cursor
 	chunkSize int
 
-	series  Series
-	row     *models.Row
-	columns []string
+	series       Series
+	groupingKeys map[string]struct{}
+	row          *models.Row
+	columns      []string
 }
 
 // NewEmitter returns a new instance of Emitter that pulls from itrs.
@@ -52,30 +56,45 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 		// the number of values doesn't exceed the chunk size.
 		// Otherwise return existing row and add values to next emitted row.
 		if e.row == nil {
-			e.createRow(row.Series, row.Values)
-		} else if e.series.SameSeries(row.Series) {
+			e.createRow(row.Series, row.GroupingKeys, row.Values)
+		} else if e.series.SameSeries(row.Series) && maps.Equal(e.groupingKeys, row.GroupingKeys) {
 			if e.chunkSize > 0 && len(e.row.Values) >= e.chunkSize {
 				r := e.row
 				r.Partial = true
-				e.createRow(row.Series, row.Values)
+				e.createRow(row.Series, row.GroupingKeys, row.Values)
 				return r, true, nil
 			}
 			e.row.Values = append(e.row.Values, row.Values)
 		} else {
 			r := e.row
-			e.createRow(row.Series, row.Values)
+			e.createRow(row.Series, row.GroupingKeys, row.Values)
 			return r, true, nil
 		}
 	}
 }
 
 // createRow creates a new row attached to the emitter.
-func (e *Emitter) createRow(series Series, values []interface{}) {
+func (e *Emitter) createRow(series Series, groupingKeys map[string]struct{}, values []interface{}) {
 	e.series = series
+	e.groupingKeys = groupingKeys
 	e.row = &models.Row{
-		Name:    series.Name,
-		Tags:    series.Tags.KeyValues(),
-		Columns: e.columns,
-		Values:  [][]interface{}{values},
+		Name:         series.Name,
+		Tags:         series.Tags.KeyValues(),
+		GroupingKeys: sortedKeys(groupingKeys),
+		Columns:      e.columns,
+		Values:       [][]interface{}{values},
 	}
+}
+
+// sortedKeys returns a sorted slice of keys from a set.
+func sortedKeys(m map[string]struct{}) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

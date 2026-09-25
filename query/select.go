@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query/internal/gota"
 	"github.com/influxdata/influxql"
@@ -646,7 +647,7 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 		// Add a field with the variable "time" if we have not omitted time.
 		fields = append(fields, &influxql.Field{
 			Expr: &influxql.VarRef{
-				Val:  "time",
+				Val:  models.TimeString,
 				Type: influxql.Time,
 			},
 		})
@@ -693,6 +694,16 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 		for i, ref := range opt.Aux {
 			auxKeys[i] = valueMapper.symbols[ref.String()]
 		}
+	}
+
+	// Add each date part dimension as an output column with a backing auxiliary
+	// field, in a single pass so a column can never be added without its aux slot.
+	for _, dim := range opt.DatePartDimensions {
+		name := dim.Expr.String()
+		ref := influxql.VarRef{Val: name, Type: influxql.Integer}
+		fields = append(fields, &influxql.Field{Expr: &ref, Alias: name})
+		opt.Aux = append(opt.Aux, ref)
+		auxKeys = append(auxKeys, ref)
 	}
 
 	// If there are no calls, then produce an auxiliary cursor.
@@ -929,6 +940,18 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 		case *influxql.Call:
 			if isMathFunction(n) {
 				return v
+			}
+			if n.Name == DatePartString {
+				// Rewrite the date_part time argument to the date_part_time
+				// reference, which is resolved from the evaluation map at scan time.
+				if _, ok := matchDatePartCall(n); ok {
+					timeRef := n.Args[1].(*influxql.VarRef)
+					v.table[timeRef] = influxql.VarRef{
+						Val:  DatePartTimeString,
+						Type: influxql.Time,
+					}
+				}
+				return nil
 			}
 			v.calls[n] = struct{}{}
 		case *influxql.VarRef:

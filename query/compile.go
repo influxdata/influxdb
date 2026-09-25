@@ -10,6 +10,20 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+// Sentinel errors returned during compilation. Named values so tests can
+// reference them (via export_test.go) instead of duplicating the strings.
+var (
+	errOnlyTimeAndDatePartDimensions = errors.New("only time() and date_part() calls allowed in dimensions")
+	errTimeDimensionArgCount         = errors.New("time dimension expected 1 or 2 arguments")
+	errTimeDimensionDurationArg      = errors.New("time dimension must have duration argument")
+	errMultipleTimeDimensions        = errors.New("multiple time dimensions not allowed")
+	errTimeOffsetFunctionMustBeNow   = errors.New("time dimension offset function must be now()")
+	errTimeOffsetNowNoArgs           = errors.New("time dimension offset now() function requires no arguments")
+	errInvalidTimeOffset             = errors.New("time dimension offset must be duration or now()")
+	errAtLeastOneNonTimeField        = errors.New("at least 1 non-time field must be queried")
+	errMixedMultipleSelectors        = errors.New("mixing multiple selector functions with tags or fields is not supported")
+)
+
 // CompileOptions are the customization options for the compiler.
 type CompileOptions struct {
 	Now time.Time
@@ -105,7 +119,7 @@ func newCompiler(opt CompileOptions) *compiledStatement {
 	}
 	return &compiledStatement{
 		OnlySelectors: true,
-		TimeFieldName: "time",
+		TimeFieldName: models.TimeString,
 		Options:       opt,
 	}
 }
@@ -156,7 +170,7 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 		return err
 	}
 	// Verify that the condition is actually ok to use.
-	if err := c.validateCondition(cond); err != nil {
+	if err := c.validateCondition(cond, stmt.Sources); err != nil {
 		return err
 	}
 	c.Condition = cond
@@ -196,6 +210,9 @@ func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {
 	if err := c.validateFields(); err != nil {
 		return err
 	}
+	if err := c.validateDatePartSelectFields(stmt); err != nil {
+		return err
+	}
 
 	// Look through the sources and compile each of the subqueries (if they exist).
 	// We do this after compiling the outside because subqueries may require
@@ -213,7 +230,10 @@ func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {
 }
 
 func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error {
-	valuer := MathValuer{}
+	valuer := influxql.MultiValuer(
+		MathValuer{},
+		DatePartValuer{},
+	)
 
 	c.Fields = make([]*compiledField, 0, len(stmt.Fields))
 	for _, f := range stmt.Fields {
@@ -222,7 +242,7 @@ func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error 
 		// Such as SELECT time, max(value) FROM cpu will be SELECT max(value) FROM cpu
 		// and SELECT time AS timestamp, max(value) FROM cpu will return "timestamp"
 		// as the column name for the time.
-		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == "time" {
+		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			if f.Alias != "" {
 				c.TimeFieldName = f.Alias
 			}
@@ -230,7 +250,7 @@ func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error 
 		}
 
 		// Append this field to the list of processed fields and compile it.
-		f.Expr = influxql.Reduce(f.Expr, &valuer)
+		f.Expr = influxql.Reduce(f.Expr, valuer)
 		field := &compiledField{
 			global:        c,
 			Field:         f,
@@ -399,6 +419,8 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	// Validate the function call and mark down some meta properties
 	// related to the function for query validation.
 	switch expr.Name {
+	case DatePartString:
+		return ValidateDatePart(expr.Args)
 	case "max", "min", "first", "last":
 		// top/bottom are not included here since they are not typical functions.
 	case "count", "sum", "mean", "median", "mode", "stddev", "spread", "sum_hll":
@@ -934,56 +956,25 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 
 		switch expr := expr.(type) {
 		case *influxql.VarRef:
-			if strings.EqualFold(expr.Val, "time") {
+			if strings.EqualFold(expr.Val, models.TimeString) {
 				return errors.New("time() is a function and expects at least one argument")
 			}
 		case *influxql.Call:
-			// Ensure the call is time() and it has one or two duration arguments.
-			// If we already have a duration
-			if expr.Name != "time" {
-				return errors.New("only time() calls allowed in dimensions")
-			} else if got := len(expr.Args); got < 1 || got > 2 {
-				return errors.New("time dimension expected 1 or 2 arguments")
-			} else if lit, ok := expr.Args[0].(*influxql.DurationLiteral); !ok {
-				return errors.New("time dimension must have duration argument")
-			} else if c.Interval.Duration != 0 {
-				return errors.New("multiple time dimensions not allowed")
-			} else {
-				c.Interval.Duration = lit.Val
-				if len(expr.Args) == 2 {
-					switch lit := expr.Args[1].(type) {
-					case *influxql.DurationLiteral:
-						c.Interval.Offset = lit.Val % c.Interval.Duration
-					case *influxql.TimeLiteral:
-						c.Interval.Offset = lit.Val.Sub(lit.Val.Truncate(c.Interval.Duration))
-					case *influxql.Call:
-						if lit.Name != "now" {
-							return errors.New("time dimension offset function must be now()")
-						} else if len(lit.Args) != 0 {
-							return errors.New("time dimension offset now() function requires no arguments")
-						}
-						now := c.Options.Now
-						c.Interval.Offset = now.Sub(now.Truncate(c.Interval.Duration))
-
-						// Use the evaluated offset to replace the argument. Ideally, we would
-						// use the interval assigned above, but the query engine hasn't been changed
-						// to use the compiler information yet.
-						expr.Args[1] = &influxql.DurationLiteral{Val: c.Interval.Offset}
-					case *influxql.StringLiteral:
-						// If literal looks like a date time then parse it as a time literal.
-						if lit.IsTimeLiteral() {
-							t, err := lit.ToTimeLiteral(stmt.Location)
-							if err != nil {
-								return err
-							}
-							c.Interval.Offset = t.Val.Sub(t.Val.Truncate(c.Interval.Duration))
-						} else {
-							return errors.New("time dimension offset must be duration or now()")
-						}
-					default:
-						return errors.New("time dimension offset must be duration or now()")
-					}
+			switch expr.Name {
+			case models.TimeString:
+				err := c.compileTimeDimension(expr, stmt)
+				if err != nil {
+					return err
 				}
+			case DatePartString:
+				if err := ValidateDatePart(expr.Args); err != nil {
+					return err
+				}
+				// GROUP BY date_part over a subquery source is resolved at the
+				// subquery boundary by datePartMap (see query/subquery.go), which
+				// computes the dimension value from each row's timestamp.
+			default:
+				return errOnlyTimeAndDatePartDimensions
 			}
 		case *influxql.Wildcard:
 		case *influxql.RegexLiteral:
@@ -997,17 +988,96 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 	return nil
 }
 
+func (c *compiledStatement) compileTimeDimension(expr *influxql.Call, stmt *influxql.SelectStatement) error {
+	// Ensure the call is time() and it has one or two duration arguments.
+	// If we already have a duration
+	if expr.Name != models.TimeString {
+		return errOnlyTimeAndDatePartDimensions
+	} else if got := len(expr.Args); got < 1 || got > 2 {
+		return errTimeDimensionArgCount
+	} else if lit, ok := expr.Args[0].(*influxql.DurationLiteral); !ok {
+		return errTimeDimensionDurationArg
+	} else if c.Interval.Duration != 0 {
+		return errMultipleTimeDimensions
+	} else {
+		c.Interval.Duration = lit.Val
+		if len(expr.Args) == 2 {
+			switch lit := expr.Args[1].(type) {
+			case *influxql.DurationLiteral:
+				c.Interval.Offset = lit.Val % c.Interval.Duration
+			case *influxql.TimeLiteral:
+				c.Interval.Offset = lit.Val.Sub(lit.Val.Truncate(c.Interval.Duration))
+			case *influxql.Call:
+				if lit.Name != "now" {
+					return errTimeOffsetFunctionMustBeNow
+				} else if len(lit.Args) != 0 {
+					return errTimeOffsetNowNoArgs
+				}
+				now := c.Options.Now
+				c.Interval.Offset = now.Sub(now.Truncate(c.Interval.Duration))
+
+				// Use the evaluated offset to replace the argument. Ideally, we would
+				// use the interval assigned above, but the query engine hasn't been changed
+				// to use the compiler information yet.
+				expr.Args[1] = &influxql.DurationLiteral{Val: c.Interval.Offset}
+			case *influxql.StringLiteral:
+				// If literal looks like a date time then parse it as a time literal.
+				if lit.IsTimeLiteral() {
+					t, err := lit.ToTimeLiteral(stmt.Location)
+					if err != nil {
+						return err
+					}
+					c.Interval.Offset = t.Val.Sub(t.Val.Truncate(c.Interval.Duration))
+				} else {
+					return errInvalidTimeOffset
+				}
+			default:
+				return errInvalidTimeOffset
+			}
+		}
+	}
+	return nil
+}
+
 // validateFields validates that the fields are mutually compatible with each other.
 // This runs at the end of compilation but before linking.
 func (c *compiledStatement) validateFields() error {
 	// Validate that at least one field has been selected.
 	if len(c.Fields) == 0 {
-		return errors.New("at least 1 non-time field must be queried")
+		return errAtLeastOneNonTimeField
+	}
+	// date_part('part', time) derives its value purely from the row timestamp and
+	// references no stored field. A SELECT whose only fields are such date_part
+	// expressions has nothing to anchor the scan on (the storage engine needs a
+	// real field cursor to emit points), so it would silently return no data, like
+	// SELECT time. Reject it with a clear error instead. Queries that also select a
+	// bare field (HasAuxiliaryFields) or an aggregate/selector call other than
+	// date_part carry an anchor and are unaffected.
+	//
+	// This is a schema-blind early check: HasAuxiliaryFields is true for any bare
+	// VarRef including a tag, which is not a real anchor. The tag-only case can only
+	// be detected once field types are known, so it is caught later by the
+	// authoritative validateDatePartAnchor in Prepare. Keep both in sync.
+	datePartCalls, otherCalls := 0, 0
+	for _, call := range c.FunctionCalls {
+		if call.Name == DatePartString {
+			datePartCalls++
+		} else {
+			otherCalls++
+		}
+	}
+	if !c.HasAuxiliaryFields {
+		if datePartCalls > 0 && otherCalls == 0 {
+			return errAtLeastOneNonTimeField
+		}
 	}
 	// Ensure there are not multiple calls if top/bottom is present.
 	if len(c.FunctionCalls) > 1 && c.TopBottomFunction != "" {
 		return fmt.Errorf("selector function %s() cannot be combined with other functions", c.TopBottomFunction)
-	} else if len(c.FunctionCalls) == 0 {
+	} else if otherCalls == 0 {
+		// date_part is registered in FunctionCalls but is not an aggregate, so a
+		// query whose only calls are date_part must satisfy the same fill and
+		// GROUP BY interval requirements as a raw query.
 		switch c.FillOption {
 		case influxql.NoFill:
 			return errors.New("fill(none) must be used with a function")
@@ -1027,7 +1097,17 @@ func (c *compiledStatement) validateFields() error {
 		if !c.OnlySelectors {
 			return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
 		} else if len(c.FunctionCalls) > 1 {
-			return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
+			// If there are multiple function calls we want to validate whether they are date_part or not
+			// it is okay to have multiple date_part functions in a single SELECT clause.
+			nonDatePartCount := 0
+			for _, call := range c.FunctionCalls {
+				if call.Name != DatePartString {
+					nonDatePartCount++
+					if nonDatePartCount > 1 {
+						return errMixedMultipleSelectors
+					}
+				}
+			}
 		}
 	}
 	return nil
@@ -1036,22 +1116,30 @@ func (c *compiledStatement) validateFields() error {
 // validateCondition verifies that all elements in the condition are appropriate.
 // For example, aggregate calls don't work in the condition and should throw an
 // error as an invalid expression.
-func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
+func (c *compiledStatement) validateCondition(expr influxql.Expr, sources influxql.Sources) error {
 	switch expr := expr.(type) {
 	case *influxql.BinaryExpr:
 		// Verify each side of the binary expression. We do not need to
 		// verify the binary expression itself since that should have been
 		// done by influxql.ConditionExpr.
-		if err := c.validateCondition(expr.LHS); err != nil {
+		if err := c.validateCondition(expr.LHS, sources); err != nil {
 			return err
 		}
-		if err := c.validateCondition(expr.RHS); err != nil {
+		if err := c.validateCondition(expr.RHS, sources); err != nil {
 			return err
 		}
 		return nil
 	case *influxql.Call:
 		if !isMathFunction(expr) {
-			return fmt.Errorf("invalid function call in condition: %s", expr)
+			switch expr.Name {
+			case DatePartString:
+				if err := ValidateDatePart(expr.Args); err != nil {
+					return err
+				}
+				return nil
+			default:
+				return fmt.Errorf("invalid function call in condition: %s", expr)
+			}
 		}
 
 		// How many arguments are we expecting?
@@ -1068,7 +1156,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 
 		// Are all the args valid?
 		for _, arg := range expr.Args {
-			if err := c.validateCondition(arg); err != nil {
+			if err := c.validateCondition(arg, sources); err != nil {
 				return err
 			}
 		}
@@ -1212,6 +1300,25 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 
 	// Validate if the types are correct now that they have been assigned.
 	if err := validateTypes(stmt); err != nil {
+		shards.Close()
+		return nil, err
+	}
+
+	// Now that VarRef types are known, reject a date_part SELECT whose only
+	// non-date_part fields are tags: a tag is not a scan anchor, so the query
+	// would otherwise silently return no rows.
+	if err := validateDatePartAnchor(stmt); err != nil {
+		shards.Close()
+		return nil, err
+	}
+
+	// Re-run the date_part SELECT/GROUP BY validation now that RewriteFields has
+	// expanded any wildcards, recursing into subquery sources. The compile-time
+	// passes ran before expansion, so a wildcard-expanded shape (e.g. max(*)
+	// becoming multiple aggregates, a stored field named "year" colliding with
+	// GROUP BY date_part('year', time), or either inside a subquery) would
+	// otherwise slip through.
+	if err := validateDatePartTree(stmt, false); err != nil {
 		shards.Close()
 		return nil, err
 	}

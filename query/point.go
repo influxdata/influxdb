@@ -239,10 +239,20 @@ func decodeTags(id []byte) map[string]string {
 	return m
 }
 
+// auxDatePartKey marks an aux value as a DecodedDatePartKey in the iterator wire
+// codec. It is intentionally outside the influxql.DataType range (which tops out at
+// Unsigned = 9) so it can never collide with a real field type. The 9-byte encoded
+// key (see encodeKey) is carried in the Aux StringValue. Without this, a date_part
+// GROUP BY value streamed between data nodes would serialize to null and every
+// bucket would collapse into a single group.
+const auxDatePartKey influxql.DataType = 1000
+
 func encodeAux(aux []interface{}) []*internal.Aux {
 	pb := make([]*internal.Aux, len(aux))
 	for i := range aux {
 		switch v := aux[i].(type) {
+		case DecodedDatePartKey:
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(auxDatePartKey)), StringValue: proto.String(encodeKey(v.Expr, v.Val))}
 		case float64:
 			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Float)), FloatValue: proto.Float64(v)}
 		case *float64:
@@ -278,6 +288,12 @@ func decodeAux(pb []*internal.Aux) []interface{} {
 	aux := make([]interface{}, len(pb))
 	for i := range pb {
 		switch influxql.DataType(pb[i].GetDataType()) {
+		case auxDatePartKey:
+			if pb[i].StringValue != nil {
+				if key, err := decodeKey(*pb[i].StringValue); err == nil {
+					aux[i] = key
+				}
+			}
 		case influxql.Float:
 			if pb[i].FloatValue != nil {
 				aux[i] = *pb[i].FloatValue
