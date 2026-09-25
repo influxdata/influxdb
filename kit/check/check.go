@@ -42,6 +42,31 @@ type Check struct {
 }
 
 // Checker indicates a service whose health can be checked.
+//
+// Check must return promptly. ctx carries a deadline, but that deadline is
+// only cooperative: nothing can interrupt a Check that has already blocked.
+// A wedged implementation hangs the /health or /ready request that called
+// it, and it hangs Freeze -- neither the per-probe DefaultProbeTimeout that
+// Freeze applies nor any backstop its caller wraps around the freeze as a
+// whole can preempt the call. A check that never returns can therefore hold
+// a process open past the teardown the freeze was taken to precede.
+//
+// So keep uninterruptible work off the check path. Two patterns cover it:
+//
+//   - Probe in the background and have Check report the last result. This is
+//     the only option when the probe cannot be cancelled at all: a bbolt View
+//     runs to completion whatever its caller wants. bolt.KVStore does this --
+//     a prober goroutine refreshes a FreshnessResponse on a ticker and Check
+//     returns that value, so the uncancellable read never runs inside a probe.
+//
+//   - Probe inline only through an API that honors ctx, and bound it with
+//     BoundDeadline so the latency stays capped even when the caller passes
+//     a context with no deadline of its own. sqlite.SqlStore.Check does this
+//     around PingContext.
+//
+// Check may be called concurrently, and it may be called after the subsystem
+// it reports on has been closed -- teardown does not deregister checks.
+// Report that state as a failure rather than panicking on it.
 type Checker interface {
 	Check(ctx context.Context) Response
 }
