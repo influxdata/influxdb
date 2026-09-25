@@ -96,6 +96,13 @@ const (
 
 	// MaxTSMFileSize is the maximum size of TSM files.
 	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
+
+	// DefaultWALMaxWriteDelay is the default deadline for a single write to the wal. It is used to set a timeout
+	// on a context to cancel the operation if it takes too long. Zero means infinite. The OSS default is
+	// 10 minutes. If the wal concurrency write limiter is set (which is it by default - see defaultWaitingWALWrites)
+	// then there should be a value for WALMaxWriteDelay. An hour (or even 10 minutes) is eternity for a disk
+	// write.
+	DefaultWALMaxWriteDelay = 1 * time.Hour
 )
 
 // Validation errors returned by Config.Validate for the TSI series-id-set
@@ -254,7 +261,7 @@ func NewConfig() Config {
 
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 
-		WALMaxWriteDelay: 10 * time.Minute,
+		WALMaxWriteDelay: DefaultWALMaxWriteDelay,
 
 		MaxIndexLogFileSize:                toml.Size(DefaultMaxIndexLogFileSize),
 		SeriesIDSetCacheSize:               DefaultSeriesIDSetCacheSize,

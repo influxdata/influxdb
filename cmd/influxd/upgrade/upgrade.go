@@ -645,11 +645,14 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 	svc.dbrpSvc = dbrp.NewService(ctx, svc.ts.BucketService, svc.kvStore)
 	svc.bucketSvc = svc.ts.BucketService
 
-	engine := storage.NewEngine(
+	engine, err := storage.NewEngine(
 		opts.enginePath,
 		storage.NewConfig(),
 		storage.WithMetaClient(svc.meta),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	svc.ts.BucketService = storage.NewBucketService(log, svc.ts.BucketService, engine)
 

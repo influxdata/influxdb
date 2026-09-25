@@ -111,9 +111,14 @@ type TSDBStore interface {
 
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
-func NewEngine(path string, c Config, options ...Option) *Engine {
+func NewEngine(path string, c Config, options ...Option) (*Engine, error) {
 	c.Data.Dir = filepath.Join(path, "data")
 	c.Data.WALDir = filepath.Join(path, "wal")
+
+	err := c.Data.Validate()
+	if err != nil {
+		return nil, err
+	}
 
 	e := &Engine{
 		config:    c,
@@ -148,7 +153,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.precreatorService = precreator.NewService(c.PrecreatorConfig)
 	e.precreatorService.MetaClient = e.metaClient
 
-	return e
+	return e, nil
 }
 
 // WithLogger sets the logger on the Store. It must be called before Open.

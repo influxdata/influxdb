@@ -143,7 +143,8 @@ func NewMultiShardStorageReader(tb testing.TB, shardGroupDuration time.Duration,
 	}
 	require.NoError(tb, sfile.Close(), "failed to close series file")
 
-	engine := storage.NewEngine(enginePath, storage.NewConfig(), storage.WithMetaClient(metaClient))
+	engine, err := storage.NewEngine(enginePath, storage.NewConfig(), storage.WithMetaClient(metaClient))
+	require.NoError(tb, err, "failed to create storage engine")
 	require.NoError(tb, engine.Open(context.Background()), "failed to open storage engine")
 	closers = append(closers, func() {
 		assert.NoError(tb, engine.Close(), "close engine")

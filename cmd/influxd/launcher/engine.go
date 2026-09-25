@@ -86,7 +86,10 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 	}
 
 	t.path = path
-	t.engine = storage.NewEngine(path, t.config, t.options...)
+	t.engine, err = storage.NewEngine(path, t.config, t.options...)
+	if err != nil {
+		return err
+	}
 	t.engine.WithLogger(t.log)
 
 	if err := t.engine.Open(ctx); err != nil {

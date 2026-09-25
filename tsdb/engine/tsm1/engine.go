@@ -1387,7 +1387,7 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 
 // WritePoints writes metadata and point data into the engine.
 // It returns an error if new points are added to an existing key.
-func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
+func (e *Engine) WritePoints(_ context.Context, points []models.Point) error {
 	values := make(map[string][]Value, len(points))
 	var (
 		keyBuf    []byte
@@ -1478,7 +1478,16 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	}
 
 	if e.WALEnabled {
-		if _, err := e.WAL.WriteMulti(ctx, values); err != nil {
+		// NOTE: the context here is used down the call tree to help enforce
+		// a timeout (if configured) for slow disks and/or a concurrency limiter for
+		// outstanding wal write requests (if configured).
+		// We should not use the context from the write request as, at this site, the write to the cache has already
+		// been successful so the write is very likely to make it into a tsm file, even if the wal write fails.
+		// For a single instance influxdb, this is "ok" as it is self-consistent, but for wal replicating
+		// multi-node cluster, the user context cancelling the wal can create entropy, so we use the background
+		// context so prevent the user cancelling the write request from creating entropy. A wal write failure
+		// could still cause entropy (e.g. something wrong with the disk).
+		if _, err := e.WAL.WriteMulti(context.Background(), values); err != nil {
 			return err
 		}
 	}
