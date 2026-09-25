@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sync/atomic"
 	"time"
 )
@@ -147,12 +148,21 @@ func BoundDeadline(ctx context.Context, max time.Duration) (context.Context, con
 	return context.WithTimeout(ctx, max)
 }
 
+// MsgNotReady is the message a ReadyGate reports when it has been neither
+// fired by Ready nor failed by Fail: the subsystem is still initializing and
+// there is nothing more to say about it.
+const MsgNotReady = "not ready"
+
 // ReadyGate is a NamedChecker that reports StatusFail until Ready is called,
 // after which it reports StatusPass. It is intended for gating readiness on
 // subsystem init phases that complete once at startup.
+//
+// A gate whose phase failed outright can be latched with Fail, after which it
+// reports the failure message in place of MsgNotReady.
 type ReadyGate struct {
-	name  string
-	ready atomic.Bool
+	name    string
+	ready   atomic.Bool
+	failMsg atomic.Pointer[string] // terminal startup failure; see Fail
 }
 
 // NewReadyGate returns a ReadyGate that initially reports StatusFail.
@@ -164,13 +174,17 @@ func NewReadyGate(name string) *ReadyGate {
 func (g *ReadyGate) CheckName() string { return g.name }
 
 // Check returns StatusPass once Ready has been called, otherwise StatusFail.
-// The response is stamped with the gate's name to satisfy the NamedChecker
-// contract.
+// A gate latched by Fail reports StatusFail carrying the failure message,
+// whatever Ready and Unready have done. The response is stamped with the
+// gate's name to satisfy the NamedChecker contract.
 func (g *ReadyGate) Check(context.Context) Response {
+	if msg := g.failMsg.Load(); msg != nil {
+		return NamedFail(g.name, *msg)
+	}
 	if g.ready.Load() {
 		return NamedPass(g.name)
 	}
-	return NamedFail(g.name, "not ready")
+	return NamedFail(g.name, MsgNotReady)
 }
 
 // Ready flips the gate to report StatusPass.
@@ -178,3 +192,36 @@ func (g *ReadyGate) Ready() { g.ready.Store(true) }
 
 // Unready flips the gate to report StatusFail.
 func (g *ReadyGate) Unready() { g.ready.Store(false) }
+
+// Fail latches a terminal startup failure carrying err's message, so the gate
+// reports why it will never become ready rather than a bare MsgNotReady. The
+// first error wins; a nil err is ignored.
+//
+// Startup-only: Fail outranks both Ready and Unready and cannot be cleared, so
+// a runtime degradation monitor must call Unready, never Fail.
+func (g *ReadyGate) Fail(err error) {
+	if isNilError(err) {
+		return
+	}
+	// Resolve the message here, while the caller still holds the error, rather
+	// than storing the error and calling Error() from an HTTP handler later.
+	msg := err.Error()
+	g.failMsg.CompareAndSwap(nil, &msg)
+}
+
+// isNilError reports whether err is nil, including the typed-nil-in-interface
+// case ((*T)(nil) stored in an error) where err == nil is false but calling
+// Error() panics. A latched gate is read from an HTTP handler, so a panic here
+// would turn a startup failure into a 500 on /health and /ready.
+func isNilError(err error) bool {
+	if err == nil {
+		return true
+	}
+	// Kinds outside this set cannot be nil, and IsNil panics on them.
+	switch v := reflect.ValueOf(err); v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
