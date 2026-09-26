@@ -93,8 +93,8 @@ func (t *table) init(advance func() bool) {
 // an unconditional wait can block forever.
 //
 // The used CAS already arbitrates ownership, so reuse it: whoever wins it owns
-// the table and is responsible for closing done. do() and Done() are the other
-// two claimants.
+// the table and is responsible for releasing its buffer and closing done. do()
+// and Done() are the other two claimants.
 func (t *table) awaitAbandoned(done <-chan struct{}) {
 	// Ask any running consumer to stop at its next iteration boundary, so the
 	// wait below is as short as possible.
@@ -103,7 +103,9 @@ func (t *table) awaitAbandoned(done <-chan struct{}) {
 	if t.used.CompareAndSwap(false, true) {
 		// We claimed the table first. do()'s opening act is this same CAS and it
 		// touches nothing beforehand, so no consumer can ever run against this
-		// table and there is nothing to wait for.
+		// table and there is nothing to wait for. The buffer is ours to release:
+		// nothing else will, since Done() only releases when it wins this CAS.
+		t.releaseColBufs()
 		t.closeDone()
 		return
 	}
@@ -138,6 +140,12 @@ func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
 		return errors.New("table already used")
 	}
 	defer t.closeDone()
+	// The loop below settles the buffer after every f call and nils colBufs, so
+	// this only fires on the exits that leave a live buffer behind: the early
+	// error return below, a panic unwinding out of f, and a panic out of
+	// advance after it installed a fresh buffer. It runs before closeDone
+	// (LIFO), so done never closes with the buffer still retained.
+	defer t.releaseColBufs()
 
 	// If an error occurred during initialization, that is
 	// returned here.
@@ -146,26 +154,40 @@ func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
 	}
 
 	if !t.Empty() {
+		// Settle each buffer through releaseColBufs rather than a bare Release:
+		// nil-ing colBufs per iteration means the deferred release above can
+		// never touch a buffer this loop already settled. advance() can panic
+		// on an allocator limit before installing a fresh buffer, and a stale
+		// colBufs there would release arrays a retaining consumer still holds.
+		// This forfeits allocateBuffer's colReader struct reuse, one small
+		// allocation per iteration.
 		t.err = f(t.colBufs)
-		t.colBufs.Release()
+		t.releaseColBufs()
 
 		for !t.isCancelled() && t.err == nil && advance() {
 			t.err = f(t.colBufs)
-			t.colBufs.Release()
+			t.releaseColBufs()
 		}
-		t.colBufs = nil
 	}
 
 	return t.err
 }
 
 func (t *table) Done() {
-	// Mark the table as having been used. If this has already
-	// been done, then nothing needs to be done.
+	// Mark the table as having been used. If this has already been done, then
+	// nothing needs to be done: the buffer belongs to whoever won the CAS, and
+	// releasing it here would race a concurrent awaitAbandoned or double-release
+	// behind a do() that covers its own exits.
 	if t.used.CompareAndSwap(false, true) {
-		defer t.closeDone()
+		t.releaseColBufs()
+		t.closeDone()
 	}
+}
 
+// releaseColBufs releases the table's current buffer, if any. Only the winner
+// of the used CAS may call it - do(), Done(), and awaitAbandoned each release
+// on the paths they own - so every buffer has exactly one releaser.
+func (t *table) releaseColBufs() {
 	if t.colBufs != nil {
 		t.colBufs.Release()
 		t.colBufs = nil
@@ -208,7 +230,16 @@ func (cr *colReader) Retain() {
 func (cr *colReader) Release() {
 	if atomic.AddInt64(&cr.refCount, -1) == 0 {
 		for _, col := range cr.cols {
-			col.Release()
+			// cols may hold nil entries when a panic interrupts advance()
+			// between allocateBuffer and the last column fill; the deferred
+			// releaseColBufs must not panic over them while unwinding. The
+			// cost is a weaker early warning: a construction bug that leaves
+			// a column nil now surfaces only when a consumer reads that
+			// column, where this loop previously panicked on the first
+			// release regardless of consumer behavior.
+			if col != nil {
+				col.Release()
+			}
 		}
 	}
 }
