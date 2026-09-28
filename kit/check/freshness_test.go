@@ -201,7 +201,7 @@ func TestRenamedResponse_MarshalMatchesSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, `{"name":"outer","status":"pass","message":"ok"}`, string(b))
 
-	s, ok := r.(Snapshotter)
+	s, ok := r.(HealthSnapshotter)
 	require.True(t, ok, "a renamed Response must still offer a single coherent read")
 	require.Equal(t, "outer", s.Snapshot().Name())
 	require.Equal(t, StatusPass, s.Snapshot().Status())

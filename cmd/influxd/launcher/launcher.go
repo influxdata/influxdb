@@ -374,9 +374,10 @@ func (m *Launcher) httpIsServing() bool {
 // The cap is enforced here rather than on the option so that it cannot be
 // bypassed -- every path into the window goes through holdForStartupError --
 // and so print-config keeps reporting the configured value rather than a
-// rewritten one. The warning is the operator's only notice that the duration
-// they chose is not the duration they will get, and it names the flag so the
-// line is actionable on its own.
+// rewritten one. The warning is the operator's notice that the duration they
+// chose is not the duration they will get, and it names the flag so the line is
+// actionable on its own. run also calls this at startup, for the warning alone,
+// so the notice appears before any failure rather than only after one.
 func (m *Launcher) cappedLinger(d time.Duration) time.Duration {
 	if d <= maxStartupErrorLinger {
 		return d
@@ -431,7 +432,9 @@ func (m *Launcher) holdForStartupError(ctx context.Context, d time.Duration) {
 	subsysCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	// Failures are logged per subsystem by runClosers and accumulate into the
 	// error the caller's Shutdown returns, so there is nothing to report here.
-	_ = m.shutdownSubsystems(subsysCtx)
+	if err := m.shutdownSubsystems(subsysCtx); err != nil {
+		m.log.Error("Error shutting down subsystems", zap.Error(err))
+	}
 	cancel()
 
 	m.log.Warn("Startup failed; serving /health and /ready before exiting",
@@ -625,6 +628,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if opts.NatsMaxPayloadBytes != 0 {
 		m.log.Warn("nats-max-payload-bytes argument is deprecated and unused")
 	}
+
+	// Warn about an over-cap --startup-error-linger now, while the operator is
+	// watching startup, not only when a failed start reaches the window. The
+	// result is discarded: holdForStartupError still enforces the cap itself.
+	_ = m.cappedLinger(opts.StartupErrorLinger)
 
 	// Parse feature flags.
 	// These flags can be used to modify the remaining setup logic in this method.

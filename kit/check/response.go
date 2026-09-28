@@ -14,7 +14,7 @@ import (
 // free by embedding wireResponse; FreshnessResponse and renamedResponse
 // build the same shape explicitly in MarshalJSON.
 //
-// A stateful implementation should also implement Snapshotter, so callers
+// A stateful implementation should also implement HealthSnapshotter, so callers
 // that need every field from one observation -- rendering, or freezing a
 // terminal report -- can take it without reading each accessor separately.
 type Response interface {
@@ -24,7 +24,7 @@ type Response interface {
 	Checks() Responses
 }
 
-// Snapshotter is implemented by a Response that can render its entire state
+// HealthSnapshotter is implemented by a Response that can render its entire state
 // from a single coherent read. A Response whose fields derive from mutable
 // state -- FreshnessResponse -- can otherwise report a torn combination, a
 // status taken from one observation and a message from the next, because the
@@ -32,7 +32,7 @@ type Response interface {
 //
 // Implementations must return a BasicResponse whose own fields are fixed;
 // nested Checks may still be live, and snapshot recurses into them.
-type Snapshotter interface {
+type HealthSnapshotter interface {
 	Snapshot() BasicResponse
 }
 
@@ -47,7 +47,7 @@ type Snapshotter interface {
 // Response marshals to the same wire shape, so the flattened value renders
 // identical JSON to the one it replaces.
 func snapshot(r Response) BasicResponse {
-	if s, ok := r.(Snapshotter); ok {
+	if s, ok := r.(HealthSnapshotter); ok {
 		b := s.Snapshot()
 		return NewBasicResponse(b.Name(), b.Status(), b.Message(), snapshotAll(b.Checks()))
 	}
