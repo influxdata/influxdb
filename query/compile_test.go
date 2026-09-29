@@ -126,6 +126,8 @@ func TestCompile_Success(t *testing.T) {
 		// Non-value-carrying fill modes are allowed with GROUP BY date_part.
 		`SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(none)`,
 		`SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(null)`,
+		// LIMIT counts rows per series, which is the tag set with one part.
+		`SELECT count(value) FROM cpu GROUP BY date_part('year', time) LIMIT 2 OFFSET 1`,
 		// date_part in subqueries
 		`SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM cpu)`,
 		`SELECT mean(value) FROM (SELECT value FROM cpu WHERE date_part('dow', time) = 1)`,
@@ -459,6 +461,9 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT bottom(value, month, 3) FROM cpu GROUP BY date_part('year', time), date_part('month', time) fill(none)`, err: `date_part: bottom() tag argument "month" collides with the GROUP BY date_part('month', time) dimension`},
 		// With time(), two parts alternate between their series in every window.
 		{s: `SELECT count(value) FROM cpu GROUP BY time(1h), date_part('year', time), date_part('month', time) fill(none)`, err: query.ErrDatePartIntervalMultiplePart.Error()},
+		// With two parts, LIMIT/OFFSET per tag set would cut across the parts' series.
+		{s: `SELECT count(value) FROM cpu GROUP BY date_part('year', time), date_part('month', time) LIMIT 2`, err: query.ErrDatePartLimitMultiplePart.Error()},
+		{s: `SELECT count(value) FROM cpu GROUP BY date_part('year', time), date_part('month', time) OFFSET 1`, err: query.ErrDatePartLimitMultiplePart.Error()},
 		// Grouping a date_part-grouped subquery is only defined for the same single part.
 		{s: `SELECT sum(count) FROM (SELECT count(value) FROM cpu GROUP BY date_part('year', time), date_part('month', time)) GROUP BY date_part('year', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},
 		{s: `SELECT sum(count) FROM (SELECT count(value) FROM cpu GROUP BY date_part('year', time)) GROUP BY date_part('year', time), date_part('month', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},

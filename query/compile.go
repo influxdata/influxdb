@@ -1304,6 +1304,13 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 		return nil, err
 	}
 
+	// Type refs to planner-supplied date_part values over subquery sources
+	// before the anchor check, which counts only typed field refs as anchors.
+	if _, err := typeSubqueryDatePartRefs(stmt); err != nil {
+		shards.Close()
+		return nil, err
+	}
+
 	// Now that VarRef types are known, reject a date_part SELECT whose only
 	// non-date_part fields are tags: a tag is not a scan anchor, so the query
 	// would otherwise silently return no rows.
@@ -1319,12 +1326,6 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	// GROUP BY date_part('year', time), or either inside a subquery) would
 	// otherwise slip through.
 	if err := validateDatePartTree(stmt, false); err != nil {
-		shards.Close()
-		return nil, err
-	}
-
-	// Type refs to planner-supplied date_part values over subquery sources.
-	if err := typeSubqueryDatePartRefs(stmt); err != nil {
 		shards.Close()
 		return nil, err
 	}

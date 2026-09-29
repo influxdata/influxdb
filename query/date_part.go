@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -234,6 +235,8 @@ var (
 	errDatePartFillNull             = errors.New("date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)")
 	errDatePartIntervalMultiplePart = errors.New("date_part: GROUP BY time() supports only one GROUP BY date_part dimension")
 	errDatePartOverGroupedSubquery  = errors.New("date_part: GROUP BY date_part over a subquery that groups by date_part requires both to group by the same single part")
+	errDatePartTimeOverGrouped      = errors.New("date_part: date_part(..., time) over a subquery that groups by date_part would read its bucket timestamps; use the subquery's part column instead")
+	errDatePartLimitMultiplePart    = errors.New("date_part: LIMIT and OFFSET are not supported with more than one GROUP BY date_part dimension")
 )
 
 // datePartDimensions returns the statement's GROUP BY date_part dimensions in
@@ -317,6 +320,9 @@ func validateDatePartTree(stmt *influxql.SelectStatement, subquery bool) error {
 		fill = influxql.NoFill
 	}
 	if err := validateDatePartFields(stmt, fill, interval > 0); err != nil {
+		return err
+	}
+	if err := validateDatePartOverGroupedSources(stmt); err != nil {
 		return err
 	}
 	for _, source := range stmt.Sources {
@@ -462,6 +468,13 @@ func validateDatePartGrouping(stmt *influxql.SelectStatement, groupByParts map[D
 		return errDatePartIntervalMultiplePart
 	}
 
+	// LIMIT and OFFSET count rows per tag set, but with two or more parts each
+	// part is its own series within a tag set, so the limit would cut across
+	// parts and drop whole series.
+	if len(groupByParts) > 1 && (stmt.Limit > 0 || stmt.Offset > 0) {
+		return errDatePartLimitMultiplePart
+	}
+
 	// A subquery grouped by date_part emits every bucket at a representative
 	// timestamp (the window start for an aggregate), so recomputing a part from
 	// those timestamps would collapse its buckets. The outer grouping reads the
@@ -603,54 +616,118 @@ func subqueriesGroupByDatePart(stmt *influxql.SelectStatement) (bool, error) {
 	return false, nil
 }
 
+// validateDatePartOverGroupedSources rejects date_part(..., time) evaluated
+// from the rows of a date_part-grouped subquery, at any depth. Those rows carry
+// a bucket's representative timestamp (the window start for an aggregate),
+// not a point's, so the part would be the same for every bucket. The one
+// exception is a SELECT of a part this statement groups by, which is resolved
+// from the grouped bucket rather than the timestamp.
+func validateDatePartOverGroupedSources(stmt *influxql.SelectStatement) error {
+	grouped, err := subqueriesGroupByDatePart(stmt)
+	if err != nil || !grouped {
+		return err
+	}
+	if exprContainsDatePart(stmt.Condition) {
+		return errDatePartTimeOverGrouped
+	}
+	own, err := datePartDimensions(stmt)
+	if err != nil {
+		return err
+	}
+	var bad bool
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			if part, ok := matchDatePartCall(n); ok && !slices.ContainsFunc(own, func(d DatePartDimension) bool { return d.Expr == part }) {
+				bad = true
+			}
+		})
+	}
+	if bad {
+		return errDatePartTimeOverGrouped
+	}
+	return nil
+}
+
 // typeSubqueryDatePartRefs types the VarRefs of a statement over subquery
 // sources that name a date_part value the planner supplies rather than a
 // subquery field: an active GROUP BY date_part part (datePartMap) or a column
 // a subquery injects for its own GROUP BY date_part. RewriteFields cannot see
 // either and leaves them Unknown, and an aggregate driven by an Unknown ref
 // (e.g. max(year)) plans as a null cursor and silently returns nothing.
-func typeSubqueryDatePartRefs(stmt *influxql.SelectStatement) error {
-	var inner []DatePartDimension
-	hasSubquery := false
+//
+// Subqueries are typed first, so a column a subquery passes such a value up
+// through (e.g. SELECT count, day FROM (... GROUP BY date_part('day', time)))
+// is typed from that subquery's now-typed field. It reports whether it typed
+// any ref, so a parent knows when its own refs may need the same.
+func typeSubqueryDatePartRefs(stmt *influxql.SelectStatement) (bool, error) {
+	var (
+		inner       []DatePartDimension
+		typedSubs   []*influxql.SelectStatement
+		hasSubquery bool
+	)
 	for _, src := range stmt.Sources {
 		sub, ok := src.(*influxql.SubQuery)
 		if !ok {
 			continue
 		}
 		hasSubquery = true
-		if err := typeSubqueryDatePartRefs(sub.Statement); err != nil {
-			return err
+		typed, err := typeSubqueryDatePartRefs(sub.Statement)
+		if err != nil {
+			return false, err
+		}
+		if typed {
+			typedSubs = append(typedSubs, sub.Statement)
 		}
 		dims, err := datePartDimensions(sub.Statement)
 		if err != nil {
-			return err
+			return false, err
 		}
 		inner = append(inner, dims...)
 	}
 	if !hasSubquery {
-		return nil
+		return false, nil
 	}
 	outer, err := datePartDimensions(stmt)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if len(inner) == 0 && len(outer) == 0 {
-		return nil
+	if len(inner) == 0 && len(outer) == 0 && len(typedSubs) == 0 {
+		return false, nil
 	}
 	names := make(map[string]struct{}, len(inner)+len(outer))
 	for _, d := range append(inner, outer...) {
 		names[d.Expr.String()] = struct{}{}
 	}
+	typed := false
 	for _, f := range stmt.Fields {
 		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
-			if ref, ok := n.(*influxql.VarRef); ok && ref.Type == influxql.Unknown {
-				if _, ok := names[ref.Val]; ok {
-					ref.Type = influxql.Integer
-				}
+			ref, ok := n.(*influxql.VarRef)
+			if !ok || ref.Type != influxql.Unknown {
+				return
+			}
+			if _, ok := names[ref.Val]; ok {
+				ref.Type = influxql.Integer
+				typed = true
+			} else if typ := subqueryColumnType(typedSubs, ref.Val); typ != influxql.Unknown {
+				ref.Type = typ
+				typed = true
 			}
 		})
 	}
-	return nil
+	return typed, nil
+}
+
+// subqueryColumnType returns the type of the column name one of subs emits,
+// evaluated from its field as this pass typed it, or Unknown.
+func subqueryColumnType(subs []*influxql.SelectStatement, name string) influxql.DataType {
+	for _, s := range subs {
+		for _, f := range s.Fields {
+			if f.Name() == name {
+				return influxql.EvalType(f.Expr, nil, FunctionTypeMapper{})
+			}
+		}
+	}
+	return influxql.Unknown
 }
 
 // validateDatePartAnchor rejects a SELECT that uses date_part(...) but has no

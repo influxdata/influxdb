@@ -9571,6 +9571,44 @@ func TestServer_Query_DatePart_Subquery_GroupBy(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		// A subquery that passes the grouped subquery's day column up (as is or
+		// aliased) must hand it up typed, or max() over it plans as empty.
+		&Query{
+			name:    `max over a date_part column passed up through a subquery`,
+			command: `SELECT max(day) FROM (SELECT count, day FROM (SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('day', time))) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max"],"values":[["2023-01-01T00:00:00Z",4]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `max over an aliased date_part column passed up through a subquery`,
+			command: `SELECT max(d) FROM (SELECT count, day AS d FROM (SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('day', time))) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max"],"values":[["2023-01-01T00:00:00Z",4]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// Rows of a date_part-grouped subquery all carry the bucket timestamp,
+		// so date_part(..., time) over them would give one value for every
+		// bucket. Filtering on the subquery's day column is the supported form.
+		&Query{
+			name:    `WHERE date_part over a date_part-grouped subquery is rejected`,
+			command: `SELECT count FROM (SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('day', time)) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' AND date_part('day', time) = 3`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, `date_part: date_part(..., time) over a subquery that groups by date_part would read its bucket timestamps; use the subquery's part column instead`),
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `WHERE on a date_part-grouped subquery's part column`,
+			command: `SELECT count, day FROM (SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('day', time)) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' AND day = 3`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count","day"],"values":[["2023-01-01T00:00:00Z",1,3]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// The injected day column is a typed field ref, so it anchors the scan
+		// and the query reaches the date_part check instead of failing the
+		// anchor check.
+		&Query{
+			name:    `SELECT date_part over a date_part-grouped subquery is rejected`,
+			command: `SELECT day, date_part('hour', time) FROM (SELECT max(value) FROM db0.rp0.cpu GROUP BY date_part('day', time)) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z'`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, `date_part: date_part(..., time) over a subquery that groups by date_part would read its bucket timestamps; use the subquery's part column instead`),
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	)
 
 	var initialized bool
