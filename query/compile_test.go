@@ -462,6 +462,10 @@ func TestCompile_Failures(t *testing.T) {
 		// Grouping a date_part-grouped subquery is only defined for the same single part.
 		{s: `SELECT sum(count) FROM (SELECT count(value) FROM cpu GROUP BY date_part('year', time), date_part('month', time)) GROUP BY date_part('year', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},
 		{s: `SELECT sum(count) FROM (SELECT count(value) FROM cpu GROUP BY date_part('year', time)) GROUP BY date_part('year', time), date_part('month', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},
+		// A date_part-grouped subquery below one that does not group by date_part
+		// has no part column to read, whether the middle is raw or aggregates.
+		{s: `SELECT sum(c) FROM (SELECT count AS c FROM (SELECT count(value) FROM cpu GROUP BY date_part('day', time))) GROUP BY date_part('day', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},
+		{s: `SELECT sum(c) FROM (SELECT sum(count) AS c FROM (SELECT count(value) FROM cpu GROUP BY date_part('day', time)) GROUP BY host) GROUP BY date_part('day', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},
 		// A reference to a subquery column named after an injected date_part
 		// dimension would resolve to the extracted part value, silently shadowing
 		// the stored column.

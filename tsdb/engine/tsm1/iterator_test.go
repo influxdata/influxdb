@@ -5,12 +5,29 @@ import (
 	"runtime"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/stretchr/testify/require"
 )
+
+// Every series of every query allocates one of these iterators, and each embeds
+// query.IteratorOptions, so a field added there must not push any of them into
+// a larger allocation size class. 512 bytes is the class they all occupied
+// before date_part (stringIterator filled it exactly).
+func TestIterator_SizeClass(t *testing.T) {
+	for name, size := range map[string]uintptr{
+		"float":    unsafe.Sizeof(floatIterator{}),
+		"integer":  unsafe.Sizeof(integerIterator{}),
+		"unsigned": unsafe.Sizeof(unsignedIterator{}),
+		"string":   unsafe.Sizeof(stringIterator{}),
+		"boolean":  unsafe.Sizeof(booleanIterator{}),
+	} {
+		require.LessOrEqual(t, size, uintptr(512), "%sIterator", name)
+	}
+}
 
 func BenchmarkIntegerIterator_Next(b *testing.B) {
 	opt := query.IteratorOptions{

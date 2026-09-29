@@ -9508,6 +9508,29 @@ func TestServer_Query_DatePart_Subquery_GroupBy(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, `date_part: GROUP BY date_part over a subquery that groups by date_part requires both to group by the same single part`),
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		// A subquery that does not group by date_part passes the grouped one's
+		// window-start timestamps up with no part column to read, so a
+		// date_part grouping over it would put every row in one bucket.
+		&Query{
+			name:    `GROUP BY date_part over a date_part-grouped subquery two levels down is rejected`,
+			command: `SELECT sum(c) FROM (SELECT count AS c FROM (SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('day', time))) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' GROUP BY date_part('day', time)`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, `date_part: GROUP BY date_part over a subquery that groups by date_part requires both to group by the same single part`),
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// Every level grouping by the same part reads the part column level by
+		// level, so the buckets survive three levels.
+		&Query{
+			name:    `GROUP BY date_part through subqueries grouped by the same part at every level`,
+			command: `SELECT sum(c) FROM (SELECT sum(count) AS c FROM (SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('day', time)) GROUP BY date_part('day', time)) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' GROUP BY date_part('day', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","columns":["time","sum","day"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,1],` +
+				`["2023-01-01T00:00:00Z",1,2],` +
+				`["2023-01-01T00:00:00Z",1,3],` +
+				`["2023-01-01T00:00:00Z",1,4]` +
+				`],"grouping_keys":["day"]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
 		// The column a subquery injects for its GROUP BY date_part is readable
 		// by the outer query.
 		&Query{

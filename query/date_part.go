@@ -467,6 +467,9 @@ func validateDatePartGrouping(stmt *influxql.SelectStatement, groupByParts map[D
 	// those timestamps would collapse its buckets. The outer grouping reads the
 	// subquery's injected part column instead (see subqueryBuilder.mapAuxField),
 	// which is defined for every row only when both group by one same part.
+	// That column exists only on a direct subquery: one grouped by date_part
+	// further down, below a subquery that does not group by it, hands its
+	// representative timestamps up with no part column to read, so reject it.
 	for _, src := range stmt.Sources {
 		sub, ok := src.(*influxql.SubQuery)
 		if !ok {
@@ -477,6 +480,13 @@ func validateDatePartGrouping(stmt *influxql.SelectStatement, groupByParts map[D
 			return err
 		}
 		if len(inner) == 0 {
+			nested, err := subqueriesGroupByDatePart(sub.Statement)
+			if err != nil {
+				return err
+			}
+			if nested {
+				return errDatePartOverGroupedSubquery
+			}
 			continue
 		}
 		if _, ok := groupByParts[inner[0].Expr]; !ok || len(inner) > 1 || len(groupByParts) > 1 {
@@ -572,6 +582,25 @@ func validateDatePartGrouping(stmt *influxql.SelectStatement, groupByParts map[D
 		}
 	}
 	return nil
+}
+
+// subqueriesGroupByDatePart reports whether any subquery source of stmt, at any
+// depth, groups by date_part.
+func subqueriesGroupByDatePart(stmt *influxql.SelectStatement) (bool, error) {
+	for _, src := range stmt.Sources {
+		sub, ok := src.(*influxql.SubQuery)
+		if !ok {
+			continue
+		}
+		dims, err := datePartDimensions(sub.Statement)
+		if err != nil || len(dims) > 0 {
+			return len(dims) > 0, err
+		}
+		if nested, err := subqueriesGroupByDatePart(sub.Statement); nested || err != nil {
+			return nested, err
+		}
+	}
+	return false, nil
 }
 
 // typeSubqueryDatePartRefs types the VarRefs of a statement over subquery

@@ -605,14 +605,14 @@ type IteratorOptions struct {
 	StartTime int64
 	EndTime   int64
 
-	// Sorted in time ascending order if true.
-	Ascending bool
-
 	// Limits the number of points per series.
 	Limit, Offset int
 
 	// Limits the number of series.
 	SLimit, SOffset int
+
+	// Sorted in time ascending order if true.
+	Ascending bool
 
 	// Removes the measurement name. Useful for meta queries.
 	StripName bool
@@ -625,8 +625,7 @@ type IteratorOptions struct {
 
 	// NeedTimeRef indicates whether the condition contains functions (e.g. date_part)
 	// that require a reference to the point's timestamp. Cached here to avoid
-	// repeatedly walking the condition AST for every iterator creation. It sits
-	// with the other flags so it occupies existing padding.
+	// repeatedly walking the condition AST for every iterator creation.
 	NeedTimeRef bool
 
 	// Limits on the creation of iterators.
@@ -640,9 +639,9 @@ type IteratorOptions struct {
 	Authorizer FineAuthorizer
 
 	// DatePart holds the GROUP BY date_part dimensions; nil when the query has
-	// none. It is a single pointer, placed last so the existing fields keep
-	// their offsets, because every per-series storage iterator embeds
-	// IteratorOptions and queries without date_part must not pay for it.
+	// none. Every per-series storage iterator embeds IteratorOptions, so the
+	// struct must not grow for queries without date_part: Ascending sits with
+	// the other bool flags so this pointer takes the padding it used to leave.
 	DatePart *DatePartGrouper
 }
 
