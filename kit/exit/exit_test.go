@@ -222,7 +222,8 @@ func TestName(t *testing.T) {
 	require.Equal(t, "generic", exit.Name(exit.CodeGeneric))
 	require.Equal(t, "EX_NOPERM", exit.Name(exit.CodeNoPerm))
 	require.Equal(t, "EX_CONFIG", exit.Name(exit.CodeConfig))
-	require.Equal(t, "", exit.Name(200), "an undefined status has no sysexits name")
+	require.Equal(t, "Unknown code: 200", exit.Name(200),
+		"an undefined status names itself as unknown, with its number")
 }
 
 // TestCodesAreInTheUsableRange guards the reason 64-78 was chosen: every status

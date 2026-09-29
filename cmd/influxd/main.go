@@ -37,12 +37,13 @@ func main() {
 
 	rootCmd, err := newRootCommand(ctx, v)
 	if err != nil {
-		handleErr(err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(exit.Code(err))
 	}
 
 	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {
-		// Not handleErr: cobra has already printed the error itself, because
+		// cobra has already printed the error itself, because
 		// SilenceErrors is left false. All that is wanted after it is the exit
 		// status the error carries, and sometimes the pointer to -h.
 		//
@@ -111,16 +112,6 @@ func newRootCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error)
 	}
 
 	return rootCmd, nil
-}
-
-// handleErr prints err to stderr and exits with the status it carries.
-//
-// exit.Code returns 1 for an error nothing pinned a status to, so a command
-// that has not opted in -- inspect, upgrade, downgrade, recovery -- exits
-// exactly as it always has.
-func handleErr(err error) {
-	_, _ = fmt.Fprintln(os.Stderr, err)
-	os.Exit(exit.Code(err))
 }
 
 func versionCmd() *cobra.Command {

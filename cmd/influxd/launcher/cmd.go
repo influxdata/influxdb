@@ -193,8 +193,8 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		// Start the launcher and wait for it to exit on SIGINT. SIGTERM is not
 		// trapped — kit/signals registers os.Interrupt and os.Kill, and SIGKILL
 		// cannot be caught — so a SIGTERM kills the process where it stands.
-		runErr := l.run(signals.WithStandardSignals(ctx), o)
-		if runErr != nil {
+		startupErr := l.run(signals.WithStandardSignals(ctx), o)
+		if startupErr != nil {
 			// Startup failed. Release everything a restart needs and, if the
 			// operator asked for it, keep /health and /ready answering long
 			// enough for a scraper to read which subsystem failed and why.
@@ -212,33 +212,36 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		// the next start to trip over.
 		shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
-		serr := l.Shutdown(shutdownCtx)
+		shutdownErr := l.Shutdown(shutdownCtx)
 
-		return exitError(runErr, serr)
+		return exitError(startupErr, shutdownErr)
 	}
 }
 
 // exitError combines what startup and teardown reported into the single error
 // influxd exits on.
 //
-// Join rather than pick a winner. runErr leads, so the exit code and the first
-// line influxd prints are what they have always been, while a teardown failure
-// stays reachable through errors.Is and errors.As instead of living only in the
-// log -- which is what a caller inspecting the error, a test among them, has to
-// work with. errors.Join returns nil when both are nil and the surviving
-// error's own message when only one is, so neither single-error case changes at
-// all; only a startup failure whose teardown ALSO failed gains a second line.
+// Join rather than pick a winner. startupErr leads, so the exit code and the
+// first line influxd prints are what they have always been, while a teardown
+// failure stays reachable through errors.Is and errors.As instead of living
+// only in the log -- which is what a caller inspecting the error, a test among
+// them, has to work with. errors.Join returns nil when both are nil and the
+// surviving error's own message when only one is, so neither single-error case
+// changes its message; only a startup failure whose teardown ALSO failed gains
+// a second line.
 //
 // No aggregate log line here: runClosers already logs every closer failure at
 // Error with the subsystem that produced it, which is the same reasoning
 // holdForStartupError documents for discarding the error from its own phase.
 //
-// runErr arrives carrying an exit status, pinned by Launcher.run before it
-// could be joined with anything, and exit.Code takes the leftmost -- so a
-// startup failure decides the status even when teardown also failed. Only a
-// clean startup whose teardown then failed needs a status assigned here: a
-// signal that led to a successful shutdown still exits 0, and this is the sole
-// path on which a stop does not.
+// Each error gets a status pinned before the join; WithCode passes nil through,
+// so an absent error stays absent. startupErr already carries one, pinned by
+// Launcher.run's defer, and Classify returns a pinned status unchanged, so
+// re-pinning it cannot alter its code. exit.Code takes the leftmost, so a
+// startup failure decides the status even when teardown also failed. The
+// teardown pin decides it only after a clean startup: a signal that led to a
+// successful shutdown still exits 0, and a failed teardown is the sole path on
+// which a stop does not.
 //
 // That path is not exotic. shutdownTimeout gives in-flight requests two
 // seconds, and httpServer.Shutdown reports the deadline as its own error, so
@@ -250,11 +253,9 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 // It is a function rather than the tail of cmdRunE because cmdRunE cannot be
 // called from a test -- fluxinit.FluxInit panics on a second call, and the
 // launcher test package has already made the first.
-func exitError(runErr, serr error) error {
-	if runErr == nil && serr != nil {
-		return exit.WithCode(exit.Classify(serr), serr)
-	}
-	return errors.Join(runErr, serr)
+func exitError(startupErr, shutdownErr error) error {
+	return errors.Join(exit.WithCode(exit.Classify(startupErr), startupErr),
+		exit.WithCode(exit.Classify(shutdownErr), shutdownErr))
 }
 
 // InfluxdOpts captures all arguments for running the InfluxDB server.

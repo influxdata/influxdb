@@ -43,6 +43,7 @@ package exit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"syscall"
 )
@@ -99,10 +100,15 @@ var codeNames = map[int]string{
 	CodeConfig:      "EX_CONFIG",
 }
 
-// Name returns the sysexits macro name for a status, or "" if the status is not
-// one this package defines.
+// Name returns the sysexits macro name for a status, or "Unknown code: <n>",
+// with n the status itself, if the status is not one this package defines.
 func Name(code int) string {
-	return codeNames[code]
+	var name string
+	var ok bool
+	if name, ok = codeNames[code]; !ok {
+		name = fmt.Sprintf("Unknown code: %d", code)
+	}
+	return name
 }
 
 // Coder is an error that names the process exit status it should produce.
