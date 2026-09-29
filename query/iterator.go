@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"slices"
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/tracing"
@@ -590,12 +589,10 @@ type IteratorOptions struct {
 	Sources []influxql.Source
 
 	// Group by interval and tags.
-	Interval           Interval
-	Dimensions         []string // The final dimensions of the query (stays the same even in subqueries).
-	DatePartDimensions []DatePartDimension
-	DimensionGrouper   DimensionGrouper
-	GroupBy            map[string]struct{} // Dimensions to group points by in intermediate iterators.
-	Location           *time.Location
+	Interval   Interval
+	Dimensions []string            // The final dimensions of the query (stays the same even in subqueries).
+	GroupBy    map[string]struct{} // Dimensions to group points by in intermediate iterators.
+	Location   *time.Location
 
 	// Fill options.
 	Fill      influxql.FillOption
@@ -626,6 +623,12 @@ type IteratorOptions struct {
 	// Determines if this is a query for raw data or an aggregate/selector.
 	Ordered bool
 
+	// NeedTimeRef indicates whether the condition contains functions (e.g. date_part)
+	// that require a reference to the point's timestamp. Cached here to avoid
+	// repeatedly walking the condition AST for every iterator creation. It sits
+	// with the other flags so it occupies existing padding.
+	NeedTimeRef bool
+
 	// Limits on the creation of iterators.
 	MaxSeriesN int
 
@@ -636,10 +639,11 @@ type IteratorOptions struct {
 	// Authorizer can limit access to data
 	Authorizer FineAuthorizer
 
-	// NeedTimeRef indicates whether the condition contains functions (e.g. date_part)
-	// that require a reference to the point's timestamp. Cached here to avoid
-	// repeatedly walking the condition AST for every iterator creation.
-	NeedTimeRef bool
+	// DatePart holds the GROUP BY date_part dimensions; nil when the query has
+	// none. It is a single pointer, placed last so the existing fields keep
+	// their offsets, because every per-series storage iterator embeds
+	// IteratorOptions and queries without date_part must not pay for it.
+	DatePart *DatePartGrouper
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
@@ -684,6 +688,7 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Ordered = true
 
 	// Determine dimensions.
+	var datePartDims []DatePartDimension
 	opt.GroupBy = make(map[string]struct{}, len(opt.Dimensions))
 	for _, d := range stmt.Dimensions {
 		if d, ok := d.Expr.(*influxql.VarRef); ok {
@@ -692,26 +697,13 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 		}
 
 		if d, ok := d.Expr.(*influxql.Call); ok && d.Name == DatePartString {
-			// This should already be validated during compilation, but keep this code
-			// defensive to avoid panics if an invalid statement reaches this point.
-			expr, ok := matchDatePartCall(d)
-			if !ok {
-				return opt, fmt.Errorf("invalid date part expression: %s", d.String())
+			if datePartDims, err = appendDatePartDimension(datePartDims, d); err != nil {
+				return opt, err
 			}
-			// Skip a duplicate date_part dimension (e.g. GROUP BY date_part('year',
-			// time), date_part('year', time)); a repeated part would inject a
-			// duplicate output column and double-aggregate the same series.
-			if slices.ContainsFunc(opt.DatePartDimensions, func(d DatePartDimension) bool {
-				return d.Expr == expr
-			}) {
-				continue
-			}
-			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{Expr: expr})
 		}
 	}
-
-	if len(opt.DatePartDimensions) > 0 {
-		opt.DimensionGrouper = NewDatePartGrouper(opt.DatePartDimensions)
+	if len(datePartDims) > 0 {
+		opt.DatePart = NewDatePartGrouper(datePartDims)
 	}
 
 	opt.Condition = condition
@@ -1016,11 +1008,11 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 		NeedTimeRef: proto.Bool(opt.NeedTimeRef),
 	}
 
-	// Encode date_part GROUP BY dimensions. The DimensionGrouper is not encoded;
-	// it is reconstructed from these dimensions on decode.
-	if len(opt.DatePartDimensions) > 0 {
-		pb.DatePartDimensions = make([]*internal.DatePartDimension, len(opt.DatePartDimensions))
-		for i, d := range opt.DatePartDimensions {
+	// Encode date_part GROUP BY dimensions; the grouper is rebuilt from them on
+	// decode.
+	if dims := opt.DatePart.Dimensions(); len(dims) > 0 {
+		pb.DatePartDimensions = make([]*internal.DatePartDimension, len(dims))
+		for i, d := range dims {
 			pb.DatePartDimensions[i] = &internal.DatePartDimension{
 				Expr: proto.Int32(int32(d.Expr)),
 			}
@@ -1100,13 +1092,17 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 
 	// Decode date_part GROUP BY dimensions and rebuild the grouper from them.
 	if dims := pb.GetDatePartDimensions(); len(dims) > 0 {
-		opt.DatePartDimensions = make([]DatePartDimension, len(dims))
+		datePartDims := make([]DatePartDimension, len(dims))
 		for i, d := range dims {
-			opt.DatePartDimensions[i] = DatePartDimension{
-				Expr: DatePartExpr(d.GetExpr()),
+			// Reject a part this node does not know (corruption or a newer
+			// peer) here rather than grouping under a meaningless value.
+			expr := DatePartExpr(d.GetExpr())
+			if expr < Year || expr >= Invalid {
+				return nil, fmt.Errorf("invalid date_part dimension: %d", d.GetExpr())
 			}
+			datePartDims[i] = DatePartDimension{Expr: expr}
 		}
-		opt.DimensionGrouper = NewDatePartGrouper(opt.DatePartDimensions)
+		opt.DatePart = NewDatePartGrouper(datePartDims)
 	}
 
 	// Set expression, if set.

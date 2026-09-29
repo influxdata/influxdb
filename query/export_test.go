@@ -33,4 +33,6 @@ var (
 	ErrDatePartFillLinear            = errDatePartFillLinear
 	ErrDatePartFillValue             = errDatePartFillValue
 	ErrDatePartFillNull              = errDatePartFillNull
+	ErrDatePartIntervalMultiplePart  = errDatePartIntervalMultiplePart
+	ErrDatePartOverGroupedSubquery   = errDatePartOverGroupedSubquery
 )

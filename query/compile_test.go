@@ -457,6 +457,11 @@ func TestCompile_Failures(t *testing.T) {
 		// collide with the injected date_part column.
 		{s: `SELECT top(value, year, 3) FROM cpu GROUP BY date_part('year', time) fill(none)`, err: `date_part: top() tag argument "year" collides with the GROUP BY date_part('year', time) dimension`},
 		{s: `SELECT bottom(value, month, 3) FROM cpu GROUP BY date_part('year', time), date_part('month', time) fill(none)`, err: `date_part: bottom() tag argument "month" collides with the GROUP BY date_part('month', time) dimension`},
+		// With time(), two parts alternate between their series in every window.
+		{s: `SELECT count(value) FROM cpu GROUP BY time(1h), date_part('year', time), date_part('month', time) fill(none)`, err: query.ErrDatePartIntervalMultiplePart.Error()},
+		// Grouping a date_part-grouped subquery is only defined for the same single part.
+		{s: `SELECT sum(count) FROM (SELECT count(value) FROM cpu GROUP BY date_part('year', time), date_part('month', time)) GROUP BY date_part('year', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},
+		{s: `SELECT sum(count) FROM (SELECT count(value) FROM cpu GROUP BY date_part('year', time)) GROUP BY date_part('year', time), date_part('month', time)`, err: query.ErrDatePartOverGroupedSubquery.Error()},
 		// A reference to a subquery column named after an injected date_part
 		// dimension would resolve to the extracted part value, silently shadowing
 		// the stored column.
@@ -629,9 +634,14 @@ func TestPrepare_DatePartWildcardValidation_Valid(t *testing.T) {
 
 	for _, s := range []string{
 		`SELECT max(*) FROM cpu GROUP BY date_part('year', time) fill(none)`,
-		// A subquery whose redundant fill(null) is rewritten to fill(none) by
+		// A subquery whose default fill(null) is rewritten to fill(none) by
 		// subquery compilation must not be re-rejected by the Prepare-time pass.
-		`SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY time(1h), date_part('year', time) fill(none))`,
+		`SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY time(1h), date_part('year', time))`,
+		// A subquery that inherits the outer interval has no time() of its own
+		// and runs with fill(none), so its default fill(null) is accepted.
+		`SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY date_part('year', time)) GROUP BY time(1d)`,
+		// INTO runs with fill(none), so the default fill(null) is accepted.
+		`SELECT max(value) INTO m2 FROM cpu GROUP BY time(1h), date_part('hour', time)`,
 	} {
 		t.Run(s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(s)

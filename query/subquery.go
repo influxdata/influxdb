@@ -59,9 +59,15 @@ func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef, opt IteratorOptions
 	// before the field/tag lookups so a stored field coincidentally named after a
 	// date part (e.g. "hour") does not shadow the grouping driver — matching the
 	// measurement-source path, where date_part dimensions are always derived from
-	// time. Gated on DatePartDimensions so non-date_part subqueries are unaffected.
-	for _, d := range opt.DatePartDimensions {
+	// time. Gated on DatePart so non-date_part subqueries are unaffected.
+	for _, d := range opt.DatePart.Dimensions() {
 		if d.Expr.String() == name.Val {
+			// A subquery grouped by the same part carries the bucket value in
+			// its injected column; its row timestamps are only representative
+			// (the window start for an aggregate) and would collapse the buckets.
+			if idx, ok := b.datePartColumn(name.Val); ok {
+				return FieldMap{Index: idx, Type: influxql.Integer}
+			}
 			return datePartMap{expr: d.Expr, loc: opt.Location}
 		}
 	}
@@ -91,6 +97,11 @@ func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef, opt IteratorOptions
 		}
 	}
 
+	// A column the subquery injects for its own GROUP BY date_part.
+	if idx, ok := b.datePartColumn(name.Val); ok {
+		return FieldMap{Index: idx, Type: name.Type}
+	}
+
 	// Unable to find this in the list of fields.
 	// Look within the dimensions and create a field if we find it.
 	for _, d := range b.stmt.Dimensions {
@@ -101,6 +112,31 @@ func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef, opt IteratorOptions
 
 	// Unable to find any matches.
 	return nil
+}
+
+// datePartColumn returns the index of the output column the subquery injects
+// for its own GROUP BY date_part dimension named name. buildCursor appends
+// those columns, in datePartDimensions order, after the fields and the extra
+// top()/bottom() tag columns.
+func (b *subqueryBuilder) datePartColumn(name string) (int, bool) {
+	dims, err := datePartDimensions(b.stmt)
+	if err != nil || len(dims) == 0 {
+		return 0, false
+	}
+	for k, d := range dims {
+		if d.Expr.String() != name {
+			continue
+		}
+		idx := k
+		for _, f := range b.stmt.Fields {
+			idx++
+			if call, ok := f.Expr.(*influxql.Call); ok && (call.Name == "top" || call.Name == "bottom") && len(call.Args) > 2 {
+				idx += len(call.Args) - 2
+			}
+		}
+		return idx, true
+	}
+	return 0, false
 }
 
 func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxql.VarRef, opt IteratorOptions) (Iterator, error) {

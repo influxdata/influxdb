@@ -66,10 +66,17 @@ type Row struct {
 
 	// Values contains the values within the current row.
 	Values []interface{}
+}
 
-	// GroupingKeys contains the names of active date_part grouping
-	// dimensions. Actual per-row values are in the Values slice.
-	GroupingKeys map[string]struct{}
+// groupingKeyer is implemented by cursors whose rows can belong to a GROUP BY
+// date_part dimension. The key lives on the cursor rather than on Row so that
+// queries without date_part do not carry it on every scanned row.
+type groupingKeyer interface {
+	// HasGroupingKeys reports whether GroupingKey can ever be non-zero.
+	HasGroupingKeys() bool
+	// GroupingKey returns the active GROUP BY date_part dimension of the row
+	// last scanned, or zero when the row has none.
+	GroupingKey() models.GroupingKey
 }
 
 type Cursor interface {
@@ -155,6 +162,11 @@ type scannerCursorBase struct {
 	// ordinary queries don't pay for a feature they don't use.
 	needDatePart bool
 
+	// hasGroupingKeys is set when the query groups by date_part; groupingKey
+	// then holds the active dimension of the row last scanned.
+	hasGroupingKeys bool
+	groupingKey     models.GroupingKey
+
 	scan   scannerFunc
 	valuer influxql.ValuerEval
 }
@@ -163,7 +175,7 @@ type scannerCursorBase struct {
 // bookkeeping: true when a GROUP BY date_part dimension is present or when any
 // selected field references the date_part function (top-level or nested).
 func scannerCursorNeedsDatePart(fields []*influxql.Field, opt IteratorOptions) bool {
-	if len(opt.DatePartDimensions) > 0 {
+	if opt.DatePart != nil {
 		return true
 	}
 	for _, f := range fields {
@@ -174,7 +186,9 @@ func scannerCursorNeedsDatePart(fields []*influxql.Field, opt IteratorOptions) b
 	return false
 }
 
-func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location, needDatePart bool) scannerCursorBase {
+func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, opt IteratorOptions) scannerCursorBase {
+	loc := opt.Location
+	needDatePart := scannerCursorNeedsDatePart(fields, opt)
 	typmap := FunctionTypeMapper{}
 	exprs := make([]influxql.Expr, len(fields))
 	columns := make([]influxql.VarRef, len(fields))
@@ -209,12 +223,13 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 	}
 
 	return scannerCursorBase{
-		fields:       exprs,
-		m:            m,
-		columns:      columns,
-		loc:          loc,
-		needDatePart: needDatePart,
-		scan:         scan,
+		fields:          exprs,
+		m:               m,
+		columns:         columns,
+		loc:             loc,
+		needDatePart:    needDatePart,
+		hasGroupingKeys: opt.DatePart != nil,
+		scan:            scan,
 		valuer: influxql.ValuerEval{
 			Valuer:               valuer,
 			IntegerFloatDivision: true,
@@ -223,12 +238,10 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 }
 
 func (cur *scannerCursorBase) Scan(row *Row) bool {
+	// A query using date_part takes a separate path so this one stays as it
+	// was for queries without date_part.
 	if cur.needDatePart {
-		// Clear date_part state from previous scan so it doesn't leak across rows.
-		// The map is cleared rather than set to nil so callers that reuse the Row
-		// across scans keep the allocation.
-		delete(cur.m, DatePartDimensionsString)
-		clear(row.GroupingKeys)
+		return cur.scanDatePart(row)
 	}
 
 	ts, name, tags := cur.scan(cur.m)
@@ -248,14 +261,52 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		row.Values = make([]interface{}, len(cur.columns))
 	}
 
-	// Make the row timestamp available to the eval map so date_part can access it.
-	// This is set whenever the query uses date_part, because date_part may be
-	// nested inside another expression (e.g. date_part('hour', time) + 1), in
-	// which case the top-level field is not a date_part call and a per-field
-	// check would miss it, leaving time unset.
-	if cur.needDatePart {
-		cur.m[models.TimeString] = row.Time
+	for i, expr := range cur.fields {
+		// A special case if the field is time to reduce memory allocations.
+		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
+			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
+			continue
+		}
+		v := cur.valuer.Eval(expr)
+		if fv, ok := v.(float64); ok && math.IsNaN(fv) {
+			// If the float value is NaN, convert it to a null float
+			// so this can be serialized correctly, but not mistaken for
+			// a null value that needs to be filled.
+			v = NullFloat
+		}
+		row.Values[i] = v
 	}
+	return true
+}
+
+// scanDatePart is Scan for a query that uses date_part, in a field or as a
+// GROUP BY dimension.
+func (cur *scannerCursorBase) scanDatePart(row *Row) bool {
+	// Clear date_part state from the previous scan so it doesn't leak across rows.
+	delete(cur.m, DatePartDimensionsString)
+	cur.groupingKey = 0
+
+	ts, name, tags := cur.scan(cur.m)
+	if ts == ZeroTime {
+		return false
+	}
+
+	row.Time = ts
+	if name != cur.series.Name || tags.ID() != cur.series.Tags.ID() {
+		cur.series.Name = name
+		cur.series.Tags = tags
+		cur.series.id++
+	}
+	row.Series = cur.series
+
+	if len(cur.columns) > len(row.Values) {
+		row.Values = make([]interface{}, len(cur.columns))
+	}
+
+	// Make the row timestamp available to the eval map so date_part can access
+	// it, including when date_part is nested inside another expression (e.g.
+	// date_part('hour', time) + 1).
+	cur.m[models.TimeString] = row.Time
 
 	// Resolve the active GROUP BY date_part dimension once per row instead of per
 	// field: the dimension value and its name are identical for every field, so
@@ -265,18 +316,12 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		dpd     DecodedDatePartKey
 		dimName string
 	)
-	if cur.needDatePart {
-		if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
-			if d, ok := val.(DecodedDatePartKey); ok {
-				haveDim = true
-				dpd = d
-				dimName = d.Expr.String()
-				if row.GroupingKeys == nil {
-					// A scan inserts only the active dimension, so one slot suffices.
-					row.GroupingKeys = make(map[string]struct{}, 1)
-				}
-				row.GroupingKeys[dimName] = struct{}{}
-			}
+	if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
+		if d, ok := val.(DecodedDatePartKey); ok {
+			haveDim = true
+			dpd = d
+			dimName = d.Expr.String()
+			cur.groupingKey = d.Expr.groupingKey()
 		}
 	}
 
@@ -312,6 +357,10 @@ func (cur *scannerCursorBase) Columns() []influxql.VarRef {
 	return cur.columns
 }
 
+func (cur *scannerCursorBase) HasGroupingKeys() bool { return cur.hasGroupingKeys }
+
+func (cur *scannerCursorBase) GroupingKey() models.GroupingKey { return cur.groupingKey }
+
 func (cur *scannerCursorBase) clear(m map[string]interface{}) {
 	for k := range m {
 		delete(m, k)
@@ -327,7 +376,7 @@ type scannerCursor struct {
 
 func newScannerCursor(s IteratorScanner, fields []*influxql.Field, opt IteratorOptions) *scannerCursor {
 	cur := &scannerCursor{scanner: s}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location, scannerCursorNeedsDatePart(fields, opt))
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt)
 	return cur
 }
 
@@ -370,7 +419,7 @@ func newMultiScannerCursor(scanners []IteratorScanner, fields []*influxql.Field,
 		scanners:  scanners,
 		ascending: opt.Ascending,
 	}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location, scannerCursorNeedsDatePart(fields, opt))
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt)
 	return cur
 }
 

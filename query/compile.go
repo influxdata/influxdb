@@ -230,10 +230,10 @@ func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {
 }
 
 func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error {
-	valuer := influxql.MultiValuer(
-		MathValuer{},
-		DatePartValuer{},
-	)
+	// MathValuer only: folding date_part here would reduce a call with literal
+	// arguments (e.g. date_part('hour', 0)) before ValidateDatePart could
+	// reject its non-time argument, and would ignore tz().
+	valuer := MathValuer{}
 
 	c.Fields = make([]*compiledField, 0, len(stmt.Fields))
 	for _, f := range stmt.Fields {
@@ -250,7 +250,7 @@ func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error 
 		}
 
 		// Append this field to the list of processed fields and compile it.
-		f.Expr = influxql.Reduce(f.Expr, valuer)
+		f.Expr = influxql.Reduce(f.Expr, &valuer)
 		field := &compiledField{
 			global:        c,
 			Field:         f,
@@ -1319,6 +1319,12 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	// GROUP BY date_part('year', time), or either inside a subquery) would
 	// otherwise slip through.
 	if err := validateDatePartTree(stmt, false); err != nil {
+		shards.Close()
+		return nil, err
+	}
+
+	// Type refs to planner-supplied date_part values over subquery sources.
+	if err := typeSubqueryDatePartRefs(stmt); err != nil {
 		shards.Close()
 		return nil, err
 	}

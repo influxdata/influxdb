@@ -39,7 +39,7 @@ func (NullMap) Value(row *Row) interface{} { return nil }
 // timestamp. It is used when the source is a subquery: the date_part dimension
 // is not a real field of the subquery, so its int64 aux value must be derived
 // here from row.Time, mirroring what the TSM iterator appends for a measurement
-// source. The result feeds the existing DimensionGrouper / reduce path unchanged.
+// source. The result feeds the existing DatePartGrouper / reduce path unchanged.
 type datePartMap struct {
 	expr DatePartExpr
 	loc  *time.Location

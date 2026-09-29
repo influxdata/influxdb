@@ -387,8 +387,8 @@ func TestSubquery(t *testing.T) {
 				}
 			},
 			Rows: []query.Row{
-				{Time: 0, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(2), int64(1970)}, GroupingKeys: map[string]struct{}{"year": {}}},
-				{Time: 0, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(1), int64(1971)}, GroupingKeys: map[string]struct{}{"year": {}}},
+				{Time: 0, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(2), int64(1970)}},
+				{Time: 0, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(1), int64(1971)}},
 			},
 		},
 	} {

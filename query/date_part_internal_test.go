@@ -1,7 +1,6 @@
 package query
 
 import (
-	"errors"
 	"math"
 	"testing"
 	"time"
@@ -194,8 +193,10 @@ func TestDatePartCondition_MatchesDatePartValuer(t *testing.T) {
 	}
 }
 
+// The year (2026) stays constant and is above the runtime's small-integer
+// boxing cache, so publishing it without the part's own cache would allocate.
 func TestDatePartCondition_SetTime_ZeroAllocs(t *testing.T) {
-	c := NewDatePartCondition(influxql.MustParseExpr(`date_part('hour', time) < 12`), nil)
+	c := NewDatePartCondition(influxql.MustParseExpr(`date_part('year', time) > 0`), nil)
 	require.NotNil(t, c)
 
 	m := make(map[string]interface{})
@@ -323,12 +324,12 @@ func BenchmarkFilterCursor_DatePartCondition(b *testing.B) {
 	}
 }
 
-// --- Direct unit tests for the DimensionGrouper block in *Reduce*Iterator.reduce ---
+// --- Direct unit tests for the date_part block in *Reduce*Iterator.reduce ---
 //
 // The end-to-end server tests exercise the happy path via response JSON, but the
-// error returns (ResolveKeys / DecodeEntry) and the Aux-width defensive guards
-// are never taken there. These tests drive a float reduce iterator directly with
-// a stub DimensionGrouper and stub reducer, asserting on the emitted Aux slots.
+// ResolveKeys error return and the Aux-width defensive guards are never taken
+// there. These tests drive a float reduce iterator directly with a stub
+// reducer, asserting on the emitted Aux slots.
 
 // sliceFloatIterator is a minimal FloatIterator that replays a fixed slice.
 type sliceFloatIterator struct {
@@ -359,40 +360,26 @@ func (r *stubReducer) Emit() []FloatPoint {
 	return []FloatPoint{{Aux: append([]interface{}(nil), r.emitAux...)}}
 }
 
-// stubDimensionGrouper lets a test force the ResolveKeys / DecodeEntry outcomes.
-type stubDimensionGrouper struct {
-	entries     []GroupingEntry
-	decoded     interface{}
-	decodeByKey map[string]interface{} // per-key decode, keyed by EncodedKey()
-	resolveErr  error
-	decodeErr   error
+// decodeKey guards the iterator wire codec: a key of the wrong length or with
+// an unknown part must be rejected rather than read out of bounds or decoded
+// into a part whose String() is empty.
+func TestDecodeKey_Invalid(t *testing.T) {
+	for _, key := range []string{"", "short", "this key is far too long"} {
+		_, err := decodeKey(key)
+		require.ErrorContains(t, err, "must be exactly 9 bytes")
+	}
+	_, err := decodeKey(string([]byte{byte(Invalid), 0, 0, 0, 0, 0, 0, 0, 0}))
+	require.ErrorContains(t, err, "invalid expr byte")
 }
 
-func (g *stubDimensionGrouper) ResolveKeys(aux []interface{}, tags TagSubset) ([]GroupingEntry, error) {
-	if g.resolveErr != nil {
-		return nil, g.resolveErr
-	}
-	return g.entries, nil
-}
-func (g *stubDimensionGrouper) DecodeEntry(encodedKey string) (interface{}, error) {
-	if g.decodeErr != nil {
-		return nil, g.decodeErr
-	}
-	if g.decodeByKey != nil {
-		return g.decodeByKey[encodedKey], nil
-	}
-	return g.decoded, nil
-}
-
-// drainReduceIterator runs one input point (with non-empty Aux, so the grouper
-// branch is taken) through a float reduce iterator and returns the emitted points.
-func drainReduceIterator(t *testing.T, opt IteratorOptions, reducerAux []interface{}) ([]FloatPoint, error) {
+// drainReduceIterator runs one input point per inputAux entry through a float
+// reduce iterator and returns the emitted points.
+func drainReduceIterator(t *testing.T, opt IteratorOptions, inputAux [][]interface{}, reducerAux []interface{}) ([]FloatPoint, error) {
 	t.Helper()
-	input := &sliceFloatIterator{points: []FloatPoint{
-		// Aux is non-empty so reduce takes the DimensionGrouper branch; the raw
-		// int64 mirrors a first-level date_part aux value (the stub ignores it).
-		{Name: "cpu", Time: 0, Aux: []interface{}{int64(3)}},
-	}}
+	input := &sliceFloatIterator{}
+	for _, aux := range inputAux {
+		input.points = append(input.points, FloatPoint{Name: "cpu", Time: 0, Aux: aux})
+	}
 	create := func() (FloatPointAggregator, FloatPointEmitter) {
 		r := &stubReducer{emitAux: reducerAux}
 		return r, r
@@ -411,137 +398,103 @@ func drainReduceIterator(t *testing.T, opt IteratorOptions, reducerAux []interfa
 	}
 }
 
-func TestReduceIterator_DimensionGrouper_Aux(t *testing.T) {
-	decoded := DecodedDatePartKey{Expr: Month, Val: 3}
-	grouper := &stubDimensionGrouper{
-		entries: []GroupingEntry{{DimKey: "k", Expr: Month, Val: 3}},
-		decoded: decoded,
+func datePartReduceOptions(ascending bool, auxLen int, dims ...DatePartExpr) IteratorOptions {
+	var dpDims []DatePartDimension
+	for _, d := range dims {
+		dpDims = append(dpDims, DatePartDimension{Expr: d})
 	}
+	return IteratorOptions{
+		StartTime: 0,
+		EndTime:   1 << 62,
+		Ascending: ascending,
+		Ordered:   true,
+		Aux:       make([]influxql.VarRef, auxLen),
+		DatePart:  NewDatePartGrouper(dpDims),
+	}
+}
+
+func TestReduceIterator_DatePart_Aux(t *testing.T) {
+	month := DecodedDatePartKey{Expr: Month, Val: 3}
+	year := DecodedDatePartKey{Expr: Year, Val: 2026}
 
 	tests := []struct {
-		name    string
-		auxLen  int           // len(opt.Aux) — the scanner key count
-		dpDims  int           // len(opt.DatePartDimensions)
-		emitAux []interface{} // Aux the reducer's Emit returns
-		want    []interface{} // expected Aux on the emitted point
+		name     string
+		auxLen   int             // len(opt.Aux) — the scanner key count
+		dims     []DatePartExpr  // GROUP BY date_part dimensions
+		inputAux []interface{}   // the input point's Aux; date_part values last
+		emitAux  []interface{}   // Aux the reducer's Emit returns
+		want     [][]interface{} // expected Aux of each emitted point
 	}{
 		{
 			// Aggregate (COUNT/SUM) emits an empty Aux: it must grow to the full
 			// scanner-key width with the active value in the last slot.
 			name:   "aggregate widens empty aux to full width",
-			auxLen: 3, dpDims: 1, emitAux: nil,
-			want: []interface{}{nil, nil, decoded},
+			auxLen: 3, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: nil,
+			want: [][]interface{}{{nil, nil, month}},
 		},
 		{
 			// Selector (MIN/MAX) emits a full-width Aux: the leading field slots
 			// are preserved and only the active date_part slot is overwritten.
 			name:   "selector full-width aux preserves leading slots",
-			auxLen: 3, dpDims: 1, emitAux: []interface{}{"a", "b", "c"},
-			want: []interface{}{"a", "b", decoded},
+			auxLen: 3, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: []interface{}{"a", "b", "c"},
+			want: [][]interface{}{{"a", "b", month}},
 		},
 		{
 			// With multiple date_part dimensions every non-active dimension slot is
 			// nulled so a stale value can't leak into a non-active column.
 			name:   "multi-dimension nulls every date_part slot",
-			auxLen: 3, dpDims: 2, emitAux: []interface{}{"a", "b", "c"},
-			want: []interface{}{"a", nil, decoded},
+			auxLen: 3, dims: []DatePartExpr{Year, Month}, inputAux: []interface{}{int64(2026), int64(3)}, emitAux: []interface{}{"a", "b", "c"},
+			want: [][]interface{}{{"a", nil, month}, {"a", nil, year}},
 		},
 		{
 			// No scanner keys and an empty emitted Aux: the width<1 guard forces a
 			// single slot so the active value still has somewhere to live.
 			name:   "empty aux falls back to width one",
-			auxLen: 0, dpDims: 1, emitAux: nil,
-			want: []interface{}{decoded},
+			auxLen: 0, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: nil,
+			want: [][]interface{}{{month}},
 		},
 		{
 			// More date_part dimensions than the Aux width: base would go negative
 			// and must clamp to 0 rather than panic.
 			name:   "base clamps when dimensions exceed width",
-			auxLen: 1, dpDims: 2, emitAux: nil,
-			want: []interface{}{decoded},
+			auxLen: 1, dims: []DatePartExpr{Year, Month}, inputAux: []interface{}{int64(2026), int64(3)}, emitAux: nil,
+			want: [][]interface{}{{month}, {year}},
 		},
 		{
 			// An emitted Aux longer than the scanner key set keeps the longer width.
 			name:   "longer emitted aux keeps its width",
-			auxLen: 2, dpDims: 1, emitAux: []interface{}{"a", "b", "c", "d"},
-			want: []interface{}{"a", "b", "c", decoded},
+			auxLen: 2, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: []interface{}{"a", "b", "c", "d"},
+			want: [][]interface{}{{"a", "b", "c", month}},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			opt := IteratorOptions{
-				StartTime:          0,
-				EndTime:            1 << 62,
-				Ascending:          true,
-				Ordered:            true,
-				Aux:                make([]influxql.VarRef, tc.auxLen),
-				DatePartDimensions: make([]DatePartDimension, tc.dpDims),
-				DimensionGrouper:   grouper,
-			}
-			got, err := drainReduceIterator(t, opt, tc.emitAux)
+			opt := datePartReduceOptions(true, tc.auxLen, tc.dims...)
+			got, err := drainReduceIterator(t, opt, [][]interface{}{tc.inputAux}, tc.emitAux)
 			require.NoError(t, err)
-			require.Len(t, got, 1)
-			require.Equal(t, tc.want, got[0].Aux)
+			require.Len(t, got, len(tc.want))
+			for i := range tc.want {
+				require.Equal(t, tc.want[i], got[i].Aux)
+			}
 		})
 	}
 }
 
-func TestReduceIterator_DimensionGrouper_Errors(t *testing.T) {
-	t.Run("ResolveKeys error is surfaced", func(t *testing.T) {
-		sentinel := errors.New("resolve boom")
-		opt := IteratorOptions{
-			StartTime:          0,
-			EndTime:            1 << 62,
-			Ascending:          true,
-			Ordered:            true,
-			Aux:                make([]influxql.VarRef, 1),
-			DatePartDimensions: make([]DatePartDimension, 1),
-			DimensionGrouper:   &stubDimensionGrouper{resolveErr: sentinel},
-		}
-		_, err := drainReduceIterator(t, opt, nil)
-		require.ErrorIs(t, err, sentinel)
-	})
-
-	t.Run("DecodeEntry error is surfaced", func(t *testing.T) {
-		sentinel := errors.New("decode boom")
-		opt := IteratorOptions{
-			StartTime:          0,
-			EndTime:            1 << 62,
-			Ascending:          true,
-			Ordered:            true,
-			Aux:                make([]influxql.VarRef, 1),
-			DatePartDimensions: make([]DatePartDimension, 1),
-			DimensionGrouper: &stubDimensionGrouper{
-				entries:   []GroupingEntry{{DimKey: "k", Expr: Month, Val: 3}},
-				decodeErr: sentinel,
-			},
-		}
-		_, err := drainReduceIterator(t, opt, nil)
-		require.ErrorIs(t, err, sentinel)
-	})
+func TestReduceIterator_DatePart_ResolveKeysError(t *testing.T) {
+	opt := datePartReduceOptions(true, 1, Month)
+	_, err := drainReduceIterator(t, opt, [][]interface{}{{"not an int"}}, nil)
+	require.ErrorContains(t, err, "unexpected aux value type")
 }
 
-// TestReduceIterator_DimensionGrouper_SortOrder covers the key sort in reduce
-// whose sort.Reverse is conditional on opt.Ascending. Two grouping buckets are
-// created from one input point; the emitted series order is governed purely by
-// the string sort of the DimKeys, so it flips with the scan direction. The
-// server-level DST_Descending test exercises the same branch end-to-end; this
-// asserts it directly on the emitted Aux without a server round-trip.
-func TestReduceIterator_DimensionGrouper_SortOrder(t *testing.T) {
-	// Distinct DimKeys ("hour:1" < "hour:3") and distinct encode inputs, so each
-	// bucket decodes to its own value in the active Aux slot.
-	entryLow := GroupingEntry{DimKey: "hour:1", Expr: Hour, Val: 1}
-	entryHigh := GroupingEntry{DimKey: "hour:3", Expr: Hour, Val: 3}
-	decLow := DecodedDatePartKey{Expr: Hour, Val: 1}
-	decHigh := DecodedDatePartKey{Expr: Hour, Val: 3}
-	grouper := &stubDimensionGrouper{
-		entries: []GroupingEntry{entryLow, entryHigh},
-		decodeByKey: map[string]interface{}{
-			entryLow.EncodedKey():  decLow,
-			entryHigh.EncodedKey(): decHigh,
-		},
-	}
+// TestReduceIterator_DatePart_SortOrder covers the key sort in reduce whose
+// sort.Reverse is conditional on opt.Ascending. The emitted series order is
+// governed by the string sort of the bucket keys, so it flips with the scan
+// direction. The server-level DST_Descending test exercises the same branch
+// end-to-end; this asserts it directly on the emitted Aux.
+func TestReduceIterator_DatePart_SortOrder(t *testing.T) {
+	low := DecodedDatePartKey{Expr: Hour, Val: 1}
+	high := DecodedDatePartKey{Expr: Hour, Val: 3}
 
 	// The active date_part value lands in the last Aux slot, so the ordered
 	// tail across the two emitted points reveals the series order.
@@ -561,28 +514,20 @@ func TestReduceIterator_DimensionGrouper_SortOrder(t *testing.T) {
 		{
 			// Ascending scan: the lower hour emits first (ascending series order).
 			name: "ascending emits low hour first", ascending: true,
-			want: []interface{}{decLow, decHigh},
+			want: []interface{}{low, high},
 		},
 		{
 			// Descending scan (ORDER BY time DESC): the Ascending-conditional
 			// sort.Reverse is skipped, flipping the series order — high hour first.
 			name: "descending emits high hour first", ascending: false,
-			want: []interface{}{decHigh, decLow},
+			want: []interface{}{high, low},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			opt := IteratorOptions{
-				StartTime:          0,
-				EndTime:            1 << 62,
-				Ascending:          tc.ascending,
-				Ordered:            true,
-				Aux:                make([]influxql.VarRef, 1),
-				DatePartDimensions: make([]DatePartDimension, 1),
-				DimensionGrouper:   grouper,
-			}
-			got, err := drainReduceIterator(t, opt, nil)
+			opt := datePartReduceOptions(tc.ascending, 1, Hour)
+			got, err := drainReduceIterator(t, opt, [][]interface{}{{int64(1)}, {int64(3)}}, nil)
 			require.NoError(t, err)
 			require.Len(t, got, 2)
 			require.Equal(t, tc.want, tail(got))

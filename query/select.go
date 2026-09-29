@@ -698,7 +698,7 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 
 	// Add each date part dimension as an output column with a backing auxiliary
 	// field, in a single pass so a column can never be added without its aux slot.
-	for _, dim := range opt.DatePartDimensions {
+	for _, dim := range opt.DatePart.Dimensions() {
 		name := dim.Expr.String()
 		ref := influxql.VarRef{Val: name, Type: influxql.Integer}
 		fields = append(fields, &influxql.Field{Expr: &ref, Alias: name})

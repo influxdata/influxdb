@@ -476,7 +476,8 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.NotEmpty(t, entries[0].DimKey)
-	require.NotEmpty(t, entries[0].EncodedKey())
+	require.Equal(t, query.Month, entries[0].Expr)
+	require.Equal(t, int64(3), entries[0].Val)
 }
 
 func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
@@ -516,22 +517,8 @@ func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
 	entries, err := g.ResolveKeys(aux, query.TagSubset{})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-}
-
-func TestDatePartGrouper_DecodeEntry(t *testing.T) {
-	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Expr: query.Month},
-	})
-
-	aux := []interface{}{int64(7)}
-	entries, err := g.ResolveKeys(aux, query.TagSubset{})
-	require.NoError(t, err)
-
-	decoded, err := g.DecodeEntry(entries[0].EncodedKey())
-	require.NoError(t, err)
-	dpk, ok := decoded.(query.DecodedDatePartKey)
-	require.True(t, ok, "expected DecodedDatePartKey, got %T", decoded)
-	require.Equal(t, int64(7), dpk.Val)
+	require.Equal(t, query.Month, entries[0].Expr)
+	require.Equal(t, int64(3), entries[0].Val)
 }
 
 func TestDatePartGrouper_ResolveKeys_AuxShorterThanDims(t *testing.T) {
@@ -560,38 +547,8 @@ func TestDatePartGrouper_ResolveKeys_UnexpectedAuxType(t *testing.T) {
 	require.Nil(t, entries)
 }
 
-func TestDatePartGrouper_DecodeEntry_InvalidLength(t *testing.T) {
-	// The encoding is exactly 9 bytes (1 byte expr + 8 byte value). Both shorter
-	// and longer keys must be rejected rather than read out of bounds or silently
-	// truncated.
-	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Expr: query.Month},
-	})
-
-	for _, key := range []string{"short", "this key is far too long"} {
-		_, err := g.DecodeEntry(key)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "must be exactly 9 bytes")
-	}
-}
-
-func TestDatePartGrouper_DecodeEntry_InvalidExprByte(t *testing.T) {
-	// A 9-byte key whose first byte is not a valid DatePartExpr must be rejected
-	// rather than decoded into an out-of-range expr (whose String() is empty and
-	// would silently misroute the output column).
-	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Expr: query.Month},
-	})
-
-	key := string([]byte{200, 0, 0, 0, 0, 0, 0, 0, 0})
-	_, err := g.DecodeEntry(key)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid expr byte")
-}
-
 // BenchmarkDatePartGrouper_ResolveKeys_BucketHit models the common reduce path:
-// most points land in a bucket that already exists, so EncodedKey is never read.
-// The encoded key must therefore not be computed (and allocated) during ResolveKeys.
+// most points land in a bucket that already exists, so only DimKey is read.
 func BenchmarkDatePartGrouper_ResolveKeys_BucketHit(b *testing.B) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Expr: query.Month},
@@ -606,26 +563,25 @@ func BenchmarkDatePartGrouper_ResolveKeys_BucketHit(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		// Bucket-hit: consumer only reads DimKey, never EncodedKey.
+		// Bucket-hit: consumer only reads DimKey.
 		_ = entries[0].DimKey
 	}
 }
 
-func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
+func TestDatePartGrouper_ResolveKeys_MultiDimension(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Expr: query.Year},
-		{Expr: query.Month},
+		{Expr: query.Epoch},
 	})
 
-	aux := []interface{}{int64(2026), int64(3)}
+	aux := []interface{}{int64(2026), int64(-1)}
 	entries, err := g.ResolveKeys(aux, query.TagSubset{})
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
-
-	for _, e := range entries {
-		_, err := g.DecodeEntry(e.EncodedKey())
-		require.NoError(t, err)
-	}
+	require.Equal(t, query.Year, entries[0].Expr)
+	require.Equal(t, int64(2026), entries[0].Val)
+	require.Equal(t, query.Epoch, entries[1].Expr)
+	require.Equal(t, int64(-1), entries[1].Val)
 }
 
 func TestDatePartValuer_Call_Timezone(t *testing.T) {

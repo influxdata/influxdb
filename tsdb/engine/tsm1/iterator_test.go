@@ -94,9 +94,9 @@ func BenchmarkIntegerIterator_Next_DatePartDimension(b *testing.B) {
 			{Val: "f1", Type: influxql.Integer},
 			{Val: "hour", Type: influxql.Integer},
 		},
-		DatePartDimensions: []query.DatePartDimension{{Expr: query.Hour}},
-		EndTime:            influxql.MaxTime,
-		Ascending:          true,
+		DatePart:  query.NewDatePartGrouper([]query.DatePartDimension{{Expr: query.Hour}}),
+		EndTime:   influxql.MaxTime,
+		Ascending: true,
 	}
 	aux := []cursorAt{
 		&literalValueCursor{value: int64(1e3)},
@@ -116,12 +116,14 @@ func BenchmarkIntegerIterator_Next_DatePartDimension(b *testing.B) {
 // TestIntegerIterator_Next_DatePartCondition_ZeroAllocs pins the alloc-free
 // date_part condition path: the condition is rewritten at construction and the
 // per-point part values are published through a boxing cache, so steady-state
-// scanning must not allocate. Uses advancing timestamps within a single hour so
-// the cached boxed value stays valid.
+// scanning must not allocate. The year (1970) stays constant and is above the
+// runtime's small-integer boxing cache, so boxing it without the part's own
+// cache would allocate on every point. The literal compared against stays
+// small so its own boxing during evaluation does not allocate either.
 func TestIntegerIterator_Next_DatePartCondition_ZeroAllocs(t *testing.T) {
 	opt := query.IteratorOptions{
 		Aux:         []influxql.VarRef{{Val: "f1", Type: influxql.Integer}},
-		Condition:   influxql.MustParseExpr("f1 > 0 AND date_part('hour', time) < 12"),
+		Condition:   influxql.MustParseExpr("f1 > 0 AND date_part('year', time) > 0"),
 		NeedTimeRef: true,
 		EndTime:     influxql.MaxTime,
 		Ascending:   true,
@@ -144,8 +146,7 @@ func TestIntegerIterator_Next_DatePartCondition_ZeroAllocs(t *testing.T) {
 // when an IteratorOptions arrives with NeedTimeRef=true but Condition=nil. Locally
 // newIteratorOptionsStmt derives NeedTimeRef from the condition, keeping the
 // invariant (NeedTimeRef implies a condition), but the enterprise wire codec
-// encodes the two fields independently and could deliver this combination; itr.m
-// must still be allocated before the time-ref write.
+// encodes the two fields independently and could deliver this combination.
 func TestIntegerIterator_Next_NeedTimeRef_NilCondition(t *testing.T) {
 	opt := query.IteratorOptions{
 		Aux:         []influxql.VarRef{{Val: "f1", Type: influxql.Integer}},

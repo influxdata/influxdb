@@ -31,6 +31,11 @@ const (
 	// less than the possible maximum number of nanoseconds representable by an
 	// int64 so that we don't lose a point at that one time.
 	MaxNanoTime = int64(math.MaxInt64) - 1
+
+	// TimeString is the name of the time column. It is a constant so that
+	// comparisons against it compile to an inline check, as the "time"
+	// literals it replaces did.
+	TimeString = "time"
 )
 
 var (
@@ -41,10 +46,7 @@ var (
 	ErrTimeOutOfRange = fmt.Errorf("time outside range %d - %d", MinNanoTime, MaxNanoTime)
 
 	// Static objects to prevent small allocs.
-	TimeBytes = []byte("time")
-
-	// TimeString is a variable representing the string "time"
-	TimeString = string(TimeBytes)
+	TimeBytes = []byte(TimeString)
 )
 
 // SafeCalcTime safely calculates the time given. Will return error if the time is outside the

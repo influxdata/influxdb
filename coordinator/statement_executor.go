@@ -1384,28 +1384,25 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 	// grouping dimensions, and which are the regular fields.
 	//
 	// A GROUP BY date_part dimension (e.g. "year") is injected as an output column
-	// and recorded in row.GroupingKeys, but it identifies the series rather than
+	// and recorded in row.GroupingKey, but it identifies the series rather than
 	// carrying a value: every group shares the same representative bucket timestamp
-	// and the same base tag set (single window, Interval=0). Writing such a column
-	// as a field would collapse every group onto an identical series+timestamp
-	// (last-write-wins, silent data loss), so promote these columns to tags instead
-	// — mirroring how GROUP BY <tag> INTO writes its grouping tag.
-	var groupingCols map[string]struct{}
-	if len(row.GroupingKeys) > 0 {
-		groupingCols = make(map[string]struct{}, len(row.GroupingKeys))
-		for _, k := range row.GroupingKeys {
-			groupingCols[k] = struct{}{}
-		}
-	}
+	// and the same base tag set. Writing such a column as a field would collapse
+	// every group onto an identical series+timestamp (last-write-wins, silent data
+	// loss), so promote this column to a tag instead — mirroring how
+	// GROUP BY <tag> INTO writes its grouping tag.
+	groupingCol := row.GroupingKey.String()
 
 	timeIndex := -1
-	// fields = all columns minus the grouping dimensions and the time column.
-	fieldIndexes := make(map[string]int, (len(row.Columns)-len(row.GroupingKeys))-1)
-	tagIndexes := make(map[string]int, len(row.GroupingKeys))
+	// fields = all columns minus the grouping dimension and the time column.
+	fieldIndexes := make(map[string]int, len(row.Columns)-1)
+	var tagIndexes map[string]int
+	if groupingCol != "" {
+		tagIndexes = make(map[string]int, 1)
+	}
 	for i, c := range row.Columns {
 		if c == models.TimeString {
 			timeIndex = i
-		} else if _, ok := groupingCols[c]; ok {
+		} else if groupingCol != "" && c == groupingCol {
 			// A GROUP BY date_part grouping dimension is written as a tag
 			// rather than a field.
 			tagIndexes[c] = i

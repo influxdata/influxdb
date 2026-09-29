@@ -1685,16 +1685,15 @@ func TestIteratorOptions_MarshalBinary(t *testing.T) {
 }
 
 // Ensure date_part GROUP BY options survive a marshal round-trip, including
-// reconstruction of the DimensionGrouper (which is not itself serialized).
+// reconstruction of the grouper from the serialized dimensions.
 func TestIteratorOptions_MarshalBinary_DatePart(t *testing.T) {
 	opt := &query.IteratorOptions{
-		DatePartDimensions: []query.DatePartDimension{
+		DatePart: query.NewDatePartGrouper([]query.DatePartDimension{
 			{Expr: query.Year},
 			{Expr: query.Month},
-		},
+		}),
 		NeedTimeRef: true,
 	}
-	opt.DimensionGrouper = query.NewDatePartGrouper(opt.DatePartDimensions)
 
 	buf, err := opt.MarshalBinary()
 	require.NoError(t, err)
@@ -1702,10 +1701,23 @@ func TestIteratorOptions_MarshalBinary_DatePart(t *testing.T) {
 	var other query.IteratorOptions
 	require.NoError(t, other.UnmarshalBinary(buf))
 
-	require.Equal(t, opt.DatePartDimensions, other.DatePartDimensions)
 	require.True(t, other.NeedTimeRef)
-	require.NotNil(t, other.DimensionGrouper, "grouper must be reconstructed on decode")
-	require.Equal(t, opt.DimensionGrouper, other.DimensionGrouper)
+	require.Equal(t, opt.DatePart, other.DatePart)
+}
+
+// A date_part dimension this node does not know (corruption or a newer peer)
+// must fail the decode instead of grouping under a meaningless part.
+func TestIteratorOptions_UnmarshalBinary_InvalidDatePart(t *testing.T) {
+	for _, expr := range []query.DatePartExpr{query.Invalid, query.Invalid + 1, -1} {
+		opt := &query.IteratorOptions{
+			DatePart: query.NewDatePartGrouper([]query.DatePartDimension{{Expr: query.Year}, {Expr: expr}}),
+		}
+		buf, err := opt.MarshalBinary()
+		require.NoError(t, err)
+
+		var other query.IteratorOptions
+		require.EqualError(t, other.UnmarshalBinary(buf), fmt.Sprintf("invalid date_part dimension: %d", expr))
+	}
 }
 
 // Ensure iterator can be encoded and decoded over a byte stream.
