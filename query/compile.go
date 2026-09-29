@@ -170,7 +170,7 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 		return err
 	}
 	// Verify that the condition is actually ok to use.
-	if err := c.validateCondition(cond, stmt.Sources); err != nil {
+	if err := c.validateCondition(cond); err != nil {
 		return err
 	}
 	c.Condition = cond
@@ -1071,8 +1071,10 @@ func (c *compiledStatement) validateFields() error {
 			return errAtLeastOneNonTimeField
 		}
 	}
-	// Ensure there are not multiple calls if top/bottom is present.
-	if len(c.FunctionCalls) > 1 && c.TopBottomFunction != "" {
+	// Ensure there are not multiple calls if top/bottom is present. date_part is
+	// not an aggregate, and top/bottom rows keep their points' timestamps, so it
+	// may accompany them.
+	if otherCalls > 1 && c.TopBottomFunction != "" {
 		return fmt.Errorf("selector function %s() cannot be combined with other functions", c.TopBottomFunction)
 	} else if otherCalls == 0 {
 		// date_part is registered in FunctionCalls but is not an aggregate, so a
@@ -1088,8 +1090,9 @@ func (c *compiledStatement) validateFields() error {
 			return errors.New("GROUP BY requires at least one aggregate function")
 		}
 	}
-	// If a distinct() call is present, ensure there is exactly one function.
-	if c.HasDistinct && (len(c.FunctionCalls) != 1 || c.HasAuxiliaryFields) {
+	// If a distinct() call is present, ensure there is exactly one function
+	// other than date_part, which may accompany it like any aggregate.
+	if c.HasDistinct && (otherCalls != 1 || c.HasAuxiliaryFields) {
 		return errors.New("aggregate function distinct() cannot be combined with other functions or fields")
 	}
 	// Validate we are using a selector or raw query if auxiliary fields are required.
@@ -1116,16 +1119,16 @@ func (c *compiledStatement) validateFields() error {
 // validateCondition verifies that all elements in the condition are appropriate.
 // For example, aggregate calls don't work in the condition and should throw an
 // error as an invalid expression.
-func (c *compiledStatement) validateCondition(expr influxql.Expr, sources influxql.Sources) error {
+func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 	switch expr := expr.(type) {
 	case *influxql.BinaryExpr:
 		// Verify each side of the binary expression. We do not need to
 		// verify the binary expression itself since that should have been
 		// done by influxql.ConditionExpr.
-		if err := c.validateCondition(expr.LHS, sources); err != nil {
+		if err := c.validateCondition(expr.LHS); err != nil {
 			return err
 		}
-		if err := c.validateCondition(expr.RHS, sources); err != nil {
+		if err := c.validateCondition(expr.RHS); err != nil {
 			return err
 		}
 		return nil
@@ -1156,7 +1159,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr, sources influx
 
 		// Are all the args valid?
 		for _, arg := range expr.Args {
-			if err := c.validateCondition(arg, sources); err != nil {
+			if err := c.validateCondition(arg); err != nil {
 				return err
 			}
 		}

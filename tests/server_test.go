@@ -9668,6 +9668,21 @@ func TestServer_Query_DatePart_GroupByTimeAndInto(t *testing.T) {
 				`],"grouping_keys":["hour"]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		// top() rows keep their points' timestamps, so date_part is computed
+		// from each selected point.
+		&Query{
+			name:    `top with date_part`,
+			command: `SELECT top(value, 2), date_part('day', time) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time < '2023-01-05T00:00:00Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","top","date_part"],"values":[["2023-01-03T05:00:00Z",3,3],["2023-01-04T05:45:00Z",4,4]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// distinct() rows carry the window start, like any aggregate's.
+		&Query{
+			name:    `distinct with date_part`,
+			command: `SELECT distinct(value), date_part('year', time) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time < '2023-01-05T00:00:00Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","distinct","date_part"],"values":[["2023-01-01T00:00:00Z",1,2023],["2023-01-01T00:00:00Z",2,2023],["2023-01-01T00:00:00Z",3,2023],["2023-01-01T00:00:00Z",4,2023]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 		// Two parts with time() would alternate between the parts' series in every
 		// window and fragment them, so the combination is rejected.
 		&Query{

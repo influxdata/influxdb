@@ -1429,7 +1429,14 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 			}
 		}
 
-		p, err := models.NewPoint(measurementName, groupingTags(row.Tags, tagIndexes, v), vals, v[timeIndex].(time.Time))
+		// Only a GROUP BY date_part row needs its part promoted to a tag.
+		var tags models.Tags
+		if tagIndexes == nil {
+			tags = models.NewTags(row.Tags)
+		} else {
+			tags = groupingTags(row.Tags, tagIndexes, v)
+		}
+		p, err := models.NewPoint(measurementName, tags, vals, v[timeIndex].(time.Time))
 		if err != nil {
 			if !strictErrorHandling {
 				// Drop points that can't be stored
@@ -1446,13 +1453,8 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 
 // groupingTags builds the tag set for a single INTO point. It starts from the
 // row's base tags (shared by every group) and adds the per-group date_part
-// dimension values from tagIndexes so each group becomes a distinct series. When
-// there are no grouping dimensions this is equivalent to models.NewTags(base).
+// dimension values from tagIndexes so each group becomes a distinct series.
 func groupingTags(base map[string]string, tagIndexes map[string]int, v []interface{}) models.Tags {
-	if len(tagIndexes) == 0 {
-		return models.NewTags(base)
-	}
-
 	merged := make(map[string]string, len(base)+len(tagIndexes))
 	for k, val := range base {
 		merged[k] = val

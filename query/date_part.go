@@ -26,14 +26,6 @@ const (
 
 	// DatePartArgCount is the amount of arguments required for date_part function
 	DatePartArgCount = 2
-
-	// DatePartDimensionsString is the internal eval-map key under which the active
-	// GROUP BY date_part dimension value is published for a scanned row. The
-	// leading NUL byte makes it impossible to collide with a user field or tag
-	// name (those originate from InfluxQL identifiers, which can never contain a
-	// NUL), so selecting a series with a field/tag literally named
-	// "date_part_dimensions" is not corrupted by date_part grouping.
-	DatePartDimensionsString = "\x00date_part_dimensions"
 )
 
 type DatePartExpr int
@@ -443,7 +435,7 @@ func validateDatePartGrouping(stmt *influxql.SelectStatement, groupByParts map[D
 	//
 	// fill(null) (the default) is safe for a bare GROUP BY date_part, but when it
 	// is combined with a time() interval the fill iterator emits empty-window rows
-	// that carry no DecodedDatePartKey: their grouping value is lost and the
+	// that carry no date_part value: their grouping value is lost and the
 	// emitter splits them into spurious extra series, fragmenting the real ones.
 	// Reject fill(null) only in that combined case (use fill(none) instead).
 	// fill(none) is always unaffected (it produces no fill iterator).
@@ -798,6 +790,10 @@ type DatePartValuer struct {
 	// Location is the timezone in which calendar fields are computed.
 	// A nil Location is treated as UTC (see LocationOrUTC).
 	Location *time.Location
+	// Grouped holds the query's GROUP BY date_part dimensions, if any. A
+	// grouped part is read from its dimension column in Valuer rather than
+	// computed from the row timestamp.
+	Grouped *DatePartGrouper
 }
 
 // LocationOrUTC returns loc, or time.UTC when loc is nil. Shared with the TSM
@@ -840,21 +836,14 @@ func (v DatePartValuer) Call(name string, args []interface{}) (interface{}, bool
 		return nil, false
 	}
 
-	// Under GROUP BY date_part(...), the active grouped dimension value is
-	// authoritative for the series; the row timestamp is only a bucket
-	// representative and must not be used. Resolving from the grouped value here
-	// keeps nested expressions (e.g. date_part('year', time) + 1) consistent with
-	// top-level date_part fields: the active part yields its grouped value, and a
-	// non-active grouped part is undefined for this series (nil).
-	if v.Valuer != nil {
-		if raw, ok := v.Valuer.Value(DatePartDimensionsString); ok {
-			if dpk, ok := raw.(DecodedDatePartKey); ok {
-				if expr == dpk.Expr {
-					return dpk.Val, true
-				}
-				return nil, false
-			}
-		}
+	// Under GROUP BY date_part(...), the row timestamp is only a bucket
+	// representative and must not be used: a grouped part is read from its
+	// dimension column, which holds the bucket value for the active dimension
+	// and is null for the others. This keeps nested expressions (e.g.
+	// date_part('year', time) + 1) consistent with the dimension column.
+	if v.Grouped.index(expr) >= 0 {
+		val, _ := v.Valuer.Value(expr.String())
+		return val, val != nil
 	}
 
 	timestampRaw, ok := args[1].(int64)
@@ -868,7 +857,7 @@ func (v DatePartValuer) Call(name string, args []interface{}) (interface{}, bool
 
 // datePartCondKeyPrefix prefixes the reserved eval-map keys written by
 // DatePartCondition.SetTime. The NUL byte keeps the names out of the space of
-// real field and tag names, following DatePartDimensionsString.
+// real field and tag names.
 const datePartCondKeyPrefix = "\x00date_part:"
 
 type datePartCondPart struct {
@@ -974,19 +963,18 @@ type DatePartDimension struct {
 	Expr DatePartExpr
 }
 
-type DecodedDatePartKey struct {
-	Expr DatePartExpr
-	Val  int64
-}
-
-// extractVal extracts an int64 from the aux value at the first-level reduce.
-// The TSM iterator always appends int64 values from ExtractDatePartExpr.
-func extractVal(auxVal interface{}) (int64, error) {
-	v, ok := auxVal.(int64)
-	if !ok {
-		return 0, fmt.Errorf("date_part: unexpected aux value type: %T", auxVal)
+// extractVal extracts an int64 date_part value from an aux slot. The TSM
+// iterator and subquery mappers supply every dimension's value; a reduce emits
+// only the active dimension's, leaving the others nil.
+func extractVal(auxVal interface{}) (int64, bool, error) {
+	switch v := auxVal.(type) {
+	case int64:
+		return v, true, nil
+	case nil:
+		return 0, false, nil
+	default:
+		return 0, false, fmt.Errorf("date_part: unexpected aux value type: %T", auxVal)
 	}
-	return v, nil
 }
 
 // TagSubset identifies the tag subset a point belongs to at the current level
@@ -1026,6 +1014,17 @@ func (g *DatePartGrouper) Dimensions() []DatePartDimension {
 	return g.dims
 }
 
+// index returns the position of part among the dimensions, or -1 when it is
+// not one of them or the grouper is nil.
+func (g *DatePartGrouper) index(part DatePartExpr) int {
+	for i, d := range g.Dimensions() {
+		if d.Expr == part {
+			return i
+		}
+	}
+	return -1
+}
+
 // computeDimKey builds a grouping key string that uniquely identifies a
 // (tag subset, expr, val) tuple; it is used as a map key and is never decoded.
 // Note the reduce path SORTS these keys to order the output series, so the
@@ -1058,54 +1057,24 @@ func newGroupingEntry(expr DatePartExpr, val int64, tags TagSubset) GroupingEntr
 	}
 }
 
-// encodeKey encodes a dimension value into a 9-byte string (1 byte expr + 8
-// bytes value) that carries a DecodedDatePartKey over the iterator wire codec.
-func encodeKey(expr DatePartExpr, val int64) string {
-	var buf [9]byte
-	buf[0] = byte(expr)
-	binary.BigEndian.PutUint64(buf[1:], uint64(val))
-	return string(buf[:])
-}
-
-// decodeKey decodes a 9-byte encoded key back into a DecodedDatePartKey.
-func decodeKey(encodedKey string) (DecodedDatePartKey, error) {
-	if len(encodedKey) != 9 {
-		return DecodedDatePartKey{}, fmt.Errorf("date_part: encoded key must be exactly 9 bytes, got %d", len(encodedKey))
-	}
-	expr := DatePartExpr(encodedKey[0])
-	if expr < Year || expr >= Invalid {
-		return DecodedDatePartKey{}, fmt.Errorf("date_part: encoded key has invalid expr byte %d", encodedKey[0])
-	}
-	var b [8]byte
-	copy(b[:], encodedKey[1:9])
-	return DecodedDatePartKey{
-		Expr: expr,
-		Val:  int64(binary.BigEndian.Uint64(b[:])),
-	}, nil
-}
-
+// ResolveKeys returns a grouping entry for each dimension whose value the
+// point carries in its trailing aux slots: every dimension for a point read
+// from storage or a subquery, and only the active one for a point a lower
+// reduce level emitted.
 func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tags TagSubset) ([]GroupingEntry, error) {
-	// Check for second-level reduce: aux contains DecodedDatePartKey from a prior emit.
-	for _, av := range aux {
-		if dpk, ok := av.(DecodedDatePartKey); ok {
-			return []GroupingEntry{newGroupingEntry(dpk.Expr, dpk.Val, tags)}, nil
-		}
-	}
-
-	// First-level reduce: raw int64 values at end of aux.
 	if len(aux) < len(g.dims) {
 		return nil, nil
 	}
 	startIdx := len(aux) - len(g.dims)
 	entries := make([]GroupingEntry, 0, len(g.dims))
-
 	for i, dim := range g.dims {
-		val, err := extractVal(aux[startIdx+i])
+		val, ok, err := extractVal(aux[startIdx+i])
 		if err != nil {
 			return nil, err
 		}
-
-		entries = append(entries, newGroupingEntry(dim.Expr, val, tags))
+		if ok {
+			entries = append(entries, newGroupingEntry(dim.Expr, val, tags))
+		}
 	}
 	return entries, nil
 }

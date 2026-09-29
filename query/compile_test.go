@@ -128,6 +128,13 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(null)`,
 		// LIMIT counts rows per series, which is the tag set with one part.
 		`SELECT count(value) FROM cpu GROUP BY date_part('year', time) LIMIT 2 OFFSET 1`,
+		// Math functions are transparent: the aggregate inside anchors the query.
+		`SELECT abs(max(value)) FROM cpu GROUP BY date_part('year', time)`,
+		// A nested distinct counts once.
+		`SELECT count(distinct(value)) FROM cpu GROUP BY date_part('year', time)`,
+		// date_part may accompany top() and distinct() like any selector/aggregate.
+		`SELECT top(value, 2), date_part('hour', time) FROM cpu`,
+		`SELECT distinct(value), date_part('year', time) FROM cpu`,
 		// date_part in subqueries
 		`SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM cpu)`,
 		`SELECT mean(value) FROM (SELECT value FROM cpu WHERE date_part('dow', time) = 1)`,
@@ -416,8 +423,11 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT value, first(value), last(value) FROM cpu`, err: query.ErrMixedMultipleSelectors.Error()},
 		// Multiple selectors WITH date_part should also error
 		{s: `SELECT value, first(value), last(value), date_part('dow', time) FROM cpu`, err: query.ErrMixedMultipleSelectors.Error()},
-		// date_part subquery validation - cannot be sole field
+		// date_part's second argument is validated over a subquery source too.
 		{s: `SELECT date_part('dow', value) FROM (SELECT value FROM cpu)`, err: `date_part: second argument must be time VarRef`},
+		// The anchor rule applies over a subquery source: date_part alone has
+		// nothing to drive the scan.
+		{s: `SELECT date_part('dow', time) FROM (SELECT value FROM cpu)`, err: query.ErrAtLeastOneNonTimeField.Error()},
 		// A SELECT date_part that does not match a GROUP BY date_part dimension is undefined per group and rejected.
 		{s: `SELECT count(value), date_part('month', time) FROM cpu GROUP BY date_part('year', time)`, err: `date_part: SELECT date_part('month', time) requires 'month' to be a GROUP BY date_part dimension`},
 		// A selected field/alias colliding with an injected date_part dimension column is rejected.
@@ -444,6 +454,11 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT value, date_part('year', time) FROM cpu GROUP BY time(1m)`, err: `GROUP BY requires at least one aggregate function`},
 		{s: `SELECT value, date_part('year', time) FROM cpu fill(linear)`, err: `fill(linear) must be used with a function`},
 		{s: `SELECT value, date_part('year', time) FROM cpu fill(none)`, err: `fill(none) must be used with a function`},
+		// Math functions are transparent to the single-aggregate rule: the
+		// aggregates inside them count, so two remain two and a stream call
+		// inside one is still found.
+		{s: `SELECT max(value) + min(value) FROM cpu GROUP BY date_part('year', time)`, err: query.ErrDatePartSingleAggregate.Error()},
+		{s: `SELECT abs(derivative(max(value))) FROM cpu GROUP BY time(1h), date_part('year', time) fill(none)`, err: `date_part: derivative() is not supported with GROUP BY date_part`},
 		// Stream transformations (derivative, moving_average, ...) reduce keyed on
 		// tags only and ignore the date_part grouper, silently flattening groups.
 		{s: `SELECT derivative(value) FROM cpu GROUP BY date_part('year', time) fill(none)`, err: `date_part: derivative() is not supported with GROUP BY date_part`},
@@ -586,6 +601,7 @@ func TestPrepare_DatePartWildcardValidation(t *testing.T) {
 				Fields: map[string]influxql.DataType{
 					"value": influxql.Float,
 					"usage": influxql.Float,
+					"day":   influxql.Float,
 				},
 				Dimensions: []string{"host", "year"},
 			}
@@ -612,6 +628,13 @@ func TestPrepare_DatePartWildcardValidation(t *testing.T) {
 		{
 			s:   `SELECT max(value) FROM cpu GROUP BY *, date_part('year', time) fill(none)`,
 			err: `date_part: GROUP BY dimension "year" collides with the GROUP BY date_part('year', time) dimension`,
+		},
+		// A subquery SELECT * expands to include the stored field "day", which
+		// the outer GROUP BY date_part('day', time) would shadow; compile time
+		// only sees the unexpanded wildcard.
+		{
+			s:   `SELECT mean(day) FROM (SELECT * FROM cpu) GROUP BY date_part('day', time)`,
+			err: `date_part: subquery column "day" is shadowed by the GROUP BY date_part('day', time) dimension; alias the column in the subquery to a different name`,
 		},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
@@ -721,78 +744,6 @@ func TestPrepare_MapShardsTimeRange(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestCompileTimeDimension_Errors drives compileTimeDimension directly (via
-// export_test.go) and checks each error path returns its sentinel error.
-func TestCompileTimeDimension_Errors(t *testing.T) {
-	timeCall := func(args ...influxql.Expr) *influxql.Call {
-		return &influxql.Call{Name: "time", Args: args}
-	}
-	dur := func(d time.Duration) influxql.Expr {
-		return &influxql.DurationLiteral{Val: d}
-	}
-
-	for _, tt := range []struct {
-		name string
-		expr *influxql.Call
-		err  error
-	}{
-		{
-			name: "not time call",
-			expr: &influxql.Call{Name: "now"},
-			err:  query.ErrOnlyTimeAndDatePartDimensions,
-		},
-		{
-			name: "no arguments",
-			expr: timeCall(),
-			err:  query.ErrTimeDimensionArgCount,
-		},
-		{
-			name: "too many arguments",
-			expr: timeCall(dur(time.Minute), dur(time.Second), dur(time.Millisecond)),
-			err:  query.ErrTimeDimensionArgCount,
-		},
-		{
-			name: "non-duration interval",
-			expr: timeCall(&influxql.StringLiteral{Val: "unexpected"}),
-			err:  query.ErrTimeDimensionDurationArg,
-		},
-		{
-			name: "offset function not now",
-			expr: timeCall(dur(5*time.Minute), &influxql.Call{Name: "unexpected"}),
-			err:  query.ErrTimeOffsetFunctionMustBeNow,
-		},
-		{
-			name: "offset now with arguments",
-			expr: timeCall(dur(5*time.Minute), &influxql.Call{Name: "now", Args: []influxql.Expr{dur(time.Minute)}}),
-			err:  query.ErrTimeOffsetNowNoArgs,
-		},
-		{
-			name: "offset non-time string",
-			expr: timeCall(dur(5*time.Minute), &influxql.StringLiteral{Val: "unexpected"}),
-			err:  query.ErrInvalidTimeOffset,
-		},
-		{
-			name: "offset invalid type",
-			expr: timeCall(dur(5*time.Minute), &influxql.IntegerLiteral{Val: 5}),
-			err:  query.ErrInvalidTimeOffset,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			c := query.NewCompilerForTesting(query.CompileOptions{})
-			err := query.CompileTimeDimension(c, tt.expr, &influxql.SelectStatement{})
-			require.ErrorIs(t, err, tt.err)
-		})
-	}
-
-	t.Run("multiple time dimensions", func(t *testing.T) {
-		c := query.NewCompilerForTesting(query.CompileOptions{})
-		stmt := &influxql.SelectStatement{}
-		require.NoError(t, query.CompileTimeDimension(c, timeCall(dur(5*time.Minute)), stmt))
-		err := query.CompileTimeDimension(c, timeCall(dur(time.Minute)), stmt)
-		require.ErrorIs(t, err, query.ErrMultipleTimeDimensions)
-	})
 }
 
 // TestCompileTimeDimension_Success checks the valid interval/offset forms set

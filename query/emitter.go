@@ -13,11 +13,9 @@ type Emitter struct {
 	row     *models.Row
 	columns []string
 
-	// grouping is the cursor's groupingKeyer when the query groups by
-	// date_part, and nil otherwise; groupingKey is the active GROUP BY
-	// date_part dimension of the current row.
-	grouping    groupingKeyer
-	groupingKey models.GroupingKey
+	// grouping is the cursor when the query groups by date_part, and nil
+	// otherwise. A concrete pointer keeps Emitter in its base size class.
+	grouping *scannerCursorBase
 }
 
 // NewEmitter returns a new instance of Emitter that pulls from itrs.
@@ -31,8 +29,15 @@ func NewEmitter(cur Cursor, chunkSize int) *Emitter {
 		chunkSize: chunkSize,
 		columns:   columns,
 	}
-	if g, ok := cur.(groupingKeyer); ok && g.HasGroupingKeys() {
-		e.grouping = g
+	var grouping *scannerCursorBase
+	switch c := cur.(type) {
+	case *scannerCursor:
+		grouping = &c.scannerCursorBase
+	case *multiScannerCursor:
+		grouping = &c.scannerCursorBase
+	}
+	if grouping != nil && grouping.datePart != nil {
+		e.grouping = grouping
 	}
 	return e
 }
@@ -99,10 +104,10 @@ func (e *Emitter) emitGrouped() (*models.Row, bool, error) {
 			return r, false, nil
 		}
 
-		groupingKey := e.grouping.GroupingKey()
+		groupingKey := e.grouping.groupingKey
 		if e.row == nil {
 			e.createGroupedRow(row.Series, groupingKey, row.Values)
-		} else if e.series.SameSeries(row.Series) && e.groupingKey == groupingKey {
+		} else if e.series.SameSeries(row.Series) && e.row.GroupingKey == groupingKey {
 			if e.chunkSize > 0 && len(e.row.Values) >= e.chunkSize {
 				r := e.row
 				r.Partial = true
@@ -133,6 +138,5 @@ func (e *Emitter) createRow(series Series, values []interface{}) {
 // groupingKey (zero when the row has none).
 func (e *Emitter) createGroupedRow(series Series, groupingKey models.GroupingKey, values []interface{}) {
 	e.createRow(series, values)
-	e.groupingKey = groupingKey
 	e.row.GroupingKey = groupingKey
 }

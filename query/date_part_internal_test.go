@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	internal "github.com/influxdata/influxdb/query/internal"
 	"github.com/influxdata/influxql"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestDatePartMap_Value(t *testing.T) {
@@ -34,77 +32,6 @@ func TestDatePartMap_Value(t *testing.T) {
 	// must yield nil so the grouper rejects it loudly instead of silently
 	// grouping every row under value 0.
 	require.Nil(t, datePartMap{expr: Invalid, loc: time.UTC}.Value(row))
-}
-
-// TestEncodeDecodeAux_DatePartKey ensures a DecodedDatePartKey grouping value
-// survives the iterator wire codec (encodeAux/decodeAux). This is the codec used
-// to stream iterators between enterprise data nodes; without explicit handling the
-// key serializes to null and all date_part GROUP BY buckets collapse into one.
-func TestEncodeDecodeAux_DatePartKey(t *testing.T) {
-	tests := []struct {
-		key DecodedDatePartKey
-	}{
-		{
-			key: DecodedDatePartKey{Expr: Hour, Val: int64(time.Now().Hour())},
-		},
-		{
-			key: DecodedDatePartKey{Expr: Minute, Val: int64(time.Now().Minute())},
-		},
-		{
-			key: DecodedDatePartKey{Expr: Year, Val: 1970},
-		},
-		{
-			key: DecodedDatePartKey{Expr: Quarter, Val: 2},
-		},
-		{
-			key: DecodedDatePartKey{Expr: Month, Val: int64(time.Now().Month())},
-		}, {
-			key: DecodedDatePartKey{Expr: Week, Val: 2},
-		}, {
-			key: DecodedDatePartKey{Expr: Day, Val: int64(time.Now().Day())},
-		}, {
-			key: DecodedDatePartKey{Expr: Second, Val: int64(time.Now().Second())},
-		}, {
-			key: DecodedDatePartKey{Expr: Millisecond, Val: time.Now().UnixMilli()},
-		}, {
-			key: DecodedDatePartKey{Expr: Microsecond, Val: time.Now().UnixMicro()},
-		}, {
-			key: DecodedDatePartKey{Expr: Nanosecond, Val: time.Now().UnixNano()},
-		}, {
-			key: DecodedDatePartKey{Expr: DOW, Val: int64(time.Now().Weekday())},
-		}, {
-			key: DecodedDatePartKey{Expr: DOY, Val: int64(time.Now().YearDay())},
-		}, {
-			key: DecodedDatePartKey{Expr: Epoch, Val: time.Now().Unix()},
-		}, {
-			key: DecodedDatePartKey{Expr: ISODOW, Val: int64(time.Now().Weekday())},
-		},
-	}
-
-	for _, test := range tests {
-		aux := []interface{}{int64(7), test.key, "host1"}
-
-		// Drive the full wire path
-		pt := &internal.Point{
-			Name: proto.String("cpu"),
-			Tags: proto.String(""),
-			Time: proto.Int64(0),
-			Nil:  proto.Bool(false),
-			Aux:  encodeAux(aux),
-		}
-		buf, err := proto.Marshal(pt)
-		require.NoError(t, err, "proto.Marshal must not fail on the non-UTF-8 encoded key")
-
-		var decoded internal.Point
-		require.NoError(t, proto.Unmarshal(buf, &decoded))
-
-		got := decodeAux(decoded.Aux)
-
-		require.Len(t, got, 3)
-		require.Equal(t, int64(7), got[0])
-		require.Equal(t, test.key, got[1], "DecodedDatePartKey must survive the iterator wire codec")
-		require.Equal(t, "host1", got[2])
-	}
 }
 
 func TestNewDatePartCondition(t *testing.T) {
@@ -360,18 +287,6 @@ func (r *stubReducer) Emit() []FloatPoint {
 	return []FloatPoint{{Aux: append([]interface{}(nil), r.emitAux...)}}
 }
 
-// decodeKey guards the iterator wire codec: a key of the wrong length or with
-// an unknown part must be rejected rather than read out of bounds or decoded
-// into a part whose String() is empty.
-func TestDecodeKey_Invalid(t *testing.T) {
-	for _, key := range []string{"", "short", "this key is far too long"} {
-		_, err := decodeKey(key)
-		require.ErrorContains(t, err, "must be exactly 9 bytes")
-	}
-	_, err := decodeKey(string([]byte{byte(Invalid), 0, 0, 0, 0, 0, 0, 0, 0}))
-	require.ErrorContains(t, err, "invalid expr byte")
-}
-
 // drainReduceIterator runs one input point per inputAux entry through a float
 // reduce iterator and returns the emitted points.
 func drainReduceIterator(t *testing.T, opt IteratorOptions, inputAux [][]interface{}, reducerAux []interface{}) ([]FloatPoint, error) {
@@ -414,9 +329,6 @@ func datePartReduceOptions(ascending bool, auxLen int, dims ...DatePartExpr) Ite
 }
 
 func TestReduceIterator_DatePart_Aux(t *testing.T) {
-	month := DecodedDatePartKey{Expr: Month, Val: 3}
-	year := DecodedDatePartKey{Expr: Year, Val: 2026}
-
 	tests := []struct {
 		name     string
 		auxLen   int             // len(opt.Aux) — the scanner key count
@@ -427,44 +339,38 @@ func TestReduceIterator_DatePart_Aux(t *testing.T) {
 	}{
 		{
 			// Aggregate (COUNT/SUM) emits an empty Aux: it must grow to the full
-			// scanner-key width with the active value in the last slot.
+			// scanner-key width with the active value in its dimension's slot.
 			name:   "aggregate widens empty aux to full width",
 			auxLen: 3, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: nil,
-			want: [][]interface{}{{nil, nil, month}},
+			want: [][]interface{}{{nil, nil, int64(3)}},
 		},
 		{
 			// Selector (MIN/MAX) emits a full-width Aux: the leading field slots
-			// are preserved and only the active date_part slot is overwritten.
+			// are preserved and only the date_part slots are overwritten.
 			name:   "selector full-width aux preserves leading slots",
 			auxLen: 3, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: []interface{}{"a", "b", "c"},
-			want: [][]interface{}{{"a", "b", month}},
+			want: [][]interface{}{{"a", "b", int64(3)}},
 		},
 		{
-			// With multiple date_part dimensions every non-active dimension slot is
-			// nulled so a stale value can't leak into a non-active column.
-			name:   "multi-dimension nulls every date_part slot",
+			// With multiple date_part dimensions each series carries its value in
+			// its own dimension's slot and nulls the others, so a value can't
+			// leak into a non-active column.
+			name:   "multi-dimension fills only the active slot",
 			auxLen: 3, dims: []DatePartExpr{Year, Month}, inputAux: []interface{}{int64(2026), int64(3)}, emitAux: []interface{}{"a", "b", "c"},
-			want: [][]interface{}{{"a", nil, month}, {"a", nil, year}},
+			want: [][]interface{}{{"a", nil, int64(3)}, {"a", int64(2026), nil}},
 		},
 		{
-			// No scanner keys and an empty emitted Aux: the width<1 guard forces a
-			// single slot so the active value still has somewhere to live.
-			name:   "empty aux falls back to width one",
-			auxLen: 0, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: nil,
-			want: [][]interface{}{{month}},
-		},
-		{
-			// More date_part dimensions than the Aux width: base would go negative
-			// and must clamp to 0 rather than panic.
-			name:   "base clamps when dimensions exceed width",
+			// Fewer scanner keys than dimensions: the Aux still grows to hold a
+			// slot for every dimension rather than indexing out of range.
+			name:   "aux widens to hold every dimension",
 			auxLen: 1, dims: []DatePartExpr{Year, Month}, inputAux: []interface{}{int64(2026), int64(3)}, emitAux: nil,
-			want: [][]interface{}{{month}, {year}},
+			want: [][]interface{}{{nil, int64(3)}, {int64(2026), nil}},
 		},
 		{
 			// An emitted Aux longer than the scanner key set keeps the longer width.
 			name:   "longer emitted aux keeps its width",
 			auxLen: 2, dims: []DatePartExpr{Month}, inputAux: []interface{}{int64(3)}, emitAux: []interface{}{"a", "b", "c", "d"},
-			want: [][]interface{}{{"a", "b", "c", month}},
+			want: [][]interface{}{{"a", "b", "c", int64(3)}},
 		},
 	}
 
@@ -487,14 +393,26 @@ func TestReduceIterator_DatePart_ResolveKeysError(t *testing.T) {
 	require.ErrorContains(t, err, "unexpected aux value type")
 }
 
+// A reduce above another (e.g. over the merged shard outputs) receives points
+// that carry only their bucket's dimension value, the other dimension slots
+// nil. Each must regroup under that one dimension, not fail or drop the point.
+func TestReduceIterator_DatePart_Regroup(t *testing.T) {
+	opt := datePartReduceOptions(true, 2, Year, Month)
+	got, err := drainReduceIterator(t, opt, [][]interface{}{{nil, int64(3)}, {int64(2026), nil}}, nil)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, []interface{}{nil, int64(3)}, got[0].Aux)
+	require.Equal(t, []interface{}{int64(2026), nil}, got[1].Aux)
+}
+
 // TestReduceIterator_DatePart_SortOrder covers the key sort in reduce whose
 // sort.Reverse is conditional on opt.Ascending. The emitted series order is
 // governed by the string sort of the bucket keys, so it flips with the scan
 // direction. The server-level DST_Descending test exercises the same branch
 // end-to-end; this asserts it directly on the emitted Aux.
 func TestReduceIterator_DatePart_SortOrder(t *testing.T) {
-	low := DecodedDatePartKey{Expr: Hour, Val: 1}
-	high := DecodedDatePartKey{Expr: Hour, Val: 3}
+	low := int64(1)
+	high := int64(3)
 
 	// The active date_part value lands in the last Aux slot, so the ordered
 	// tail across the two emitted points reveals the series order.

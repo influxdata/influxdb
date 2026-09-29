@@ -447,16 +447,15 @@ func TestDatePartValuer_Value(t *testing.T) {
 }
 
 func TestDatePartValuer_Call_GroupedDimension(t *testing.T) {
-	// Under GROUP BY date_part the active grouped value is authoritative for the
-	// series and is published via the DatePartDimensionsString key. date_part for
-	// the active part must return that grouped value; date_part for any other
-	// (non-active) part is undefined for the series and must return (nil, false)
-	// rather than recomputing from the bucket-representative timestamp.
-	m := influxql.MapValuer{}
-	m[query.DatePartDimensionsString] = query.DecodedDatePartKey{Expr: query.Year, Val: 2024}
-	valuer := query.DatePartValuer{Valuer: m}
+	// Under GROUP BY date_part a grouped part is read from its dimension
+	// column: the active dimension's column holds the bucket value and the
+	// others are null. It must not be recomputed from the row timestamp, which
+	// is only the bucket's representative.
+	g := query.NewDatePartGrouper([]query.DatePartDimension{{Expr: query.Year}, {Expr: query.Month}})
+	m := influxql.MapValuer{"year": int64(2024), "month": nil}
+	valuer := query.DatePartValuer{Valuer: m, Grouped: g}
 
-	// args[1] is irrelevant on the grouped path; it returns before timestamp use.
+	// args[1] is the bucket timestamp (1970 here); a grouped part ignores it.
 	got, ok := valuer.Call("date_part", []interface{}{"year", int64(0)})
 	require.True(t, ok, "active dimension should resolve")
 	require.Equal(t, int64(2024), got, "active dimension returns the grouped value")
@@ -508,13 +507,15 @@ func TestDatePartGrouper_DimKey_NoCollisionWithNulBytesInTagID(t *testing.T) {
 	require.NotEqual(t, a[0].DimKey, b[0].DimKey, "distinct tag IDs must yield distinct grouping keys")
 }
 
-func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
+func TestDatePartGrouper_ResolveKeys_OnlyNonNilDimensions(t *testing.T) {
+	// A point a lower reduce level emitted carries only its bucket's dimension
+	// value; the other dimension slots are nil and yield no entry.
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Expr: query.Year},
 		{Expr: query.Month},
 	})
 
-	aux := []interface{}{query.DecodedDatePartKey{Expr: query.Month, Val: 3}}
-	entries, err := g.ResolveKeys(aux, query.TagSubset{})
+	entries, err := g.ResolveKeys([]interface{}{nil, int64(3)}, query.TagSubset{})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.Equal(t, query.Month, entries[0].Expr)
@@ -522,8 +523,8 @@ func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
 }
 
 func TestDatePartGrouper_ResolveKeys_AuxShorterThanDims(t *testing.T) {
-	// Two dimensions but only one raw value and no DecodedDatePartKey present:
-	// ResolveKeys cannot map values to dims, so it returns (nil, nil).
+	// Two dimensions but only one aux value: ResolveKeys cannot map values to
+	// dims, so it returns (nil, nil).
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Expr: query.Year},
 		{Expr: query.Month},
@@ -535,8 +536,8 @@ func TestDatePartGrouper_ResolveKeys_AuxShorterThanDims(t *testing.T) {
 }
 
 func TestDatePartGrouper_ResolveKeys_UnexpectedAuxType(t *testing.T) {
-	// A first-level aux value that is neither int64 nor DecodedDatePartKey
-	// must surface an error rather than silently mis-grouping.
+	// An aux value that is neither int64 nor nil must surface an error rather
+	// than silently mis-grouping.
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Expr: query.Month},
 	})
