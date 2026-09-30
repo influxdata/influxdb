@@ -229,6 +229,49 @@ func TestLauncher_PIDFile_Locked(t *testing.T) {
 	require.ErrorContains(t, err, fmt.Sprintf("error writing PIDFile %q: PID file exists (possible unclean shutdown or another instance already running)", pidFilename))
 }
 
+// TestLauncher_StartupErrorLinger_WarnsAtStartup pins that an over-cap
+// --startup-error-linger is reported when influxd starts, not only when a
+// failed start reaches the linger window. A locked PID file fails run right
+// after the option checks, before the listener is up, so the window never
+// opens and any capping warning seen here can only have come from run itself.
+func TestLauncher_StartupErrorLinger_WarnsAtStartup(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		linger   time.Duration
+		wantWarn bool
+	}{
+		{name: "unset", linger: 0},
+		{name: "under the cap", linger: time.Minute},
+		{name: "over the cap", linger: 24 * time.Hour, wantWarn: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pidFilename := filepath.Join(t.TempDir(), "influxd.pid")
+			require.NoError(t, os.WriteFile(pidFilename, []byte("foobar"), 0666))
+
+			l := launcher.NewTestLauncher()
+			loggerCore, ol := observer.New(zap.WarnLevel)
+			l.Logger = zap.New(loggerCore)
+			err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) {
+				o.PIDFile = pidFilename
+				o.StartupErrorLinger = tc.linger
+			})
+			defer l.ShutdownOrFail(t, ctx)
+			require.ErrorIs(t, err, launcher.ErrPIDFileExists)
+
+			capped := ol.FilterMessageSnippet("capping").AllUntimed()
+			if !tc.wantWarn {
+				require.Empty(t, capped, "a linger within the cap must not warn")
+				return
+			}
+			require.Len(t, capped, 1, "an over-cap linger must warn exactly once at startup")
+			fields := capped[0].ContextMap()
+			require.Equal(t, "startup-error-linger", fields["flag"],
+				"the warning must name the flag to be actionable on its own")
+			require.Equal(t, tc.linger, fields["requested"])
+		})
+	}
+}
+
 func TestLauncher_PIDFile_Overwrite(t *testing.T) {
 	pidDir := t.TempDir()
 	pidFilename := filepath.Join(pidDir, "influxd.pid")
