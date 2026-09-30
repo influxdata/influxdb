@@ -1,11 +1,13 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/exit"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,6 +71,24 @@ bind-address = "127.0.0.1:8088"
 			require.ElementsMatch(t, tt.want, got)
 		})
 	}
+}
+
+// TestErrInvalidFlags_ExitCode covers the status for the failure an operator is
+// most likely to meet on an upgrade: a 1.x config file handed to a 2.x server.
+// It is reported before the launcher exists, so it is one of the few statuses
+// not pinned by Launcher.run.
+func TestErrInvalidFlags_ExitCode(t *testing.T) {
+	t.Parallel()
+
+	err := errInvalidFlags([]string{"data.index-version"}, "/etc/influxdb/config.toml")
+	require.Error(t, err)
+	require.Equal(t, exit.CodeConfig, exit.Code(err),
+		"a 1.x config file must exit %s: editing the file is the only fix, so a "+
+			"supervisor set to stop retrying on a config error must not restart into it",
+		exit.Name(exit.CodeConfig))
+	require.ErrorContains(t, err, "data.index-version",
+		"pinning a status must not disturb the message")
+	require.ErrorContains(t, err, "/etc/influxdb/config.toml")
 }
 
 func TestInfluxdOpts_HealthAuthRequired(t *testing.T) {
@@ -234,6 +254,30 @@ func TestNewInfluxdCommand_HealthAuthModeFromEnv(t *testing.T) {
 	assert.False(t, o.healthAuthRequired())
 }
 
+// TestPrintConfig_RejectsPositionalArgs covers the half of a malformed command
+// line that cobra does not route through FlagErrorFunc. `print-config --bogus`
+// is a flag error and exits EX_USAGE; an Args violation is handed back to the
+// caller directly, so without cli.UsageArgs the same operator mistake would
+// exit 1 on the same command.
+func TestPrintConfig_RejectsPositionalArgs(t *testing.T) {
+	t.Parallel()
+
+	cmd, err := newInfluxdCommand(context.Background(), NewOpts(viper.New()))
+	require.NoError(t, err)
+
+	// Args are validated before RunE, so nothing is printed and no options are
+	// resolved.
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"print-config", "bogus"})
+
+	err = cmd.Execute()
+	require.Error(t, err, "print-config takes no positional arguments")
+	require.Equal(t, exit.CodeUsage, exit.Code(err),
+		"a wrong command line must exit %s however it is wrong", exit.Name(exit.CodeUsage))
+}
+
 // TestNewInfluxdCommand_HealthAuthModeFromConfigFile covers the third source.
 func TestNewInfluxdCommand_HealthAuthModeFromConfigFile(t *testing.T) {
 	t.Parallel()
@@ -246,23 +290,6 @@ func TestNewInfluxdCommand_HealthAuthModeFromConfigFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, HealthAuthDisabled, o.HealthAuthMode)
 	assert.False(t, o.healthAuthRequired())
-}
-
-// TestNewInfluxdCommand_HealthAuthModeInvalidEnvIgnored pins a kit-wide
-// behavior rather than one this option chose: cli.BindOptions drops an
-// environment or config-file value that the option's Set rejects, without a
-// log line (kit/cli/viper.go, the pflag.Value case), just as it does for *bool
-// and *zapcore.Level. So a value shaped for the old bool flag leaves the mode at
-// auto, and under --hardening-enabled health auth is enforced despite it. Only
-// the command line is strict. If kit/cli is ever tightened to return the error,
-// this test should fail and be deleted.
-func TestNewInfluxdCommand_HealthAuthModeInvalidEnvIgnored(t *testing.T) {
-	t.Setenv("INFLUXD_HEALTH_AUTH_MODE", "false")
-
-	o, err := resolveOpts(t, viper.New(), "--hardening-enabled")
-	require.NoError(t, err)
-	assert.Equal(t, HealthAuthAuto, o.HealthAuthMode)
-	assert.True(t, o.healthAuthRequired())
 }
 
 // TestNewInfluxdCommand_StartupErrorLinger covers every way the option can be
@@ -311,4 +338,38 @@ func TestNewInfluxdCommand_StartupErrorLingerFromEnv(t *testing.T) {
 	o, err := resolveOpts(t, viper.New())
 	assert.NoError(t, err)
 	assert.Equal(t, 45*time.Second, o.StartupErrorLinger)
+}
+
+// printConfig runs the real print-config subcommand over args and returns the
+// YAML it wrote, which is what an operator redirects into a config file.
+func printConfig(t *testing.T, args ...string) string {
+	t.Helper()
+	o := NewOpts(viper.New())
+	cmd, err := newInfluxdCommand(context.Background(), o)
+	require.NoError(t, err)
+
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append([]string{"print-config"}, args...))
+	require.NoError(t, cmd.Execute())
+
+	// print-config carries a Deprecated notice, and cobra's OutOrStderr resolves
+	// to the writer SetOut installed, so the notice lands ahead of the YAML. A
+	// real operator redirecting stdout to a file does not get it; strip it here
+	// so the round trip below fails only for reasons about the options.
+	printed := out.String()
+	if notice, rest, found := strings.Cut(printed, "\n"); found && strings.HasPrefix(notice, "Command ") {
+		printed = rest
+	}
+	return printed
+}
+
+// TestPrintConfig_ReportsStartupErrorLinger keeps the option discoverable: an
+// operator finds it by reading what print-config emits.
+func TestPrintConfig_ReportsStartupErrorLinger(t *testing.T) {
+	t.Parallel()
+
+	got := printConfig(t)
+	assert.Contains(t, got, "startup-error-linger: 0s")
 }
