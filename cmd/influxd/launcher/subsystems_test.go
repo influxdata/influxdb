@@ -37,7 +37,7 @@ func newCheckLauncher(t *testing.T) *Launcher {
 	m := NewLauncher()
 	m.log = zaptest.NewLogger(t)
 	m.checkHandler = http.NewHealthReadyHandler(m.log)
-	m.initReadyChecks()
+	require.NoError(t, m.initReadyChecks())
 	return m
 }
 

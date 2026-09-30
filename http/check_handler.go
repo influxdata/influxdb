@@ -416,17 +416,18 @@ func (h *HealthReadyHandler) resolve(r *http.Request, rh *resolverHolder) (platf
 	return auth, true
 }
 
-// AddHealthCheck registers an anonymous health check.
-func (h *HealthReadyHandler) AddHealthCheck(c check.Checker) { h.check.AddHealthCheck(c) }
-
-// AddNamedReadyCheck registers nc as a ready check under nc.CheckName().
-func (h *HealthReadyHandler) AddNamedReadyCheck(nc check.NamedChecker) {
-	h.check.AddNamedReadyCheck(nc)
+// AddNamedReadyCheck registers nc as a ready check under nc.CheckName(). It
+// returns an error for an empty name or one already registered as a ready
+// check; see check.Check.AddNamedReadyCheck.
+func (h *HealthReadyHandler) AddNamedReadyCheck(nc check.NamedChecker) error {
+	return h.check.AddNamedReadyCheck(nc)
 }
 
-// AddNamedHealthCheck registers nc as a health check under nc.CheckName().
-func (h *HealthReadyHandler) AddNamedHealthCheck(nc check.NamedChecker) {
-	h.check.AddNamedHealthCheck(nc)
+// AddNamedHealthCheck registers nc as a health check under nc.CheckName(). It
+// returns an error for an empty name or one already registered as a health
+// check; see check.Check.AddNamedHealthCheck.
+func (h *HealthReadyHandler) AddNamedHealthCheck(nc check.NamedChecker) error {
+	return h.check.AddNamedHealthCheck(nc)
 }
 
 // ReadyCheckNames returns the names of currently-registered ready checks

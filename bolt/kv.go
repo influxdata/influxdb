@@ -144,9 +144,9 @@ func NewKVStore(log *zap.Logger, path string, opts ...KVOption) *KVStore {
 	return store
 }
 
-// CheckName satisfies check.NamedChecker so registration via
-// AddHealthCheck takes the named-fast-path without an extra wrapper.
-// Returns the name configured by WithCheckName, or "" if unset.
+// CheckName satisfies check.NamedChecker so the store can be passed to
+// AddNamedHealthCheck without an extra wrapper. Returns the name configured
+// by WithCheckName, or "" if unset, which registration rejects.
 func (s *KVStore) CheckName() string { return s.name }
 
 // tempPath returns the path to the temporary file used by Restore().

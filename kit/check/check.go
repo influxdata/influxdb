@@ -4,6 +4,8 @@ package check
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"sync"
 )
@@ -28,12 +30,66 @@ const (
 	NameReady = "Ready"
 )
 
-// Check wraps a map of service names to status checkers.
+// ErrDuplicateCheckName is returned when a check is registered under a name
+// already registered in the same set (health or ready).
+var ErrDuplicateCheckName = errors.New("duplicate check name")
+
+// ErrEmptyCheckName is returned when a check is registered with an empty name.
+var ErrEmptyCheckName = errors.New("empty check name")
+
+const (
+	kindHealth = "health"
+	kindReady  = "ready"
+)
+
+// checkSet holds checks in registration order plus an index of their names,
+// so a name can be registered at most once per set. It is not safe for
+// concurrent use; Check guards it with mu.
+type checkSet struct {
+	checks []NamedChecker
+	names  map[string]struct{}
+}
+
+// add registers nc, rejecting an empty or already-registered name. kind names
+// the set in the returned error. A rejected check leaves s unchanged.
+func (s *checkSet) add(kind string, nc NamedChecker) error {
+	name := nc.CheckName()
+	if name == "" {
+		return fmt.Errorf("register %s check: %w", kind, ErrEmptyCheckName)
+	}
+	if _, dup := s.names[name]; dup {
+		return fmt.Errorf("register %s check %q: %w", kind, name, ErrDuplicateCheckName)
+	}
+	if s.names == nil {
+		s.names = make(map[string]struct{})
+	}
+	s.names[name] = struct{}{}
+	s.checks = append(s.checks, nc)
+	return nil
+}
+
+// snapshot returns a copy of the registered checks in registration order.
+func (s *checkSet) snapshot() []NamedChecker {
+	return append([]NamedChecker(nil), s.checks...)
+}
+
+// nameList returns the registered names in registration order. It is never
+// nil.
+func (s *checkSet) nameList() []string {
+	out := make([]string, len(s.checks))
+	for i, ch := range s.checks {
+		out[i] = ch.CheckName()
+	}
+	return out
+}
+
+// Check holds the named health and ready checks served by /health and
+// /ready. Names are unique within each set; the same name may appear once in
+// the health set and once in the ready set.
 type Check struct {
-	mu           sync.RWMutex
-	healthChecks []Checker
-	readyChecks  []Checker
-	readyNames   []string
+	mu     sync.RWMutex
+	health checkSet
+	ready  checkSet
 
 	// frozen reports that Freeze has installed a static snapshot. Once set,
 	// the check sets never change again: later registrations are dropped and
@@ -76,60 +132,44 @@ func NewCheck() *Check {
 	return &Check{}
 }
 
-// AddHealthCheck registers an anonymous health check. If check happens to
-// implement NamedChecker, registration is delegated to AddNamedHealthCheck
-// so the name is recorded; otherwise the check is stored as-is and its
-// recorded name is empty. Prefer AddNamedHealthCheck when the caller
-// already knows the name.
-// A registration after Freeze is ignored; see there.
-func (c *Check) AddHealthCheck(check Checker) {
-	if nc, ok := check.(NamedChecker); ok {
-		c.AddNamedHealthCheck(nc)
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.frozen {
-		return
-	}
-	c.healthChecks = append(c.healthChecks, check)
-}
-
-// AddNamedHealthCheck registers nc as a health check. The name is taken
-// from nc.CheckName(); nc.Check is responsible for stamping Response.Name
-// (see NamedChecker), so no additional wrapping happens here.
+// AddNamedHealthCheck registers nc as a health check under nc.CheckName();
+// nc.Check is responsible for stamping Response.Name (see NamedChecker), so
+// no additional wrapping happens here.
 //
-// A registration after Freeze is ignored; see there.
-func (c *Check) AddNamedHealthCheck(nc NamedChecker) {
+// It returns an error wrapping ErrEmptyCheckName for an empty name, or
+// ErrDuplicateCheckName for a name already registered as a health check; the
+// earlier registration is kept. A ready check of the same name does not
+// conflict.
+//
+// A registration after Freeze is dropped and returns nil; see there.
+func (c *Check) AddNamedHealthCheck(nc NamedChecker) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.frozen {
-		return
+		return nil
 	}
-	c.healthChecks = append(c.healthChecks, nc)
+	return c.health.add(kindHealth, nc)
 }
 
 // AddNamedReadyCheck registers nc as a ready check. See AddNamedHealthCheck
-// for naming semantics and for what a registration after Freeze does.
-func (c *Check) AddNamedReadyCheck(nc NamedChecker) {
+// for naming, uniqueness, and what a registration after Freeze does; ready
+// names are unique among ready checks only.
+func (c *Check) AddNamedReadyCheck(nc NamedChecker) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.frozen {
-		return
+		return nil
 	}
-	c.readyChecks = append(c.readyChecks, nc)
-	c.readyNames = append(c.readyNames, nc.CheckName())
+	return c.ready.add(kindReady, nc)
 }
 
 // ReadyCheckNames returns the names of currently-registered ready checks
-// in registration order. All ready checks are required to be named, so
-// no entry is ever empty.
+// in registration order. Registration rejects empty and duplicate names, so
+// every entry is non-empty and distinct.
 func (c *Check) ReadyCheckNames() []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	out := make([]string, len(c.readyNames))
-	copy(out, c.readyNames)
-	return out
+	return c.ready.nameList()
 }
 
 // CheckHealth evaluates c's set of health checks and returns a populated Response.
@@ -142,16 +182,16 @@ func (c *Check) CheckReady(ctx context.Context) Response {
 	return c.evaluate(ctx, NameReady, c.snapshotReady)
 }
 
-func (c *Check) snapshotHealth() []Checker {
+func (c *Check) snapshotHealth() []NamedChecker {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return append([]Checker(nil), c.healthChecks...)
+	return c.health.snapshot()
 }
 
-func (c *Check) snapshotReady() []Checker {
+func (c *Check) snapshotReady() []NamedChecker {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return append([]Checker(nil), c.readyChecks...)
+	return c.ready.snapshot()
 }
 
 // evaluate runs every checker returned by snap and aggregates the
@@ -159,7 +199,7 @@ func (c *Check) snapshotReady() []Checker {
 // under the read lock and the lock is released before any Check runs:
 // checkers can block (network calls) or re-enter registration, so we
 // must not hold c.mu across Check invocations.
-func (c *Check) evaluate(ctx context.Context, name string, snap func() []Checker) Response {
+func (c *Check) evaluate(ctx context.Context, name string, snap func() []NamedChecker) Response {
 	checks := snap()
 	results := make(Responses, 0, len(checks))
 	overall := StatusPass
@@ -178,13 +218,20 @@ func (c *Check) evaluate(ctx context.Context, name string, snap func() []Checker
 	return NewBasicResponse(name, overall, "", results)
 }
 
-// frozenChecker answers with a fixed Response. It implements NamedChecker so a
-// frozen set can rebuild readyNames and so evaluate needs no special case: to
-// everything downstream a frozen check is an ordinary registered check that
-// happens never to change its mind.
-type frozenChecker struct{ resp BasicResponse }
+// frozenChecker answers with a fixed Response. It implements NamedChecker so
+// evaluate needs no special case: to everything downstream a frozen check is
+// an ordinary registered check that happens never to change its mind.
+//
+// name is the registration name of the check it replaced, not resp.Name():
+// a checker that breaks the NamedChecker contract by stamping some other name
+// must not be able to rename its entry, or collide with another, by being
+// frozen.
+type frozenChecker struct {
+	name string
+	resp BasicResponse
+}
 
-func (f frozenChecker) CheckName() string              { return f.resp.Name() }
+func (f frozenChecker) CheckName() string              { return f.name }
 func (f frozenChecker) Check(context.Context) Response { return f.resp }
 
 // probe evaluates ch for the freeze, under a context of its own bounded at
@@ -227,8 +274,10 @@ func probe(ctx context.Context, ch Checker) BasicResponse {
 // JSON object, so a frozen body has the same shape as the one served a moment
 // earlier.
 //
-// The registered set and its order are unchanged, so ReadyCheckNames reports
-// what it did before. Only the values are pinned.
+// The registered names and their order are unchanged -- each frozen check
+// keeps the CheckName it was registered under, not the name its response
+// carried -- so ReadyCheckNames reports what it did before and no name can
+// become duplicated. Only the values are pinned.
 //
 // Freeze is terminal and first-freeze-wins: a second call is a no-op, there is
 // no thaw, and checks registered afterwards are ignored. A registration racing
@@ -245,37 +294,44 @@ func probe(ctx context.Context, ch Checker) BasicResponse {
 func (c *Check) Freeze(ctx context.Context) {
 	c.mu.RLock()
 	frozen := c.frozen
-	health := append([]Checker(nil), c.healthChecks...)
-	ready := append([]Checker(nil), c.readyChecks...)
+	health := c.health.snapshot()
+	ready := c.ready.snapshot()
 	c.mu.RUnlock()
 	if frozen {
 		return
 	}
 
 	// Evaluate with no lock held, for the reason evaluate documents: a checker
-	// can block on a network call and can re-enter registration.
-	frozenHealth := make([]Checker, len(health))
-	for i, ch := range health {
-		frozenHealth[i] = frozenChecker{resp: probe(ctx, ch)}
-	}
-	// Ready names are rebuilt from the frozen responses rather than carried
-	// over, so a check registered in the gap between the two locks -- and
-	// therefore absent from the frozen set -- leaves both lists together.
-	frozenReady := make([]Checker, len(ready))
-	readyNames := make([]string, len(ready))
-	for i, ch := range ready {
-		resp := probe(ctx, ch)
-		frozenReady[i] = frozenChecker{resp: resp}
-		readyNames[i] = resp.Name()
-	}
+	// can block on a network call and can re-enter registration. The frozen
+	// sets are built fresh from the snapshots rather than patched in place, so
+	// a check registered in the gap between the two locks -- and therefore
+	// never probed -- is dropped from the checks and the name index together.
+	frozenHealth := freezeSet(ctx, health)
+	frozenReady := freezeSet(ctx, ready)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.frozen {
 		return
 	}
-	c.healthChecks = frozenHealth
-	c.readyChecks = frozenReady
-	c.readyNames = readyNames
+	c.health = frozenHealth
+	c.ready = frozenReady
 	c.frozen = true
+}
+
+// freezeSet probes every check in checks and returns a new checkSet of their
+// frozen replacements, under the same registration names and in the same
+// order. checks is a snapshot of a checkSet, whose names are already unique,
+// so the result's names are too.
+func freezeSet(ctx context.Context, checks []NamedChecker) checkSet {
+	s := checkSet{
+		checks: make([]NamedChecker, len(checks)),
+		names:  make(map[string]struct{}, len(checks)),
+	}
+	for i, ch := range checks {
+		name := ch.CheckName()
+		s.checks[i] = frozenChecker{name: name, resp: probe(ctx, ch)}
+		s.names[name] = struct{}{}
+	}
+	return s
 }
