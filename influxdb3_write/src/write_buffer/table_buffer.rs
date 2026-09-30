@@ -4,7 +4,7 @@ use arrow::array::builder::BooleanBufferBuilder;
 use arrow::array::{
     Array, ArrayRef, ArrowPrimitiveType, BooleanArray, BooleanBuilder, Float64Builder,
     GenericByteBuilder, Int64Builder, PrimitiveArray, PrimitiveBuilder, StringArray, StringBuilder,
-    StringDictionaryBuilder, TimestampNanosecondBuilder, UInt64Builder,
+    StringDictionaryBuilder, TimestampNanosecondBuilder, UInt64Builder, new_null_array,
 };
 use arrow::buffer::{BooleanBuffer, Buffer, MutableBuffer, NullBuffer, OffsetBuffer, ScalarBuffer};
 use arrow::datatypes::{GenericStringType, Int32Type};
@@ -156,18 +156,19 @@ impl TableBuffer {
         for sc in self.snapshotting_chunks.iter().filter(|sc| {
             filter.test_time_stamp_min_max(sc.timestamp_min_max.min, sc.timestamp_min_max.max)
         }) {
-            let cols: std::result::Result<Vec<_>, _> = schema
+            let cols = schema
                 .fields()
                 .iter()
                 .map(|f| {
-                    let col = sc
-                        .record_batch
+                    sc.record_batch
                         .column_by_name(f.name())
-                        .ok_or(Error::FieldNotFound(f.name().to_string()));
-                    col.cloned()
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            // Later columns are absent from this batch's frozen schema.
+                            new_null_array(f.data_type(), sc.record_batch.num_rows())
+                        })
                 })
                 .collect();
-            let cols = cols?;
             let rb = RecordBatch::try_new(Arc::clone(&schema), cols)?;
             batches
                 .entry(sc.chunk_time)
