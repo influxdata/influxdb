@@ -18,10 +18,7 @@ executors:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     environment:
-      # Fall back to direct (VCS) downloads on *any* proxy.golang.org error,
-      # not just 404/410 (which is what the default "," separator does), so a
-      # proxy outage does not fail CI. Direct downloads are still verified
-      # against go.sum and the checksum database (GOSUMDB).
+      # Fall back to direct (VCS) downloads on any proxy.golang.org error
       GOPROXY: https://proxy.golang.org|direct
 
 jobs:
