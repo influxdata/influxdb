@@ -1,6 +1,7 @@
 use super::CreateQueryExecutorArgs;
 use crate::QueryExecutorImpl;
-use arrow::array::RecordBatch;
+use arrow::array::{Array, BooleanArray, Int64Array, RecordBatch, TimestampNanosecondArray};
+use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::assert_batches_sorted_eq;
 use futures::TryStreamExt;
 use influxdb3_cache::{
@@ -15,7 +16,7 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_types::DatabaseName;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    Bufferer, WriteBuffer,
+    Bufferer, Precision, WriteBuffer,
     persister::Persister,
     write_buffer::{
         N_SNAPSHOTS_TO_LOAD_ON_START, WriteBufferImpl, WriteBufferImplArgs,
@@ -25,7 +26,7 @@ use influxdb3_write::{
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
 use iox_time::{MockProvider, Time, TimeProvider};
 use metric::Registry;
-use object_store::{ObjectStore, local::LocalFileSystem};
+use object_store::{ObjectStore, local::LocalFileSystem, memory::InMemory};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
@@ -69,9 +70,34 @@ pub(crate) async fn setup(
     Arc<MockProvider>,
     Arc<SysEventStore>,
 ) {
-    // Set up QueryExecutor
     let object_store: Arc<dyn ObjectStore> =
         Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+    setup_with_object_store_and_wal_config(
+        query_file_limit,
+        started_with_auth,
+        object_store,
+        WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        },
+    )
+    .await
+}
+
+async fn setup_with_object_store_and_wal_config(
+    query_file_limit: Option<usize>,
+    started_with_auth: bool,
+    object_store: Arc<dyn ObjectStore>,
+    wal_config: WalConfig,
+) -> (
+    Arc<dyn WriteBuffer>,
+    QueryExecutorImpl,
+    Arc<MockProvider>,
+    Arc<SysEventStore>,
+) {
     let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
         object_store,
@@ -111,13 +137,7 @@ pub(crate) async fn setup(
         .unwrap(),
         time_provider: Arc::<MockProvider>::clone(&time_provider),
         executor: Arc::clone(&exec),
-        wal_config: WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-            ..Default::default()
-        },
+        wal_config,
         parquet_cache: Some(parquet_cache),
         metric_registry: Default::default(),
         snapshotted_wal_files_to_keep: 1,
@@ -705,4 +725,335 @@ async fn test_influxql_time_filter_double_group_by() {
         let batches: Vec<RecordBatch> = stream.try_collect().await.unwrap();
         assert_batches_sorted_eq!(expected, &batches);
     }
+}
+
+/// An object store that blocks one parquet PUT until the test opens its gate.
+#[derive(Debug)]
+struct GatedParquetPutStore {
+    inner: Arc<dyn ObjectStore>,
+    gated_path_substr: &'static str,
+    gate_open: tokio::sync::watch::Receiver<bool>,
+    gated_put_started: tokio::sync::watch::Sender<bool>,
+}
+
+impl GatedParquetPutStore {
+    fn new(
+        inner: Arc<dyn ObjectStore>,
+        gated_path_substr: &'static str,
+    ) -> (
+        Arc<Self>,
+        tokio::sync::watch::Sender<bool>,
+        tokio::sync::watch::Receiver<bool>,
+    ) {
+        let (gate_open_tx, gate_open_rx) = tokio::sync::watch::channel(false);
+        let (gated_put_started_tx, gated_put_started_rx) = tokio::sync::watch::channel(false);
+        (
+            Arc::new(Self {
+                inner,
+                gated_path_substr,
+                gate_open: gate_open_rx,
+                gated_put_started: gated_put_started_tx,
+            }),
+            gate_open_tx,
+            gated_put_started_rx,
+        )
+    }
+}
+
+impl std::fmt::Display for GatedParquetPutStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GatedParquetPutStore({})", self.gated_path_substr)
+    }
+}
+
+#[async_trait::async_trait]
+impl ObjectStore for GatedParquetPutStore {
+    async fn put_opts(
+        &self,
+        location: &object_store::path::Path,
+        payload: object_store::PutPayload,
+        opts: object_store::PutOptions,
+    ) -> object_store::Result<object_store::PutResult> {
+        if location.as_ref().contains(self.gated_path_substr) {
+            let _ = self.gated_put_started.send(true);
+            let _ = self.gate_open.clone().wait_for(|open| *open).await;
+        }
+        self.inner.put_opts(location, payload, opts).await
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        location: &object_store::path::Path,
+        opts: object_store::PutMultipartOptions,
+    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+        self.inner.put_multipart_opts(location, opts).await
+    }
+
+    async fn get_opts(
+        &self,
+        location: &object_store::path::Path,
+        options: object_store::GetOptions,
+    ) -> object_store::Result<object_store::GetResult> {
+        self.inner.get_opts(location, options).await
+    }
+
+    async fn delete(&self, location: &object_store::path::Path) -> object_store::Result<()> {
+        self.inner.delete(location).await
+    }
+
+    fn list(
+        &self,
+        prefix: Option<&object_store::path::Path>,
+    ) -> futures::stream::BoxStream<'static, object_store::Result<object_store::ObjectMeta>> {
+        self.inner.list(prefix)
+    }
+
+    async fn list_with_delimiter(
+        &self,
+        prefix: Option<&object_store::path::Path>,
+    ) -> object_store::Result<object_store::ListResult> {
+        self.inner.list_with_delimiter(prefix).await
+    }
+
+    async fn copy(
+        &self,
+        from: &object_store::path::Path,
+        to: &object_store::path::Path,
+    ) -> object_store::Result<()> {
+        self.inner.copy(from, to).await
+    }
+
+    async fn copy_if_not_exists(
+        &self,
+        from: &object_store::path::Path,
+        to: &object_store::path::Path,
+    ) -> object_store::Result<()> {
+        self.inner.copy_if_not_exists(from, to).await
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ScannedRow {
+    time_ns: Option<i64>,
+    value: Option<i64>,
+    new_field: Option<i64>,
+    new_tag_missing: Option<bool>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ScanOutcome {
+    Rows {
+        types: Vec<DataType>,
+        rows: Vec<ScannedRow>,
+    },
+    QueryError(String),
+    InvalidOutput(String),
+}
+
+#[derive(Debug)]
+struct SchemaEvolutionScans {
+    before_gate: ScanOutcome,
+    after_gate: ScanOutcome,
+}
+
+fn expected_schema_evolution_scan() -> ScanOutcome {
+    ScanOutcome::Rows {
+        types: vec![
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            DataType::Int64,
+            DataType::Int64,
+            DataType::Boolean,
+        ],
+        rows: vec![
+            ScannedRow {
+                time_ns: Some(1),
+                value: Some(11),
+                new_field: Some(110),
+                new_tag_missing: Some(true),
+            },
+            ScannedRow {
+                time_ns: Some(2),
+                value: Some(10),
+                new_field: None,
+                new_tag_missing: Some(true),
+            },
+            ScannedRow {
+                time_ns: Some(3),
+                value: Some(3),
+                new_field: Some(30),
+                new_tag_missing: Some(false),
+            },
+        ],
+    }
+}
+
+async fn scan_schema_evolution_table(query_executor: &QueryExecutorImpl) -> ScanOutcome {
+    const SQL: &str = "\
+        SELECT time, value, new_field, new_tag IS NULL AS new_tag_missing FROM foo \
+        WHERE time >= '1970-01-01T00:00:00.000000001Z' \
+          AND time <= '1970-01-01T00:00:00.000000003Z' \
+        ORDER BY time";
+
+    let stream = match query_executor
+        .query_sql("test_db", SQL, None, None, None)
+        .await
+    {
+        Ok(stream) => stream,
+        Err(error) => return ScanOutcome::QueryError(error.to_string()),
+    };
+    let batches: Vec<RecordBatch> = match stream.try_collect().await {
+        Ok(batches) => batches,
+        Err(error) => return ScanOutcome::QueryError(error.to_string()),
+    };
+    let Some(first_batch) = batches.first() else {
+        return ScanOutcome::InvalidOutput("query returned no record batches".to_string());
+    };
+    let schema = first_batch.schema();
+    if schema.fields().len() != 4 {
+        return ScanOutcome::InvalidOutput(format!(
+            "query returned {} columns instead of 4",
+            schema.fields().len()
+        ));
+    }
+
+    let mut indices = Vec::with_capacity(4);
+    for name in ["time", "value", "new_field", "new_tag_missing"] {
+        match schema.index_of(name) {
+            Ok(index) => indices.push(index),
+            Err(error) => return ScanOutcome::InvalidOutput(error.to_string()),
+        }
+    }
+    let types = indices
+        .iter()
+        .map(|index| schema.field(*index).data_type().clone())
+        .collect::<Vec<_>>();
+    let mut rows = Vec::new();
+    for batch in &batches {
+        if batch.schema().as_ref() != schema.as_ref() {
+            return ScanOutcome::InvalidOutput("query returned inconsistent schemas".to_string());
+        }
+        let Some(time) = batch
+            .column(indices[0])
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+        else {
+            return ScanOutcome::InvalidOutput("time is not a nanosecond timestamp".to_string());
+        };
+        let Some(value) = batch
+            .column(indices[1])
+            .as_any()
+            .downcast_ref::<Int64Array>()
+        else {
+            return ScanOutcome::InvalidOutput("value is not an integer".to_string());
+        };
+        let Some(new_field) = batch
+            .column(indices[2])
+            .as_any()
+            .downcast_ref::<Int64Array>()
+        else {
+            return ScanOutcome::InvalidOutput("new_field is not an integer".to_string());
+        };
+        let Some(new_tag_missing) = batch
+            .column(indices[3])
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+        else {
+            return ScanOutcome::InvalidOutput("new_tag_missing is not a boolean".to_string());
+        };
+        for row in 0..batch.num_rows() {
+            rows.push(ScannedRow {
+                time_ns: (!time.is_null(row)).then(|| time.value(row)),
+                value: (!value.is_null(row)).then(|| value.value(row)),
+                new_field: (!new_field.is_null(row)).then(|| new_field.value(row)),
+                new_tag_missing: (!new_tag_missing.is_null(row))
+                    .then(|| new_tag_missing.value(row)),
+            });
+        }
+    }
+
+    ScanOutcome::Rows { types, rows }
+}
+
+async fn run_schema_evolution_scenario() -> SchemaEvolutionScans {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let (gated_store, gate_open, mut gated_put_started) =
+        GatedParquetPutStore::new(Arc::clone(&inner), "/1970-01-01/00-00/");
+    let object_store: Arc<dyn ObjectStore> = gated_store;
+    let (write_buffer, query_executor, _, _) = setup_with_object_store_and_wal_config(
+        None,
+        false,
+        object_store,
+        WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 100,
+            ..Default::default()
+        },
+    )
+    .await;
+
+    let database = DatabaseName::new("test_db").unwrap();
+    write_buffer
+        .write_lp(
+            database.clone(),
+            "foo,tag=a value=1i 1\nfoo,tag=b value=10i 2",
+            Time::from_timestamp_nanos(0),
+            false,
+            Precision::Nanosecond,
+            false,
+        )
+        .await
+        .expect("write initial rows");
+
+    let wal = write_buffer.wal();
+    let (snapshot_done, snapshot_details, snapshot_permit) = wal
+        .force_flush_buffer()
+        .await
+        .expect("forcing a snapshot should return its completion receiver");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        gated_put_started
+            .wait_for(|started| *started)
+            .await
+            .expect("gated parquet PUT should start");
+    })
+    .await
+    .expect("snapshot persistence should reach the gate");
+
+    write_buffer
+        .write_lp(
+            database,
+            "foo,tag=a value=11i,new_field=110i 1\nfoo,tag=c,new_tag=x value=3i,new_field=30i 3",
+            Time::from_timestamp_nanos(0),
+            false,
+            Precision::Nanosecond,
+            false,
+        )
+        .await
+        .expect("write rows after adding a field");
+
+    let before_gate = scan_schema_evolution_table(&query_executor).await;
+    gate_open
+        .send(true)
+        .expect("gated parquet PUT should be waiting");
+    let persisted_details = snapshot_done
+        .await
+        .expect("snapshot job should finish after the gate opens");
+    assert_eq!(snapshot_details, persisted_details);
+    wal.cleanup_snapshot(snapshot_details, snapshot_permit)
+        .await;
+    let after_gate = scan_schema_evolution_table(&query_executor).await;
+
+    SchemaEvolutionScans {
+        before_gate,
+        after_gate,
+    }
+}
+
+#[test_log::test(tokio::test)]
+async fn query_reads_snapshot_rows_after_schema_evolution() {
+    let scans = run_schema_evolution_scenario().await;
+    let expected = expected_schema_evolution_scan();
+    assert_eq!(expected, scans.before_gate, "scan with snapshot buffered");
+    assert_eq!(expected, scans.after_gate, "scan after parquet handoff");
 }
