@@ -42,26 +42,48 @@ func TestHealthReadyHandler_ConcurrentAuthWiring(t *testing.T) {
 		resolvers[i] = &stubResolver{auth: mock.NewMockAuthorizer(false, platform.OperPermissions())}
 	}
 
-	var startMu sync.RWMutex
+	// A start gate cannot support the assertion at the end of this test.
+	// Released together, these goroutines may still run one at a time: nothing
+	// in their bodies blocks, so at GOMAXPROCS=1 each runs to completion before
+	// the next is scheduled, and the test would pass having exercised no
+	// concurrent access at all. A barrier makes the overlap structural instead
+	// of hoped for -- no goroutine proceeds until every one of them has arrived,
+	// so all of them are live at once on any scheduler.
+	const total = requesters + wirers
+	var arrived sync.WaitGroup
+	arrived.Add(total)
+	proceed := make(chan struct{})
+	go func() {
+		arrived.Wait()
+		close(proceed)
+	}()
+
 	var concurrency, maxConcurrency atomic.Int64
 
-	record := func() {
+	// enter counts this goroutine in, publishes the new high-water mark, then
+	// waits for the rest. The max update retries rather than making a single
+	// CompareAndSwap attempt: a CAS that loses its race has not necessarily lost
+	// to a larger value, so abandoning the write can discard the highest count
+	// -- which is the one being asserted on.
+	enter := func() {
 		c := concurrency.Add(1)
-		if old := maxConcurrency.Load(); c > old {
-			maxConcurrency.CompareAndSwap(old, c)
+		for {
+			old := maxConcurrency.Load()
+			if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+				break
+			}
 		}
+		arrived.Done()
+		<-proceed
 	}
 
 	var wg sync.WaitGroup
-	startMu.Lock()
 
 	for i := range requesters {
 		wg.Add(1)
 		go func(idx int) {
-			startMu.RLock()
-			defer startMu.RUnlock()
 			defer wg.Done()
-			record()
+			enter()
 			defer concurrency.Add(-1)
 
 			path := "/health"
@@ -80,10 +102,8 @@ func TestHealthReadyHandler_ConcurrentAuthWiring(t *testing.T) {
 	for i := range wirers {
 		wg.Add(1)
 		go func(idx int) {
-			startMu.RLock()
-			defer startMu.RUnlock()
 			defer wg.Done()
-			record()
+			enter()
 			defer concurrency.Add(-1)
 
 			h.SetCredentialResolver(resolvers[idx])
@@ -93,10 +113,15 @@ func TestHealthReadyHandler_ConcurrentAuthWiring(t *testing.T) {
 		}(i)
 	}
 
-	startMu.Unlock() // release to start all goroutines simultaneously
 	wg.Wait()
 
-	t.Logf("max concurrency: %d", maxConcurrency.Load())
+	// The claim every assertion above rests on. No goroutine can decrement
+	// before all of them have incremented -- the barrier stands between the two
+	// -- so the high-water mark is exactly the number of goroutines, on any
+	// scheduler and at any GOMAXPROCS. Anything less means they were serialized
+	// and the wiring never actually raced the serving.
+	assert.Equal(t, int64(total), maxConcurrency.Load(),
+		"every goroutine must be live at once, or this test proves nothing about concurrent access")
 }
 
 // TestHealthReadyHandler_SetCredentialResolver_NilIgnored pins that a nil
@@ -109,7 +134,7 @@ func TestHealthReadyHandler_SetCredentialResolver_NilIgnored(t *testing.T) {
 	h.SetCredentialResolver(nil)
 	h.SetAuthDependencyChecker(nil)
 
-	res := doRequest(t, h, http.MethodGet, "/health")
+	res := doAuthRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
 
 	assert.Equal(t, int64(1), resolver.called.Load(),
