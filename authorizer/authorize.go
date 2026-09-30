@@ -31,6 +31,27 @@ func isAllowed(a influxdb.Authorizer, p influxdb.Permission) error {
 	return isAllowedAll(a, []influxdb.Permission{p})
 }
 
+// AllowedAll reports whether a holds every one of permissions.
+//
+// It is the context-free counterpart to IsAllowedAll, for callers that already
+// hold the Authorizer — notably handlers that sit outside the authentication
+// middleware, for which storing the authorizer on a context solely so
+// IsAllowedAll can read it back is busywork. Returning a bool rather than an
+// error also means a denial allocates nothing, which matters for callers that
+// only test the outcome.
+func AllowedAll(a influxdb.Authorizer, permissions []influxdb.Permission) bool {
+	pset, err := a.PermissionSet()
+	if err != nil {
+		return false
+	}
+	for _, p := range permissions {
+		if !pset.Allowed(p) {
+			return false
+		}
+	}
+	return true
+}
+
 // IsAllowedAll checks to see if an action is authorized by ALL permissions.
 // Also see IsAllowed.
 func IsAllowedAll(ctx context.Context, permissions []influxdb.Permission) error {
