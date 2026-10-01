@@ -20,6 +20,17 @@ func newTestProgressLogger(t *testing.T) *StartupProgressLogger {
 	return NewStartupProgressLogger(testCheckName, zaptest.NewLogger(t))
 }
 
+func progressMeasure(completed, total float64) check.Measure {
+	return check.Measure{Unit: measureUnitShards, Values: map[string]float64{
+		measureKeyCompleted: completed,
+		measureKeyTotal:     total,
+	}}
+}
+
+func failuresMeasure(count float64) check.Measure {
+	return check.Measure{Unit: measureUnitShards, Values: map[string]float64{measureKeyCount: count}}
+}
+
 func TestStartupProgressLogger_CheckersShareName(t *testing.T) {
 	s := newTestProgressLogger(t)
 
@@ -36,6 +47,7 @@ func TestStartupProgressLogger_ReadyCheckWaiting(t *testing.T) {
 	resp := s.ReadyChecker().Check(context.Background())
 	require.Equal(t, check.StatusFail, resp.Status())
 	require.Equal(t, msgWaitingForShardEnumeration, resp.Message())
+	require.Equal(t, check.Measures{measureGroupProgress: progressMeasure(0, 0)}, resp.Measures())
 }
 
 func TestStartupProgressLogger_ReadyCheckInProgress(t *testing.T) {
@@ -51,6 +63,7 @@ func TestStartupProgressLogger_ReadyCheckInProgress(t *testing.T) {
 	resp := s.ReadyChecker().Check(context.Background())
 	require.Equal(t, check.StatusFail, resp.Status())
 	require.Equal(t, fmt.Sprintf(msgLoadingShardsFmt, 47.0, 94, 200), resp.Message())
+	require.Equal(t, check.Measures{measureGroupProgress: progressMeasure(94, 200)}, resp.Measures())
 }
 
 func TestStartupProgressLogger_ReadyCheckFinishBeforeEnumeration(t *testing.T) {
@@ -76,6 +89,7 @@ func TestStartupProgressLogger_ReadyCheckFinishAfterLoading(t *testing.T) {
 	resp := s.ReadyChecker().Check(context.Background())
 	require.Equal(t, check.StatusPass, resp.Status())
 	require.Contains(t, resp.Message(), "ready: 3 shards loaded in ")
+	require.Nil(t, resp.Measures(), "the pass response is never served, so it carries no progress")
 }
 
 func TestStartupProgressLogger_ReadyCheckFinishWithError(t *testing.T) {
@@ -86,6 +100,7 @@ func TestStartupProgressLogger_ReadyCheckFinishWithError(t *testing.T) {
 	resp := s.ReadyChecker().Check(context.Background())
 	require.Equal(t, check.StatusFail, resp.Status())
 	require.Equal(t, fmt.Sprintf(msgShardLoadingFailedFmt, "disk on fire"), resp.Message())
+	require.Equal(t, check.Measures{measureGroupProgress: progressMeasure(0, 1)}, resp.Measures())
 }
 
 // Ready remains Pass even when individual shards failed, as long as
@@ -106,6 +121,7 @@ func TestStartupProgressLogger_HealthCheckPassesByDefault(t *testing.T) {
 
 	resp := s.HealthChecker().Check(context.Background())
 	require.Equal(t, check.StatusPass, resp.Status())
+	require.Equal(t, check.Measures{measureGroupFailures: failuresMeasure(0)}, resp.Measures())
 }
 
 func TestStartupProgressLogger_HealthCheckReportsAllFailures(t *testing.T) {
@@ -120,6 +136,7 @@ func TestStartupProgressLogger_HealthCheckReportsAllFailures(t *testing.T) {
 	require.Contains(t, resp.Message(), "shard 7: corrupt index")
 	require.Contains(t, resp.Message(), "shard 42: missing series file")
 	require.Contains(t, resp.Message(), "shard 99: bad TSM")
+	require.Equal(t, check.Measures{measureGroupFailures: failuresMeasure(3)}, resp.Measures())
 }
 
 // HealthChecker tracks shard failures independently of Finish — it

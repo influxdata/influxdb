@@ -35,6 +35,15 @@ type FreshnessResponse struct {
 // the probe has not run yet, which is distinct from having run and aged out.
 const msgNoProbe = "no probe completed yet"
 
+// A stale FreshnessResponse reports, under MeasureGroupProbe in
+// UnitSeconds, how long ago the last probe completed (MeasureKeyAge) and
+// the staleness budget it exceeded (MeasureKeyThreshold).
+const (
+	MeasureGroupProbe   = "probe"
+	MeasureKeyAge       = "age"
+	MeasureKeyThreshold = "threshold"
+)
+
 // NewFreshnessResponse returns an empty FreshnessResponse with the given
 // name and staleness budget. Until Update is first called, Status()
 // returns StatusFail and Message() reports msgNoProbe.
@@ -77,6 +86,19 @@ func (f *FreshnessResponse) Message() string {
 	return s.resp.Message()
 }
 
+// Measures returns nothing before the first probe, the probe group when
+// the snapshot is stale, and the underlying probe's Measures otherwise.
+func (f *FreshnessResponse) Measures() Measures {
+	s := f.snap.Load()
+	if s == nil {
+		return nil
+	}
+	if age := time.Since(s.at); age > f.staleness {
+		return Measures{MeasureGroupProbe: staleMeasure(age, f.staleness)}
+	}
+	return s.resp.Measures()
+}
+
 // Checks returns the underlying probe's nested checks when fresh;
 // otherwise nil.
 func (f *FreshnessResponse) Checks() Responses {
@@ -102,18 +124,19 @@ func (f *FreshnessResponse) Snapshot() BasicResponse {
 		return NewBasicResponse(f.name, StatusFail, msgNoProbe, nil)
 	}
 	if age := time.Since(s.at); age > f.staleness {
-		return NewBasicResponse(f.name, StatusFail, staleMessage(age, f.staleness), nil)
+		return NewBasicResponse(f.name, StatusFail, staleMessage(age, f.staleness), nil).
+			WithMeasure(MeasureGroupProbe, staleMeasure(age, f.staleness))
 	}
 	if inner, ok := s.resp.(HealthSnapshotter); ok {
 		return inner.Snapshot().WithName(f.name)
 	}
-	return NewBasicResponse(f.name, s.resp.Status(), s.resp.Message(), s.resp.Checks())
+	return NewBasicResponse(f.name, s.resp.Status(), s.resp.Message(), s.resp.Checks()).
+		withMeasures(s.resp.Measures())
 }
 
 // MarshalJSON emits the wire shape from a single snapshot, so the
-// rendered JSON object reflects exactly one state. BasicResponse embeds
-// wireResponse, whose exported fields encoding/json promotes, so this
-// marshals byte-identically to building the wireResponse here.
+// rendered JSON object reflects exactly one state, rendered by
+// BasicResponse.MarshalJSON.
 func (f *FreshnessResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(f.Snapshot())
 }
@@ -121,4 +144,12 @@ func (f *FreshnessResponse) MarshalJSON() ([]byte, error) {
 func staleMessage(age, threshold time.Duration) string {
 	return fmt.Sprintf("stale: last probe %s ago (threshold %s)",
 		age.Round(time.Millisecond), threshold)
+}
+
+// staleMeasure carries staleMessage's two durations as numbers.
+func staleMeasure(age, threshold time.Duration) Measure {
+	return Measure{Unit: UnitSeconds, Values: map[string]float64{
+		MeasureKeyAge:       age.Seconds(),
+		MeasureKeyThreshold: threshold.Seconds(),
+	}}
 }

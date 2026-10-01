@@ -70,11 +70,13 @@ func assertResponseEqual(t *testing.T, want, got Response) {
 	require.Equal(t, want.Name(), got.Name(), "name")
 	require.Equal(t, want.Status(), got.Status(), "status")
 	require.Equal(t, want.Message(), got.Message(), "message")
+	require.Equal(t, want.Measures(), got.Measures(), "measures")
 	require.Equal(t, len(want.Checks()), len(got.Checks()), "checks length")
 	for i := range want.Checks() {
 		require.Equal(t, want.Checks()[i].Name(), got.Checks()[i].Name(), "checks[%d].name", i)
 		require.Equal(t, want.Checks()[i].Status(), got.Checks()[i].Status(), "checks[%d].status", i)
 		require.Equal(t, want.Checks()[i].Message(), got.Checks()[i].Message(), "checks[%d].message", i)
+		require.Equal(t, want.Checks()[i].Measures(), got.Checks()[i].Measures(), "checks[%d].measures", i)
 	}
 }
 

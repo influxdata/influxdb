@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -236,6 +237,10 @@ func namesAndStatuses(t *testing.T, body map[string]any) map[string]string {
 		require.Truef(t, ok, "expected a check status, got %#v", c["status"])
 		assert.NotContains(t, c, "message", "check %q leaked its message", name)
 		assert.NotContains(t, c, "checks", "check %q leaked its sub-checks", name)
+		// Anything else -- a measure group, say -- is detail as well.
+		for key := range c {
+			assert.Contains(t, []string{"name", "status"}, key, "check %q leaked %q", name, key)
+		}
 		out[name] = status
 	}
 	return out
@@ -805,4 +810,96 @@ func TestHealthReadyHandler_Auth_StatusCodesMatch(t *testing.T) {
 			assert.Equal(t, open.StatusCode, gated.StatusCode)
 		})
 	}
+}
+
+// measuredChecker reports status with a message and one measure group, the
+// shape of a check whose numbers must be withheld wherever its message is.
+func measuredChecker(name string, status check.Status) check.NamedChecker {
+	return check.NamedFunc(name, func(context.Context) check.Response {
+		return check.NewBasicResponse(name, status, "loading shards 47.0% (94 / 200)", nil).
+			WithMeasure("progress", check.Measure{Unit: "shards", Values: map[string]float64{"completed": 94, "total": 200}})
+	})
+}
+
+// requireUptime checks that a /ready body carries uptime as a seconds measure.
+// It is never withheld, like up.
+func requireUptime(t *testing.T, got map[string]any) {
+	t.Helper()
+	uptime, ok := got["uptime"].(map[string]any)
+	require.Truef(t, ok, "uptime must be an object, got %#v", got["uptime"])
+	assert.Equal(t, check.UnitSeconds, uptime["unit"])
+	assert.IsType(t, float64(0), uptime["value"])
+}
+
+// TestHealthReadyHandler_Auth_MeasuresFollowMessage pins that a check's
+// measure groups are served exactly where its message is: to a caller with
+// full detail, and to nobody else -- not in the rejected body, the startup
+// window's names-and-statuses body, or the passing reduced body.
+func TestHealthReadyHandler_Auth_MeasuresFollowMessage(t *testing.T) {
+	wantGroup := map[string]any{"completed": float64(94), "total": float64(200), "unit": "shards"}
+
+	t.Run("full detail", func(t *testing.T) {
+		h, _ := authHandler(t, platform.OperPermissions())
+		require.NoError(t, h.AddNamedHealthCheck(measuredChecker("shards", check.StatusFail)))
+		require.NoError(t, h.AddNamedReadyCheck(measuredChecker("shards", check.StatusFail)))
+
+		for _, path := range []string{"/health", "/ready"} {
+			res := doAuthRequest(t, h, http.MethodGet, path)
+			got := decodeBody(t, res)
+			closeBody(t, res)
+			checks, ok := got["checks"].([]any)
+			require.Truef(t, ok, "%s: expected checks, got %#v", path, got["checks"])
+			require.Len(t, checks, 1, path)
+			assert.Equal(t, wantGroup, checks[0].(map[string]any)["progress"], path)
+			if path == "/ready" {
+				requireUptime(t, got)
+			}
+		}
+	})
+
+	t.Run("rejected", func(t *testing.T) {
+		h, _ := authHandler(t, nil)
+		require.NoError(t, h.AddNamedHealthCheck(measuredChecker("shards", check.StatusFail)))
+		require.NoError(t, h.AddNamedReadyCheck(measuredChecker("shards", check.StatusFail)))
+
+		res := doAuthRequest(t, h, http.MethodGet, "/health")
+		got := decodeBody(t, res)
+		closeBody(t, res)
+		assert.Equal(t, map[string]any{"name": "influxdb", "status": "fail"}, got)
+
+		res = doAuthRequest(t, h, http.MethodGet, "/ready")
+		got = decodeBody(t, res)
+		closeBody(t, res)
+		assert.NotContains(t, got, "checks")
+		requireUptime(t, got)
+	})
+
+	t.Run("startup window", func(t *testing.T) {
+		h := NewHealthReadyHandler(zaptest.NewLogger(t))
+		h.SetHealthAuthRequired(true)
+		require.NoError(t, h.AddNamedHealthCheck(measuredChecker("shards", check.StatusFail)))
+		require.NoError(t, h.AddNamedReadyCheck(measuredChecker("shards", check.StatusFail)))
+
+		res := doRequest(t, h, http.MethodGet, "/health")
+		got := decodeBody(t, res)
+		closeBody(t, res)
+		assert.Equal(t, map[string]string{"shards": "fail"}, namesAndStatuses(t, got))
+
+		res = doRequest(t, h, http.MethodGet, "/ready")
+		got = decodeBody(t, res)
+		closeBody(t, res)
+		assert.Equal(t, map[string]string{"shards": "fail"}, namesAndStatuses(t, got))
+		requireUptime(t, got)
+	})
+
+	t.Run("passing reduced body", func(t *testing.T) {
+		h, _ := authHandler(t, nil)
+		require.NoError(t, h.AddNamedHealthCheck(measuredChecker("shards", check.StatusPass)))
+
+		res := doAuthRequest(t, h, http.MethodGet, "/health")
+		got := decodeBody(t, res)
+		closeBody(t, res)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		assert.Equal(t, map[string]string{"shards": "pass"}, namesAndStatuses(t, got))
+	})
 }

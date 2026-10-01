@@ -19,6 +19,16 @@ const (
 	msgStartupReadyFmt            = "ready: %d shards loaded in %s"
 	msgShardLoadFailedCountFmt    = "%d shard(s) failed to load: %s"
 	msgShardLoadEntryFmt          = "shard %d: %s"
+
+	// The ready check reports shard-loading progress under
+	// measureGroupProgress, and the health check the count of failed
+	// shards under measureGroupFailures, both in measureUnitShards.
+	measureGroupProgress = "progress"
+	measureGroupFailures = "failures"
+	measureKeyCompleted  = "completed"
+	measureKeyTotal      = "total"
+	measureKeyCount      = "count"
+	measureUnitShards    = "shards"
 )
 
 type shardLoadError struct {
@@ -113,35 +123,51 @@ func (s *StartupProgressLogger) HealthChecker() check.NamedChecker {
 }
 
 func (s *StartupProgressLogger) checkReady(_ context.Context) check.Response {
-	if s.done.Load() {
-		if msg := s.failErrMsg.Load(); msg != nil {
-			return check.Fail(fmt.Sprintf(msgShardLoadingFailedFmt, *msg))
-		}
-		return check.Info(msgStartupReadyFmt,
-			s.shardsCompleted.Load(),
-			time.Since(s.startTime).Round(time.Second))
-	}
+	// Load done before the counters: every CompletedShard precedes Finish,
+	// so counters read after observing done are final.
+	done := s.done.Load()
 	completed := s.shardsCompleted.Load()
 	total := s.shardsTotal.Load()
+	progress := check.Measure{Unit: measureUnitShards, Values: map[string]float64{
+		measureKeyCompleted: float64(completed),
+		measureKeyTotal:     float64(total),
+	}}
+	if done {
+		if msg := s.failErrMsg.Load(); msg != nil {
+			return check.Fail(fmt.Sprintf(msgShardLoadingFailedFmt, *msg)).
+				WithMeasure(measureGroupProgress, progress)
+		}
+		// No progress on the pass response: /ready lists only failing
+		// checks, so it is never served.
+		return check.Info(msgStartupReadyFmt,
+			completed,
+			time.Since(s.startTime).Round(time.Second))
+	}
 	if total == 0 {
-		return check.Fail(msgWaitingForShardEnumeration)
+		return check.Fail(msgWaitingForShardEnumeration).
+			WithMeasure(measureGroupProgress, progress)
 	}
 	pct := float64(completed) / float64(total) * 100
-	return check.Fail(fmt.Sprintf(msgLoadingShardsFmt, pct, completed, total))
+	return check.Fail(fmt.Sprintf(msgLoadingShardsFmt, pct, completed, total)).
+		WithMeasure(measureGroupProgress, progress)
 }
 
 func (s *StartupProgressLogger) checkHealth(_ context.Context) check.Response {
 	s.shardLoadMu.RLock()
 	errs := append([]shardLoadError(nil), s.shardLoadErrs...)
 	s.shardLoadMu.RUnlock()
+	failures := check.Measure{Unit: measureUnitShards, Values: map[string]float64{
+		measureKeyCount: float64(len(errs)),
+	}}
 	if len(errs) == 0 {
-		return check.Pass()
+		return check.Pass().WithMeasure(measureGroupFailures, failures)
 	}
 	parts := make([]string, len(errs))
 	for i, e := range errs {
 		parts[i] = fmt.Sprintf(msgShardLoadEntryFmt, e.shardID, e.msg)
 	}
-	return check.Fail(fmt.Sprintf(msgShardLoadFailedCountFmt, len(errs), strings.Join(parts, "; ")))
+	return check.Fail(fmt.Sprintf(msgShardLoadFailedCountFmt, len(errs), strings.Join(parts, "; "))).
+		WithMeasure(measureGroupFailures, failures)
 }
 
 // startupChecker pairs a fixed name with a check function so
