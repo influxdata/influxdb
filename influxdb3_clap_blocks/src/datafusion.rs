@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
 
 use iox_query::config::IOX_CONFIG_PREFIX;
+use observability_deps::tracing::{info, warn};
 
 /// Extends the standard [`HashMap`] based DataFusion config option in the CLI with specific
 /// options (along with defaults) for InfluxDB 3 Core/Enterprise. This is intended for customization of
@@ -84,6 +85,30 @@ impl IoxQueryDatafusionConfig {
             ),
             self.use_cached_parquet_loader.to_string(),
         );
+        // Opt in to per-scan fetch sharing in the cached parquet loader: without it a file
+        // split across scan partitions is fetched and buffered whole once per partition. The
+        // iox_query default stays off for the crate's other consumers. An explicit
+        // `--datafusion-config` value remains an escape hatch — but only a valid one: the
+        // session config layer silently drops unparseable values, so a typo'd override would
+        // otherwise occupy this entry and silently disable the sharing.
+        match self.datafusion_config.entry(format!(
+            "{prefix}.share_cached_parquet_loader_fetches",
+            prefix = IOX_CONFIG_PREFIX
+        )) {
+            Entry::Occupied(mut entry) => {
+                // DataFusion lowercases bool config values before parsing, so match that:
+                if entry.get().to_lowercase().parse::<bool>().is_err() {
+                    warn!(
+                        value = %entry.get(),
+                        "invalid share_cached_parquet_loader_fetches override, using the default"
+                    );
+                    entry.insert(true.to_string());
+                }
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(true.to_string());
+            }
+        }
         // NB: need to prevent iox_query from injecting a size hint. It currently does so using a
         // bit of a hack, and then strips it out with an additional object store layer. Instead of
         // adding the additional layer, we just avoid using the size hint with this configuration.
@@ -93,6 +118,13 @@ impl IoxQueryDatafusionConfig {
                 prefix = IOX_CONFIG_PREFIX
             ),
             false.to_string(),
+        );
+        // The map mixes calculated defaults with user-supplied values, and it configures
+        // operationally significant behavior; log the effective result since the CLI-parameter
+        // log only captures what the user passed.
+        info!(
+            datafusion_config = ?self.datafusion_config,
+            "effective DataFusion configuration"
         );
         self.datafusion_config
     }

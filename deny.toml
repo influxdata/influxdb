@@ -44,6 +44,17 @@ ignore = [
     # CRLs anywhere in this repo, so the panic is unreachable in practice on that
     # remaining 0.102.x path.
     "RUSTSEC-2026-0104",
+    # Wasmtime advisories published on 2026-09-29. Wasmtime 48.0.3 fixes them, but we stay on 48.0.1.
+    # The Enterprise build cannot use 48.0.3 yet (see ent/deny.toml), so we handle these advisories the same way in both workspaces.
+    # 0313: The UDF Python guest (datafusion-udf-wasm commit 171fb47) gives Python code only `blocking_write_and_flush` for HTTP bodies, and the host rejects calls over 4096 bytes. UDFs are off by default.
+    # 0314: The UDF host's file system rejects time changes.
+    # 0315: The UDF host does not turn on fuel.
+    # 0316: The UDF host does not use `component::Val`.
+    # Remove these entries when ent/deny.toml removes them.
+    "RUSTSEC-2026-0313",
+    "RUSTSEC-2026-0314",
+    "RUSTSEC-2026-0315",
+    "RUSTSEC-2026-0316",
 
 ]
 git-fetch-with-cli = true
