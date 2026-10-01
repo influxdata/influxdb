@@ -19,6 +19,9 @@ executors:
       # in the edge repo, then update the version here to match.
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     resource_class: large
+    environment:
+      # Fall back to direct (VCS) downloads on any proxy.golang.org error
+      GOPROXY: https://proxy.golang.org|direct
   linux-amd64:
     machine:
       image: ubuntu-2204:current
