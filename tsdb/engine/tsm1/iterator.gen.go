@@ -214,6 +214,11 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	}
 	itr.stats = itr.statsBuf
 
+	if opt.NeedTimeRef || opt.DatePart != nil {
+		aux, conds, condNames = withDatePart(&itr.opt, aux, conds, condNames)
+		itr.aux = aux
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
@@ -693,6 +698,11 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	if opt.NeedTimeRef || opt.DatePart != nil {
+		aux, conds, condNames = withDatePart(&itr.opt, aux, conds, condNames)
+		itr.aux = aux
+	}
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -1174,6 +1184,11 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	}
 	itr.stats = itr.statsBuf
 
+	if opt.NeedTimeRef || opt.DatePart != nil {
+		aux, conds, condNames = withDatePart(&itr.opt, aux, conds, condNames)
+		itr.aux = aux
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
@@ -1654,6 +1669,11 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	}
 	itr.stats = itr.statsBuf
 
+	if opt.NeedTimeRef || opt.DatePart != nil {
+		aux, conds, condNames = withDatePart(&itr.opt, aux, conds, condNames)
+		itr.aux = aux
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
@@ -2133,6 +2153,11 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	if opt.NeedTimeRef || opt.DatePart != nil {
+		aux, conds, condNames = withDatePart(&itr.opt, aux, conds, condNames)
+		itr.aux = aux
+	}
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))

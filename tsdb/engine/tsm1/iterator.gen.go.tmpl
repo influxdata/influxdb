@@ -212,6 +212,11 @@ func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOption
 	}
 	itr.stats = itr.statsBuf
 
+	if opt.NeedTimeRef || opt.DatePart != nil {
+		aux, conds, condNames = withDatePart(&itr.opt, aux, conds, condNames)
+		itr.aux = aux
+	}
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
