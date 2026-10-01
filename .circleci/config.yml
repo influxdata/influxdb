@@ -62,10 +62,17 @@ commands:
             git checkout --detach "refs/tags/${REF}"
             git --no-pager log -1 --format='republishing %H (%s)'
 
-jobs:
-  build_binaries:
+executors:
+  cross-builder:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
+    environment:
+      # Fall back to direct (VCS) downloads on any proxy.golang.org error
+      GOPROXY: https://proxy.golang.org|direct
+
+jobs:
+  build_binaries:
+    executor: cross-builder
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -377,8 +384,7 @@ jobs:
               -p "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb*x86_64.rpm')"
 
   static_code_checks:
-    docker:
-      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
+    executor: cross-builder
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -388,8 +394,7 @@ jobs:
       - run: go vet ./...
 
   unit_test:
-    docker:
-      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
+    executor: cross-builder
     resource_class: xlarge
     parameters:
       data:
@@ -455,8 +460,7 @@ jobs:
                 path: junit-<< parameters.data >>/
 
   fluxtest:
-    docker:
-      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
+    executor: cross-builder
     steps:
       - checkout_source
       - run:
