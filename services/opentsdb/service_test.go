@@ -10,6 +10,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -258,6 +259,56 @@ func TestService_HTTP(t *testing.T) {
 	if !called {
 		t.Fatal("points writer not called")
 	}
+}
+
+// TestService_CloseWithConnectionsInFlight ensures Close waits for in-flight
+// handleConn goroutines and does not deadlock when a connection reaches the HTTP
+// handoff during shutdown. Under -race it also guards the shutdown data race
+// between handleConn and Close mutating Service fields.
+func TestService_CloseWithConnectionsInFlight(t *testing.T) {
+	t.Parallel()
+
+	s := NewTestService(t, "db0", "127.0.0.1:0")
+	require.NoError(t, s.Service.Open())
+	s.WritePointsFn = func(tsdb.WriteContext, string, string, models.ConsistencyLevel, []models.Point) error {
+		return nil
+	}
+	addr := s.Service.Addr().String()
+
+	stop := make(chan struct{})
+	var dialers sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		dialers.Add(1)
+		go func() {
+			defer dialers.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				conn, err := net.Dial("tcp", addr)
+				if err != nil {
+					return
+				}
+				_, _ = conn.Write([]byte("POST /api/put HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}"))
+				_ = conn.Close()
+			}
+		}()
+	}
+	time.Sleep(20 * time.Millisecond) // let connections start flowing
+
+	done := make(chan error, 1)
+	go func() { done <- s.Service.Close() }()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(15 * time.Second):
+		t.Fatal("Close deadlocked with connections in flight")
+	}
+
+	close(stop)
+	dialers.Wait()
 }
 
 type TestService struct {
