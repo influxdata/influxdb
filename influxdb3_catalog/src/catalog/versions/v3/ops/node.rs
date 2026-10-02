@@ -10,7 +10,9 @@ use uuid::Uuid;
 use super::CatalogOp;
 use crate::CatalogError;
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::catalog::versions::v3::schema::node::{NodeDefinition, NodeMode, NodeModes, NodeState};
+use crate::catalog::versions::v3::schema::node::{
+    NodeDefinition, NodeMode, NodeModes, NodeState, RemovalAttestation,
+};
 use crate::format::records::{
     AckStopNode, AdvanceFeatureLevel, RegisterNode, RemoveNode, RequestStopNode, StopNode,
     UnregisterNode,
@@ -54,6 +56,30 @@ impl CatalogOp for RegisterNodeOp {
         {
             return Err(CatalogError::InvalidNodeRegistration);
         }
+
+        // A registration overwrites `conn_info`, so dropping `--conn-info` from
+        // a member's flags would take the address its peers dial out of the
+        // catalog. Refuse, naming the group, so the operator sees this at the
+        // restart rather than in a later failed query.
+        //
+        // Only a change from an address to none is refused. A member that never
+        // advertised one keeps registering: a catalog migrated from v2 holds no
+        // `conn_info`, and such a node must still boot.
+        if let Some(node) = &existing
+            && node.conn_info().is_some()
+            && args.conn_info.is_none()
+            && let Some(group) = catalog
+                .query_groups
+                .resource_iter()
+                .find(|g| g.members().contains(&node.node_catalog_id()))
+        {
+            return Err(CatalogError::NodeConnInfoRequiredInQueryGroup {
+                node_id: Arc::clone(&args.node_id),
+                query_group_name: group.name(),
+                query_group_id: group.id(),
+            });
+        }
+
         let node_catalog_id = existing
             .map(|n| n.node_catalog_id())
             .unwrap_or_else(|| catalog.nodes.next_id());
@@ -268,6 +294,8 @@ impl CatalogOp for AckStopNodeOp {
 pub(crate) struct RemoveNodeArgs {
     pub node_id: Arc<str>,
     pub requested_time: Time,
+    /// Whether the operator accepted the loss this removal may cause.
+    pub attestation: RemovalAttestation,
 }
 
 pub(crate) struct RemoveNodeOp {
@@ -299,7 +327,18 @@ impl CatalogOp for RemoveNodeOp {
 
         match node.state() {
             NodeState::Stopped { .. } => {}
-            NodeState::Removing { .. } => return Err(CatalogError::IdempotentNoOp),
+            // A repeat removal is normally a controller retry, and stays a
+            // no-op so the handler can answer 200. The exception is an operator
+            // forcing a removal the driver has since blocked: `Removing` is
+            // terminal, so re-issuing the request is the only way left to
+            // attest, and refusing here would leave the node with no exit.
+            NodeState::Removing { attestation, .. } => {
+                let attesting_now = args.attestation == RemovalAttestation::Forced
+                    && attestation != RemovalAttestation::Forced;
+                if !attesting_now {
+                    return Err(CatalogError::IdempotentNoOp);
+                }
+            }
             other => {
                 return Err(CatalogError::NodeNotFullyStopped {
                     node_id: Arc::clone(&args.node_id),
@@ -325,7 +364,7 @@ impl CatalogOp for RemoveNodeOp {
             node_catalog_id: node.node_catalog_id().get(),
             node_id: args.node_id.to_string(),
             requested_time_ns: args.requested_time.timestamp_nanos(),
-            process_uuid: [0u8; 16],
+            reserved: RemoveNode::encode_attestation(args.attestation),
         });
 
         Ok(Self {

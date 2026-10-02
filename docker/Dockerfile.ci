@@ -62,9 +62,10 @@ RUN groupadd -g 1500 rust \
   && echo 'rust ALL=NOPASSWD: ALL' >> /etc/sudoers.d/10-rust \
   && echo 'Defaults    env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers.d/env_keep
 
-# Ensure we are ready with cargo hakari and cargo deny
+# Ensure we are ready with cargo hakari and cargo deny. Keep the
+# cargo-deny version in sync with .circleci/scripts/install-cargo-deny.bash.
 RUN cargo install cargo-hakari && \
-    cargo install cargo-deny && \
+    cargo install cargo-deny --locked --version 0.20.2 && \
     chown -R rust:rust /usr/local/cargo
 
 USER rust

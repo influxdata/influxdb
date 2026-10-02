@@ -89,7 +89,7 @@ fn test_get_files_with_filters() {
             let chunk_time = i;
             ParquetFile {
                 id: ParquetFileId::new(),
-                path: format!("/path/{i:03}.parquet"),
+                path: format!("/path/{i:03}.parquet").into(),
                 size_bytes: 1,
                 row_count: 1,
                 chunk_time,
@@ -231,7 +231,7 @@ fn build_parquet_files(prefix: &str, num_files: u32) -> Vec<ParquetFile> {
     let parquet_files: Vec<ParquetFile> = (0..num_files)
         .map(|i| ParquetFile {
             id: ParquetFileId::new(),
-            path: format!("/random/path/{prefix}_{i}.parquet"),
+            path: format!("/random/path/{prefix}_{i}.parquet").into(),
             size_bytes: 50_000,
             row_count: 10,
             chunk_time: 10,
@@ -439,7 +439,7 @@ fn test_new_from_checkpoints_with_pending_removed() {
     // Create a file that exists in January
     let jan_file = ParquetFile {
         id: ParquetFileId::new(),
-        path: "/jan/file.parquet".to_string(),
+        path: "/jan/file.parquet".into(),
         size_bytes: 50_000,
         row_count: 10,
         chunk_time: 10,
@@ -502,7 +502,7 @@ fn test_new_from_checkpoints_pending_removed_missing_db() {
     // Create a pending_removed that references a non-existent database
     let missing_file = ParquetFile {
         id: ParquetFileId::new(),
-        path: "/missing/file.parquet".to_string(),
+        path: "/missing/file.parquet".into(),
         size_bytes: 50_000,
         row_count: 10,
         chunk_time: 10,

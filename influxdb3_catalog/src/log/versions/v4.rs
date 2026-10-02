@@ -1,5 +1,3 @@
-#![allow(unreachable_pub, dead_code, clippy::wrong_self_convention)]
-
 pub(crate) mod enterprise;
 
 use std::fmt::Formatter;
@@ -1237,7 +1235,7 @@ pub struct TriggerDefinition {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", default)]
 pub struct TriggerSettings {
     pub run_async: bool,
     pub error_behavior: ErrorBehavior,
@@ -1397,7 +1395,6 @@ pub struct TokenBatch {
 // PK: I cannot come up with better names for variants, I _think_
 //     it is ok to ignore. Maybe I can break them into separate
 //     enum for each type
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TokenCatalogOp {
     CreateAdminToken(CreateAdminTokenDetails),

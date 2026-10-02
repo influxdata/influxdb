@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! module for query executor
 mod query_planner;
 

@@ -11,7 +11,7 @@ use observability_deps::tracing::debug;
 
 use crate::{Event, MAX_CAPACITY, RingBuffer, SysEventStore, ToRecordBatch};
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Default, Clone, Debug)]
 struct SampleEvent1 {
     pub start_time: i64,
@@ -70,7 +70,7 @@ impl ToRecordBatch<SampleEvent1> for SampleEvent1 {
     }
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Default, Clone, Debug)]
 struct SampleEvent2 {
     pub start_time: i64,

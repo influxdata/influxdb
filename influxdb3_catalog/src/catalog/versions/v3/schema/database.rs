@@ -20,6 +20,50 @@ use crate::catalog::{
 };
 use crate::resource::CatalogResource;
 
+/// Whether a database takes its table schemas from incoming writes or from
+/// explicit declarations.
+///
+/// Fixed when the database is created.
+#[derive(
+    Debug,
+    Eq,
+    PartialEq,
+    Clone,
+    Copy,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    clap::ValueEnum,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum SchemaMode {
+    /// Tables and columns are created by the writes that reference them.
+    #[default]
+    Implicit,
+    /// Tables and columns are created only through the configuration API.
+    /// Writes referencing an undeclared table or column are rejected.
+    Explicit,
+}
+
+impl SchemaMode {
+    pub fn is_explicit(self) -> bool {
+        matches!(self, Self::Explicit)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Implicit => "implicit",
+            Self::Explicit => "explicit",
+        }
+    }
+}
+
+impl std::fmt::Display for SchemaMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Definition of a database in the catalog
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
@@ -27,6 +71,8 @@ pub struct DatabaseSchema {
     pub id: DbId,
     /// Unique user-provided name for the database
     pub name: Arc<str>,
+    /// Whether table schemas are declared or taken from writes
+    pub schema_mode: SchemaMode,
     /// Tables contained in the database
     pub tables: Repository<TableId, TableDefinition>,
     /// Retention period for the database
@@ -60,6 +106,7 @@ impl DatabaseSchema {
         Self {
             id,
             name,
+            schema_mode: SchemaMode::Implicit,
             tables: Repository::new(),
             retention_period: RetentionPeriod::Indefinite,
             processing_engine_triggers: Repository::new(),
@@ -177,12 +224,18 @@ impl DatabaseSchema {
         now: Time,
         table_id: &TableId,
     ) -> Option<Time> {
-        let table_value =
-            self.table_definition_by_id(table_id)
-                .and_then(|def| match def.retention_period {
-                    RetentionPeriod::Duration(d) => Some(d),
-                    RetentionPeriod::Indefinite => None,
-                });
+        self.retention_period_cutoff(now, Some(table_id))
+    }
+
+    /// Like [`get_retention_period_cutoff_ts_nanos`][Self::get_retention_period_cutoff_ts_nanos],
+    /// but for a table that may not exist yet (`None` → db-level retention).
+    pub fn retention_period_cutoff(&self, now: Time, table_id: Option<&TableId>) -> Option<Time> {
+        let table_value = table_id
+            .and_then(|table_id| self.table_definition_by_id(table_id))
+            .and_then(|def| match def.retention_period {
+                RetentionPeriod::Duration(d) => Some(d),
+                RetentionPeriod::Indefinite => None,
+            });
         let db_value = match self.retention_period {
             RetentionPeriod::Duration(d) => Some(d),
             RetentionPeriod::Indefinite => None,

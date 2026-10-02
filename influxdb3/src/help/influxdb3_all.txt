@@ -47,7 +47,7 @@ InfluxDB 3 Core Server and Command Line Tools
   --io-runtime-thread-priority <PRIORITY>
                                      Thread priority for runtime workers
                                       [env: INFLUXDB3_IO_RUNTIME_THREAD_PRIORITY=]
-  --num-io-threads <N>               Set maximum IO runtime threads [env: INFLUXDB3_NUM_THREADS=]
+  --num-io-threads <N>               Set maximum IO runtime threads [env: INFLUXDB3_NUM_IO_THREADS=]
 
 {}
   -h, --help        Print help information

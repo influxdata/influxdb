@@ -17,7 +17,7 @@
 use super::RecordId;
 
 /// Reserved for unknown/invalid operations (never written to files).
-#[allow(dead_code)]
+#[expect(dead_code)]
 pub(crate) const UNKNOWN: u16 = 0;
 
 // --- Core records ---
@@ -96,6 +96,9 @@ pub(crate) const REQUEST_STOP_NODE: RecordId = RecordId::core(43);
 pub(crate) const ACK_STOP_NODE: RecordId = RecordId::core(44);
 pub(crate) const REMOVE_NODE: RecordId = RecordId::core(45);
 pub(crate) const UNREGISTER_NODE: RecordId = RecordId::core(46);
+
+// Database schema enforcement
+pub(crate) const SET_DATABASE_SCHEMA_MODE: RecordId = RecordId::core(47);
 
 // --- Enterprise records ---
 

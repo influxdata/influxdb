@@ -28,3 +28,6 @@ tokio-util.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+enterprise_naming = []

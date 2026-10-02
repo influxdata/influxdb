@@ -8,7 +8,10 @@ use crate::{
 };
 use arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef};
 use datafusion::catalog::memory::DataSourceExec;
-use datafusion::datasource::physical_plan::{FileGroup, FileScanConfigBuilder, ParquetSource};
+use datafusion::datasource::{
+    physical_plan::{FileGroup, FileScanConfigBuilder, ParquetSource},
+    table_schema::TableSchema,
+};
 use datafusion::physical_expr::LexOrdering;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
@@ -297,17 +300,19 @@ pub fn chunks_to_physical_nodes(
             .map(|sort_order| vec![sort_order])
             .unwrap_or_default();
 
-        // Build file_scan_config for the DataSourceExec
-        let file_scan_config = FileScanConfigBuilder::new(
-            object_store_url,
+        // Build file_scan_config for the DataSourceExec.
+        let table_schema = TableSchema::new(
             // file_schema is the schema of all files in the DataSourceExec which is a superset of each file's schema
             Arc::clone(&schema_without_chunk_order),
-            Arc::new(ParquetSource::new(table_parquet_options())),
-        )
-        .with_file_groups(file_groups)
-        .with_statistics(statistics)
-        .with_table_partition_cols(table_partition_cols.clone())
-        .with_output_ordering(output_ordering);
+            table_partition_cols.iter().cloned().map(Arc::new).collect(),
+        );
+        let parquet_source =
+            ParquetSource::new(table_schema).with_table_parquet_options(table_parquet_options());
+        let file_scan_config =
+            FileScanConfigBuilder::new(object_store_url, Arc::new(parquet_source))
+                .with_file_groups(file_groups)
+                .with_statistics(statistics)
+                .with_output_ordering(output_ordering);
 
         output_nodes.push(DataSourceExec::from_data_source(file_scan_config.build()));
     }
@@ -495,8 +500,8 @@ mod tests {
             .as_any()
             .downcast_ref::<FileScanConfig>()
             .unwrap();
-        let file_stats = &cfg.file_source().statistics().unwrap();
-        assert_eq!(*file_stats, expected_stats);
+        let file_stats = cfg.statistics();
+        assert_eq!(file_stats, expected_stats);
 
         // File groups
         // One group with one file
@@ -694,13 +699,13 @@ mod tests {
             .as_any()
             .downcast_ref::<FileScanConfig>()
             .unwrap();
-        let parqet_file_stats = &cfg.file_source().statistics().unwrap();
+        let parqet_file_stats = cfg.statistics();
 
         // stats of IOx specific recod batch plan
         let record_batch_plan_stats = plan_record_batches_exec.partition_statistics(None).unwrap();
 
         // Record batch plan stats is the same as parquet file stats and includes everything
-        assert_eq!(record_batch_plan_stats, *parqet_file_stats);
+        assert_eq!(record_batch_plan_stats, parqet_file_stats);
 
         // Verify content
         //
@@ -718,6 +723,7 @@ mod tests {
                 )),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             },
             ColumnStatistics {
                 null_count: Precision::Absent,
@@ -725,6 +731,7 @@ mod tests {
                 min_value: Precision::Exact(ScalarValue::Int64(Some(0))),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             },
             ColumnStatistics {
                 null_count: Precision::Absent,
@@ -732,6 +739,7 @@ mod tests {
                 min_value: Precision::Exact(ScalarValue::TimestampNanosecond(Some(10), None)),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             },
         ];
         //
@@ -743,24 +751,11 @@ mod tests {
             min_value: Precision::Exact(ScalarValue::Int64(Some(0))),
             distinct_count: Precision::Absent,
             sum_value: Precision::Absent,
+            byte_size: Precision::Absent,
         });
-        //
-        // Add CHUNK_ORDER_COLUMN_NAME without stats
-        let mut parquet_plan_stats_col_stats = col_stats;
-        parquet_plan_stats_col_stats.push(ColumnStatistics {
-            null_count: Precision::Absent,
-            max_value: Precision::Absent,
-            min_value: Precision::Absent,
-            distinct_count: Precision::Absent,
-            sum_value: Precision::Absent,
-        });
-        //
-        let expected_parquet_plan_stats = Statistics {
-            num_rows: Precision::Exact(42),
-            total_byte_size: Precision::Absent,
-            column_statistics: parquet_plan_stats_col_stats,
-        };
-        //
+        // The "schema bug" this test is named for was fixed upstream:
+        // `cfg.statistics()` and `data_source_exec.partition_statistics(None)` now
+        // return identical stats, both including CHUNK_ORDER_COLUMN_NAME.
         let expected_parquet_file_stats = Statistics {
             num_rows: Precision::Exact(42),
             total_byte_size: Precision::Absent,
@@ -770,10 +765,8 @@ mod tests {
         // Content of Record batch plan stats that include stats of CHUNK_ORDER_COLUMN_NAME
         assert_eq!(record_batch_plan_stats, expected_parquet_file_stats);
         // Content of parquet file stats that also include stats of CHUNK_ORDER_COLUMN_NAME
-        assert_eq!(*parqet_file_stats, expected_parquet_file_stats);
-        //
-        // Content of parquet plan stats that does not include stats of CHUNK_ORDER_COLUMN_NAME
-        assert_eq!(parquet_plan_stats, expected_parquet_plan_stats);
+        assert_eq!(parqet_file_stats, expected_parquet_file_stats);
+        assert_eq!(parquet_plan_stats, expected_parquet_file_stats);
     }
 
     #[test]
@@ -840,6 +833,7 @@ mod tests {
                 )),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             },
             ColumnStatistics {
                 null_count: Precision::Absent,
@@ -847,6 +841,7 @@ mod tests {
                 min_value: Precision::Exact(ScalarValue::Int64(Some(0))),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             },
             ColumnStatistics {
                 null_count: Precision::Exact(0),
@@ -854,6 +849,7 @@ mod tests {
                 min_value: Precision::Exact(ScalarValue::TimestampNanosecond(Some(10), None)),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             },
         ];
         let expected_pf_stats = Statistics {

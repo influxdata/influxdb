@@ -1,5 +1,5 @@
 use std::{
-    env, f64,
+    env,
     sync::{Arc, Once},
 };
 pub use tempfile;

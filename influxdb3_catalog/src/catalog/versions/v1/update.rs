@@ -468,8 +468,6 @@ impl Catalog {
         })
         .await
     }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_distinct_cache(
         &self,
         db_name: &str,
@@ -554,8 +552,6 @@ impl Catalog {
         })
         .await
     }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_last_cache(
         &self,
         db_name: &str,
@@ -677,7 +673,6 @@ impl Catalog {
     }
 
     /// Insert a new trigger for the processing engine
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_processing_engine_trigger(
         &self,
         db_name: &str,

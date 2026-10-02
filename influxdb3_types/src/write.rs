@@ -154,6 +154,13 @@ impl std::str::FromStr for Precision {
     }
 }
 
+/// The timestamp policy that rejected a write line, independent of its error text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WriteTimestampRejection {
+    TooOld,
+    TooFuture,
+}
+
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
 /// returning an error for any invalid lines. This is the error information for a single invalid line.
 ///
@@ -165,6 +172,8 @@ pub struct WriteLineError {
     pub original_line: String,
     pub line_number: usize,
     pub error_message: String,
+    /// Internal attribution for metrics; deliberately omitted from the HTTP JSON response.
+    pub timestamp_rejection: Option<WriteTimestampRejection>,
 }
 
 impl Serialize for WriteLineError {

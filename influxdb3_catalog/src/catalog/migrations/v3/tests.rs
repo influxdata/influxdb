@@ -448,7 +448,7 @@ fn migrated_soft_deleted_database_apply_reproduces_renamed_name() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -796,7 +796,7 @@ fn migrated_table_without_timestamp_gets_usable_v3_table() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -882,7 +882,7 @@ fn migrated_soft_deleted_table_apply_reproduces_renamed_name() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -919,7 +919,7 @@ fn migrated_table_apply_reproduces_series_key_order() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1111,7 +1111,7 @@ fn migrated_caches_apply_to_table() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1328,9 +1328,6 @@ fn system_resource_identifier_and_actions_preserved() {
 
 #[test]
 fn migrated_admin_token_apply_records() {
-    use crate::catalog::versions::v3::inner::InnerCatalog;
-    use crate::format::apply::{RestorePreload, apply_records};
-
     let mut snap = empty_snapshot(1);
     snap.tokens
         .repo
@@ -1342,7 +1339,7 @@ fn migrated_admin_token_apply_records() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1522,9 +1519,6 @@ fn set_next_id_for_distinct_caches_within_table() {
 
 #[test]
 fn migrated_set_next_id_apply_restores_counters() {
-    use crate::catalog::versions::v3::inner::InnerCatalog;
-    use crate::format::apply::{RestorePreload, apply_records};
-
     // Set up one of each deletable v2 resource with its parent repo's
     // `next_id` advanced past `max(present)+1` — the gap that arises after
     // the top-id member is hard-deleted.
@@ -1561,7 +1555,7 @@ fn migrated_set_next_id_apply_restores_counters() {
         batch.as_slice(),
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .expect("apply succeeds");
 
@@ -1626,8 +1620,8 @@ mod runner {
     use crate::catalog::versions::v2::Snapshot as V2Snapshot;
     use crate::catalog::versions::v3::schema::storage::StorageMode as V3StorageMode;
     use crate::log::versions::v4::StorageMode as V2StorageMode;
-    use crate::object_store::PersistCatalogResult;
     use crate::object_store::versions as ostore;
+    use crate::object_store::{LoadedCatalogFile, PersistCatalogResult};
     use crate::serialize::versions as ser;
     use crate::snapshot::versions::v4::ColumnSetSnapshot;
     use influxdb3_id::ColumnId;
@@ -1680,7 +1674,7 @@ mod runner {
             Arc::clone(&store),
             V3StorageMode::default(),
         );
-        let mut v3_inner = crate::catalog::versions::v3::inner::InnerCatalog::new(
+        let v3_inner = crate::catalog::versions::v3::inner::InnerCatalog::new(
             Arc::clone(&prefix),
             Uuid::nil(),
         );
@@ -1711,7 +1705,7 @@ mod runner {
             Arc::clone(&store),
             V3StorageMode::default(),
         );
-        let (v3_snap, _size_bytes) = v3_store
+        let LoadedCatalogFile { file: v3_snap, .. } = v3_store
             .load_snapshot()
             .await
             .unwrap()
@@ -1842,7 +1836,7 @@ mod runner {
         let file = CatalogFile::read_from(&mut cursor).unwrap();
 
         let mut v3_inner = V3InnerCatalog::new(Arc::clone(&prefix), uuid);
-        apply_catalog_file(&file, &mut v3_inner, &mut RestorePreload::empty()).unwrap();
+        apply_catalog_file(&file, &mut v3_inner, RestorePreload::empty()).unwrap();
 
         assert_eq!(v3_inner.sequence_number(), CatalogSequenceNumber::new(5));
         assert_eq!(v3_inner.catalog_uuid, uuid);

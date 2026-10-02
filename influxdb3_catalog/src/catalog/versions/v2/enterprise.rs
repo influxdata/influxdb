@@ -20,7 +20,6 @@ use influxdb3_authz::{
     },
 };
 use influxdb3_id::{DbId, TokenId};
-use influxdb3_process::ProcessUuidGetter;
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
@@ -206,8 +205,7 @@ impl Catalog {
 
         Ok(catalog)
     }
-
-    #[allow(clippy::too_many_arguments)]
+    #[cfg(any(test, feature = "test_helpers"))]
     pub async fn new_enterprise_with_shutdown(
         current_node_id: impl Into<Arc<str>>,
         catalog_id: impl Into<Arc<str>>,
@@ -217,7 +215,7 @@ impl Catalog {
         shutdown_token: ShutdownToken,
         limits: Arc<dyn CatalogLimiter>,
         args: CatalogArgs,
-        process_uuid_getter: Arc<dyn ProcessUuidGetter>,
+        process_uuid_getter: Arc<dyn influxdb3_process::ProcessUuidGetter>,
     ) -> Result<Arc<Self>> {
         let catalog = Self::new_enterprise(
             current_node_id,

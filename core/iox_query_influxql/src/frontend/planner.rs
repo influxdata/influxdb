@@ -145,9 +145,18 @@ impl ExecutionPlan for SchemaExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        unimplemented!()
+        if children.len() != 1 {
+            return Err(DataFusionError::Internal(format!(
+                "SchemaExec expects exactly one child, got {}",
+                children.len()
+            )));
+        }
+        Ok(Arc::new(Self::new(
+            Arc::clone(&children[0]),
+            Arc::clone(&self.schema),
+        )))
     }
 
     fn execute(

@@ -12,7 +12,7 @@ influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_processing_engine = { path = "../influxdb3_processing_engine" }
 influxdb3_py_api = { path = "../influxdb3_py_api" }
-influxdb3_sys_events = { path = "../influxdb3_sys_events" }
+influxdb3_system_tables_common = { path = "../influxdb3_system_tables_common" }
 influxdb3_write = { path = "../influxdb3_write" }
 
 # Core crates
@@ -29,7 +29,6 @@ arrow-schema.workspace = true
 async-trait.workspace = true
 datafusion.workspace = true
 hashbrown.workspace = true
-hex.workspace = true
 indexmap.workspace = true
 serde_json.workspace = true
 tonic.workspace = true

@@ -1,15 +1,17 @@
 //! Generation and storage mode operations (record_ids 23-24).
 
-use super::impl_bitcode_encoding;
+use influxdb3_catalog_macros::catalog_record;
+
 use super::types::StorageMode;
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::storage::StorageMode as SchemaStorageMode;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 
 /// Set generation duration for a compaction level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::SET_GENERATION_DURATION, shape = 0x8a457297)]
+#[derive(Copy)]
 pub struct SetGenerationDuration {
     /// Compaction level.
     pub level: u8,
@@ -17,11 +19,7 @@ pub struct SetGenerationDuration {
     pub duration_ns: u64,
 }
 
-impl CatalogRecord for SetGenerationDuration {
-    const ID: RecordId = record_ids::SET_GENERATION_DURATION;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "SetGenerationDuration";
-
+impl RecordApply for SetGenerationDuration {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         catalog
             .generation_config
@@ -45,22 +43,15 @@ impl CatalogRecord for SetGenerationDuration {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<SetGenerationDuration>()
-}
-
 /// Set the storage mode for the catalog.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::SET_STORAGE_MODE, shape = 0xbba17476)]
+#[derive(Copy)]
 pub struct SetStorageMode {
     /// Storage mode configuration.
     pub mode: StorageMode,
 }
 
-impl CatalogRecord for SetStorageMode {
-    const ID: RecordId = record_ids::SET_STORAGE_MODE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "SetStorageMode";
-
+impl RecordApply for SetStorageMode {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         catalog.storage_mode = SchemaStorageMode::from(self.mode);
         Ok(())
@@ -69,10 +60,6 @@ impl CatalogRecord for SetStorageMode {
     fn event(&self) -> CatalogEvent {
         CatalogEvent::StorageModeChanged
     }
-}
-
-inventory::submit! {
-    RegisteredRecord::new::<SetStorageMode>()
 }
 
 impl From<StorageMode> for SchemaStorageMode {
@@ -94,8 +81,6 @@ impl From<SchemaStorageMode> for StorageMode {
         }
     }
 }
-
-impl_bitcode_encoding!(SetGenerationDuration, SetStorageMode);
 
 #[cfg(test)]
 mod tests;

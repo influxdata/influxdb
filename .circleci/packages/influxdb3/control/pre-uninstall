@@ -16,6 +16,9 @@ PKG_NAME="$(get_pkgname)" || {
     echo "ERROR: Unable to determine package name" >&2
     exit 1
 }
+SYSTEMD_GENERATOR_DIR="/lib/systemd/system-generators"
+SYSTEMD_GENERATOR_TARGET="/usr/lib/influxdb3/$PKG_NAME-generator"
+SYSTEMD_GENERATOR_LINK="$SYSTEMD_GENERATOR_DIR/$PKG_NAME-generator"
 
 rpm_distro() {
     # RPM 4.13 doesn't provide RPM_PACKAGE_NAME, so just assume rpm if not deb
@@ -32,6 +35,14 @@ deb_distro() {
     return 1
 }
 
+remove_systemd_generator() {
+    # Do not remove an administrator-provided replacement at the same path.
+    if [ -L "$SYSTEMD_GENERATOR_LINK" ] &&
+        [ "$(readlink "$SYSTEMD_GENERATOR_LINK")" = "$SYSTEMD_GENERATOR_TARGET" ]; then
+        rm -f "$SYSTEMD_GENERATOR_LINK"
+    fi
+}
+
 disable_systemd() {
     # Stop the service if running
     systemctl stop "$PKG_NAME" 2>/dev/null || true
@@ -41,6 +52,7 @@ disable_systemd() {
         systemctl disable "$PKG_NAME" || true
     fi
 
+    remove_systemd_generator
     systemctl daemon-reload
 }
 

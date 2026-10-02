@@ -1,7 +1,9 @@
 //! Catalog record type definitions.
 //!
-//! Each record type implements `CatalogRecord` + `Encode`/`Decode` and is
-//! registered with the global registry via `inventory::submit!`.
+//! Each record type is declared with `#[catalog_record]`, which implements
+//! `CatalogRecord` + `Encode`/`Decode` and registers it with the global
+//! registry. Records supply the `RecordApply` half — `apply` and `event` — by
+//! hand. See the crate README for the full walkthrough.
 //!
 //! # Core Records (RecordId::core)
 //!
@@ -22,6 +24,7 @@
 //!   CreateRefreshToken, RevokeRefreshToken, RevokeAllRefreshTokensForUser, UpdateUserRoles
 //! - **Role (39-42)**: CreateRole, UpdateRolePermissions, UpdateRole, DeleteRole
 //! - **Node lifecycle (43-46)**: RequestStopNode, AckStopNode, RemoveNode, UnregisterNode
+//! - **Schema enforcement (47)**: SetDatabaseSchemaMode
 //!
 //! # Enterprise Records (RecordId::enterprise)
 //!
@@ -69,32 +72,6 @@ pub use user::{
     RevokeRefreshToken, UpdateLoginIdentityPasswordHash, UpdateLoginIdentityRequiresPasswordReset,
     UpdateUserDisplayName, UpdateUserRoles,
 };
-
-/// Implements the `format::Encode` and `format::Decode` traits for a type
-/// that derives `bitcode::Encode` and `bitcode::Decode`.
-macro_rules! impl_bitcode_encoding {
-    ($($ty:ty),+ $(,)?) => {
-        $(
-            impl $crate::format::Encode for $ty {
-                fn encode(&self, buf: &mut Vec<u8>) {
-                    buf.extend_from_slice(&bitcode::encode(self));
-                }
-            }
-
-            impl $crate::format::Decode for $ty {
-                fn decode(buf: &[u8]) -> Result<Self, $crate::format::FormatError> {
-                    bitcode::decode(buf).map_err(|_| {
-                        $crate::format::FormatError::InvalidRecordLength {
-                            length: buf.len() as u32,
-                        }
-                    })
-                }
-            }
-        )+
-    };
-}
-
-pub(crate) use impl_bitcode_encoding;
 
 /// Asserts that a value roundtrips through `Encode` and `Decode`, and
 /// snapshots the encoded bytes to detect accidental encoding changes.

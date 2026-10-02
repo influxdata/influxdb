@@ -9,7 +9,7 @@ clippy::clone_on_ref_ptr,
 // See https://github.com/influxdata/influxdb_iox/pull/1671
 clippy::future_not_send
 )]
-#![allow(unused_crate_dependencies)]
+#![expect(unused_crate_dependencies)]
 
 use clap::{CommandFactory, FromArgMatches, parser::ValueSource};
 use dotenvy::dotenv;
@@ -123,7 +123,7 @@ struct Config {
 // Ignoring clippy here since this enum is just used for running
 // the CLI command
 #[derive(Debug, clap::Subcommand)]
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 enum Command {
     /// Enable a resource such as a trigger
     Enable(commands::enable::Config),
@@ -394,6 +394,56 @@ fn warn_serve_option_notices(serve_config: &commands::serve::Config, matches: &c
     ) {
         influxdb3_startup::early_logging::warn("influxdb3", warning);
     }
+
+    if let Some(limit) = serve_config.max_concurrent_queries
+        && let Some(warning) = max_concurrent_queries_too_low_warning(
+            limit.0,
+            serve_config.tokio_datafusion_config.num_threads,
+            num_cpus::get(),
+        )
+    {
+        influxdb3_startup::early_logging::warn("influxdb3", &warning);
+    }
+}
+
+/// Warn when an explicitly configured query concurrency limit is too low for
+/// a production node: below the effective query parallelism — the smaller of
+/// the CPU count and the `--num-datafusion-threads` setting (threads above
+/// the core count add no parallelism, and the executor may cap threads to
+/// licensed cores) — admission caps concurrent queries under what the
+/// executor can run in parallel, so execution threads can sit idle while
+/// queries wait for admission; and below
+/// [`cli_types::QUERY_CONCURRENCY_LIMIT_ADVISORY_MIN`] regardless of
+/// parallelism, matching the floor the runtime configure API enforces.
+/// Advisory only: the configured value is honored, and deliberate throttling
+/// still works. The computed default is never below either threshold, so
+/// only explicit values warn.
+fn max_concurrent_queries_too_low_warning(
+    limit: usize,
+    configured_datafusion_threads: Option<std::num::NonZeroUsize>,
+    cpus: usize,
+) -> Option<String> {
+    let threads = configured_datafusion_threads.map_or(cpus, std::num::NonZeroUsize::get);
+    let parallelism = cpus.min(threads);
+    let advisory_min = cli_types::QUERY_CONCURRENCY_LIMIT_ADVISORY_MIN;
+    if limit >= parallelism.max(advisory_min) {
+        return None;
+    }
+    Some(if parallelism >= advisory_min {
+        format!(
+            "--max-concurrent-queries ({limit}) is below the effective query parallelism \
+             ({parallelism}: the smaller of {cpus} CPU cores and {threads} DataFusion \
+             threads): execution threads can sit idle while queries wait for admission. \
+             Raise it to at least {parallelism} unless deliberately throttling queries."
+        )
+    } else {
+        format!(
+            "--max-concurrent-queries ({limit}) is below the advisory minimum of \
+             {advisory_min}: limits this low mostly serialize query execution and suit \
+             testing, not production. Raise it to at least {advisory_min} unless \
+             deliberately throttling queries."
+        )
+    })
 }
 
 /// Warn while the async trigger concurrency limit defaults to unlimited: a
@@ -475,25 +525,25 @@ fn non_serve_main(
             Some(Command::Enable(config)) => {
                 if let Err(e) = commands::enable::command(config).await {
                     eprintln!("Enable command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Create(config)) => {
                 if let Err(e) = commands::create::command(config).await {
                     eprintln!("Create command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Disable(config)) => {
                 if let Err(e) = commands::disable::command(config).await {
                     eprintln!("Disable command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Delete(config)) => {
                 if let Err(e) = commands::delete::command(config).await {
                     eprintln!("Delete command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Serve(_)) => {
@@ -502,43 +552,43 @@ fn non_serve_main(
             Some(Command::Install(config)) => {
                 if let Err(e) = commands::install::command(config).await {
                     eprintln!("Install command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Debug(config)) => {
                 if let Err(e) = commands::debug::command(config).await {
                     eprintln!("Debug command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Show(config)) => {
                 if let Err(e) = commands::show::command(config).await {
                     eprintln!("Show command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Test(config)) => {
                 if let Err(e) = commands::test::command(config).await {
                     eprintln!("Test command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Update(config)) => {
                 if let Err(e) = commands::update::command(config).await {
                     eprintln!("Update command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Query(config)) => {
                 if let Err(e) = commands::query::command(config).await {
                     eprintln!("Query command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
             Some(Command::Write(config)) => {
                 if let Err(e) = commands::write::command(config).await {
                     eprintln!("Write command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
+                    exit_client_command_failure()
                 }
             }
         }
@@ -547,9 +597,37 @@ fn non_serve_main(
     Ok(())
 }
 
+/// Exit with failure after a client (non-serve) command error, first
+/// pointing out env-var lookalikes that are set but never read.
+fn exit_client_command_failure() -> ! {
+    for note in unread_env_lookalike_notes(|name| std::env::var_os(name).is_some()) {
+        eprintln!("{note}");
+    }
+    std::process::exit(ReturnCode::Failure as _)
+}
+
+/// Notes for intuitively-derived but unread env vars.
+///
+/// `--host` and `--token` keep their legacy-exception env names
+/// `INFLUXDB3_HOST_URL` / `INFLUXDB3_AUTH_TOKEN` (see
+/// docs/cli-conventions.md, "Legacy exceptions"), so users
+/// reasonably guess `INFLUXDB3_HOST` / `INFLUXDB3_TOKEN`. When a client
+/// command fails, a guessed name is set, and the read name is not, say so.
+fn unread_env_lookalike_notes(is_set: impl Fn(&str) -> bool) -> Vec<String> {
+    [
+        ("INFLUXDB3_HOST", "INFLUXDB3_HOST_URL", "--host"),
+        ("INFLUXDB3_TOKEN", "INFLUXDB3_AUTH_TOKEN", "--token"),
+    ]
+    .into_iter()
+    .filter(|(unread, read, _)| is_set(unread) && !is_set(read))
+    .map(|(unread, read, flag)| {
+        format!("note: {unread} is not a recognized environment variable and is ignored; use {read} or {flag} instead")
+    })
+    .collect()
+}
+
 /// Print the help for the cli if asked for and then exit the program
 fn maybe_print_help() {
-    #[allow(clippy::if_same_then_else)] // They are in fact dear reader not the same
     let mut help = false;
     let mut help_all = false;
     let mut command = None;
@@ -891,8 +969,8 @@ fn init_logs_and_tracing(
                     builder = builder.client_buffer_capacity(capacity);
                 }
                 install_layers(&config, layers.and_then(builder.spawn()))
-            }},
-            _ => Err(trogging::Error::TokioConsoleMissing)
+            }}
+            _ => Err(trogging::Error::TokioConsoleMissing),
         };
     }
 
@@ -958,4 +1036,38 @@ fn extract_user_params(matches: &clap::ArgMatches) -> HashMap<String, String> {
     }
 
     params
+}
+
+#[cfg(test)]
+mod env_hint_tests {
+    use super::unread_env_lookalike_notes;
+
+    #[test]
+    fn notes_only_for_set_unread_lookalikes() {
+        // Nothing set: no notes.
+        assert!(unread_env_lookalike_notes(|_| false).is_empty());
+
+        // Guessed token name set, real name unset: one note.
+        let notes = unread_env_lookalike_notes(|name| name == "INFLUXDB3_TOKEN");
+        assert_eq!(
+            notes,
+            vec![
+                "note: INFLUXDB3_TOKEN is not a recognized environment variable \
+                 and is ignored; use INFLUXDB3_AUTH_TOKEN or --token instead"
+            ]
+        );
+
+        // Both guessed names set: both notes, host first.
+        let notes = unread_env_lookalike_notes(|name| {
+            name == "INFLUXDB3_HOST" || name == "INFLUXDB3_TOKEN"
+        });
+        assert_eq!(notes.len(), 2);
+        assert!(notes[0].contains("INFLUXDB3_HOST_URL"));
+
+        // Real name also set: the guess is moot, no note.
+        let notes = unread_env_lookalike_notes(|name| {
+            name == "INFLUXDB3_TOKEN" || name == "INFLUXDB3_AUTH_TOKEN"
+        });
+        assert!(notes.is_empty());
+    }
 }

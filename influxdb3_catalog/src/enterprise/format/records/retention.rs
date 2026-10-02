@@ -1,16 +1,18 @@
 //! Enterprise retention records (record_ids e2-e3).
 
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::retention::RetentionPeriod as SchemaRetentionPeriod;
 use crate::format::apply::ApplyError;
-use crate::format::records::impl_bitcode_encoding;
 use crate::format::records::types::RetentionPeriod;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{RecordApply, record_ids};
 use influxdb3_id::{DbId, TableId};
 
 /// Set retention period on a table (enterprise).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::SET_TABLE_RETENTION_PERIOD, shape = 0x05e39eb5)]
+#[derive(Copy)]
 pub struct SetTableRetentionPeriod {
     /// Database catalog ID.
     pub database_id: u32,
@@ -20,11 +22,7 @@ pub struct SetTableRetentionPeriod {
     pub retention_period: RetentionPeriod,
 }
 
-impl CatalogRecord for SetTableRetentionPeriod {
-    const ID: RecordId = record_ids::SET_TABLE_RETENTION_PERIOD;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "SetTableRetentionPeriod";
-
+impl RecordApply for SetTableRetentionPeriod {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
@@ -45,12 +43,9 @@ impl CatalogRecord for SetTableRetentionPeriod {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<SetTableRetentionPeriod>()
-}
-
 /// Clear retention period on a table (enterprise).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CLEAR_TABLE_RETENTION_PERIOD, shape = 0x4fa490e5)]
+#[derive(Copy)]
 pub struct ClearTableRetentionPeriod {
     /// Database catalog ID.
     pub database_id: u32,
@@ -58,11 +53,7 @@ pub struct ClearTableRetentionPeriod {
     pub table_id: u32,
 }
 
-impl CatalogRecord for ClearTableRetentionPeriod {
-    const ID: RecordId = record_ids::CLEAR_TABLE_RETENTION_PERIOD;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "ClearTableRetentionPeriod";
-
+impl RecordApply for ClearTableRetentionPeriod {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
@@ -82,12 +73,6 @@ impl CatalogRecord for ClearTableRetentionPeriod {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<ClearTableRetentionPeriod>()
-}
-
-impl_bitcode_encoding!(SetTableRetentionPeriod, ClearTableRetentionPeriod);
 
 #[cfg(test)]
 mod tests;

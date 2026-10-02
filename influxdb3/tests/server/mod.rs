@@ -42,6 +42,7 @@ mod packages;
 mod ping;
 mod plugin_restriction;
 mod query;
+mod schema_enforcement;
 mod system_tables;
 mod telemetry;
 mod write;
@@ -467,6 +468,12 @@ pub struct TestServer {
     http_client: reqwest::Client,
     stdout: Option<Arc<Mutex<String>>>,
     stderr: Option<Arc<Mutex<String>>>,
+    /// Byte offset into `stdout` already consumed by `wait_for_log_message`. Tracked
+    /// per-stream so two streams growing in parallel don't shift each other's
+    /// indices, while still letting successive waits match only *new* content
+    /// rather than re-matching a historical occurrence of the same message.
+    stdout_seen: Arc<Mutex<usize>>,
+    stderr_seen: Arc<Mutex<usize>>,
 }
 
 impl std::fmt::Debug for TestServer {
@@ -684,6 +691,8 @@ impl TestServer {
             http_client,
             stdout: stdout_handle,
             stderr: stderr_handle,
+            stdout_seen: Arc::new(Mutex::new(0)),
+            stderr_seen: Arc::new(Mutex::new(0)),
         };
 
         server.wait_until_ready().await;
@@ -848,6 +857,70 @@ impl TestServer {
         }
     }
 
+    /// Waits until the captured logs contain `msg`, or panics after 2 seconds.
+    ///
+    /// The function requires log capture through [`TestConfig::with_capture_logs`].
+    /// Each call searches only the log content that arrived after the previous call.
+    pub async fn wait_for_log_message(&self, msg: &str) {
+        let max_retries = 200; // up to 2 secs wait
+        let mut found_msg = false;
+
+        // Search only content written to either stream since the last successful
+        // call (or since this server was spawned). Two requirements:
+        //   - Per-stream offsets — synthesizing a single concat-string cursor
+        //     across stdout+stderr is not stable when both streams grow in
+        //     parallel; lines fall through the cracks as positions shift.
+        //   - Advance on every iteration — successive waits for the same
+        //     message must not match a historical occurrence (e.g. the second
+        //     "Successfully warmed distinct cache" must wait for the second
+        //     cache's warming, not return on the first cache's line).
+        for _ in 0..max_retries {
+            // Scan under the lock guards inside this block. The guards drop at
+            // the end of the block, before the .await, which keeps the future
+            // Send and avoids a clone of the full buffers on every retry.
+            let hit = {
+                let stdout_str = match &self.stdout {
+                    Some(s) => s.lock().unwrap(),
+                    None => panic!("wait_for_log_message requires capture_logs"),
+                };
+                let stderr_str = match &self.stderr {
+                    Some(e) => e.lock().unwrap(),
+                    None => panic!("wait_for_log_message requires capture_logs"),
+                };
+                let mut stdout_seen = self.stdout_seen.lock().unwrap();
+                let mut stderr_seen = self.stderr_seen.lock().unwrap();
+                let new_stdout = &stdout_str[(*stdout_seen).min(stdout_str.len())..];
+                let new_stderr = &stderr_str[(*stderr_seen).min(stderr_str.len())..];
+                let hit = new_stdout.contains(msg) || new_stderr.contains(msg);
+                *stdout_seen = stdout_str.len();
+                *stderr_seen = stderr_str.len();
+                hit
+            };
+            if hit {
+                found_msg = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        if !found_msg {
+            println!(
+                "====== cannot find log msg {:?}, below are the server logs =======",
+                msg
+            );
+            for line in self
+                .get_logs(Some(100))
+                .expect("logs to be present")
+                .lines()
+            {
+                println!("{line}");
+            }
+            panic!(
+                "Exhausted number of retries waiting for log message.\n\n╔═══════════════════════════════════╗\n║POSSIBLE REMEDY: add TEST_LOG=debug║\n╚═══════════════════════════════════╝\n"
+            );
+        }
+    }
+
     async fn wait_until_ready(&self) {
         let mut count = 0;
         while self
@@ -933,9 +1006,23 @@ impl TestServer {
         database: &str,
         retention_period: Option<Duration>,
     ) -> Result<(), influxdb3_client::Error> {
+        self.api_v3_create_database_with_schema_mode(
+            database,
+            retention_period,
+            influxdb3_catalog::catalog::SchemaMode::Implicit,
+        )
+        .await
+    }
+
+    pub async fn api_v3_create_database_with_schema_mode(
+        &self,
+        database: &str,
+        retention_period: Option<Duration>,
+        schema_mode: influxdb3_catalog::catalog::SchemaMode,
+    ) -> Result<(), influxdb3_client::Error> {
         let client = self.maybe_authorized_client();
         client
-            .api_v3_configure_db_create(database, retention_period)
+            .api_v3_configure_db_create(database, retention_period, schema_mode)
             .await
     }
 
@@ -1223,7 +1310,6 @@ pub fn parse_token(result: String) -> String {
     raw_token.to_string()
 }
 
-#[allow(dead_code)]
 pub async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {
     stream
         .try_collect()

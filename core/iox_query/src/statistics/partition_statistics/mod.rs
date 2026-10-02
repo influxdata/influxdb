@@ -1341,9 +1341,9 @@ mod test {
         let test_case = TestCase::new(&interleave, col_name, None);
         assert_snapshot!(
             test_case.run()?,
-            @r"
+            @"
         InterleaveExec
-          RepartitionExec: partitioning=Hash([], 4), input_partitions=1
+          RepartitionExec: partitioning=Hash([], 4), input_partitions=1, maintains_sort_order=true
             DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[a], output_ordering=[a@0 ASC], file_type=parquet
           RepartitionExec: partitioning=Hash([], 4), input_partitions=2
             DataSourceExec: file_groups={2 groups: [[0.parquet], [1.parquet]]}, projection=[a], output_ordering=[a@0 ASC], file_type=parquet
@@ -1374,12 +1374,12 @@ mod test {
         let test_case = TestCase::new(&spm, col_name, None);
         assert_snapshot!(
             test_case.run()?,
-            @r"
+            @"
         SortPreservingMergeExec: [a@0 ASC]
           UnionExec
             DataSourceExec: file_groups={3 groups: [[0.parquet], [1.parquet], [2.parquet]]}, projection=[a], output_ordering=[a@0 ASC], file_type=parquet
             InterleaveExec
-              RepartitionExec: partitioning=Hash([], 4), input_partitions=1
+              RepartitionExec: partitioning=Hash([], 4), input_partitions=1, maintains_sort_order=true
                 DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[a], output_ordering=[a@0 ASC], file_type=parquet
               RepartitionExec: partitioning=Hash([], 4), input_partitions=2
                 DataSourceExec: file_groups={2 groups: [[0.parquet], [1.parquet]]}, projection=[a], output_ordering=[a@0 ASC], file_type=parquet
@@ -1722,7 +1722,7 @@ mod test {
         // use a plan with only col C
         let data_source_exec = DataSourceExec::from_data_source(
             filegroups_config
-                .with_projection_indices(Some(vec![2]))
+                .with_projection_indices(Some(vec![2]))?
                 .build(),
         ) as _;
         let projected = col(col_name, &plan_schema)?; // plan_schema
@@ -1858,7 +1858,7 @@ mod test {
         // make plan config, using a plan with only cols b & c
         let data_source_exec = DataSourceExec::from_data_source(
             filegroups_config_builder
-                .with_projection_indices(Some(vec![1, 2]))
+                .with_projection_indices(Some(vec![1, 2]))?
                 .build(),
         ) as _;
         let proj_c = col("c", &plan_schema)?; // plan_schema
@@ -1903,6 +1903,7 @@ mod test {
                     ))),
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
                 // col b, partition 0
                 ColumnStatistics {
@@ -1911,6 +1912,7 @@ mod test {
                     max_value: Precision::Exact(datafusion::scalar::ScalarValue::Int32(Some(3000))),
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
             ]
         );
@@ -1937,6 +1939,7 @@ mod test {
                     ))),
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
                 // col b, partition 1
                 ColumnStatistics {
@@ -1945,6 +1948,7 @@ mod test {
                     max_value: Precision::Exact(datafusion::scalar::ScalarValue::Int32(Some(2000))),
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
             ]
         );
@@ -1999,7 +2003,7 @@ mod test {
         );
         let scan = DataSourceExec::from_data_source(
             filegroups_config_builder
-                .with_projection_indices(Some(vec![0, 1, 2]))
+                .with_projection_indices(Some(vec![0, 1, 2]))?
                 .build(),
         ) as _;
 
@@ -2047,6 +2051,7 @@ mod test {
                     ))),
                     distinct_count: Precision::Absent,
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
             ]
         );

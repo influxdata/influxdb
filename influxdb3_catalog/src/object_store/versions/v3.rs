@@ -1,32 +1,29 @@
-#![allow(dead_code)]
-
 use std::io::Cursor;
-use std::ops::Deref;
+use std::ops::{ControlFlow, Deref};
 use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
 use futures::stream::{self, StreamExt, TryStreamExt};
 use influxdb3_wal::{CatalogSnapshotObserver, NoopCatalogSnapshotObserver};
-use object_store::ObjectStore;
-use object_store::PutOptions;
-use object_store::path::Path as ObjPath;
+use object_store::{GetOptions, GetResult, ObjectStore, PutOptions, path::Path as ObjPath};
 use object_store_utils::RetryableObjectStore;
 use observability_deps::tracing::{debug, info, warn};
+use parking_lot::RwLock;
 use uuid::Uuid;
 
-use crate::catalog::CatalogSequenceNumber;
 use crate::catalog::versions::v3::backup::{CatalogCheckpointForBackup, CatalogLogFileForBackup};
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::storage::StorageMode;
 use crate::format::apply::{
-    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file,
+    RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file_records,
 };
 use crate::format::records::SetStorageMode;
-use crate::format::{CatalogFile, MakeRecord};
+use crate::format::{CatalogFile, MakeRecord, Record};
 use crate::object_store::{
     CATALOG_LOG_FILE_EXTENSION, ObjectStoreCatalogError, PersistCatalogResult, Result,
 };
+use crate::{catalog::CatalogSequenceNumber, format::FormatError};
 
 const CATALOG_VERSION_PATH: &str = "catalog/v3";
 
@@ -97,15 +94,6 @@ impl ObjectStoreCatalog {
         Ok(self.load_file(&path).await?.map(|(file, _size)| file))
     }
 
-    /// Load the snapshot file, or `Ok(None)` if absent. Returns the
-    /// decoded [`CatalogFile`] alongside its on-disk byte size so callers
-    /// (notably SLL emission in `load_or_create_catalog`) can report
-    /// snapshot size without an extra HEAD request.
-    pub(crate) async fn load_snapshot(&self) -> Result<Option<(CatalogFile, u64)>> {
-        let path = CatalogFilePath::snapshot(&self.prefix);
-        self.load_file(&path).await
-    }
-
     /// Fetch the raw bytes of the object at `path`, returning `Ok(None)` if it
     /// does not exist. Other object-store errors propagate. Shared by
     /// [`Self::load_file`] and [`Self::checkpoint_for_backup`] so the
@@ -144,14 +132,25 @@ impl ObjectStoreCatalog {
         // object-store / decode error during startup load fires the SLL
         // error variant so operators see the failure rather than a silent
         // "no catalog observed" gap.
-        let Some((snapshot, size_bytes)) = self.load_snapshot().await.inspect_err(|_| {
+        let Some(LoadedCatalogFile {
+            file: snapshot,
+            size_bytes,
+            version_meta,
+        }) = self.load_snapshot().await.inspect_err(|_| {
             self.catalog_snapshot_observer
                 .on_catalog_snapshot_error("catalog_snapshot_failed");
         })?
         else {
             return Ok(None);
         };
-        let snapshot_sequence = snapshot.sequence_number();
+
+        if version_meta.etag.is_none() && version_meta.version.is_none() {
+            return Err(ObjectStoreCatalogError::unexpected(format!(
+                "retrieval of snapshot with sequence {} returned an empty etag and empty version; unable to track snapshot versioning necessary for snapshot forwarding.\nThis error is due to your object store solution not supporting conditional operations; you may want to look into swapping it out for one that does, such as MinIO, SeaweedFS, or RustFS.",
+                snapshot.header.sequence_number
+            )));
+        };
+
         // Exactly one group is the current writer's form, which every
         // reader vintage accepts. Anything else gets rewritten at startup:
         // the legacy multi-group layout (group_count > 1), and the indexless
@@ -159,22 +158,27 @@ impl ObjectStoreCatalog {
         // reject.
         let snapshot_needs_rewrite = snapshot.header.group_count != 1;
         let catalog_uuid = Uuid::from_u128(snapshot.header.catalog_uuid);
-        let mut inner = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
-        // Snapshots normally do not contain restore records, but pre-load
-        // defensively in case one slipped in.
-        let mut preload =
-            preload_restore_for_file(&snapshot, self, inner.committed_feature_level).await?;
-        apply_catalog_file(&snapshot, &mut inner, &mut preload)
-            .inspect_err(|_| {
-                self.catalog_snapshot_observer
-                    .on_catalog_snapshot_error("catalog_snapshot_failed");
-            })
-            .map_err(|e| {
-                ObjectStoreCatalogError::unexpected(format!(
-                    "failed to apply snapshot for catalog {catalog_uuid} (prefix {}): {e}",
-                    self.prefix,
-                ))
-            })?;
+        let inner = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
+        let snapshot_sequence = snapshot.header.sequence_number;
+
+        let tmp_inner = RwLock::new(inner);
+        if let Err(e) = self
+            .fast_forward_inner_with_snapshot(snapshot, version_meta, &tmp_inner)
+            .await
+        {
+            match e {
+                FastForwardErr::DuringPreload(f) => return Err(ObjectStoreCatalogError::Format(f)),
+                FastForwardErr::RecordFailedValidation(e) => {
+                    return Err(ObjectStoreCatalogError::unexpected(format!(
+                        "failed to apply snapshot for catalog {catalog_uuid} (prefix {}): {e}",
+                        self.prefix
+                    )));
+                }
+            }
+        }
+
+        let mut inner = tmp_inner.into_inner();
+
         // SLL: emit on every successful snapshot load — this is the most
         // common observation moment (per-boot, after the snapshot file
         // already exists). The `_persisted` paths in `initialize_snapshot`
@@ -187,11 +191,11 @@ impl ObjectStoreCatalog {
         // filenames make lexicographic order match sequence order.
         let offset = CatalogFilePath::log(&self.prefix, inner.sequence_number()).into();
         let logs_dir = CatalogFilePath::logs_dir(&self.prefix);
-        let mut log_metas = Vec::new();
-        let mut list_stream = self.store.list_with_offset(Some(&logs_dir), &offset);
-        while let Some(item) = list_stream.next().await {
-            log_metas.push(item?);
-        }
+        let mut log_metas: Vec<_> = self
+            .store
+            .list_with_offset(Some(&logs_dir), &offset)
+            .try_collect()
+            .await?;
         log_metas.sort_unstable_by(|a, b| a.location.cmp(&b.location));
 
         let store = Arc::clone(&self.store);
@@ -206,7 +210,7 @@ impl ObjectStoreCatalog {
                         meta.location,
                     );
                     let bytes = store
-                        .get_with_default_retries(&meta.location, context)
+                        .get_with_default_retries(&meta.location, &context)
                         .await?
                         .bytes()
                         .await?;
@@ -238,9 +242,13 @@ impl ObjectStoreCatalog {
                     self.prefix,
                 )));
             }
-            let mut preload =
-                preload_restore_for_file(&file, self, inner.committed_feature_level).await?;
-            apply_catalog_file(&file, &mut inner, &mut preload).map_err(|e| {
+            let preload = preload_restore_for_file_records(
+                &file.records,
+                self,
+                inner.committed_feature_level,
+            )
+            .await?;
+            apply_catalog_file(&file, &mut inner, preload).map_err(|e| {
                 ObjectStoreCatalogError::unexpected(format!(
                     "failed to apply log at sequence {} for catalog {catalog_uuid} \
                      (prefix {}): {e}",
@@ -280,7 +288,7 @@ impl ObjectStoreCatalog {
             &[initial_record],
             &mut inner,
             CatalogSequenceNumber::new(0),
-            &mut RestorePreload::empty(),
+            RestorePreload::empty(),
         )
         .map_err(|e| {
             ObjectStoreCatalogError::unexpected(format!(
@@ -291,11 +299,14 @@ impl ObjectStoreCatalog {
         })?;
         let initial_snapshot = inner.create_snapshot();
         match self.initialize_snapshot(initial_snapshot).await? {
-            PersistCatalogResult::Success => Ok(CatalogLoad {
-                inner,
-                snapshot_needs_rewrite: false,
-            }),
-            PersistCatalogResult::AlreadyExists => self.load_catalog().await?.ok_or_else(|| {
+            MaybePutCatalogFile::Success(meta) => {
+                inner.last_snapshot_meta = meta;
+                Ok(CatalogLoad {
+                    inner,
+                    snapshot_needs_rewrite: false,
+                })
+            }
+            MaybePutCatalogFile::AlreadyExists => self.load_catalog().await?.ok_or_else(|| {
                 ObjectStoreCatalogError::unexpected(
                     "initial snapshot existed but load_catalog returned None",
                 )
@@ -320,22 +331,27 @@ impl ObjectStoreCatalog {
             ?result,
             "persist catalog log file",
         );
-        Ok(result)
+        Ok(match result {
+            MaybePutCatalogFile::Success(_) => PersistCatalogResult::Success,
+            MaybePutCatalogFile::AlreadyExists => PersistCatalogResult::AlreadyExists,
+        })
     }
+}
 
+impl ObjectStoreCatalog {
     /// Create the snapshot file. Create-only so that racing initializers
     /// resolve to a single winner.
-    pub(crate) async fn initialize_snapshot(&self, content: Bytes) -> Result<PersistCatalogResult> {
+    pub(crate) async fn initialize_snapshot(&self, content: Bytes) -> Result<MaybePutCatalogFile> {
         let path = CatalogFilePath::snapshot(&self.prefix);
         let size_bytes = content.len() as u64;
         let result = self.put_if_not_exists(&path, content).await;
         match &result {
-            Ok(PersistCatalogResult::Success) => {
+            Ok(MaybePutCatalogFile::Success(_)) => {
                 // Initial snapshot is at sequence 0 by construction.
                 self.catalog_snapshot_observer
                     .on_catalog_snapshot_success(0, size_bytes);
             }
-            Ok(PersistCatalogResult::AlreadyExists) => {
+            Ok(MaybePutCatalogFile::AlreadyExists) => {
                 // The caller calls `load_catalog` immediately after this on
                 // the race-loss path; that load fires the SLL event with the
                 // winner's true sequence + size. Skip here to avoid double
@@ -350,6 +366,7 @@ impl ObjectStoreCatalog {
     }
 
     /// Update the snapshot file on object store after it has been initialized.
+    #[cfg(test)]
     pub(crate) async fn update_snapshot(&self, content: Bytes) -> Result<()> {
         let path = CatalogFilePath::snapshot(&self.prefix);
         match self.store.put(&path, content.into()).await {
@@ -373,7 +390,7 @@ impl ObjectStoreCatalog {
         &self,
         snapshot_sequence: CatalogSequenceNumber,
         snapshot_bytes: Bytes,
-    ) -> Result<()> {
+    ) -> Result<CatalogFileMeta> {
         let path = CatalogFilePath::snapshot(&self.prefix);
         let context = format!(
             "writing catalog checkpoint at sequence {} (prefix {})",
@@ -381,8 +398,9 @@ impl ObjectStoreCatalog {
             self.prefix,
         );
         let size_bytes = snapshot_bytes.len() as u64;
-        self.store
-            .put_with_default_retries(&path, snapshot_bytes.into(), context)
+        let put_result = self
+            .store
+            .put_with_default_retries(&path, snapshot_bytes.into(), &context)
             .await
             .inspect_err(|_| {
                 self.catalog_snapshot_observer
@@ -394,7 +412,11 @@ impl ObjectStoreCatalog {
         );
         self.catalog_snapshot_observer
             .on_catalog_snapshot_success(snapshot_sequence.get(), size_bytes);
-        Ok(())
+
+        let etag = put_result.e_tag;
+        let version = put_result.version;
+
+        Ok(CatalogFileMeta { etag, version })
     }
 
     /// Read the live snapshot file and return its sequence number together
@@ -472,9 +494,13 @@ impl ObjectStoreCatalog {
         };
         let catalog_uuid = Uuid::from_u128(snapshot.header.catalog_uuid);
         let mut inner = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
-        let mut preload =
-            preload_restore_for_file(&snapshot, self, inner.committed_feature_level).await?;
-        apply_catalog_file(&snapshot, &mut inner, &mut preload).map_err(|e| {
+        let preload = preload_restore_for_file_records(
+            &snapshot.records,
+            self,
+            inner.committed_feature_level,
+        )
+        .await?;
+        apply_catalog_file(&snapshot, &mut inner, preload).map_err(|e| {
             ObjectStoreCatalogError::unexpected(format!(
                 "failed to apply restore checkpoint at {checkpoint_path} for catalog \
                  {catalog_uuid}: {e}",
@@ -506,9 +532,10 @@ impl ObjectStoreCatalog {
                      {actual_uuid}",
                 )));
             }
-            let mut preload =
-                preload_restore_for_file(&log, self, inner.committed_feature_level).await?;
-            apply_catalog_file(&log, &mut inner, &mut preload).map_err(|e| {
+            let preload =
+                preload_restore_for_file_records(&log.records, self, inner.committed_feature_level)
+                    .await?;
+            apply_catalog_file(&log, &mut inner, preload).map_err(|e| {
                 ObjectStoreCatalogError::unexpected(format!(
                     "failed to apply restore log at {path} for catalog {catalog_uuid}: {e}",
                 ))
@@ -534,12 +561,20 @@ impl ObjectStoreCatalog {
             Err(error) => Err(error.into()),
         }
     }
+}
 
+#[derive(Debug, Clone)]
+pub(crate) enum MaybePutCatalogFile {
+    Success(CatalogFileMeta),
+    AlreadyExists,
+}
+
+impl ObjectStoreCatalog {
     async fn put_if_not_exists(
         &self,
         path: &CatalogFilePath,
         content: Bytes,
-    ) -> Result<PersistCatalogResult> {
+    ) -> Result<MaybePutCatalogFile> {
         match self
             .store
             .put_opts(
@@ -552,15 +587,249 @@ impl ObjectStoreCatalog {
             )
             .await
         {
-            Ok(_) => Ok(PersistCatalogResult::Success),
+            Ok(res) => Ok(MaybePutCatalogFile::Success(CatalogFileMeta {
+                etag: res.e_tag,
+                version: res.version,
+            })),
             Err(object_store::Error::AlreadyExists { .. }) => {
-                Ok(PersistCatalogResult::AlreadyExists)
+                Ok(MaybePutCatalogFile::AlreadyExists)
             }
             Err(other) => {
                 warn!(error = ?other, object_path = ?path, "failed to persist catalog file");
                 Err(other.into())
             }
         }
+    }
+}
+
+pub(crate) struct LoadedCatalogFile {
+    pub(crate) file: CatalogFile,
+    pub(crate) size_bytes: u64,
+    pub(crate) version_meta: CatalogFileMeta,
+}
+
+/// Metadata about a specific version of the snapshot written to object store. This is used in
+/// [`InnerCatalog`] to track the most recent version of the snapshot that we're aware of.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CatalogFileMeta {
+    /// The etag, supported by (I think?) all major S3 providers for Get operations and everyone but
+    /// GCS for Put operations (see
+    /// <https://github.com/apache/arrow-rs-object-store/issues/129#issuecomment-2741695514>)
+    pub(crate) etag: Option<String>,
+    /// The version, which we need to support conditional put requests with GCS
+    pub(crate) version: Option<String>,
+}
+
+impl ObjectStoreCatalog {
+    /// Load the snapshot file, or `Ok(None)` if absent. Returns the
+    /// decoded [`CatalogFile`] alongside its on-disk byte size so callers
+    /// (notably SLL emission in `load_or_create_catalog`) can report
+    /// snapshot size without an extra HEAD request.
+    pub(crate) async fn load_snapshot(&self) -> Result<Option<LoadedCatalogFile>> {
+        let path = CatalogFilePath::snapshot(&self.prefix);
+
+        let result = self.store.get(&path).await;
+        catalog_file_from_get_result(result).await
+    }
+
+    /// Try to retrieve the latest snapshot, only returning `Some` if there is a snapshot AND it
+    /// doesn't match the etag passed in `if_none_match`
+    #[expect(dead_code, reason = "Will be used in future PR")]
+    pub(crate) async fn load_snapshot_if_not_etag(
+        &self,
+        if_none_match: Option<String>,
+    ) -> Result<Option<LoadedCatalogFile>> {
+        let path = CatalogFilePath::snapshot(&self.prefix);
+        let options = GetOptions {
+            if_none_match,
+            ..GetOptions::default()
+        };
+
+        let result = self.store.get_opts(&path, options).await;
+
+        if let Err(object_store::Error::NotModified { .. }) = result {
+            return Ok(None);
+        };
+
+        catalog_file_from_get_result(result).await
+    }
+}
+
+/// helper function to process a [`GetResult`] and parse out its body into a [`CatalogFile`],
+/// returning the file, etag, and size within the [`LoadedCatalogFile`]
+async fn catalog_file_from_get_result(
+    get_result: Result<GetResult, object_store::Error>,
+) -> Result<Option<LoadedCatalogFile>> {
+    let (etag, version, bytes) = match get_result {
+        Ok(get_result) => (
+            get_result.meta.e_tag.clone(),
+            get_result.meta.version.clone(),
+            get_result.bytes().await?,
+        ),
+        Err(object_store::Error::NotFound { .. }) => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+
+    let size_bytes = bytes.len() as u64;
+    let mut cursor = Cursor::new(bytes.as_ref());
+    Ok(Some(LoadedCatalogFile {
+        file: CatalogFile::read_from(&mut cursor)?,
+        size_bytes,
+        version_meta: CatalogFileMeta { etag, version },
+    }))
+}
+
+#[derive(Debug)]
+pub enum FastForwardErr {
+    RecordFailedValidation(FormatError),
+    DuringPreload(FormatError),
+}
+
+impl ObjectStoreCatalog {
+    /// This function takes a catalog file (a snapshot) and applies it to `inner`. This takes only
+    /// the subset of records which are not yet applied to `inner` and applies those.
+    ///
+    /// This function trusts that `records` is sorted (lowest sequence number first) and contains no
+    /// gaps in its sequence numbers.
+    /// It also trust that applying the records in this snapshot will not create a gap in our list
+    /// of ordered records (i.e. by applying a list of records where the lowest sequence `N+2` where
+    /// the current greatest sequence applied is `N`)
+    ///
+    /// On success, this function will return the maximum sequence number that was applied from this
+    /// snapshot. If None, then no records were applied.
+    ///
+    /// # Errors
+    ///
+    /// This will return an error if one of the records failed validation or if an error occurred
+    /// during preload
+    pub(crate) async fn fast_forward_inner_with_snapshot(
+        &self,
+        catalog_file: CatalogFile,
+        snapshot_meta: CatalogFileMeta,
+
+        // we need this to be a RwLock (instead of just a `&mut InnerCatalog` because we store the
+        // catalog in a RwLock while the catalog is running and we can't just write-lock it during
+        // this whole function because then we'll be holding a write lock over an await point. So
+        // during initialization we can just put it in a RwLock, the locks and unlocks will be
+        // essentially free 'cause there's no contention, and then move it back out once we're done.
+        inner: &RwLock<InnerCatalog>,
+    ) -> Result<Option<CatalogSequenceNumber>, FastForwardErr> {
+        // We need to update `last_snapshot_meta` on all non-error paths, even if the snapshot
+        // doesn't have any new records. We need to do this because trying to upload a new snapshot
+        // after ingesting an old snapshot that doesn't have any new records will fail if we don't
+        // take in the new snapshot meta.
+        // But how do we be certain that the new snapshot meta that we're storing in `inner` is the
+        // right one? What if someone else locked it and updated `last_snapshot_meta` between
+        // fetching this catalog file and applying it?
+        // Well, if that's the case, then we'll just do another operation with the old meta that we
+        // just overwrote with (e.g. try to read/write a new snapshot) and we'll self-recover. I
+        // don't think we can get into any cycles with this or anything, 'cause we never really move
+        // *backwards* - we just sometimes have a job that was trying to move us forward not move us
+        // as forward as we hoped it would.
+        self.fast_forward_inner_with_snapshot_without_updating_meta(catalog_file, inner)
+            .await
+            .inspect(|_| inner.write().last_snapshot_meta = snapshot_meta)
+    }
+
+    async fn fast_forward_inner_with_snapshot_without_updating_meta(
+        &self,
+        CatalogFile {
+            header,
+            mut records,
+        }: CatalogFile,
+        inner: &RwLock<InnerCatalog>,
+    ) -> Result<Option<CatalogSequenceNumber>, FastForwardErr> {
+        // The last record to be applied is the one with the highest sequence number. This is
+        // *basically* always the last record, but not actually always.
+        //
+        // In a previous design of the catalog, records were grouped, within snapshots, by what part
+        // of the catalog they touched (instead of all being globally ordered). This means that
+        // record with sequence N+1 could be listed before record with sequence N if the groups that
+        // record N belonged to was ordered after record N+1's group.
+        //
+        // Snapshots aren't organized into this kind of grouping anymore, but they don't re-order
+        // records if they are read with this grouping. So a snapshot could be organized by group
+        // for its first half of records, then everything after this grouping was removed should be
+        // globally ordered.
+        //
+        // So theoretically, if this was being used to fast forward a snapshot where
+        // 1. The catalog that had just loaded a grouped snapshot, and
+        // 2. No other records had been applied since that load, and
+        // 3. that grouped snapshot was ordered in such a way that the last record didn't have the
+        //    highest sequence, THEN
+        // the last record would not have the highest sequence number. Niche case, but we must be
+        // ready for it.
+        //
+        // theoretically, `inner.sequence` should be equal to `loaded_records_up_to`, but that
+        // depends on the sequence in the grouped snapshots being computed in this same way, which I
+        // can't guarantee that it was. So we need to do this to be safe.
+        fn retain_records_applicable_to(
+            inner: &InnerCatalog,
+            records: &mut Vec<Record>,
+        ) -> ControlFlow<()> {
+            let loaded_records_up_to = inner
+                .ordered_records
+                .iter()
+                .map(|rec| rec.header.sequence)
+                .max();
+            if let Some(loaded_up_to) = loaded_records_up_to {
+                records.retain(|rec| rec.sequence() > loaded_up_to);
+
+                if records.is_empty() {
+                    return ControlFlow::Break(());
+                }
+            }
+
+            ControlFlow::Continue(())
+        }
+
+        let snapshot_sequence = CatalogSequenceNumber::new(header.sequence_number);
+
+        let committed_feature_level = {
+            let read_catalog = inner.read();
+            if let ControlFlow::Break(()) =
+                retain_records_applicable_to(&read_catalog, &mut records)
+            {
+                return Ok(None);
+            }
+
+            read_catalog.committed_feature_level
+        };
+
+        // Snapshots normally do not contain restore records, but pre-load defensively in case
+        // one slipped in.
+        let preload = preload_restore_for_file_records(&records, self, committed_feature_level)
+            .await
+            .map_err(FastForwardErr::DuringPreload)?;
+
+        {
+            // we need to do this filtering again because someone might've applied more records
+            // between doing the filtering before and finishing the preload. But we know that since
+            // we're doing this filtering while holding a write lock, we know that it's all
+            // up-to-date after we do it.
+
+            let mut write_catalog = inner.write();
+            if let ControlFlow::Break(()) =
+                retain_records_applicable_to(&write_catalog, &mut records)
+            {
+                return Ok(None);
+            }
+
+            apply_records(&records, &mut write_catalog, snapshot_sequence, preload).map_err(
+                |e| {
+                    self.catalog_snapshot_observer
+                        .on_catalog_snapshot_error("catalog_snapshot_failed");
+                    FastForwardErr::RecordFailedValidation(e)
+                },
+            )?;
+        }
+
+        // TODO(june): We should broadcast the snapshot load here, in a way that would allow the
+        // compactor to listen to it and record that these files need to be deleted. But we should
+        // only broadcast if this is not an initialization OR we know that the very first log file
+        // still exists in object store.
+
+        Ok(Some(snapshot_sequence))
     }
 }
 

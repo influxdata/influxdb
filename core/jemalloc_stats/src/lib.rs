@@ -44,7 +44,7 @@ macro_rules! install_default_malloc_conf_for_profiling {
             target_os = "dragonfly",
             target_env = "musl",
         )))]
-        #[allow(non_upper_case_globals)]
+        #[expect(non_upper_case_globals)]
         #[unsafe(no_mangle)]
         pub static malloc_conf: &'static [u8; $crate::DEFAULT_MALLOC_CONF.len()] =
             $crate::DEFAULT_MALLOC_CONF;
@@ -57,7 +57,7 @@ macro_rules! install_default_malloc_conf_for_profiling {
             target_os = "dragonfly",
             target_env = "musl",
         ))]
-        #[allow(non_upper_case_globals)]
+        #[expect(non_upper_case_globals)]
         #[unsafe(export_name = "_rjem_malloc_conf")]
         pub static malloc_conf: &'static [u8; $crate::DEFAULT_MALLOC_CONF.len()] =
             $crate::DEFAULT_MALLOC_CONF;

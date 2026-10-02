@@ -343,7 +343,7 @@ impl TableIndexCache {
             .object_store
             .get_with_default_retries(
                 conversion_complet_path.as_ref(),
-                "Loading table index conversion marker".to_string(),
+                "Loading table index conversion marker",
             )
             .await
         {
@@ -423,7 +423,7 @@ impl TableIndexCache {
                     .put_with_default_retries(
                         conversion_complet_path.as_ref(),
                         json.into(),
-                        "Persisting initial table index conversion marker".to_string(),
+                        "Persisting initial table index conversion marker",
                     )
                     .await
                     .map_err(TableIndexCacheError::PutConversionMarkerError)?;
@@ -494,10 +494,7 @@ impl TableIndexCache {
             .put_with_default_retries(
                 conversion_complet_path.as_ref(),
                 json.into(),
-                format!(
-                    "Persisting final conversion marker at sequence {}",
-                    last_seq_number
-                ),
+                &format!("Persisting final conversion marker at sequence {last_seq_number}"),
             )
             .await
             .map_err(TableIndexCacheError::PutConversionMarkerError)?;
@@ -696,7 +693,7 @@ impl TableIndexCache {
 
             // Delete each parquet file
             for parquet_file in index.parquet_files().await {
-                let path = ObjPath::from(parquet_file.path.as_str());
+                let path = ObjPath::from(parquet_file.path.as_ref());
                 debug!(
                     path = %path,
                     "Deleting parquet file"
@@ -704,7 +701,7 @@ impl TableIndexCache {
 
                 self.inner
                     .object_store
-                    .delete_with_default_retries(&path, format!("Deleting parquet file {}", path))
+                    .delete_with_default_retries(&path, &format!("Deleting parquet file {path}"))
                     .await
                     .map_err(|e| TableIndexCacheError::DeleteParquetFile {
                         path: path.to_string(),
@@ -730,7 +727,7 @@ impl TableIndexCache {
             .object_store
             .delete_with_default_retries(
                 index_path.as_ref(),
-                format!("Deleting table index for {}", table_index_id),
+                &format!("Deleting table index for {table_index_id}"),
             )
             .await
             .map_err(|e| TableIndexCacheError::DeleteTableIndex {
@@ -897,7 +894,7 @@ impl TableIndexCache {
 
         // Delete expired parquet files from object store
         for file in &expired_files {
-            let path = ObjPath::from(file.path.as_str());
+            let path = ObjPath::from(file.path.as_ref());
             debug!(
                 path = %path,
                 max_time = file.max_time,
@@ -909,9 +906,9 @@ impl TableIndexCache {
                 .object_store
                 .delete_with_default_retries(
                     &path,
-                    format!(
-                        "Deleting expired parquet file {} (max_time: {}, cutoff: {})",
-                        path, file.max_time, cutoff_time_ns
+                    &format!(
+                        "Deleting expired parquet file {path} (max_time: {}, cutoff: {cutoff_time_ns})",
+                        file.max_time
                     ),
                 )
                 .await

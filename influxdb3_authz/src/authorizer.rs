@@ -73,8 +73,17 @@ impl AuthProvider for TokenAuthenticatorAndAuthorizer {
         access_request: AccessRequest,
     ) -> Result<(), ResourceAuthorizationError> {
         let subject = subject.ok_or(ResourceAuthorizationError::Unauthorized)?;
+
+        // Role authoring and deletion are temporarily gated to admins only
+        if let AccessRequest::Role(RoleAction::Create | RoleAction::Update | RoleAction::Delete) =
+            access_request
+        {
+            return self
+                .authorize_action(Some(subject), AccessRequest::Admin)
+                .await;
+        }
+
         match subject {
-            Subject::Internode => Ok(()),
             Subject::Token(token_id) => {
                 trace!(?token_id, ?access_request, "checking token access");
                 if let AccessRequest::MaybeDatabase(Some(db_id), _database_actions) = access_request

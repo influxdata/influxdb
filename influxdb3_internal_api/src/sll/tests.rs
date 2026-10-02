@@ -68,10 +68,17 @@ fn noop_sink_accepts_any_event() {
         bytes_reclaimed: 1,
         duration_ms: 1,
     });
+    sink.emit(SystemEvent::ParquetCleanupSuccess {
+        cleanup_mode: "dry_run",
+        files_matched: 1,
+        bytes_matched: 1,
+        files_deleted: 0,
+        bytes_reclaimed: 0,
+        duration_ms: 1,
+    });
     sink.emit(SystemEvent::CompactionPlannedSuccess {
         database_id: 1,
         groups_planned: 1,
-        plans_skipped_file_limit: 0,
         files_to_compact: 1,
     });
     sink.emit(SystemEvent::CompactionCompletedSuccess {
@@ -84,6 +91,11 @@ fn noop_sink_accepts_any_event() {
     sink.emit(SystemEvent::MemoryPressureSuccess {
         current_buffer_size_bytes: 1,
         memory_threshold_bytes: 1,
+    });
+    sink.emit(SystemEvent::MemoryReservationsSuccess {
+        detected_bytes: 1,
+        reserved_bytes: 1,
+        headroom_bytes: 1,
     });
     sink.emit(SystemEvent::CatalogSnapshotSuccess {
         sequence_number: 1,

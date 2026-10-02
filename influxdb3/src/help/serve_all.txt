@@ -25,6 +25,8 @@ Examples:
 {}
   --node-id <NODE_ID>                          Node identifier used as prefix in object store file paths
                                                  [env: INFLUXDB3_NODE_ID=]
+  --node-id-from-env <VARNAME>                 Obtain the node id from the specified environment variable; conflicts with --node-id flag
+                                                 [env: INFLUXDB3_NODE_ID_FROM_ENV=]
   --object-store <STORE>                       Object storage to use
                                                  [possible values: memory, memory-throttled, file, s3, google, azure]
 
@@ -139,6 +141,8 @@ Examples:
                                                  [env: INFLUXDB3_OBJECT_STORE_MAX_RETRIES=]
   --object-store-retry-timeout <TIMEOUT>       Max retry timeout
                                                  [env: INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT=]
+  --object-store-request-timeout <TIMEOUT>     HTTP request timeout for object store requests [default: 30s]
+                                                 [env: INFLUXDB3_OBJECT_STORE_REQUEST_TIMEOUT=]
   --object-store-tls-allow-insecure            Skip TLS certificate verification for object storage.
                                                WARNING: This is insecure and should only be used for testing
                                                  [env: INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE=]
@@ -185,20 +189,31 @@ Examples:
                                                  [env: INFLUXDB3_RETENTION_CHECK_INTERVAL=]
 
 {}
-  --wal-flush-interval <INTERVAL>                Interval to flush data to WAL file [default: 1s]
+  --wal-flush-interval <INTERVAL>                Interval to flush data to WAL file; shorter intervals
+                                                 acknowledge writes sooner but produce smaller WAL files
+                                                 and more object-store requests [default: 1s]
                                                    [env: INFLUXDB3_WAL_FLUSH_INTERVAL=]
-  --wal-files-per-snapshot <N>                   Number of WAL files per snapshot [default: 600]
+  --wal-files-per-snapshot <N>                   Number of WAL files per snapshot; larger batches snapshot
+                                                 more efficiently, smaller batches keep the query path and
+                                                 compactor more current
+                                                 [default: 600]
                                                    [aliases: wal-snapshot-size]
                                                    [env: INFLUXDB3_WAL_FILES_PER_SNAPSHOT=]
-  --wal-max-buffered-writes <N>                  Max write requests in buffer [default: 100000]
-                                                   [aliases: wal-max-write-buffer-size]
-                                                   [env: INFLUXDB3_WAL_MAX_BUFFERED_WRITES=]
   --wal-replay-concurrency-limit <LIMIT>         Concurrency limit during WAL replay [default: max(num_cpus, 10)]
                                                  Setting this number too high can lead to OOM.
                                                  The default is dynamically determined.
                                                    [env: INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT=]
   --snapshotted-wal-files-to-keep <N>            Number of snapshotted WAL files to retain [default: 300]
                                                    [env: INFLUXDB3_SNAPSHOTTED_WAL_FILES_TO_KEEP=]
+  --wal-replay-fail-on-error                     Fail startup on corrupt WAL files instead of skipping them
+                                                   [env: INFLUXDB3_WAL_REPLAY_FAIL_ON_ERROR=]
+  --snapshot-concurrency-limit <N>               Max concurrent snapshot persistence tasks; setting this too
+                                                 high can lead to OOM [default: number of CPUs]
+                                                   [env: INFLUXDB3_SNAPSHOT_CONCURRENCY_LIMIT=]
+  --checkpoint-interval <INTERVAL>               Interval between snapshot checkpoints, which aggregate
+                                                 snapshots into one file per month to speed up startup
+                                                 [default: disabled]
+                                                   [env: INFLUXDB3_CHECKPOINT_INTERVAL=]
 
 {}
   --last-cache-eviction-interval <INTERVAL>      Last-N-Value cache eviction interval [default: 10s]
@@ -208,21 +223,32 @@ Examples:
   --query-log-max-entries <N>                    Maximum number of entries in the query log [default: 1000]
                                                    [aliases: query-log-size]
                                                    [env: INFLUXDB3_QUERY_LOG_MAX_ENTRIES=]
+  --max-concurrent-queries <N>                   Maximum number of queries executing at once; further queries
+                                                 wait until a running query completes. Lower values provide
+                                                 backpressure during load spikes at the cost of queuing
+                                                   [default: max(50, 4 x effective parallelism)]
+                                                   [env: INFLUXDB3_MAX_CONCURRENT_QUERIES=]
   --query-file-limit <LIMIT>                     Max parquet files allowed in a query
                                                    [env: INFLUXDB3_QUERY_FILE_LIMIT=]
 
 {}
-  --max-http-request-size <SIZE>                 Maximum size of HTTP requests [default: 10485760]
+  --max-http-request-size <SIZE>                 Maximum size of HTTP requests [default: 10mb]
                                                    [env: INFLUXDB3_MAX_HTTP_REQUEST_SIZE=]
 
 {}
-  --exec-mem-pool-size <SIZE>                         Memory pool size for query execution [default: 20%]
+  --exec-mem-pool-size <SIZE>                         Memory budget for query execution; queries exceeding it
+                                                      fail with a resource exhausted error rather than growing
+                                                      unbounded
+                                                      [default: 20%]
                                                         [aliases: exec-mem-pool-bytes]
                                                         [env: INFLUXDB3_EXEC_MEM_POOL_SIZE=]
-  --force-snapshot-mem-threshold <THRESH>             Internal buffer threshold [default: 50%]
-                                                        [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD=]
+  --force-snapshot-mem-size <SIZE>                    Write-buffer memory at which a snapshot is forced to free
+                                                      memory [default: 50%]
+                                                        [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_SIZE=]
+  --force-snapshot-max-age <DURATION>                 Maximum age of un-snapshotted WAL data before a snapshot
+                                                      is forced, regardless of WAL file count [default: 1h]
+                                                        [env: INFLUXDB3_FORCE_SNAPSHOT_MAX_AGE=]
   --file-cache-size <SIZE>                            In-memory data file cache size [default: 20%]
-                                                        [aliases: parquet-mem-cache-size]
                                                         [env: INFLUXDB3_FILE_CACHE_SIZE=]
   --parquet-mem-cache-prune-percentage <PCT>          Percentage to prune from cache [default: 0.1]
                                                         [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE=]
@@ -245,8 +271,8 @@ Examples:
                                                         [env: INFLUXDB3_TABLE_INDEX_CACHE_CONCURRENCY_LIMIT=]
 
 {}
-  --datafusion-num-threads <N>                        Max DataFusion runtime threads
-                                                        [env: INFLUXDB3_DATAFUSION_NUM_THREADS=]
+  --num-datafusion-threads <N>                        Max DataFusion runtime threads
+                                                        [env: INFLUXDB3_NUM_DATAFUSION_THREADS=]
   --datafusion-runtime-type <TYPE>                    DataFusion runtime type [default: multi-thread]
                                                         [possible values: current-thread, multi-thread, multi-thread-alt]
                                                         [env: INFLUXDB3_DATAFUSION_RUNTIME_TYPE=]

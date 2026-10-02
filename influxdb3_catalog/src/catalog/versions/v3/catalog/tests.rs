@@ -1,4 +1,5 @@
-use std::{num::NonZeroU32, sync::Arc, time::Duration};
+use std::num::NonZeroU32;
+use std::sync::Arc;
 
 use iox_time::{MockProvider, Time, TimeProvider};
 use metric::Registry;
@@ -13,13 +14,14 @@ use crate::catalog::versions::v3::catalog::{
 use crate::catalog::versions::v3::deletes::DeletionScope;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::ops::node::{RegisterNodeArgs, RegisterNodeOp};
-use crate::catalog::versions::v3::schema::column::FieldDataType;
+use crate::catalog::versions::v3::schema::database::SchemaMode;
 use crate::catalog::versions::v3::schema::node::NodeMode;
 use crate::catalog::versions::v3::schema::storage::StorageMode;
 use crate::catalog::versions::v3::transaction::Prompt;
 use crate::catalog::versions::v3::usage::CatalogLimits;
 use crate::format::records::types::StorageMode as WireStorageMode;
 use crate::format::records::{SetGenerationDuration, SetStorageMode};
+use crate::object_store::LoadedCatalogFile;
 use crate::object_store::versions::v3::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
 use influxdb3_id::CatalogId;
@@ -35,7 +37,7 @@ fn test_store_with_prefix(prefix: &str) -> ObjectStoreCatalog {
 async fn test_load_or_create(
     prefix: &str,
     store: Arc<dyn object_store::ObjectStore>,
-) -> Result<Catalog, crate::CatalogError> {
+) -> Result<Arc<Catalog>, crate::CatalogError> {
     Catalog::load_or_create(
         prefix,
         None,
@@ -70,10 +72,10 @@ fn test_catalog_with_store_and_policy(
     )
 }
 
-fn test_catalog_with_current_node(prefix: &str, current_node_id: &str) -> Catalog {
+fn test_catalog_with_current_node(prefix: &str, current_node_id: &str) -> Arc<Catalog> {
     let store = test_store_with_prefix(prefix);
     let inner = InnerCatalog::new(Arc::from("test"), Uuid::nil());
-    Catalog::from_parts(
+    Arc::new(Catalog::from_parts(
         inner,
         store,
         Some(Arc::from(current_node_id)),
@@ -83,10 +85,10 @@ fn test_catalog_with_current_node(prefix: &str, current_node_id: &str) -> Catalo
         Catalog::DEFAULT_HARD_DELETE_DURATION,
         CheckpointPolicy::default(),
         Arc::new(CatalogLimits::none()),
-    )
+    ))
 }
 
-async fn soft_delete_table_now(catalog: &Catalog, db: &str, table: &str) {
+async fn soft_delete_table_now(catalog: &Arc<Catalog>, db: &str, table: &str) {
     catalog
         .soft_delete_table(
             db,
@@ -98,7 +100,7 @@ async fn soft_delete_table_now(catalog: &Catalog, db: &str, table: &str) {
         .unwrap();
 }
 
-async fn soft_delete_db_now(catalog: &Catalog, db: &str) {
+async fn soft_delete_db_now(catalog: &Arc<Catalog>, db: &str) {
     catalog
         .soft_delete_database(db, HardDeletionTime::Now, DeletionScope::DataAndCatalog)
         .await
@@ -169,13 +171,13 @@ impl TestCatalog {
     }
 
     /// Return a fresh Catalog backed by the shared store.
-    fn catalog(&self) -> Catalog {
+    fn catalog(&self) -> Arc<Catalog> {
         let store = ObjectStoreCatalog::new("p", Arc::clone(&self.shared), StorageMode::default());
-        test_catalog_with_store(store)
+        Arc::new(test_catalog_with_store(store))
     }
 
     /// Simulate a node restart by loading a new Catalog from the shared store.
-    async fn reload(&self) -> Catalog {
+    async fn reload(&self) -> Arc<Catalog> {
         test_load_or_create("p", Arc::clone(&self.shared))
             .await
             .unwrap()
@@ -184,15 +186,15 @@ impl TestCatalog {
     /// Return a fresh Catalog backed by the shared store with automatic
     /// checkpointing suppressed. Use this in tests that call
     /// `force_checkpoint()` manually to control exactly when a snapshot lands.
-    fn catalog_no_checkpoint(&self) -> Catalog {
+    fn catalog_no_checkpoint(&self) -> Arc<Catalog> {
         let store = ObjectStoreCatalog::new("p", Arc::clone(&self.shared), StorageMode::default());
-        test_catalog_with_store_and_policy(
+        Arc::new(test_catalog_with_store_and_policy(
             store,
             CheckpointPolicy {
                 log_interval: 1_000_000,
                 time_interval: std::time::Duration::from_secs(3600),
             },
-        )
+        ))
     }
 }
 
@@ -1031,16 +1033,17 @@ mod table_transaction {
 // ---------------------------------------------------------------------------
 
 mod checkpointing {
+    use std::time::Duration;
+
     use super::*;
-    use pretty_assertions::assert_eq;
 
     fn catalog_with_policy(
         shared: Arc<dyn object_store::ObjectStore>,
         policy: CheckpointPolicy,
-    ) -> Catalog {
+    ) -> Arc<Catalog> {
         let store = ObjectStoreCatalog::new("p", shared, StorageMode::default());
         let inner = InnerCatalog::new(Arc::from("test"), Uuid::nil());
-        Catalog::from_parts(
+        Arc::new(Catalog::from_parts(
             inner,
             store,
             None,
@@ -1050,7 +1053,7 @@ mod checkpointing {
             Catalog::DEFAULT_HARD_DELETE_DURATION,
             policy,
             Arc::new(CatalogLimits::none()),
-        )
+        ))
     }
 
     /// Wait for any in-flight background checkpoint to finish by acquiring the
@@ -1131,7 +1134,8 @@ mod checkpointing {
         let last = *catalog.last_checkpoint.lock();
         assert_eq!(last.sequence, CatalogSequenceNumber::new(2));
 
-        let (snapshot, _size_bytes) = catalog.store.load_snapshot().await.unwrap().unwrap();
+        let LoadedCatalogFile { file: snapshot, .. } =
+            catalog.store.load_snapshot().await.unwrap().unwrap();
         assert_eq!(snapshot.header.sequence_number, 2);
         assert_eq!(snapshot.record_count(), 2);
     }
@@ -1227,7 +1231,7 @@ mod checkpointing {
         // (still in-flight) background write.
         let handle = {
             let catalog = Arc::clone(&catalog);
-            tokio::spawn(async move { catalog.force_checkpoint().await })
+            tokio::spawn(async move { catalog.force_checkpoint(None).await })
         };
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(
@@ -1242,7 +1246,8 @@ mod checkpointing {
         handle.await.unwrap().unwrap();
 
         let live_seq = catalog.inner.read().sequence_number();
-        let (snapshot, _size_bytes) = catalog.store.load_snapshot().await.unwrap().unwrap();
+        let LoadedCatalogFile { file: snapshot, .. } =
+            catalog.store.load_snapshot().await.unwrap().unwrap();
         assert_eq!(snapshot.header.sequence_number, live_seq.get());
     }
 
@@ -1250,6 +1255,8 @@ mod checkpointing {
     /// database that had tables fails to load — cold start fails outright.
     #[tokio::test]
     async fn probe_hard_deleted_db_snapshot_reloads() {
+        use crate::catalog::versions::v3::schema::column::FieldDataType;
+
         let test_catalog = TestCatalog::new();
         let catalog = catalog_with_policy(
             test_catalog.store(),
@@ -1274,7 +1281,7 @@ mod checkpointing {
             .unwrap();
         catalog.hard_delete_database(&dropped.id).await.unwrap();
 
-        catalog.force_checkpoint().await.unwrap();
+        catalog.force_checkpoint(None).await.unwrap();
 
         let reloaded = test_load_or_create("p", test_catalog.store()).await;
         assert!(reloaded.is_ok(), "reload failed: {:?}", reloaded.err());
@@ -1285,6 +1292,8 @@ mod checkpointing {
     /// from the live state that produced it.
     #[tokio::test]
     async fn probe_soft_deleted_db_snapshot_reload_state() {
+        use crate::catalog::versions::v3::schema::column::FieldDataType;
+
         let test_catalog = TestCatalog::new();
         let catalog = catalog_with_policy(
             test_catalog.store(),
@@ -1316,7 +1325,7 @@ mod checkpointing {
         assert!(live_db.deleted);
         assert!(live_table.deleted, "live table not marked deleted");
 
-        catalog.force_checkpoint().await.unwrap();
+        catalog.force_checkpoint(None).await.unwrap();
         let reloaded = test_catalog.reload().await;
         let reloaded_db = reloaded
             .db_schema_by_id(&live_db.id)
@@ -1339,6 +1348,8 @@ mod checkpointing {
     /// tables are resurrected.
     #[tokio::test]
     async fn probe_remove_tables_hard_delete_snapshot_reload_state() {
+        use crate::catalog::versions::v3::schema::column::FieldDataType;
+
         let test_catalog = TestCatalog::new();
         let catalog = catalog_with_policy(
             test_catalog.store(),
@@ -1366,128 +1377,13 @@ mod checkpointing {
         let live_db = catalog.db_schema_by_id(&db.id).unwrap();
         assert_eq!(live_db.tables.len(), 0, "live tables not cleared");
 
-        catalog.force_checkpoint().await.unwrap();
+        catalog.force_checkpoint(None).await.unwrap();
         let reloaded = test_catalog.reload().await;
         let reloaded_db = reloaded.db_schema_by_id(&db.id).unwrap();
         assert_eq!(
             reloaded_db.tables.len(),
             0,
             "cleared tables resurrected on reload"
-        );
-    }
-
-    #[cfg(feature = "true_deletion")]
-    #[test_log::test(tokio::test)]
-    async fn soft_deletion_cascades_and_removes_all_references_from_snapshot() {
-        use crate::format::{
-            CatalogFile, MakeRecord, record_ids,
-            records::{
-                AddColumns, CreateDatabase, CreateTable, NextIdScope, SetNextId,
-                types::{
-                    ColumnDefinition, FieldColumn, FieldFamilyDefinition, FieldFamilyMode,
-                    FieldFamilyName, FieldIdentifier, RetentionPeriod, TagColumn, TimestampColumn,
-                },
-            },
-        };
-
-        fn get_snapshot_catalog_file(catalog: &Catalog) -> CatalogFile {
-            let bytes = catalog.inner.write().create_snapshot();
-            let mut cursor = std::io::Cursor::new(bytes.as_ref());
-            CatalogFile::read_from(&mut cursor).expect("reader parses snapshot")
-        }
-
-        let shared: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
-        let catalog = catalog_with_policy(
-            Arc::clone(&shared),
-            CheckpointPolicy {
-                log_interval: 1_000_000,
-                time_interval: Duration::from_secs(3600),
-            },
-        );
-
-        let db = catalog.create_database("db").await.unwrap();
-        let table = catalog
-            .create_table("db", "t", &["host"], &[("temp", FieldDataType::Float)])
-            .await
-            .unwrap();
-
-        let file = get_snapshot_catalog_file(&catalog);
-        let expected_records = [
-            CreateDatabase {
-                database_id: db.id.get(),
-                database_name: "db".to_string(),
-                retention_period: RetentionPeriod::Indefinite,
-            }
-            .make_record(1),
-            CreateTable {
-                database_id: db.id.get(),
-                database_name: "db".to_string(),
-                table_name: "t".to_string(),
-                table_id: table.table_id.get(),
-                retention_period: RetentionPeriod::Indefinite,
-                field_family_mode: FieldFamilyMode::Aware,
-            }
-            .make_record(2),
-            AddColumns {
-                database_id: db.id.get(),
-                table_id: table.table_id.get(),
-                columns: vec![
-                    ColumnDefinition::Tag(TagColumn {
-                        id: 0,
-                        column_id: Some(0),
-                        name: "host".to_string(),
-                    }),
-                    ColumnDefinition::Field(FieldColumn {
-                        id: FieldIdentifier {
-                            family_id: 0,
-                            field_id: 0,
-                        },
-                        column_id: Some(1),
-                        name: "temp".to_string(),
-                        data_type: crate::format::records::types::FieldDataType::Float,
-                    }),
-                    ColumnDefinition::Timestamp(TimestampColumn {
-                        column_id: Some(2),
-                        name: "time".to_string(),
-                    }),
-                ],
-                field_families: vec![FieldFamilyDefinition {
-                    id: 0,
-                    name: FieldFamilyName::Auto(0),
-                }],
-            }
-            .make_record(2),
-        ];
-
-        // make sure that we have all of the records for the creation and such...
-        assert_eq!(file.records, expected_records);
-
-        // todo: test different deletion scopes
-        catalog
-            .soft_delete_database("db", HardDeletionTime::Now, DeletionScope::DataAndCatalog)
-            .await
-            .unwrap();
-
-        let file = get_snapshot_catalog_file(&catalog);
-
-        assert_eq!(file.records[..file.records.len() - 1], expected_records);
-        let soft_delete_record = file.records.last().unwrap();
-        assert_eq!(soft_delete_record.id(), record_ids::SOFT_DELETE_DATABASE);
-
-        // normally, the deleter or smth would handle actually doing the hard-deleting, but since
-        // this is a catalog-only test, we have to manually call the delete ourselves.
-        catalog.hard_delete_database(&db.id).await.unwrap();
-
-        let file = get_snapshot_catalog_file(&catalog);
-
-        // and now make sure that none of the creation events are there
-        assert_eq!(
-            file.records,
-            [SetNextId {
-                id: 0,
-                scope: NextIdScope::Databases
-            }
-            .make_record(1)]
         );
     }
 }
@@ -1721,7 +1617,7 @@ mod startup_snapshot_rewrite {
         {
             let catalog = test_catalog.reload().await;
             catalog.create_database("db").await.unwrap();
-            catalog.force_checkpoint().await.unwrap();
+            catalog.force_checkpoint(None).await.unwrap();
         }
         let path = CatalogFilePath::snapshot("p");
         let before = store.head(&path).await.unwrap();
@@ -1855,14 +1751,14 @@ mod limits {
     use crate::catalog::versions::v3::schema::column::FieldFamilyMode;
     use crate::catalog::{CreateTableOptions, FieldDataType, TableDefinition};
 
-    fn catalog_with_limits(limits: CatalogLimits) -> Catalog {
+    fn catalog_with_limits(limits: CatalogLimits) -> Arc<Catalog> {
         let store = ObjectStoreCatalog::new(
             "p",
             Arc::new(InMemory::new()) as Arc<dyn object_store::ObjectStore>,
             StorageMode::default(),
         );
         let inner = InnerCatalog::new(Arc::from("test"), Uuid::nil());
-        Catalog::from_parts(
+        Arc::new(Catalog::from_parts(
             inner,
             store,
             None,
@@ -1872,18 +1768,19 @@ mod limits {
             Catalog::DEFAULT_HARD_DELETE_DURATION,
             CheckpointPolicy::default(),
             Arc::new(limits),
-        )
+        ))
     }
 
     fn create_db_args(name: &str) -> CreateDatabaseArgs {
         CreateDatabaseArgs {
             name: name.to_string(),
             retention_period: None,
+            schema_mode: SchemaMode::Implicit,
         }
     }
 
     async fn create_table(
-        cat: &Catalog,
+        cat: &Arc<Catalog>,
         db: &str,
         table: &str,
     ) -> Result<Arc<TableDefinition>, CatalogError> {
@@ -2111,6 +2008,115 @@ mod limits {
 
         txn.check_write_column_limits("cpu", &incoming_tags, &incoming_fields)
             .expect("duplicate keys within a line should count once toward the limit");
+    }
+
+    #[tokio::test]
+    async fn check_write_column_limits_projects_for_nonexistent_table() {
+        let catalog = catalog_with_limits(CatalogLimits::new(10, 100, 5));
+        let mut txn = catalog.begin_database_transaction("db1").unwrap();
+        // No table created: every unique incoming column is new.
+        let incoming_tags = ["tag1", "tag2"];
+        let incoming_fields = ["field1", "field2", "field3", "field4"];
+        let err = txn
+            .check_write_column_limits("cpu", &incoming_tags, &incoming_fields)
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CatalogError::TooManyColumns {
+                    ref table_name,
+                    attempted: 6,
+                    limit: 5,
+                } if table_name.inner() == "cpu"
+            ),
+            "expected projected TooManyColumns for a table that doesn't exist yet, got {err:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn check_projected_column_counts() {
+        let catalog = catalog_with_limits(CatalogLimits::new(10, 100, 5));
+        let mut txn = catalog.begin_database_transaction("db1").unwrap();
+        // Nonexistent table: every counted column is new.
+        txn.check_new_table_column_counts("cpu", 1, 4).unwrap();
+        let err = txn.check_new_table_column_counts("cpu", 1, 5).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CatalogError::TooManyColumns {
+                    attempted: 6,
+                    limit: 5,
+                    ..
+                }
+            ),
+            "expected projected TooManyColumns, got {err:?}",
+        );
+        // Existing columns count toward the projection.
+        let tx = txn.table_tx_or_create("cpu").unwrap();
+        tx.tag_or_create("t0").unwrap();
+        tx.tag_or_create("t1").unwrap();
+        tx.check_projected_column_counts(1, 2).unwrap();
+        let err = tx.check_projected_column_counts(1, 3).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CatalogError::TooManyColumns {
+                    attempted: 6,
+                    limit: 5,
+                    ..
+                }
+            ),
+            "expected projected TooManyColumns, got {err:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn table_transaction_clones_only_on_mutation() {
+        use schema::InfluxFieldType;
+
+        let catalog = catalog_with_limits(CatalogLimits::new(10, 100, 100));
+        let mut txn = catalog.begin_database_transaction("db1").unwrap();
+        let tx = txn.table_tx_or_create("cpu").unwrap();
+        tx.tag_or_create("host").unwrap();
+        tx.field_or_create("usage", InfluxFieldType::Float).unwrap();
+        catalog.commit(txn).await.unwrap().unwrap_success();
+
+        let schema_arc = catalog
+            .db_schema("db1")
+            .unwrap()
+            .table_definition("cpu")
+            .unwrap();
+
+        // Read-only access shares the committed snapshot's Arc.
+        let mut txn = catalog.begin_database_transaction("db1").unwrap();
+        let tx = txn.existing_table_tx("cpu").unwrap();
+        assert!(
+            Arc::ptr_eq(&tx.table, &schema_arc),
+            "read-only table transaction should not clone the table definition",
+        );
+
+        // First mutation clones; the committed snapshot is untouched.
+        let tx = txn.table_tx_or_create("cpu").unwrap();
+        tx.tag_or_create("region").unwrap();
+        let tx = txn.existing_table_tx("cpu").unwrap();
+        assert!(
+            !Arc::ptr_eq(&tx.table, &schema_arc),
+            "mutation should clone the table definition",
+        );
+        assert!(
+            schema_arc.column_definition("region").is_none(),
+            "committed snapshot should not see the uncommitted column",
+        );
+        assert!(
+            catalog
+                .db_schema("db1")
+                .unwrap()
+                .table_definition("cpu")
+                .unwrap()
+                .column_definition("region")
+                .is_none(),
+            "catalog should not see the uncommitted column",
+        );
     }
 }
 // ---------------------------------------------------------------------------
@@ -2444,6 +2450,7 @@ mod read_only {
 mod background_update {
     use super::*;
     use influxdb3_shutdown::ShutdownManager;
+    use std::time::Duration;
 
     /// Build a Catalog backed by `store`, parameterized with the given
     /// time provider so the test can drive sleep wakeups deterministically.
@@ -2565,7 +2572,7 @@ mod bounded_catch_up {
         assert_eq!(cat_b.sequence_number(), CatalogSequenceNumber::new(0));
 
         cat_b
-            .update_to_sequence_number(CatalogSequenceNumber::new(2))
+            .update_to_sequence_number(CatalogSequenceNumber::new(2), None)
             .await
             .unwrap();
         assert_eq!(cat_b.sequence_number(), CatalogSequenceNumber::new(2));
@@ -2584,7 +2591,7 @@ mod bounded_catch_up {
         // Calling again with a target at or below the current
         // sequence is a no-op.
         cat_b
-            .update_to_sequence_number(CatalogSequenceNumber::new(1))
+            .update_to_sequence_number(CatalogSequenceNumber::new(1), None)
             .await
             .unwrap();
         assert_eq!(cat_b.sequence_number(), CatalogSequenceNumber::new(2));
@@ -2615,7 +2622,7 @@ mod bounded_catch_up {
         let cat_b_clone = Arc::clone(&cat_b);
         let catch_up_task = tokio::spawn(async move {
             cat_b_clone
-                .update_to_sequence_number(CatalogSequenceNumber::new(2))
+                .update_to_sequence_number(CatalogSequenceNumber::new(2), None)
                 .await
                 .unwrap();
         });
@@ -2745,7 +2752,7 @@ mod current_node {
         Arc::new(ProcessUuidWrapper::new())
     }
 
-    async fn register(catalog: &Catalog, node_id: &str, cores: u64) {
+    async fn register(catalog: &Arc<Catalog>, node_id: &str, cores: u64) {
         catalog
             .register_node(
                 node_id,
@@ -2863,7 +2870,7 @@ mod db_lookups {
     use influxdb3_id::DbId;
 
     struct Seeded {
-        catalog: Catalog,
+        catalog: Arc<Catalog>,
         mock: Arc<MockProvider>,
         alpha_id: DbId,
         beta_id: DbId,
@@ -2878,7 +2885,7 @@ mod db_lookups {
     async fn seeded_catalog() -> Seeded {
         let mock = Arc::new(MockProvider::new(Time::from_timestamp_nanos(1000)));
         let time_provider: Arc<dyn TimeProvider> = Arc::clone(&mock) as _;
-        let catalog = Catalog::from_parts(
+        let catalog = Arc::new(Catalog::from_parts(
             InnerCatalog::new(Arc::from("test"), Uuid::nil()),
             test_store_with_prefix("p"),
             None,
@@ -2888,7 +2895,7 @@ mod db_lookups {
             Catalog::DEFAULT_HARD_DELETE_DURATION,
             CheckpointPolicy::default(),
             Arc::new(CatalogLimits::none()),
-        );
+        ));
 
         catalog
             .update::<RegisterNodeOp>(register_args("node-a"))
@@ -2903,6 +2910,7 @@ mod db_lookups {
             .update::<CreateDatabaseOp>(CreateDatabaseArgs {
                 name: "alpha".to_string(),
                 retention_period: None,
+                schema_mode: SchemaMode::Implicit,
             })
             .await
             .unwrap();
@@ -2910,6 +2918,7 @@ mod db_lookups {
             .update::<CreateDatabaseOp>(CreateDatabaseArgs {
                 name: "beta".to_string(),
                 retention_period: None,
+                schema_mode: SchemaMode::Implicit,
             })
             .await
             .unwrap();
@@ -2917,6 +2926,7 @@ mod db_lookups {
             .update::<CreateDatabaseOp>(CreateDatabaseArgs {
                 name: "gamma".to_string(),
                 retention_period: None,
+                schema_mode: SchemaMode::Implicit,
             })
             .await
             .unwrap();
@@ -3027,8 +3037,9 @@ mod db_mutations {
     use crate::resource::CatalogResource;
     use influxdb3_id::DbId;
     use std::ops::Add;
+    use std::time::Duration;
 
-    async fn create_delete_recreate_db(catalog: &Catalog, name: &str) -> (DbId, DbId) {
+    async fn create_delete_recreate_db(catalog: &Arc<Catalog>, name: &str) -> (DbId, DbId) {
         let first_id = catalog.create_database(name).await.unwrap().id();
         soft_delete_db_now(catalog, name).await;
         let second_id = catalog.create_database(name).await.unwrap().id();
@@ -3082,7 +3093,7 @@ mod db_mutations {
     async fn soft_delete_then_hard_delete() {
         let mock = Arc::new(MockProvider::new(Time::from_timestamp_nanos(1_000)));
         let time_provider: Arc<dyn TimeProvider> = Arc::clone(&mock) as _;
-        let catalog = Catalog::from_parts(
+        let catalog = Arc::new(Catalog::from_parts(
             InnerCatalog::new(Arc::from("test"), Uuid::nil()),
             test_store_with_prefix("p"),
             None,
@@ -3093,7 +3104,7 @@ mod db_mutations {
             Duration::from_secs(60),
             CheckpointPolicy::default(),
             Arc::new(CatalogLimits::none()),
-        );
+        ));
 
         let target = catalog.create_database("doomed").await.unwrap();
         let target_id = target.id();
@@ -3222,7 +3233,7 @@ mod table_mutations {
     }
 
     async fn create_delete_recreate_table(
-        catalog: &Catalog,
+        catalog: &Arc<Catalog>,
         db: &str,
         table: &str,
     ) -> (DbId, TableId, TableId) {
@@ -3432,6 +3443,7 @@ mod table_mutations {
 mod cluster_config {
     use super::*;
     use crate::CatalogError;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn set_gen1_duration_round_trip() {
@@ -3864,7 +3876,7 @@ mod caches_and_triggers {
         Arc::new(ProcessUuidWrapper::new())
     }
 
-    async fn seeded() -> Catalog {
+    async fn seeded() -> Arc<Catalog> {
         let catalog = TestCatalog::new().catalog();
         catalog
             .register_node(
@@ -4074,19 +4086,23 @@ mod backup {
 
     /// Build a catalog over a fresh in-memory store and return it together
     /// with the store so tests can stage backup images directly.
-    async fn backup_test_catalog(prefix: &str) -> (Catalog, Arc<dyn object_store::ObjectStore>) {
+    async fn backup_test_catalog(
+        prefix: &str,
+    ) -> (Arc<Catalog>, Arc<dyn object_store::ObjectStore>) {
         let store: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
-        let catalog = Catalog::new_with_checkpoint_interval(
-            prefix,
-            Arc::clone(&store),
-            test_time_provider(),
-            Arc::new(Registry::new()),
-            // A large interval keeps the background checkpoint task from
-            // racing the snapshot the test writes by hand.
-            1_000,
-        )
-        .await
-        .unwrap();
+        let catalog = Arc::new(
+            Catalog::new_with_checkpoint_interval(
+                prefix,
+                Arc::clone(&store),
+                test_time_provider(),
+                Arc::new(Registry::new()),
+                // A large interval keeps the background checkpoint task from
+                // racing the snapshot the test writes by hand.
+                1_000,
+            )
+            .await
+            .unwrap(),
+        );
         (catalog, store)
     }
 
@@ -4095,12 +4111,7 @@ mod backup {
     /// helper that PUT a serialized `CatalogSnapshot` to the checkpoint path.
     async fn write_snapshot_to_live_path(catalog: &Catalog) -> Path {
         let snapshot_path = CatalogFilePath::snapshot(catalog.object_store_prefix().as_ref());
-        let snapshot_bytes = catalog.clone_inner().create_snapshot();
-        catalog
-            .object_store()
-            .put(&snapshot_path, snapshot_bytes.into())
-            .await
-            .unwrap();
+        catalog.force_checkpoint(None).await.unwrap();
         snapshot_path.into()
     }
 
@@ -4396,24 +4407,28 @@ mod backup {
     async fn restore_propagates_via_catch_up_to_peer() {
         let prefix = "restore-catch-up-host";
         let shared: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
-        let cat_a = Catalog::new_with_checkpoint_interval(
-            prefix,
-            Arc::clone(&shared),
-            test_time_provider(),
-            Arc::new(Registry::new()),
-            1_000,
-        )
-        .await
-        .unwrap();
-        let cat_b = Catalog::new_with_checkpoint_interval(
-            prefix,
-            Arc::clone(&shared),
-            test_time_provider(),
-            Arc::new(Registry::new()),
-            1_000,
-        )
-        .await
-        .unwrap();
+        let cat_a = Arc::new(
+            Catalog::new_with_checkpoint_interval(
+                prefix,
+                Arc::clone(&shared),
+                test_time_provider(),
+                Arc::new(Registry::new()),
+                1_000,
+            )
+            .await
+            .unwrap(),
+        );
+        let cat_b = Arc::new(
+            Catalog::new_with_checkpoint_interval(
+                prefix,
+                Arc::clone(&shared),
+                test_time_provider(),
+                Arc::new(Registry::new()),
+                1_000,
+            )
+            .await
+            .unwrap(),
+        );
 
         // Seed shared state both catalogs see: a database, plus a snapshot
         // written at that sequence to use as the backup checkpoint.
@@ -4441,7 +4456,7 @@ mod backup {
         // Bring cat_b up to baseline so it has the same starting point as A,
         // then create a database on A that we expect to vanish after restore.
         cat_b
-            .update_to_sequence_number(baseline_sequence)
+            .update_to_sequence_number(baseline_sequence, None)
             .await
             .unwrap();
         cat_a.create_database("db_will_disappear").await.unwrap();
@@ -4469,7 +4484,7 @@ mod backup {
         // Catch B up: it should see the same restore broadcast and end with
         // the same restored state.
         let mut sub_b = cat_b.subscribe_to_updates("sub-b").await;
-        let catch_up_fut = cat_b.update_to_sequence_number(restore_sequence);
+        let catch_up_fut = cat_b.update_to_sequence_number(restore_sequence, None);
         let mut events_seen = 0;
         let mut b_saw_restore = false;
         let drain_b = async {
@@ -4653,7 +4668,8 @@ mod backup {
 
         // The forced post-restore snapshot is stamped with the live uuid, not
         // the backup's, so it agrees with the live-uuid logs that follow it.
-        let (snapshot, _size_bytes) = catalog.store.load_snapshot().await.unwrap().unwrap();
+        let LoadedCatalogFile { file: snapshot, .. } =
+            catalog.store.load_snapshot().await.unwrap().unwrap();
         assert_eq!(Uuid::from_u128(snapshot.header.catalog_uuid), live_uuid);
 
         // A write after restore lands a log on top of that snapshot...
@@ -4745,7 +4761,7 @@ mod query_group_persistence {
             .create_query_group("g1", vec![nodes[2], nodes[0], nodes[1]], rf(1))
             .await
             .unwrap();
-        cat1.force_checkpoint().await.unwrap();
+        cat1.force_checkpoint(None).await.unwrap();
 
         let cat2 = test_catalog.reload().await;
 
@@ -4771,7 +4787,7 @@ mod query_group_persistence {
             )
             .await
             .unwrap();
-        cat1.force_checkpoint().await.unwrap();
+        cat1.force_checkpoint(None).await.unwrap();
 
         let cat2 = test_catalog.reload().await;
 
@@ -4796,7 +4812,7 @@ mod query_group_persistence {
             .create_query_group("g2", vec![nodes[1], nodes[2]], rf(1))
             .await
             .unwrap();
-        cat1.force_checkpoint().await.unwrap();
+        cat1.force_checkpoint(None).await.unwrap();
 
         let cat2 = test_catalog.reload().await;
 
@@ -4825,7 +4841,7 @@ mod query_group_persistence {
             .await
             .unwrap();
         let id = group.id;
-        cat1.force_checkpoint().await.unwrap();
+        cat1.force_checkpoint(None).await.unwrap();
 
         let cat2 = test_catalog.reload().await;
         cat2.query_group_by_id(&id)
@@ -4964,7 +4980,7 @@ mod query_group_persistence {
         );
 
         cat1.delete_query_group(&group.id).await.unwrap();
-        cat1.force_checkpoint().await.unwrap();
+        cat1.force_checkpoint(None).await.unwrap();
 
         let cat2 = test_catalog.reload().await;
         assert!(
@@ -4997,6 +5013,380 @@ mod query_group_persistence {
         assert!(
             matches!(result, Err(CatalogError::NotFound(_))),
             "expected NotFound, got {result:?}"
+        );
+    }
+}
+
+mod schema_mode {
+    use super::TestCatalog;
+    use crate::CatalogError;
+    use crate::catalog::versions::v3::schema::column::FieldDataType;
+    use crate::catalog::versions::v3::schema::database::SchemaMode;
+    use crate::catalog::{CreateDatabaseOptions, CreateTableOptions};
+    use schema::{InfluxColumnType, InfluxFieldType};
+    use std::sync::Arc;
+
+    const NO_TAGS: [&str; 0] = [];
+    const NO_FIELDS: [(&str, FieldDataType); 0] = [];
+
+    async fn explicit_db(catalog: &Arc<crate::catalog::Catalog>, name: &str) {
+        catalog
+            .create_database_opts(
+                name,
+                CreateDatabaseOptions::default().schema_mode(SchemaMode::Explicit),
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn create_database_records_explicit_mode() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        assert_eq!(
+            catalog.db_schema("db").unwrap().schema_mode,
+            SchemaMode::Explicit
+        );
+    }
+
+    #[tokio::test]
+    async fn database_defaults_to_implicit_mode() {
+        let catalog = TestCatalog::new().catalog();
+        catalog.create_database("db").await.unwrap();
+        assert_eq!(
+            catalog.db_schema("db").unwrap().schema_mode,
+            SchemaMode::Implicit
+        );
+    }
+
+    #[tokio::test]
+    async fn explicit_mode_survives_reload() {
+        let test = TestCatalog::new();
+        let catalog = test.catalog();
+        explicit_db(&catalog, "db").await;
+        catalog.create_database("other").await.unwrap();
+
+        let reloaded = test.reload().await;
+        assert_eq!(
+            reloaded.db_schema("db").unwrap().schema_mode,
+            SchemaMode::Explicit
+        );
+        assert_eq!(
+            reloaded.db_schema("other").unwrap().schema_mode,
+            SchemaMode::Implicit
+        );
+    }
+
+    /// `explicit_mode_survives_reload` only replays the record log. The design
+    /// doc's claim is about `InnerCatalog::create_snapshot`, so checkpoint
+    /// first and reload from the snapshot instead.
+    #[tokio::test]
+    async fn explicit_mode_survives_a_checkpoint() {
+        let test = TestCatalog::new();
+        let catalog = test.catalog_no_checkpoint();
+        explicit_db(&catalog, "db").await;
+        catalog.create_database("other").await.unwrap();
+        catalog
+            .create_table("db", "t", &["host"], &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        catalog.force_checkpoint(None).await.unwrap();
+
+        let reloaded = test.reload().await;
+        assert_eq!(
+            reloaded.db_schema("db").unwrap().schema_mode,
+            SchemaMode::Explicit,
+            "explicit mode should survive a snapshot"
+        );
+        assert_eq!(
+            reloaded.db_schema("other").unwrap().schema_mode,
+            SchemaMode::Implicit
+        );
+
+        // And enforcement still holds against the snapshot-loaded catalog.
+        let mut txn = reloaded.begin_database_transaction("db").unwrap();
+        let err = txn.table_or_create("undeclared").unwrap_err();
+        assert!(
+            matches!(err, CatalogError::UndeclaredTable { .. }),
+            "got {err:?}"
+        );
+    }
+    #[tokio::test]
+    async fn write_path_rejects_undeclared_table() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let err = txn.table_or_create("undeclared").unwrap_err();
+        assert!(
+            matches!(err, CatalogError::UndeclaredTable { ref table_name, .. } if table_name.as_ref() == "undeclared"),
+            "got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn write_path_rejects_undeclared_column() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &["host"], &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let err = txn
+            .column_or_create("t", "region", InfluxColumnType::Tag)
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogError::UndeclaredColumn { ref column_name, .. } if column_name.as_ref() == "region"),
+            "got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn write_path_accepts_declared_columns() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &["host"], &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        txn.table_or_create("t").unwrap();
+        txn.column_or_create("t", "host", InfluxColumnType::Tag)
+            .unwrap();
+        txn.column_or_create(
+            "t",
+            "usage",
+            InfluxColumnType::Field(InfluxFieldType::Float),
+        )
+        .unwrap();
+        txn.column_or_create("t", "time", InfluxColumnType::Timestamp)
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn write_path_reports_type_conflict_over_undeclared() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &NO_TAGS, &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let err = txn
+            .column_or_create(
+                "t",
+                "usage",
+                InfluxColumnType::Field(InfluxFieldType::String),
+            )
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogError::InvalidColumnType { .. }),
+            "got {err:?}"
+        );
+    }
+
+    /// The PachaTree ingest validator reaches for a `TableTransaction` and
+    /// calls `tag_or_create` / `field_or_create` on it directly, never going
+    /// through `column_or_create`. Enforcement has to hold on that route too.
+    #[tokio::test]
+    async fn table_transaction_route_rejects_undeclared_columns() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &["host"], &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let table_tx = txn.table_tx_or_create("t").unwrap();
+
+        // Declared columns resolve.
+        table_tx.tag_or_create("host").unwrap();
+        table_tx
+            .field_or_create("usage", InfluxFieldType::Float)
+            .unwrap();
+        table_tx.time_or_create().unwrap();
+
+        let err = table_tx.tag_or_create("region").unwrap_err();
+        assert!(
+            matches!(err, CatalogError::UndeclaredColumn { ref column_name, .. } if column_name.as_ref() == "region"),
+            "got {err:?}"
+        );
+        let err = table_tx
+            .field_or_create("free", InfluxFieldType::Integer)
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogError::UndeclaredColumn { ref column_name, .. } if column_name.as_ref() == "free"),
+            "got {err:?}"
+        );
+    }
+
+    /// `create_table_with_opts` is the only other way to make a table on a
+    /// transaction. It must enforce too, or a caller could route around
+    /// `table_or_create` and create a table plus every column it wants.
+    #[tokio::test]
+    async fn create_table_with_opts_is_enforced_unless_defining_schema() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let err = txn
+            .create_table_with_opts("sneaky", CreateTableOptions::default())
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogError::UndeclaredTable { ref table_name, .. } if table_name.as_ref() == "sneaky"),
+            "got {err:?}"
+        );
+
+        // The configuration API opts out and may create.
+        let mut defining = catalog
+            .begin_database_transaction("db")
+            .unwrap()
+            .defining_schema();
+        defining
+            .create_table_with_opts("declared", CreateTableOptions::default())
+            .expect("a schema-defining transaction may create a table");
+    }
+
+    #[tokio::test]
+    async fn implicit_database_still_grows_from_writes() {
+        let catalog = TestCatalog::new().catalog();
+        catalog.create_database("db").await.unwrap();
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        txn.table_or_create("t").unwrap();
+        txn.column_or_create("t", "host", InfluxColumnType::Tag)
+            .unwrap();
+    }
+    #[tokio::test]
+    async fn add_table_columns_is_additive() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &["host"], &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        catalog
+            .add_table_columns("db", "t", &["region"], &[("free", FieldDataType::Integer)])
+            .await
+            .unwrap();
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        txn.column_or_create("t", "region", InfluxColumnType::Tag)
+            .unwrap();
+        txn.column_or_create(
+            "t",
+            "free",
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+        )
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn add_table_columns_repeat_at_same_type_is_a_no_op() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &["host"], &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        let before = catalog
+            .db_schema("db")
+            .unwrap()
+            .table_definition("t")
+            .unwrap()
+            .num_columns();
+        catalog
+            .add_table_columns("db", "t", &["host"], &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+        let after = catalog
+            .db_schema("db")
+            .unwrap()
+            .table_definition("t")
+            .unwrap()
+            .num_columns();
+        assert_eq!(before, after);
+    }
+
+    #[tokio::test]
+    async fn add_table_columns_rejects_type_change() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &NO_TAGS, &[("usage", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        let err = catalog
+            .add_table_columns("db", "t", &NO_TAGS, &[("usage", FieldDataType::String)])
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogError::InvalidColumnType { .. }),
+            "got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn add_table_columns_requires_an_existing_table() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+
+        let err = catalog
+            .add_table_columns("db", "missing", &["host"], &NO_FIELDS)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogError::TableNotFound { .. }),
+            "got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn declared_field_family_routes_qualified_names() {
+        let catalog = TestCatalog::new().catalog();
+        explicit_db(&catalog, "db").await;
+        catalog
+            .create_table("db", "t", &NO_TAGS, &[("cpu::user", FieldDataType::Float)])
+            .await
+            .unwrap();
+
+        let table = catalog
+            .db_schema("db")
+            .unwrap()
+            .table_definition("t")
+            .unwrap();
+        assert!(
+            table.field_families.get_by_name("cpu").is_some(),
+            "expected a 'cpu' field family, got {:?}",
+            table.field_families
+        );
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        txn.column_or_create(
+            "t",
+            "cpu::user",
+            InfluxColumnType::Field(InfluxFieldType::Float),
+        )
+        .unwrap();
+        let err = txn
+            .column_or_create(
+                "t",
+                "cpu::system",
+                InfluxColumnType::Field(InfluxFieldType::Float),
+            )
+            .unwrap_err();
+        assert!(
+            matches!(err, CatalogError::UndeclaredColumn { .. }),
+            "got {err:?}"
         );
     }
 }

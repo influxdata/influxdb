@@ -102,11 +102,12 @@ pub const ENV_ALIASES: &[(&str, &str)] = &[
         "INFLUXDB3_NODE_IDENTIFIER_FROM_ENV",
     ),
     ("INFLUXDB3_DATA_DIR", "INFLUXDB3_DB_DIR"),
-    // Parquet cache flags collapsed into engine-agnostic file cache names (#4238)
-    (
-        "INFLUXDB3_FILE_CACHE_SIZE",
-        "INFLUXDB3_PARQUET_MEM_CACHE_SIZE",
-    ),
+    // Parquet cache flags collapsed into engine-agnostic file cache names
+    // (#4238). INFLUXDB3_PARQUET_MEM_CACHE_SIZE is deliberately NOT aliased:
+    // it binds to the hidden legacy --parquet-mem-cache-size arg, which
+    // accepts the pre-3.11 bare-number value format that the strict
+    // --file-cache-size arg rejects. Aliasing it would route the old value
+    // into the strict parser.
     (
         "INFLUXDB3_FILE_CACHE_RECENCY",
         "INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION",
@@ -139,11 +140,9 @@ pub const ENV_ALIASES: &[(&str, &str)] = &[
         "INFLUXDB3_SNAPSHOTTED_WAL_FILES_TO_KEEP",
         "INFLUXDB3_NUM_WAL_FILES_TO_KEEP",
     ),
-    // Renamed to match their new flag names (#4237)
-    (
-        "INFLUXDB3_EXEC_MEM_POOL_SIZE",
-        "INFLUXDB3_EXEC_MEM_POOL_BYTES",
-    ),
+    // Renamed to match its new flag name (#4237).
+    // INFLUXDB3_EXEC_MEM_POOL_BYTES is deliberately NOT aliased for the
+    // same reason as INFLUXDB3_PARQUET_MEM_CACHE_SIZE above.
     (
         "INFLUXDB3_QUERY_LOG_MAX_ENTRIES",
         "INFLUXDB3_QUERY_LOG_SIZE",
@@ -374,13 +373,15 @@ mod tests {
     #[test]
     fn test_shared_aliases_count() {
         // 8 object store generic + 3 logging + 8 tracing + 3 tokio console
-        // + 5 flag-name renames (#4237) + 4 file cache entries (#4238:
-        // size, recency, and two legacy spellings of the disable switch)
+        // + 5 flag-name renames (#4237) + 3 file cache entries (#4238:
+        // recency and two legacy spellings of the disable switch; the size
+        // alias moved to the hidden legacy --parquet-mem-cache-size arg)
         // + 3 WAL snapshot renames (#4237/#4238)
-        // + exec-mem-pool-size + query-log-max-entries (#4237)
+        // + query-log-max-entries (#4237; exec-mem-pool likewise moved to
+        // the hidden legacy --exec-mem-pool-bytes arg)
         // + the LISTINER -> LISTENER typo fix
-        // + cluster-id (#4238; read by Core debug catalog) = 38
-        assert_eq!(ENV_ALIASES.len(), 38);
+        // + cluster-id (#4238; read by Core debug catalog) = 36
+        assert_eq!(ENV_ALIASES.len(), 36);
     }
 
     #[test]

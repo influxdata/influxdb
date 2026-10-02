@@ -7,6 +7,7 @@ use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, TableId};
 use iox_time::{MockProvider, Time};
 use object_store::memory::InMemory;
+use object_store_utils::{LostResponseError, LostResponseStore, SelfVerifyingCreateStore};
 use rustc_hash::FxHasher;
 use std::any::Any;
 use std::hash::BuildHasherDefault;
@@ -903,4 +904,299 @@ impl WalFileNotifier for TestNotifier {
     fn as_any(&self) -> &dyn Any {
         self
     }
+}
+
+/// Build a WAL over `inner` wrapped in the verifying layer.
+fn verifying_wal_over(inner: Arc<dyn ObjectStore>) -> (WalObjectStore, CancellationToken) {
+    let registry = metric::Registry::new();
+    wal_over(Arc::new(SelfVerifyingCreateStore::new(inner, &registry)))
+}
+
+/// Build a WAL over `object_store`, returning the WAL and the shutdown token it
+/// will cancel if it decides a foreign writer holds the path.
+fn wal_over(object_store: Arc<dyn ObjectStore>) -> (WalObjectStore, CancellationToken) {
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    let shutdown = CancellationToken::new();
+    let wal = WalObjectStore::new_without_replay(
+        time_provider,
+        object_store,
+        "my_host",
+        notifier,
+        WalConfig {
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_secs(1),
+            snapshot_size: 2,
+            gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
+        },
+        None,
+        None,
+        &[],
+        1,
+        shutdown.clone(),
+    );
+    (wal, shutdown)
+}
+
+/// A single write op, enough to fill the WAL buffer so a flush persists a file.
+fn op() -> WalOp {
+    WalOp::Write(WriteBatch {
+        catalog_sequence: 0,
+        database_id: DbId::from(0),
+        database_name: "db1".into(),
+        table_chunks: fx_index_map([(
+            TableId::from(0),
+            TableChunks {
+                min_time: 1,
+                max_time: 1,
+                chunk_time_to_chunk: HashMap::from([(
+                    0,
+                    TableChunk {
+                        rows: vec![Row {
+                            time: 1,
+                            fields: vec![
+                                Field {
+                                    id: ColumnId::from(0),
+                                    value: FieldData::Integer(1),
+                                },
+                                Field {
+                                    id: ColumnId::from(1),
+                                    value: FieldData::Timestamp(1),
+                                },
+                            ],
+                        }],
+                    },
+                )]),
+            },
+        )])
+        .into(),
+        min_time_ns: 1,
+        max_time_ns: 1,
+    })
+}
+
+/// The bug from EAR 7005: the PUT is applied, the response is lost, the
+/// client's own retry gets 412. The node must not shut down.
+#[tokio::test]
+async fn own_lost_put_response_is_not_a_duplicate_writer() {
+    let inner = Arc::new(LostResponseStore::new(Arc::new(InMemory::new())));
+    let (wal, shutdown) = verifying_wal_over(Arc::clone(&inner) as _);
+
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    inner.lose_next_put_response_with(LostResponseError::AlreadyExists);
+
+    let flushed = wal.flush_buffer(true).await;
+
+    assert!(!shutdown.is_cancelled(), "node shut down on its own write");
+    assert!(
+        flushed.is_some(),
+        "flush reported failure for a durable write"
+    );
+}
+
+/// Control: without the verifying layer, the same scenario still shuts the node
+/// down. This proves the test above detects the bug, and that a store left
+/// unwrapped is unchanged.
+#[tokio::test]
+async fn an_unwrapped_store_still_shuts_down_on_a_lost_put_response() {
+    let inner = Arc::new(LostResponseStore::new(Arc::new(InMemory::new())));
+    let (wal, shutdown) = wal_over(Arc::clone(&inner) as _);
+
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    inner.lose_next_put_response_with(LostResponseError::AlreadyExists);
+
+    let flushed = wal.flush_buffer(true).await;
+
+    assert!(shutdown.is_cancelled());
+    assert!(flushed.is_none());
+}
+
+/// The WAL's own 100x retry loop re-issues the create. A nonce minted per
+/// `put_opts` call would be fresh on the second attempt and read the first
+/// attempt's nonce as foreign; a nonce minted per WAL file covers it.
+#[tokio::test]
+async fn outer_retry_loop_is_covered_by_the_per_file_nonce() {
+    let inner = Arc::new(LostResponseStore::new(Arc::new(InMemory::new())));
+    let (wal, shutdown) = verifying_wal_over(Arc::clone(&inner) as _);
+
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    // First attempt lands but returns a retryable error, so the WAL's own loop
+    // re-enters put_opts; the second attempt collides with attempt one.
+    inner.lose_next_put_response_with(LostResponseError::Generic);
+
+    let flushed = wal.flush_buffer(true).await;
+
+    assert!(
+        !shutdown.is_cancelled(),
+        "outer-loop retry shut the node down"
+    );
+    assert!(flushed.is_some());
+}
+
+/// A minimal one-row write batch op for buffer-limit tests; `n` distinguishes
+/// writes and serves as the row time.
+fn small_write_op(n: i64) -> WalOp {
+    WalOp::Write(WriteBatch {
+        catalog_sequence: 0,
+        database_id: DbId::from(0),
+        database_name: "db1".into(),
+        table_chunks: fx_index_map([(
+            TableId::from(0),
+            TableChunks {
+                min_time: n,
+                max_time: n,
+                chunk_time_to_chunk: HashMap::from([(
+                    0,
+                    TableChunk {
+                        rows: vec![Row {
+                            time: n,
+                            fields: vec![
+                                Field {
+                                    id: ColumnId::from(0),
+                                    value: FieldData::Integer(n),
+                                },
+                                Field {
+                                    id: ColumnId::from(1),
+                                    value: FieldData::Timestamp(n),
+                                },
+                            ],
+                        }],
+                    },
+                )]),
+            },
+        )])
+        .into(),
+        min_time_ns: n,
+        max_time_ns: n,
+    })
+}
+
+fn small_wal(config: WalConfig) -> WalObjectStore {
+    WalObjectStore::new_without_replay(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Arc::new(InMemory::new()),
+        "my_host",
+        Arc::new(TestNotifier::default()),
+        config,
+        None,
+        None,
+        &[],
+        1,
+        CancellationToken::new(),
+    )
+}
+
+// https://github.com/influxdata/influxdb_pro/issues/4339
+#[tokio::test]
+async fn max_write_buffer_size_rejects_writes_when_buffer_full() {
+    let wal = small_wal(WalConfig {
+        max_write_buffer_size: 1,
+        flush_interval: Duration::from_secs(1),
+        snapshot_size: 2,
+        gen1_duration: Gen1Duration::new_1m(),
+        ..Default::default()
+    });
+
+    wal.write_ops_unconfirmed(vec![small_write_op(1)])
+        .await
+        .unwrap();
+    let err = wal
+        .write_ops_unconfirmed(vec![small_write_op(2)])
+        .await
+        .expect_err("second buffered write should exceed max_write_buffer_size=1");
+    assert!(matches!(err, crate::Error::BufferFull(1)), "{err:?}");
+}
+
+#[tokio::test]
+async fn max_write_buffer_size_accepts_writes_again_after_flush() {
+    let wal = small_wal(WalConfig {
+        max_write_buffer_size: 1,
+        flush_interval: Duration::from_secs(1),
+        snapshot_size: 2,
+        gen1_duration: Gen1Duration::new_1m(),
+        ..Default::default()
+    });
+
+    wal.write_ops_unconfirmed(vec![small_write_op(1)])
+        .await
+        .unwrap();
+    wal.write_ops_unconfirmed(vec![small_write_op(2)])
+        .await
+        .expect_err("buffer is at its limit");
+
+    wal.flush_buffer(false).await;
+
+    wal.write_ops_unconfirmed(vec![small_write_op(3)])
+        .await
+        .expect("flush drains the buffer, making room for new writes");
+}
+
+// A rejected write's sender must not be registered: `buffer_ops_with_response`
+// accepts the ops before pushing the sender, so the next flush cannot signal
+// `Success` into a oneshot whose caller already saw `BufferFull`.
+#[test]
+fn rejected_write_does_not_register_a_response_sender() {
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let mut wal_buffer = WalBuffer {
+        time_provider: Arc::clone(&time_provider) as _,
+        state: WalBufferState::AcceptingWrites,
+        wal_file_sequence_number: WalFileSequenceNumber(0),
+        op_limit: 1,
+        op_count: 0,
+        database_to_write_batch: Default::default(),
+        write_op_responses: vec![],
+        no_op: None,
+    };
+
+    let (tx1, _rx1) = oneshot::channel();
+    wal_buffer
+        .buffer_ops_with_response(vec![small_write_op(1)], tx1)
+        .unwrap();
+
+    let (tx2, _rx2) = oneshot::channel();
+    let err = wal_buffer
+        .buffer_ops_with_response(vec![small_write_op(2)], tx2)
+        .expect_err("buffer is at its limit");
+    assert!(matches!(err, crate::Error::BufferFull(1)), "{err:?}");
+    assert_eq!(wal_buffer.write_op_responses.len(), 1);
+}
+
+// The sync path: a write past the cap fails fast with `BufferFull` instead
+// of waiting on the flush, and the accepted (blocked) write still resolves
+// `Ok` once the flush lands.
+#[tokio::test]
+async fn max_write_buffer_size_rejects_sync_writes_when_buffer_full() {
+    let wal = Arc::new(small_wal(WalConfig {
+        max_write_buffer_size: 1,
+        flush_interval: Duration::from_secs(1),
+        snapshot_size: 2,
+        gen1_duration: Gen1Duration::new_1m(),
+        ..Default::default()
+    }));
+
+    let blocked = tokio::spawn({
+        let wal = Arc::clone(&wal);
+        async move { wal.write_ops(vec![small_write_op(1)]).await }
+    });
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while wal.flush_buffer.lock().await.wal_buffer.is_empty() {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .expect("spawned write should reach the buffer");
+
+    let err = wal
+        .write_ops(vec![small_write_op(2)])
+        .await
+        .expect_err("second sync write should exceed max_write_buffer_size=1");
+    assert!(matches!(err, crate::Error::BufferFull(1)), "{err:?}");
+
+    wal.flush_buffer(false).await;
+    blocked
+        .await
+        .unwrap()
+        .expect("the accepted write resolves once the flush lands");
 }

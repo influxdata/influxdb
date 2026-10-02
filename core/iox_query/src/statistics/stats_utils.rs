@@ -25,6 +25,7 @@ pub(crate) fn synthesize_absent_column_stats(
         min_value: Precision::Exact(typed_null),
         distinct_count: Precision::Absent,
         sum_value: Precision::Absent,
+        byte_size: Precision::Absent,
     }
 }
 

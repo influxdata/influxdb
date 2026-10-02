@@ -317,3 +317,67 @@ fn role_permission_grant_encodings() {
         "0501"
     );
 }
+
+/// The property the type exists for: retyping a `[u8; N]` field to
+/// `Reserved<N>` must not move a byte on disk. Asserted against the bare array
+/// rather than a literal so it keeps holding if bitcode's packing for byte
+/// arrays ever changes.
+#[test]
+fn reserved_encodes_as_a_bare_array() {
+    for bytes in [[0u8; 16], [0xff; 16], *b"0123456789abcdef"] {
+        assert_eq!(
+            bitcode::encode(&Reserved::<16>(bytes)),
+            bitcode::encode(&bytes),
+            "Reserved<16> must encode identically to [u8; 16]"
+        );
+    }
+}
+
+/// Widths other than the one `RemoveNode` uses must hold the same property, or
+/// the next field to adopt this would silently move its bytes.
+#[test]
+fn reserved_encodes_as_a_bare_array_at_other_widths() {
+    assert_eq!(
+        bitcode::encode(&Reserved::<4>([1, 2, 3, 4])),
+        bitcode::encode(&[1u8, 2, 3, 4])
+    );
+    assert_eq!(
+        bitcode::encode(&Reserved::<32>([7; 32])),
+        bitcode::encode(&[7u8; 32])
+    );
+}
+
+/// The hand-written `Serialize` must render exactly what the derive produced
+/// for a bare array, so retyping a field leaves the serde output alone too.
+#[test]
+fn reserved_serialises_as_a_bare_array() {
+    let bytes = *b"0123456789abcdef";
+    assert_eq!(
+        serde_json::to_string(&Reserved::<16>(bytes)).unwrap(),
+        serde_json::to_string(&bytes).unwrap(),
+    );
+}
+
+#[test]
+fn reserved_encodings() {
+    assert_encoding_stable!(Reserved::<16>::ZERO, "0a0000");
+    assert_encoding_stable!(Reserved::<16>::from_tag(2), "0802000000");
+}
+
+#[test]
+fn reserved_tag_leaves_the_rest_zero() {
+    let value = Reserved::<16>::from_tag(2);
+    assert_eq!(value.tag(), 2);
+    assert_eq!(value.0[1..], [0; 15]);
+    assert_eq!(Reserved::<16>::ZERO.tag(), 0);
+}
+
+/// The guard on the tag helpers is a compile-time assertion, so this test can
+/// only pin the widths that do work; `Reserved::<0>::from_tag()` is a build
+/// error rather than a runtime panic.
+#[test]
+fn reserved_tag_helpers_work_at_every_usable_width() {
+    assert_eq!(Reserved::<1>::from_tag(9).tag(), 9);
+    assert_eq!(Reserved::<16>::from_tag(2).tag(), 2);
+    assert_eq!(Reserved::<32>::from_tag(255).tag(), 255);
+}

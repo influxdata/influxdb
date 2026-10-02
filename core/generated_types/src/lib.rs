@@ -9,9 +9,7 @@
     clippy::allow_attributes,
     clippy::uninlined_format_args,
     clippy::useless_borrows_in_formatting,
-    // I can't figure out what rustdoc lint triggers in this. It's not any of the individual ones,
-    // only rustdoc::all fixes it afaict
-    rustdoc::all,
+    rustdoc::invalid_html_tags,
     missing_copy_implementations
 )]
 
@@ -436,11 +434,12 @@ pub mod influxdata {
             ($proto_type:ty, $name_variant:ident, $id_variant:ident) => {
                 // The proto oneof variants include deprecated *name fields (e.g. table_name).
                 // We still accept them for backwards compatibility when mapping to Target.
-                #[allow(deprecated)]
                 impl From<$proto_type> for Target {
                     fn from(value: $proto_type) -> Self {
                         use $proto_type::*;
                         match value {
+                            #[expect(clippy::allow_attributes)]
+                            #[allow(deprecated)]
                             $name_variant(name) => Self::Name(name.into()),
                             $id_variant(id) => Self::Id(id),
                         }
@@ -448,10 +447,11 @@ pub mod influxdata {
                 }
                 // Converting Target::Name back into the proto variant hits deprecated fields.
                 // Suppress the warning locally until the deprecated variants are removed.
-                #[allow(deprecated)]
                 impl From<Target> for $proto_type {
                     fn from(value: Target) -> Self {
                         match value {
+                            #[expect(clippy::allow_attributes)]
+                            #[allow(deprecated)]
                             Target::Name(name) => Self::$name_variant(name.into()),
                             Target::Id(id) => Self::$id_variant(id),
                         }

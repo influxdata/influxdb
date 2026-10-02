@@ -155,6 +155,54 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         Ok(output)
     }
 
+    /// Mutate an existing resource by `id`, in place where possible.
+    ///
+    /// [`modify_by_id`](Self::modify_by_id) clones the resource, hands `f` the
+    /// copy, and commits it only once `f` succeeds. This instead hands `f` the
+    /// repository's own `Arc` through `Arc::make_mut`: when nothing else holds a
+    /// reference the mutation lands in place with no copy at all, and when a
+    /// reader is holding an `Arc` snapshot it still copies on write, so that
+    /// snapshot stays frozen. A rename is mirrored into the id/name index.
+    ///
+    /// There is no rollback. If `f` mutates the resource and then fails, or
+    /// renames it onto a name another id already holds -- which is refused with
+    /// `AlreadyExistsByName` -- the mutation has already been applied and the
+    /// catalog is left inconsistent.
+    pub(crate) fn modify_by_id_in_place<T, E>(
+        &mut self,
+        id: &I,
+        f: impl FnOnce(&mut R) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<RepositoryError<I>>,
+    {
+        let slot = self.repo.get_mut(id).ok_or(RepositoryError::NotFound {
+            resource: R::CATEGORY,
+            id: *id,
+        })?;
+        let old_name = slot.name();
+        let output = f(Arc::make_mut(slot))?;
+        let new_name = slot.name();
+        if new_name == old_name {
+            return Ok(output);
+        }
+        // Same bijection guard as `update`: adopting a name another id already
+        // holds would evict that id's entry and leave it in `repo` with no name.
+        if self
+            .id_name_map
+            .get_by_right(new_name.as_ref())
+            .is_some_and(|owner| owner != id)
+        {
+            return Err(RepositoryError::AlreadyExistsByName {
+                resource: R::CATEGORY,
+                name: new_name.to_string(),
+            }
+            .into());
+        }
+        self.id_name_map.insert(*id, new_name);
+        Ok(output)
+    }
+
     pub(crate) fn get_and_increment_next_id(&mut self) -> I {
         let next_id = self.next_id;
         self.next_id = self.next_id.next();
@@ -235,17 +283,6 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         id_in_repo
     }
 
-    /// Check if a resource exists in the repository by `id` and `name`
-    ///
-    /// # Panics
-    ///
-    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
-    /// that would be a bad state for the repository to be in.
-    fn id_and_name_exists(&self, id: &I, name: &str) -> bool {
-        let name_in_map = self.id_name_map.contains_right(name);
-        self.id_exists(id) && name_in_map
-    }
-
     /// Insert a new resource to the repository
     pub(crate) fn insert(
         &mut self,
@@ -253,13 +290,22 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         resource: impl Into<Arc<R>>,
     ) -> Result<(), RepositoryError<I>> {
         let resource = resource.into();
-        if self.id_and_name_exists(&id, resource.name().as_ref()) {
+        if self.id_exists(&id) {
             return Err(RepositoryError::AlreadyExists {
                 resource: R::CATEGORY,
                 id,
             });
         }
-        self.id_name_map.insert(id, resource.name());
+
+        let name = resource.name();
+        if self.id_name_map.contains_right(&name) {
+            return Err(RepositoryError::AlreadyExistsByName {
+                resource: R::CATEGORY,
+                name: name.to_string(),
+            });
+        }
+
+        self.id_name_map.insert(id, name);
         self.repo.insert(id, resource);
         self.next_id = match self.next_id.cmp(&id) {
             // If id is has reached MAX, we can't increment it.

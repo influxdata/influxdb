@@ -108,9 +108,41 @@ impl CatalogTransaction {
 // DatabaseCatalogTransaction
 // ---------------------------------------------------------------------------
 
+/// Which path opened a transaction: the configuration API, which defines table
+/// schemas, or a write, which may only use schema that already exists.
+///
+/// Only meaningful for a database in
+/// [`SchemaMode::Explicit`][super::schema::database::SchemaMode::Explicit];
+/// an implicit database lets either create.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SchemaSource {
+    /// The configuration API. May create tables and columns.
+    Definition,
+    /// A write. May only reference tables and columns that already exist.
+    Write,
+}
+
 /// Per-database transaction used by the schema-on-write path. Accumulates new
 /// tables and columns discovered while parsing a batch of line protocol and
 /// commits them as a single atomic catalog write.
+///
+/// # Schema mode
+///
+/// When the database uses
+/// [`SchemaMode::Explicit`][super::schema::database::SchemaMode::Explicit],
+/// creating a table or column through this transaction is rejected. The checks
+/// sit at the points that actually create — [`table_or_create`][Self::table_or_create]
+/// for tables, and [`TableTransaction::add_tag`] / [`TableTransaction::add_field`]
+/// for columns — so every route into them enforces, whether a caller goes
+/// through [`column_or_create`][Self::column_or_create] or reaches for a
+/// [`TableTransaction`] directly.
+///
+/// The configuration API defines schemas and must not be enforced against, so a
+/// transaction records which path opened it — see [`SchemaSource`]. Both
+/// [`defining_schema`][Self::defining_schema] and
+/// [`create_table_with_opts`][Self::create_table_with_opts] are `pub(super)`:
+/// only this module's `Catalog` can reach either, so no write path in another
+/// crate can claim to be defining schema or route around the check.
 #[derive(Debug)]
 pub struct DatabaseCatalogTransaction {
     inner: CatalogTransaction,
@@ -123,6 +155,8 @@ pub struct DatabaseCatalogTransaction {
     tag_columns_per_table_limit: usize,
     /// Determines how the legacy `ColumnId` is managed.
     storage_mode: StorageMode,
+    /// Which path opened this transaction.
+    schema_source: SchemaSource,
 }
 
 impl DatabaseCatalogTransaction {
@@ -133,7 +167,6 @@ impl DatabaseCatalogTransaction {
     /// by the caller from the catalog's
     /// [`CatalogLimiter`][crate::catalog::versions::v3::usage::CatalogLimiter],
     /// so per-tier or per-deployment overrides apply.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         inner: CatalogTransaction,
         database_schema: Arc<DatabaseSchema>,
@@ -154,7 +187,24 @@ impl DatabaseCatalogTransaction {
             columns_per_table_limit,
             tag_columns_per_table_limit,
             storage_mode,
+            schema_source: SchemaSource::Write,
         }
+    }
+
+    /// Mark this transaction as the configuration API defining schema, so it
+    /// may create tables and columns in a database that requires declared
+    /// schemas.
+    ///
+    /// Restricted to this module so that only the configuration API can claim
+    /// it. A write path in another crate cannot reach it.
+    pub(super) fn defining_schema(mut self) -> Self {
+        self.schema_source = SchemaSource::Definition;
+        self
+    }
+
+    /// Whether table and column creation must be rejected on this transaction.
+    fn enforces_declared_schema(&self) -> bool {
+        self.database_schema.schema_mode.is_explicit() && self.schema_source == SchemaSource::Write
     }
 
     pub fn sequence_number(&self) -> CatalogSequenceNumber {
@@ -181,6 +231,9 @@ impl DatabaseCatalogTransaction {
     /// Aware mode is the write-path default (matching v2): a `family::field`
     /// field name routes to the named field family; unqualified names use the
     /// shared auto family.
+    ///
+    /// Part of the write-path API: creating a table this way is rejected when
+    /// the database uses [`SchemaMode::Explicit`][super::schema::database::SchemaMode::Explicit].
     pub fn table_or_create(&mut self, table_name: &str) -> Result<TableId> {
         if let Some(id) = self.table_id_by_name(table_name) {
             return Ok(id);
@@ -191,13 +244,27 @@ impl DatabaseCatalogTransaction {
     /// Create a table with an explicit field family mode. Errors if the
     /// table already exists (the mode of an existing table is not
     /// reconsidered).
-    pub fn create_table_with_opts(
+    ///
+    /// Rejects creation when the database uses
+    /// [`SchemaMode::Explicit`][super::schema::database::SchemaMode::Explicit]
+    /// and the transaction came from a write rather than the configuration
+    /// API. The check sits here, on the method that creates, so that reaching
+    /// this method by any route enforces; `pub(super)` then keeps the method
+    /// itself out of reach of other crates.
+    pub(super) fn create_table_with_opts(
         &mut self,
         table_name: &str,
         options: CreateTableOptions,
     ) -> Result<TableId> {
         if self.table_id_by_name(table_name).is_some() {
             return Err(CatalogError::AlreadyExists);
+        }
+
+        if self.enforces_declared_schema() {
+            return Err(CatalogError::UndeclaredTable {
+                db_name: Arc::clone(&self.database_schema.name),
+                table_name: Arc::from(table_name),
+            });
         }
 
         if self.current_table_count >= self.table_limit {
@@ -230,17 +297,24 @@ impl DatabaseCatalogTransaction {
         self.tables.insert(
             table_id,
             TableTransaction {
-                table: TableDefinition::new_empty(
+                table: Arc::new(TableDefinition::new_empty(
                     table_id,
                     Arc::from(table_name),
                     options.field_family_mode,
-                ),
+                )),
                 new_columns: Vec::new(),
                 new_field_families: Vec::new(),
                 column_limit: self.columns_per_table_limit,
                 tag_column_limit: self.tag_columns_per_table_limit,
                 storage_mode: self.storage_mode,
                 retention_period,
+                db_name: Arc::clone(&self.database_schema.name),
+                // The check above already rejected a write creating a table in
+                // an explicit database, so reaching here means either the
+                // database is implicit or this is the configuration API. The
+                // new table's columns are part of the declaration that creates
+                // it, so they are always allowed.
+                reject_new_columns: false,
             },
         );
 
@@ -256,8 +330,22 @@ impl DatabaseCatalogTransaction {
             .expect("table transaction should exist after table_or_create"))
     }
 
+    /// Table transaction handle for a table that already exists in this
+    /// transaction or the schema snapshot; `None` otherwise. Never creates
+    /// the table.
+    pub fn existing_table_tx(&mut self, table_name: &str) -> Option<&TableTransaction> {
+        self.table_id_by_name(table_name).map(|table_id| {
+            self.tables
+                .get(&table_id)
+                .expect("table transaction should exist after table_id_by_name")
+        })
+    }
+
     /// Get-or-create a column on a named table. Errors if the column exists
     /// with a different type.
+    ///
+    /// Part of the write-path API: creating a column this way is rejected when
+    /// the database uses [`SchemaMode::Explicit`][super::schema::database::SchemaMode::Explicit].
     pub fn column_or_create(
         &mut self,
         table_name: &str,
@@ -270,14 +358,7 @@ impl DatabaseCatalogTransaction {
             .get_mut(&table_id)
             .expect("table should exist after table_or_create");
 
-        if let Some(existing) = tx.table.column_definition(column_name) {
-            if existing.column_type() != column_type {
-                return Err(CatalogError::InvalidColumnType {
-                    column_name: Arc::from(column_name),
-                    expected: existing.column_type(),
-                    got: column_type,
-                });
-            }
+        if let Some(existing) = tx.resolve_column(column_name, column_type)? {
             return Ok(existing);
         }
 
@@ -319,7 +400,7 @@ impl DatabaseCatalogTransaction {
             batch.as_slice(),
             inner,
             sequence,
-            &mut crate::format::apply::RestorePreload::empty(),
+            crate::format::apply::RestorePreload::empty(),
         )
         .map_err(|e| CatalogError::Internal {
             details: format!("apply_to_inner: {e}"),
@@ -348,63 +429,55 @@ impl DatabaseCatalogTransaction {
         self.inner
     }
 
-    /// Check that adding the incoming write columns won't exceed column limits.
-    ///
-    /// Computes projected counts for the full write by counting only columns
-    /// that do not already exist in the table schema. Write validation calls
-    /// this after a per-column limit breach to rewrite the error with the
-    /// final projected count instead of "current + 1"; enforcement itself
-    /// stays with the per-column checks so the success path pays nothing.
+    /// Check that adding the incoming write columns won't exceed column
+    /// limits, projecting the final counts for the whole write (only columns
+    /// that don't already exist count). Name-based variant for callers that
+    /// haven't resolved the columns; write validation counts new columns
+    /// while resolving a line and uses
+    /// [`TableTransaction::check_projected_column_counts`] /
+    /// [`check_new_table_column_counts`][Self::check_new_table_column_counts]
+    /// instead.
     pub fn check_write_column_limits(
         &mut self,
         table_name: &str,
         incoming_tags: &[&str],
         incoming_fields: &[&str],
     ) -> Result<()> {
-        let column_limit = self.columns_per_table_limit;
-        let tag_column_limit = self.tag_columns_per_table_limit;
-        let Some(table_id) = self.table_id_by_name(table_name) else {
-            return Ok(());
-        };
-        let table_tx = self
-            .tables
-            .get(&table_id)
-            .expect("table transaction should exist after table_id_by_name");
-
-        // Collect into sets so duplicate keys within a single line count once.
-        let new_tags = incoming_tags
-            .iter()
-            .filter(|t| table_tx.table.column_definition(t).is_none())
-            .collect::<std::collections::HashSet<_>>()
-            .len();
-        let new_fields = incoming_fields
-            .iter()
-            .filter(|f| table_tx.table.column_definition(f).is_none())
-            .collect::<std::collections::HashSet<_>>()
-            .len();
-
-        let projected_tag_count = table_tx.table.num_tag_columns() + new_tags;
-        let projected_total = table_tx.table.num_tag_columns()
-            + table_tx.table.num_field_columns()
-            + new_tags
-            + new_fields;
-
-        if projected_tag_count > tag_column_limit {
-            return Err(CatalogError::TooManyTagColumns {
-                table_name: TruncatedTableName::new(Arc::clone(&table_tx.table.table_name)),
-                attempted: projected_tag_count,
-                limit: tag_column_limit,
-            });
+        match self.table_id_by_name(table_name) {
+            Some(table_id) => self
+                .tables
+                .get(&table_id)
+                .expect("table transaction should exist after table_id_by_name")
+                .check_write_column_limits(incoming_tags, incoming_fields),
+            // Table doesn't exist yet: every unique incoming column is new.
+            None => check_projected_column_limits(
+                Arc::from(table_name),
+                None,
+                incoming_tags,
+                incoming_fields,
+                self.tag_columns_per_table_limit,
+                self.columns_per_table_limit,
+            ),
         }
-        if projected_total > column_limit {
-            return Err(CatalogError::TooManyColumns {
-                table_name: TruncatedTableName::new(Arc::clone(&table_tx.table.table_name)),
-                attempted: projected_total,
-                limit: column_limit,
-            });
-        }
+    }
 
-        Ok(())
+    /// Projected-count limit check for a table that doesn't exist yet: every
+    /// column the line adds is new. Counterpart of
+    /// [`TableTransaction::check_projected_column_counts`] for the fresh-table
+    /// case.
+    pub fn check_new_table_column_counts(
+        &self,
+        table_name: &str,
+        new_tag_count: usize,
+        new_field_count: usize,
+    ) -> Result<()> {
+        check_projected_totals(
+            Arc::from(table_name),
+            (0, 0),
+            (new_tag_count, new_field_count),
+            self.tag_columns_per_table_limit,
+            self.columns_per_table_limit,
+        )
     }
 
     fn table_id_by_name(&mut self, table_name: &str) -> Option<TableId> {
@@ -416,12 +489,16 @@ impl DatabaseCatalogTransaction {
 
         if let Some(table_def) = self.database_schema.table_definition(table_name) {
             let table_id = table_def.table_id;
+            let reject_new_columns = self.enforces_declared_schema();
+            let db_name = Arc::clone(&self.database_schema.name);
             self.tables.entry(table_id).or_insert_with(|| {
                 TableTransaction::from_existing(
-                    table_def.as_ref().clone(),
+                    Arc::clone(&table_def),
                     self.columns_per_table_limit,
                     self.tag_columns_per_table_limit,
                     self.storage_mode,
+                    db_name,
+                    reject_new_columns,
                 )
             });
             return Some(table_id);
@@ -429,6 +506,70 @@ impl DatabaseCatalogTransaction {
 
         None
     }
+}
+
+/// Count incoming columns that don't already exist (duplicate keys count
+/// once) and compare the projected totals against the limits. `table` is
+/// `None` when it hasn't been created yet.
+fn check_projected_column_limits(
+    table_name: Arc<str>,
+    table: Option<&TableDefinition>,
+    incoming_tags: &[&str],
+    incoming_fields: &[&str],
+    tag_column_limit: usize,
+    column_limit: usize,
+) -> Result<()> {
+    let column_exists = |name: &&&str| table.is_some_and(|t| t.column_definition(name).is_some());
+    let new_tags = incoming_tags
+        .iter()
+        .filter(|t| !column_exists(t))
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    let new_fields = incoming_fields
+        .iter()
+        .filter(|f| !column_exists(f))
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    let current = table.map_or((0, 0), |t| (t.num_tag_columns(), t.num_field_columns()));
+
+    check_projected_totals(
+        table_name,
+        current,
+        (new_tags, new_fields),
+        tag_column_limit,
+        column_limit,
+    )
+}
+
+/// Compare projected column totals — `(current tags, current fields)` plus
+/// `(new tags, new fields)`, both counting unique columns only — against the
+/// limits.
+fn check_projected_totals(
+    table_name: Arc<str>,
+    (current_tags, current_fields): (usize, usize),
+    (new_tags, new_fields): (usize, usize),
+    tag_column_limit: usize,
+    column_limit: usize,
+) -> Result<()> {
+    let projected_tag_count = current_tags + new_tags;
+    let projected_total = current_tags + current_fields + new_tags + new_fields;
+
+    if projected_tag_count > tag_column_limit {
+        return Err(CatalogError::TooManyTagColumns {
+            table_name: TruncatedTableName::new(table_name),
+            attempted: projected_tag_count,
+            limit: tag_column_limit,
+        });
+    }
+    if projected_total > column_limit {
+        return Err(CatalogError::TooManyColumns {
+            table_name: TruncatedTableName::new(table_name),
+            attempted: projected_total,
+            limit: column_limit,
+        });
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -442,21 +583,31 @@ impl DatabaseCatalogTransaction {
 /// tables use the shared auto family.
 #[derive(Debug)]
 pub struct TableTransaction {
-    pub(crate) table: TableDefinition,
+    /// CoW: shares the committed snapshot's `Arc`; first mutation clones via `Arc::make_mut`.
+    pub(crate) table: Arc<TableDefinition>,
     new_columns: Vec<WireColumnDef>,
     new_field_families: Vec<WireFieldFamilyDef>,
     column_limit: usize,
     tag_column_limit: usize,
     storage_mode: StorageMode,
     retention_period: WireRetentionPeriod,
+    /// Name of the owning database, for the undeclared-column error.
+    db_name: Arc<str>,
+    /// Whether a column that does not already exist must be rejected. Set
+    /// when the owning database requires declared schemas and this
+    /// transaction came from a write; also false for a table created in this
+    /// transaction, whose columns are part of its own declaration.
+    reject_new_columns: bool,
 }
 
 impl TableTransaction {
     fn from_existing(
-        table: TableDefinition,
+        table: Arc<TableDefinition>,
         column_limit: usize,
         tag_column_limit: usize,
         storage_mode: StorageMode,
+        db_name: Arc<str>,
+        reject_new_columns: bool,
     ) -> Self {
         Self {
             retention_period: match table.retention_period {
@@ -471,7 +622,29 @@ impl TableTransaction {
             column_limit,
             tag_column_limit,
             storage_mode,
+            db_name,
+            reject_new_columns,
         }
+    }
+
+    /// Reject `column_name` when this transaction may not create columns.
+    /// Called from the three `add_*` methods, which are the only places a
+    /// column comes into being.
+    #[inline]
+    fn ensure_column_allowed(
+        &self,
+        column_name: &str,
+        column_type: InfluxColumnType,
+    ) -> Result<()> {
+        if self.reject_new_columns {
+            return Err(CatalogError::UndeclaredColumn {
+                db_name: Arc::clone(&self.db_name),
+                table_name: Arc::clone(&self.table.table_name),
+                column_name: Arc::from(column_name),
+                column_type,
+            });
+        }
+        Ok(())
     }
 
     pub fn table_id(&self) -> TableId {
@@ -516,6 +689,39 @@ impl TableTransaction {
         }
     }
 
+    /// See [`DatabaseCatalogTransaction::check_write_column_limits`].
+    pub fn check_write_column_limits(
+        &self,
+        incoming_tags: &[&str],
+        incoming_fields: &[&str],
+    ) -> Result<()> {
+        check_projected_column_limits(
+            Arc::clone(&self.table.table_name),
+            Some(&self.table),
+            incoming_tags,
+            incoming_fields,
+            self.tag_column_limit,
+            self.column_limit,
+        )
+    }
+
+    /// Compare projected column counts against the limits, where `new_*` are
+    /// the unique columns a write adds (e.g. counted while resolving a line's
+    /// columns against the schema). No lookups, no mutation.
+    pub fn check_projected_column_counts(
+        &self,
+        new_tag_count: usize,
+        new_field_count: usize,
+    ) -> Result<()> {
+        check_projected_totals(
+            Arc::clone(&self.table.table_name),
+            (self.table.num_tag_columns(), self.table.num_field_columns()),
+            (new_tag_count, new_field_count),
+            self.tag_column_limit,
+            self.column_limit,
+        )
+    }
+
     pub fn time_or_create(&mut self) -> Result<Arc<TimestampColumn>> {
         if let Some(existing) = self.table.column_definition("time")
             && let ColumnDefinition::Timestamp(ts) = existing
@@ -532,18 +738,33 @@ impl TableTransaction {
         }
     }
 
+    /// Look up `name` without mutating: `Ok(Some)` to reuse, `Ok(None)` if
+    /// absent, `Err` if it exists with a different type. Lets write
+    /// validation type-check a whole line before creating any column.
+    pub fn resolve_column(
+        &self,
+        name: &str,
+        incoming: InfluxColumnType,
+    ) -> Result<Option<ColumnDefinition>> {
+        let Some(existing) = self.table.column_definition(name) else {
+            return Ok(None);
+        };
+        if existing.column_type() == incoming {
+            Ok(Some(existing))
+        } else {
+            Err(CatalogError::InvalidColumnType {
+                column_name: Arc::from(name),
+                expected: existing.column_type(),
+                got: incoming,
+            })
+        }
+    }
+
     pub fn tag_or_create(&mut self, name: &str) -> Result<Arc<TagColumn>> {
-        if let Some(existing) = self.table.column_definition(name) {
-            match existing {
-                ColumnDefinition::Tag(tag) => return Ok(tag),
-                other => {
-                    return Err(CatalogError::InvalidColumnType {
-                        column_name: Arc::from(name),
-                        expected: InfluxColumnType::Tag,
-                        got: other.column_type(),
-                    });
-                }
-            }
+        if let Some(ColumnDefinition::Tag(tag)) =
+            self.resolve_column(name, InfluxColumnType::Tag)?
+        {
+            return Ok(tag);
         }
         let col_def = self.add_tag(name)?;
         match col_def {
@@ -564,17 +785,10 @@ impl TableTransaction {
         name: &str,
         field_type: InfluxFieldType,
     ) -> Result<Arc<FieldColumn>> {
-        if let Some(existing) = self.table.column_definition(name) {
-            match existing {
-                ColumnDefinition::Field(f) if f.data_type == field_type => return Ok(f),
-                other => {
-                    return Err(CatalogError::InvalidColumnType {
-                        column_name: Arc::from(name),
-                        expected: InfluxColumnType::Field(field_type),
-                        got: other.column_type(),
-                    });
-                }
-            }
+        if let Some(ColumnDefinition::Field(f)) =
+            self.resolve_column(name, InfluxColumnType::Field(field_type))?
+        {
+            return Ok(f);
         }
         let col_def = self.add_field(name, field_type)?;
         match col_def {
@@ -604,6 +818,7 @@ impl TableTransaction {
     }
 
     fn add_time(&mut self) -> Result<ColumnDefinition> {
+        self.ensure_column_allowed("time", InfluxColumnType::Timestamp)?;
         let col_id = self.next_legacy_column_id()?;
         let col_def = ColumnDefinition::Timestamp(Arc::new(TimestampColumn {
             column_id: col_id,
@@ -614,13 +829,14 @@ impl TableTransaction {
                 column_id: col_id.map(|c| c.get()),
                 name: "time".to_string(),
             }));
-        self.table
+        Arc::make_mut(&mut self.table)
             .add_columns_to_maps(vec![col_def.clone()])
             .expect("adding timestamp column should not fail");
         Ok(col_def)
     }
 
     fn add_tag(&mut self, name: &str) -> Result<ColumnDefinition> {
+        self.ensure_column_allowed(name, InfluxColumnType::Tag)?;
         self.table.check_name(name)?;
         if self.table.tag_columns.len() >= self.tag_column_limit {
             return Err(CatalogError::TooManyTagColumns {
@@ -642,13 +858,14 @@ impl TableTransaction {
             column_id: col_id.map(|c| c.get()),
             name: name.to_string(),
         }));
-        self.table
+        Arc::make_mut(&mut self.table)
             .add_columns_to_maps(vec![col_def.clone()])
             .expect("adding tag column should not fail");
         Ok(col_def)
     }
 
     fn add_field(&mut self, name: &str, field_type: InfluxFieldType) -> Result<ColumnDefinition> {
+        self.ensure_column_allowed(name, InfluxColumnType::Field(field_type))?;
         self.table.check_name(name)?;
         let col_id = self.next_legacy_column_id()?;
         self.check_columns_limit()?;
@@ -685,7 +902,7 @@ impl TableTransaction {
             name: name.to_string(),
             data_type: wire_data_type,
         }));
-        self.table
+        Arc::make_mut(&mut self.table)
             .add_columns_to_maps(vec![col_def.clone()])
             .expect("adding field column should not fail");
         Ok(col_def)
@@ -708,7 +925,7 @@ impl TableTransaction {
         let ff_id = self.table.field_families.next_id();
         let ff_name = FieldFamilyName::User(Arc::from(family_name));
         let ff = FieldFamilyDefinition::new(ff_id, ff_name);
-        self.table
+        Arc::make_mut(&mut self.table)
             .field_families
             .insert(ff_id, ff)
             .expect("named field family insert should not fail");
@@ -735,11 +952,12 @@ impl TableTransaction {
         let auto_name = self.table.next_auto_field_family_name();
         let ff_name = FieldFamilyName::Auto(auto_name);
         let ff = FieldFamilyDefinition::new(ff_id, ff_name);
-        self.table
+        let table = Arc::make_mut(&mut self.table);
+        table
             .field_families
             .insert(ff_id, ff)
             .expect("auto field family insert should not fail");
-        self.table.set_auto_field_family(ff_id, auto_name)?;
+        table.set_auto_field_family(ff_id, auto_name)?;
         self.new_field_families.push(WireFieldFamilyDef {
             id: ff_id.get(),
             name: WireFieldFamilyName::Auto(auto_name),

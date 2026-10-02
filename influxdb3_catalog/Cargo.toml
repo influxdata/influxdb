@@ -16,6 +16,7 @@ schema = { path = "../core/schema", features = ["v3"] }
 
 # Local deps
 influxdb3_authz = { path = "../influxdb3_authz/" }
+influxdb3_catalog_macros = { path = "../influxdb3_catalog_macros" }
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_process = { path = "../influxdb3_process" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
@@ -59,9 +60,6 @@ uuid.workspace = true
 [features]
 test_helpers = []
 
-# enable true deletion of catalog records (including within snapshots)
-true_deletion = []
-
 [dev-dependencies]
 # core deps
 test_helpers = { path = "../core/test_helpers" }
@@ -74,11 +72,19 @@ criterion.workspace = true
 insta.workspace = true
 pretty_assertions.workspace = true
 rstest.workspace = true
+syn.workspace = true
 test-log.workspace = true
-tokio = { version = "1", features = [ "test-util" ] }
 
 [[bench]]
 name = "column_or_create"
+harness = false
+
+[[bench]]
+name = "catalog_load"
+harness = false
+
+[[bench]]
+name = "table_transaction"
 harness = false
 
 [lints]

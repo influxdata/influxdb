@@ -251,7 +251,6 @@ struct TelemetryStoreInner {
 }
 
 impl TelemetryStoreInner {
-    #[allow(clippy::too_many_arguments)]
     fn new(
         instance_id: Arc<str>,
         os: Arc<str>,

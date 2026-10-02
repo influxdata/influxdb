@@ -11,7 +11,6 @@ iox_time = { path = "../core/iox_time" }
 observability_deps = { path = "../core/observability_deps" }
 
 # crates.io dependencies
-futures.workspace = true
 futures-util.workspace = true
 parking_lot.workspace = true
 thiserror.workspace = true
@@ -19,6 +18,7 @@ tokio.workspace = true
 tokio-util.workspace = true
 
 [dev-dependencies]
+futures.workspace = true
 test-log.workspace = true
 
 [lints]

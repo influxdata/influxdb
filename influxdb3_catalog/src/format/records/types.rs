@@ -10,11 +10,19 @@
 //! Bitcode uses positional encoding — there are no field tags or self-describing
 //! metadata. This means:
 //!
-//! ## Enums: append-only
+//! ## Enums: do not reorder, insert, remove — or append across a bucket edge
 //!
-//! New variants may be appended to the end of an enum. Existing variant
-//! discriminants are positional (0, 1, 2, ...) and must not change. **Never
-//! reorder, insert, or remove variants.**
+//! Existing variant discriminants are positional (0, 1, 2, ...) and must not
+//! change.
+//!
+//! **Appending is not automatically safe.** bitcode picks the packing for
+//! variant tags from the enum's *variant count* and never writes that choice
+//! into the stream, so a variant may only be appended within a packing bucket.
+//! The bucket ceilings are 1, 2, 3, 4, 6, 16, 256: an enum whose count is one
+//! of those cannot grow without breaking already-written catalogs. Crossing an
+//! edge can also misdecode silently rather than erroring.
+//!
+//! See [issue #4905](https://github.com/influxdata/influxdb_pro/issues/4905).
 //!
 //! ## Structs: frozen
 //!
@@ -31,6 +39,11 @@
 //! All types have byte-stability snapshot tests. These catch accidental
 //! reordering, insertion, or field changes at compile time. When adding a new
 //! enum variant, add a corresponding snapshot assertion in the test file.
+//!
+//! `assert_encoding_stable!` on a single value does not detect a bucket
+//! crossing above 1 -> 2. An enum stored as `Vec<T>` in a record also needs a
+//! record-level `assert_roundtrip!` fixture holding two or more elements of
+//! distinct variants — that is the assertion that changes at a bucket edge.
 
 use bitcode::{Decode, Encode};
 use schema::InfluxColumnType;
@@ -225,6 +238,16 @@ pub enum RetentionPeriod {
     Duration { duration_secs: u64 },
 }
 
+/// Whether table schemas are declared or taken from writes.
+///
+/// At two variants this enum sits on the `_2` packing bucket ceiling, so a
+/// third mode requires a new record type rather than a third variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
+pub enum SchemaMode {
+    Implicit,
+    Explicit,
+}
+
 /// Storage mode configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode, Default)]
 pub enum StorageMode {
@@ -311,7 +334,9 @@ pub struct ResourceNameEntry {
 
 /// A single permission grant attached to a role.
 ///
-/// Mirrors `influxdb3_authz::role::Permission`.
+/// Mirrors `influxdb3_authz::role::Permission`, minus `System`, which has no
+/// persisted representation (#4905). At 6 variants — a bucket ceiling, so read
+/// the module docs before adding one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
 pub enum RolePermissionGrant {
     AccountAdminAll,
@@ -320,7 +345,6 @@ pub enum RolePermissionGrant {
     User(RoleUserPermission),
     Role(RoleRolePermission),
     AdminToken(RoleAdminTokenPermission),
-    System(RoleSystemPermission),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
@@ -347,12 +371,6 @@ pub struct RoleRolePermission {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
 pub struct RoleAdminTokenPermission {
     pub action: RoleAdminTokenAction,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
-pub struct RoleSystemPermission {
-    pub action: RoleSystemAction,
-    pub resource: RoleSystemResource,
 }
 
 /// Database action.
@@ -404,29 +422,67 @@ pub enum RoleAdminTokenAction {
     Delete,
 }
 
-/// System action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
-pub enum RoleSystemAction {
-    Read,
-}
-
-/// System resource. `All` represents `ResourceIdentifier::All`; otherwise a
-/// specific system resource identified by its enumerated variant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
-pub enum RoleSystemResource {
-    All,
-    Health,
-    Metrics,
-    Ping,
-    Ready,
-}
-
 /// Database resource. `All` represents `ResourceIdentifier::All`, otherwise the
 /// raw `DbId` value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
 pub enum RoleDatabaseResource {
     All,
     Identifier(u32),
+}
+
+/// `N` opaque bytes on a record, whose meaning belongs to the field that holds
+/// them rather than to this type.
+///
+/// Encodes identically to a bare `[u8; N]`, which is the reason it exists: the
+/// "Structs: frozen" rule above forbids adding a field to a live record, but a
+/// field already carrying unread bytes can be *retyped* to this and given a
+/// meaning without moving a single byte on disk. `RemoveNode` is the first such
+/// case. A record with no spare bytes still has to become a new record type;
+/// this is not a way around that.
+///
+/// Const-generic over the width so any field with spare bytes can reuse it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct Reserved<const N: usize>(pub [u8; N]);
+
+/// Hand-written because serde's array impls are enumerated rather than
+/// const-generic, so `[u8; N]` has no `Serialize` at generic `N`. Mirrors what
+/// the derive produced for a bare array -- a tuple of `N` elements -- so
+/// retyping a field leaves the serde rendering identical too, not just the
+/// bitcode bytes.
+impl<const N: usize> serde::Serialize for Reserved<N> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeTuple;
+        let mut tuple = serializer.serialize_tuple(N)?;
+        for byte in &self.0 {
+            tuple.serialize_element(byte)?;
+        }
+        tuple.end()
+    }
+}
+
+impl<const N: usize> Reserved<N> {
+    /// All bytes zero, the value every writer produced before any field gave
+    /// these bytes a meaning.
+    pub const ZERO: Self = Self([0; N]);
+
+    /// Rejects `Reserved<0>` where the tag helpers are used, so they are total
+    /// for every width that reaches them rather than panicking on an empty
+    /// array at runtime.
+    const HAS_TAG_BYTE: () = assert!(N > 0, "Reserved<0> has no byte to tag");
+
+    /// The byte a field may use as a small tag, leaving the rest for whatever a
+    /// later reader needs.
+    pub fn tag(&self) -> u8 {
+        () = Self::HAS_TAG_BYTE;
+        self.0[0]
+    }
+
+    pub fn from_tag(tag: u8) -> Self {
+        () = Self::HAS_TAG_BYTE;
+        let mut bytes = [0; N];
+        bytes[0] = tag;
+        Self(bytes)
+    }
 }
 
 #[cfg(test)]

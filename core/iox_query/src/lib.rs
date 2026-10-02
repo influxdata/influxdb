@@ -42,6 +42,7 @@ pub mod provider;
 pub mod pruning;
 pub mod pruning_oracle;
 pub mod query_log;
+pub mod sorts;
 pub mod statistics;
 pub mod util;
 

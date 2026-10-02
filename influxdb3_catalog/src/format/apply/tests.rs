@@ -2,7 +2,6 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use pretty_assertions::assert_eq;
 use uuid::Uuid;
 
 use crate::catalog::CatalogSequenceNumber;
@@ -120,7 +119,7 @@ fn apply_records_to_catalog() {
         &records,
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -140,7 +139,7 @@ fn apply_catalog_file_end_to_end() {
     let mut cursor = Cursor::new(bytes.as_ref());
     let file = CatalogFile::read_from(&mut cursor).expect("should parse");
 
-    let events = apply_catalog_file(&file, &mut catalog, &mut RestorePreload::empty()).unwrap();
+    let events = apply_catalog_file(&file, &mut catalog, RestorePreload::empty()).unwrap();
 
     assert_eq!(events.len(), 1);
     assert_eq!(catalog.sequence_number(), CatalogSequenceNumber::new(5));
@@ -165,7 +164,7 @@ fn apply_records_skips_unknown_upgrade_safe_record() {
         &records,
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -186,7 +185,7 @@ fn apply_records_errors_on_unknown_non_upgrade_safe_record() {
         &records,
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     );
     assert!(result.is_err());
 }
@@ -206,7 +205,7 @@ fn apply_records_appends_to_ordered_records() {
         &[r1.clone(), r2.clone()],
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -231,7 +230,7 @@ fn apply_records_retains_unknown_upgrade_safe_records_for_snapshotting() {
         &[unknown.clone(), known.clone()],
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -269,7 +268,7 @@ fn serialize_snapshot_empty_catalog_writes_compat_entry_only() {
     // An empty catalog snapshots to a header plus the single
     // backward-compatibility group-index entry: SNAPSHOT flag set, zero
     // records, all-zero entry (Global, zero records, zero bytes).
-    let mut catalog = test_catalog();
+    let catalog = test_catalog();
     let bytes = catalog.create_snapshot();
     let mut cursor = Cursor::new(bytes.as_ref());
     let header = Header::read_from(&mut cursor).expect("valid header");
@@ -299,7 +298,7 @@ fn create_snapshot_byte_layout_compat_entry_then_flat_records() {
         &input,
         &mut catalog,
         CatalogSequenceNumber::new(5),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -362,7 +361,7 @@ fn snapshot_round_trip_preserves_application_order_and_sequences() {
         &input,
         &mut catalog,
         CatalogSequenceNumber::new(6),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -395,7 +394,7 @@ fn snapshot_round_trip_replays_into_fresh_catalog() {
         &records,
         &mut source,
         CatalogSequenceNumber::new(5),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .unwrap();
 
@@ -404,7 +403,7 @@ fn snapshot_round_trip_replays_into_fresh_catalog() {
     let file = CatalogFile::read_from(&mut cursor).expect("parse snapshot");
 
     let mut replay = test_catalog();
-    let events = apply_catalog_file(&file, &mut replay, &mut RestorePreload::empty()).unwrap();
+    let events = apply_catalog_file(&file, &mut replay, RestorePreload::empty()).unwrap();
     assert_eq!(events.len(), records.len());
     assert_eq!(replay.sequence_number(), source.sequence_number());
     assert_eq!(replay.ordered_records.len(), source.ordered_records.len());
@@ -436,7 +435,7 @@ fn apply_records_failure_retains_pre_failure_records() {
         &[r1.clone(), r2_conflicting, r3],
         &mut catalog,
         CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     );
     assert!(result.is_err());
 
@@ -449,72 +448,4 @@ fn apply_records_failure_retains_pre_failure_records() {
     let records = snapshot_records(&parsed);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].id(), r1.id());
-}
-
-#[cfg(feature = "true_deletion")]
-#[test]
-fn apply_records_removes_hard_deleted_data() {
-    use crate::format::records::{
-        CreateTrigger, HardDeleteDatabase, HardDeleteTable, NextIdScope, SetNextId,
-        types::{NodeSpec, TriggerSettings, TriggerSpec},
-    };
-
-    let mut catalog = test_catalog();
-
-    let records = [
-        sample_register_node().make_record(1),
-        sample_create_database(1, 2),
-        sample_create_table(1, 1, 3),
-        sample_create_table(1, 2, 4),
-        sample_create_database(2, 5),
-        sample_create_table(2, 1, 6),
-        CreateTrigger {
-            trigger_id: 1,
-            trigger_name: "trigger1".to_string(),
-            plugin_filename: "plugin_filename".to_string(),
-            database_id: 1,
-            node_spec: NodeSpec::default(),
-            trigger: TriggerSpec::AllTablesWalWrite,
-            trigger_settings: TriggerSettings::default(),
-            trigger_arguments: None,
-            disabled: true,
-        }
-        .make_record(7),
-        HardDeleteDatabase { db_id: 1 }.make_record(8),
-        HardDeleteTable {
-            db_id: 2,
-            table_id: 1,
-        }
-        .make_record(9),
-    ];
-
-    apply_records(
-        &records,
-        &mut catalog,
-        CatalogSequenceNumber::new(1),
-        &mut RestorePreload::empty(),
-    )
-    .unwrap();
-
-    let snapshot = catalog.create_snapshot();
-    let mut cursor = Cursor::new(snapshot.as_ref());
-    let parsed = CatalogFile::read_from(&mut cursor).unwrap();
-    let records = snapshot_records(&parsed);
-
-    let expected_records = [
-        sample_register_node().make_record(1),
-        SetNextId {
-            id: 1,
-            scope: NextIdScope::Databases,
-        }
-        .make_record(2),
-        sample_create_database(2, 5),
-        SetNextId {
-            id: 1,
-            scope: NextIdScope::Tables { database_id: 2 },
-        }
-        .make_record(6),
-    ];
-
-    assert_eq!(&records, &expected_records);
 }

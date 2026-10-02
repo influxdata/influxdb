@@ -717,7 +717,6 @@ struct SeriesLimitStream {
 }
 
 impl SeriesLimitStream {
-    #[expect(clippy::too_many_arguments)]
     fn try_new(
         input: SendableRecordBatchStream,
         schema: SchemaRef,

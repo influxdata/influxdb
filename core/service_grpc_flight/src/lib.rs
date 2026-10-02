@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! Implements the InfluxDB IOx "Native" Flight API and Arrow
 //! FlightSQL, based on Arrow Flight and gRPC. See [`FlightService`]
 //! for full detail.
@@ -694,7 +695,6 @@ impl FlightService {
     }
 
     /// Implementation of the `DoGet` method
-    #[expect(clippy::too_many_arguments)]
     async fn run_do_get(
         server: Arc<dyn QueryDatabase>,
         span_ctx: Option<SpanContext>,
@@ -855,6 +855,12 @@ impl FlightService {
         });
 
         Ok(Box::pin(output) as TonicStream<FlightData>)
+    }
+
+    /// Report the lifecycle of every query to `observer`.
+    pub fn with_observer(mut self, observer: Option<Arc<dyn FlightQueryObserver>>) -> Self {
+        self.observer = observer;
+        self
     }
 }
 

@@ -93,6 +93,37 @@ async fn queries_table() {
     }
 }
 
+// Regression test for https://github.com/influxdata/influxdb/issues/27593: a `table_name` filter
+// naming a table that does not exist must return zero rows, not panic the request thread.
+#[tokio::test]
+async fn parquet_files_table_name_filter_unknown_table_is_empty() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db("foo", "cpu,host=s1 usage=0.9 2998574931", Precision::Second)
+        .await
+        .expect("write some lp");
+
+    let mut client = server.flight_sql_client("foo").await;
+
+    let response = client
+        .query("SELECT COUNT(*) FROM system.parquet_files WHERE table_name = 'no_such_table_xyz'")
+        .await
+        .expect("query should succeed, not panic");
+
+    let batches = collect_stream(response).await;
+    assert_batches_sorted_eq!(
+        [
+            "+----------+",
+            "| count(*) |",
+            "+----------+",
+            "| 0        |",
+            "+----------+",
+        ],
+        &batches
+    );
+}
+
 #[test_log::test(tokio::test)]
 async fn last_caches_table() {
     let server = TestServer::spawn().await;

@@ -4,12 +4,12 @@ use influxdb3_id::{ColumnId, DbId, TableId};
 use uuid::Uuid;
 
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
 use crate::format::records::database::CreateDatabase;
 use crate::format::records::repository::{NextIdScope, SetNextId};
 use crate::format::records::table::CreateTable;
 use crate::format::records::types::{FieldFamilyMode, RetentionPeriod};
+use crate::format::{CatalogRecord, RecordApply};
 
 fn test_catalog() -> InnerCatalog {
     InnerCatalog::new(Arc::from("test"), Uuid::nil())

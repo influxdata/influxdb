@@ -48,7 +48,6 @@ impl Display for LogLevel {
 }
 
 impl ProcessingEngineLog {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         event_time: Time,
         database: DatabaseName,

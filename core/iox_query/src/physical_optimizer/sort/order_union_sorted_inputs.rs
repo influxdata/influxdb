@@ -881,7 +881,7 @@ mod test {
         );
         insta::assert_yaml_snapshot!(
             plan_parquet_1.formatted(),
-            @r#"- " DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet""#
+            @r#"- " DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet""#
         );
 
         let plan_sort1 = plan_parquet_1.sort_with_preserve_partitioning(final_sort_exprs);
@@ -934,7 +934,7 @@ mod test {
           - " SortPreservingMergeExec: [time@3 DESC NULLS LAST]"
           - "   UnionExec"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[true]"
-          - "       DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+          - "       DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
           - "       DeduplicateExec: [col1@0 ASC NULLS LAST,col2@1 ASC NULLS LAST,time@3 ASC NULLS LAST]"
           - "         SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
@@ -992,7 +992,7 @@ mod test {
         );
         insta::assert_yaml_snapshot!(
             plan_parquet_1.formatted(),
-            @r#"- " DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet""#
+            @r#"- " DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet""#
         );
 
         let plan_sort1 = plan_parquet_1.sort_with_preserve_partitioning(final_sort_exprs);
@@ -1001,7 +1001,7 @@ mod test {
             plan_sort1.formatted(),
             @r#"
         - " SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[true]"
-        - "   DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+        - "   DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
 
@@ -1050,7 +1050,7 @@ mod test {
           - " SortPreservingMergeExec: [time@3 DESC NULLS LAST]"
           - "   UnionExec"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[true]"
-          - "       DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+          - "       DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
           - "       DeduplicateExec: [col1@0 ASC NULLS LAST,col2@1 ASC NULLS LAST,time@3 ASC NULLS LAST]"
           - "         SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
@@ -1111,7 +1111,7 @@ mod test {
         );
         insta::assert_yaml_snapshot!(
             plan_parquet_1.formatted(),
-            @r#"- " DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet""#
+            @r#"- " DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet""#
         );
 
         let plan_sort1 =
@@ -1121,7 +1121,7 @@ mod test {
             plan_sort1.formatted(),
             @r#"
         - " SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
-        - "   DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+        - "   DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
 
@@ -1175,7 +1175,7 @@ mod test {
           - " SortPreservingMergeExec: [time@3 DESC NULLS LAST]"
           - "   UnionExec"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
-          - "       DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+          - "       DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
           - "       DeduplicateExec: [col1@0 ASC NULLS LAST,col2@1 ASC NULLS LAST,time@3 ASC NULLS LAST]"
           - "         SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
@@ -1190,7 +1190,7 @@ mod test {
             - "   ReorderPartitionsExec: mapped_partition_indices=[1, 0]"
             - "     UnionExec"
             - "       SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
-            - "         DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+            - "         DataSourceExec: file_groups={1 group: [[0.parquet, 1.parquet, 2.parquet, 3.parquet, 4.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
             - "       SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
             - "         DeduplicateExec: [col1@0 ASC NULLS LAST,col2@1 ASC NULLS LAST,time@3 ASC NULLS LAST]"
             - "           SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
@@ -1236,7 +1236,7 @@ mod test {
         );
         insta::assert_yaml_snapshot!(
             plan_parquet_1.formatted(),
-            @r#"- " DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet""#
+            @r#"- " DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet""#
         );
 
         let plan_sort_1 = plan_parquet_1.sort_with_preserve_partitioning(final_sort_exprs);
@@ -1257,7 +1257,7 @@ mod test {
             PlanBuilder::data_source_exec_parquet_overlapped_chunks(&schema, 3, 2001, 200, 2);
         insta::assert_yaml_snapshot!(
             plan_parquet_2.formatted(),
-            @r#"- " DataSourceExec: file_groups={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet""#
+            @r#"- " DataSourceExec: file_groups={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet""#
         );
 
         // sort expression for deduplication
@@ -1290,11 +1290,11 @@ mod test {
           - " SortPreservingMergeExec: [time@3 DESC NULLS LAST]"
           - "   UnionExec"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[true]"
-          - "       DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+          - "       DataSourceExec: file_groups={3 groups: [[0.parquet, 3.parquet], [1.parquet, 4.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
           - "       DeduplicateExec: [col2@1 ASC NULLS LAST,col1@0 ASC NULLS LAST,time@3 ASC NULLS LAST]"
           - "         SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
-          - "           DataSourceExec: file_groups={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+          - "           DataSourceExec: file_groups={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
             - " ProgressiveEvalExec: input_ranges=[(2001)->(2602), (1800)->(1999), (1600)->(1799), (1400)->(1599), (1200)->(1399), (1000)->(1199)]"
@@ -1305,7 +1305,7 @@ mod test {
             - "       SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
             - "         DeduplicateExec: [col2@1 ASC NULLS LAST,col1@0 ASC NULLS LAST,time@3 ASC NULLS LAST]"
             - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
-            - "             DataSourceExec: file_groups={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], file_type=parquet"
+            - "             DataSourceExec: file_groups={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
     }
@@ -1862,10 +1862,9 @@ mod test {
         - "             SortPreservingMergeExec: [tag@0 ASC, time@1 ASC, __chunk_order@2 ASC]"
         - "               UnionExec"
         - "                 SortExec: expr=[tag@0 ASC, time@1 ASC, __chunk_order@2 ASC], preserve_partitioning=[true]"
-        - "                   CoalesceBatchesExec: target_batch_size=8192"
-        - "                     FilterExec: time@1 > 0"
-        - "                       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1"
-        - "                         RecordBatchesExec: chunks=1 [Test=1], projection=[tag, time, __chunk_order]"
+        - "                   FilterExec: time@1 > 0"
+        - "                     RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1, maintains_sort_order=true"
+        - "                       RecordBatchesExec: chunks=1 [Test=1], projection=[tag, time, __chunk_order]"
         - "                 DataSourceExec: file_groups={4 groups: [[2.parquet:0..500], [3.parquet:0..500], [2.parquet:500..1000], [3.parquet:500..1000]]}, projection=[tag, time, __chunk_order], output_ordering=[tag@0 ASC, time@1 ASC, __chunk_order@2 ASC], file_type=parquet, predicate=time@1 > 0, pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         "#
         );
@@ -1902,10 +1901,9 @@ mod test {
         - "           SortPreservingMergeExec: [tag@0 ASC, time@1 ASC, __chunk_order@2 ASC]"
         - "             UnionExec"
         - "               SortExec: expr=[tag@0 ASC, time@1 ASC, __chunk_order@2 ASC], preserve_partitioning=[true]"
-        - "                 CoalesceBatchesExec: target_batch_size=8192"
-        - "                   FilterExec: time@1 > 0"
-        - "                     RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1"
-        - "                       RecordBatchesExec: chunks=1 [Test=1], projection=[tag, time, __chunk_order]"
+        - "                 FilterExec: time@1 > 0"
+        - "                   RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1, maintains_sort_order=true"
+        - "                     RecordBatchesExec: chunks=1 [Test=1], projection=[tag, time, __chunk_order]"
         - "               DataSourceExec: file_groups={4 groups: [[2.parquet:0..500], [3.parquet:0..500], [2.parquet:500..1000], [3.parquet:500..1000]]}, projection=[tag, time, __chunk_order], output_ordering=[tag@0 ASC, time@1 ASC, __chunk_order@2 ASC], file_type=parquet, predicate=time@1 > 0, pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         "#
         );

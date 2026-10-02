@@ -3,10 +3,12 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
-use crate::format::records::database::{CreateDatabase, HardDeleteDatabase, SoftDeleteDatabase};
-use crate::format::records::types::{DeletionScope, RetentionPeriod};
+use crate::format::records::database::{
+    CreateDatabase, HardDeleteDatabase, SetDatabaseSchemaMode, SoftDeleteDatabase,
+};
+use crate::format::records::types::{DeletionScope, RetentionPeriod, SchemaMode};
+use crate::format::{CatalogRecord, RecordApply};
 
 /// Helper to create a test catalog.
 fn test_catalog() -> InnerCatalog {
@@ -58,7 +60,32 @@ fn hard_delete_database_round_trip() {
 }
 
 #[test]
+fn set_database_schema_mode_explicit_round_trip() {
+    assert_roundtrip!(
+        SetDatabaseSchemaMode {
+            database_id: 1,
+            schema_mode: SchemaMode::Explicit,
+        },
+        "040101"
+    );
+}
+
+#[test]
+fn set_database_schema_mode_implicit_round_trip() {
+    assert_roundtrip!(
+        SetDatabaseSchemaMode {
+            database_id: 42,
+            schema_mode: SchemaMode::Implicit,
+        },
+        "042a00"
+    );
+}
+
+#[test]
 fn record_ids() {
+    assert_eq!(SetDatabaseSchemaMode::ID.raw(), 47);
+    assert!(!SetDatabaseSchemaMode::FLAGS.is_upgrade_safe());
+
     assert_eq!(CreateDatabase::ID.raw(), 4);
     assert!(!CreateDatabase::FLAGS.is_upgrade_safe());
 

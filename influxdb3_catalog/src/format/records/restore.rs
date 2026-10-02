@@ -13,15 +13,19 @@
 
 use std::sync::Arc;
 
-use super::impl_bitcode_encoding;
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{RecordApply, record_ids};
 
 /// Replace the in-memory catalog with state loaded from a backup snapshot
 /// and replay log files.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+///
+/// Not `UPGRADE_SAFE`: an older node that does not understand restore must
+/// hard-fail rather than silently ignore the state replacement.
+#[catalog_record(id = record_ids::RESTORE_CATALOG, shape = 0x5fe7c7b3)]
 pub struct RestoreCatalog {
     /// Wall-clock time the restore was initiated.
     pub time_ns: i64,
@@ -35,13 +39,7 @@ pub struct RestoreCatalog {
     pub log_paths: Vec<String>,
 }
 
-impl CatalogRecord for RestoreCatalog {
-    const ID: RecordId = record_ids::RESTORE_CATALOG;
-    // Not UPGRADE_SAFE: an older node that does not understand restore must
-    // hard-fail rather than silently ignore the state replacement.
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RestoreCatalog";
-
+impl RecordApply for RestoreCatalog {
     fn apply(&self, _catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         // Intercepted by `apply_records` before dispatch — see
         // `format::apply::apply_records`. Reaching this path means the
@@ -59,12 +57,6 @@ impl CatalogRecord for RestoreCatalog {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<RestoreCatalog>()
-}
-
-impl_bitcode_encoding!(RestoreCatalog);
 
 #[cfg(test)]
 mod tests;

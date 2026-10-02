@@ -77,6 +77,7 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // Substrait errors come from internal code and are unused
         // with DataFusion at the moment
         | DataFusionError::Substrait(_)
+        | DataFusionError::Ffi(_)
         | DataFusionError::Internal(_) => tonic::Code::Internal,
         // Join errors are tokio-task based and need translation
         DataFusionError::ExecutionJoin(e) => join_error_to_tonic_code(e),

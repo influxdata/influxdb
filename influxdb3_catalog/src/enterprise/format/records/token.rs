@@ -4,15 +4,16 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::format::apply::ApplyError;
-use crate::format::records::impl_bitcode_encoding;
 use crate::format::records::types::{
     Actions as WireActions, Permission as WirePermission, ResourceIdentifier as WireResourceIdent,
     ResourceType as WireResourceType,
 };
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 use influxdb3_authz::permissions::TokenPermissionResourceIdentifier;
 use influxdb3_authz::{
     Actions, CrudActions, DatabaseActions, Permission, ResourceIdentifier, ResourceMetadata,
@@ -21,7 +22,7 @@ use influxdb3_authz::{
 use influxdb3_id::{DbId, TokenId};
 
 /// Create a resource-scoped token (enterprise).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_RESOURCE_SCOPED_TOKEN, shape = 0x04a61739)]
 pub struct CreateResourceScopedToken {
     /// Token catalog ID.
     pub token_id: u64,
@@ -45,11 +46,7 @@ pub struct CreateResourceScopedToken {
     pub permissions: Vec<WirePermission>,
 }
 
-impl CatalogRecord for CreateResourceScopedToken {
-    const ID: RecordId = record_ids::CREATE_RESOURCE_SCOPED_TOKEN;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateResourceScopedToken";
-
+impl RecordApply for CreateResourceScopedToken {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let token_id = TokenId::from(self.token_id);
         let mut token_info = TokenInfo::new(
@@ -130,12 +127,6 @@ impl CatalogRecord for CreateResourceScopedToken {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<CreateResourceScopedToken>()
-}
-
-impl_bitcode_encoding!(CreateResourceScopedToken);
 
 impl From<&WirePermission> for Permission {
     fn from(wp: &WirePermission) -> Self {

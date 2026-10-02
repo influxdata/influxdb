@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use flate2::{Compression, write::GzEncoder};
 use hashbrown::HashMap;
+use influxdb3_catalog::catalog::SchemaMode;
 use influxdb3_catalog::log::{OrderedCatalogBatch, TriggerSettings};
 use iox_query_params::{StatementParam, StatementParams};
 use reqwest::{
@@ -486,6 +487,7 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         retention_period: Option<Duration>,
+        schema_mode: SchemaMode,
     ) -> Result<()> {
         let _bytes = self
             .send_json_get_bytes(
@@ -494,6 +496,7 @@ impl Client {
                 Some(CreateDatabaseRequest {
                     db: db.into(),
                     retention_period,
+                    schema_mode,
                 }),
                 None::<()>,
                 None,
@@ -637,6 +640,40 @@ impl Client {
         Ok(())
     }
 
+    /// Make a request to the `PATCH /api/v3/configure/table` API
+    ///
+    /// Adds the given tags and fields to an existing table, touching nothing
+    /// else about it.
+    pub async fn api_v3_configure_table_add_columns(
+        &self,
+        db: impl Into<String> + Send,
+        table: impl Into<String> + Send,
+        tags: Vec<impl Into<String> + Send>,
+        fields: Vec<(impl Into<String> + Send, impl Into<FieldType> + Send)>,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::PATCH,
+                "/api/v3/configure/table",
+                Some(PatchTableRequest {
+                    db: db.into(),
+                    table: table.into(),
+                    tags: tags.into_iter().map(Into::into).collect(),
+                    fields: fields
+                        .into_iter()
+                        .map(|(name, r#type)| CreateTableField {
+                            name: name.into(),
+                            r#type: r#type.into(),
+                        })
+                        .collect(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Make a request to the `POST /api/v3/configure/processing_engine_plugin` API
     pub async fn api_v3_configure_processing_engine_plugin_create(
         &self,
@@ -684,7 +721,6 @@ impl Client {
     }
 
     /// Make a request to `POST /api/v3/configure/processing_engine_trigger`
-    #[allow(clippy::too_many_arguments)]
     pub async fn api_v3_configure_processing_engine_trigger_create(
         &self,
         db: impl Into<String> + Send,

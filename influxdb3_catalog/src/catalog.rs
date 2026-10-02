@@ -26,8 +26,10 @@ pub use versions::v3::schema::column::{
     ColumnDefinition, ColumnSet, FieldColumn, FieldDataType, FieldFamilyDefinition,
     FieldFamilyMode, FieldFamilyName, TagColumn, TimestampColumn,
 };
-pub use versions::v3::schema::database::DatabaseSchema;
-pub use versions::v3::schema::node::{NodeDefinition, NodeMode, NodeModes, NodeSpec, NodeState};
+pub use versions::v3::schema::database::{DatabaseSchema, SchemaMode};
+pub use versions::v3::schema::node::{
+    NodeDefinition, NodeMode, NodeModes, NodeSpec, NodeState, RemovalAttestation,
+};
 pub use versions::v3::schema::query_group::{
     QueryGroupDefinition, QueryGroupInsertPosition, QueryGroupUpdate,
 };
@@ -84,7 +86,8 @@ pub const CHUNK_ORDER_COLUMN_NAME: &str = "__chunk_order";
 /// List of reserved column names that cannot be used as user-defined columns
 pub const RESERVED_COLUMN_NAMES: &[&str] = &[TIME_COLUMN_NAME, CHUNK_ORDER_COLUMN_NAME];
 
-const DEFAULT_OPERATOR_TOKEN_NAME: &str = "_admin";
+/// Name of the operator token in the catalog
+pub const DEFAULT_OPERATOR_TOKEN_NAME: &str = "_admin";
 
 // Type alias for BiHashMap with AHash for better performance and DoS resistance
 pub(crate) type BiHashMap<L, R> = bimap::BiHashMap<L, R, AHashBuilder, AHashBuilder>;
@@ -257,6 +260,12 @@ impl TokenRepository {
         hash: Vec<u8>,
         updated_at: i64,
     ) -> Result<()> {
+        if let Some(existing_id) = self.hash_to_id(hash.clone())
+            && existing_id != token_id
+        {
+            return Err(CatalogError::TokenHashAlreadyExists);
+        }
+
         let mut token_info = self
             .repo
             .get_by_id(&token_id)

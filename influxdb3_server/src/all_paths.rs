@@ -1,3 +1,5 @@
+//! When adding a path const here, add a matching arm in crate::route_template, or the new route reports as "other" in /metrics.
+
 pub(crate) const API_LEGACY_WRITE: &str = "/write";
 pub(crate) const API_V2_WRITE: &str = "/api/v2/write";
 pub(crate) const API_V3_WRITE: &str = "/api/v3/write_lp";

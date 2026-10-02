@@ -924,7 +924,7 @@ mod tests {
     // supporting bigdecimal parameters would also fix this edge case.
     #[test]
     fn params_from_json_str_bignum() {
-        let json = format! {" {{ \"abc\" : {}999 }} ", f64::MAX};
+        let json = format!(" {{ \"abc\" : {}999 }} ", f64::MAX);
         let result = serde_json::from_str::<StatementParams>(&json);
         // NOTE: without the "arbitrary_precision" feature enabled on serde_json, deserialization will never encounter
         // our out-of-bounds guard

@@ -88,6 +88,7 @@ fn collect_new_statistics(
                     min_value,
                     distinct_count: distinct_count.to_inexact(),
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 }
             },
         )

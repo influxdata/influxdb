@@ -25,14 +25,14 @@ impl DataFusionMemoryPoolMetricsBridge {
 
 impl Instrument for DataFusionMemoryPoolMetricsBridge {
     fn report(&self, reporter: &mut dyn Reporter) {
+        let Some(pool) = self.pool.upgrade() else {
+            return;
+        };
         reporter.start_metric(
             "datafusion_mem_pool_bytes",
             "Number of bytes within the datafusion memory pool",
             MetricKind::U64Gauge,
         );
-        let Some(pool_arc) = self.pool.upgrade() else {
-            return;
-        };
 
         reporter.report_observation(
             &Attributes::from([("state", Cow::Borrowed("limit"))]),
@@ -41,7 +41,7 @@ impl Instrument for DataFusionMemoryPoolMetricsBridge {
 
         reporter.report_observation(
             &Attributes::from([("state", Cow::Borrowed("reserved"))]),
-            Observation::U64Gauge(pool_arc.reserved() as u64),
+            Observation::U64Gauge(pool.reserved() as u64),
         );
         reporter.finish_metric();
     }
@@ -50,3 +50,6 @@ impl Instrument for DataFusionMemoryPoolMetricsBridge {
         self
     }
 }
+
+#[cfg(test)]
+mod tests;

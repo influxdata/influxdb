@@ -477,6 +477,7 @@ macro_rules! impl_with_column_with_stats {
                 min_value: option_to_precision(min.map(|s| ScalarValue::from(s))),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             };
 
             self.add_schema_to_table(new_column_schema, Some(stats))
@@ -684,6 +685,7 @@ impl TestChunk {
             })),
             distinct_count: option_to_precision(distinct_count.map(|c| c.get() as usize)),
             sum_value: Precision::Absent,
+            byte_size: Precision::Absent,
         };
 
         self.add_schema_to_table(new_column_schema, Some(stats))
@@ -722,6 +724,7 @@ impl TestChunk {
             min_value: option_to_precision(min.map(timestamptz_nano)),
             distinct_count: option_to_precision(distinct_count.map(|c| c.get() as usize)),
             sum_value: Precision::Absent,
+            byte_size: Precision::Absent,
         };
 
         self.add_schema_to_table(new_column_schema, Some(stats))
@@ -775,6 +778,7 @@ impl TestChunk {
             min_value: option_to_precision(min.map(ScalarValue::from)),
             distinct_count: Precision::Absent,
             sum_value: Precision::Absent,
+            byte_size: Precision::Absent,
         };
 
         self.add_schema_to_table(new_column_schema, Some(stats))
@@ -1277,6 +1281,7 @@ pub(crate) mod test_utils {
         datasource::{
             listing::PartitionedFile,
             physical_plan::{FileGroup, FileScanConfigBuilder, ParquetSource},
+            table_schema::TableSchema,
         },
         physical_expr::LexOrdering,
         physical_plan::{
@@ -1327,6 +1332,7 @@ pub(crate) mod test_utils {
                 min_value: Precision::Exact(ScalarValue::Int32(val.min)),
                 distinct_count: Precision::Absent,
                 sum_value: Precision::Absent,
+                byte_size: Precision::Absent,
             }
         }
     }
@@ -1449,10 +1455,11 @@ pub(crate) mod test_utils {
             };
         }
 
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test:///").unwrap(),
-            Arc::clone(schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(file_groups)
         .with_output_ordering(output_ordering)
@@ -1558,6 +1565,7 @@ mod meta_test {
                     min_value: Exact(Boolean(false)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Absent,
@@ -1565,6 +1573,7 @@ mod meta_test {
                     min_value: Exact(Float64(1)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Absent,
@@ -1572,6 +1581,7 @@ mod meta_test {
                     min_value: Exact(Int64(1)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Absent,
@@ -1579,6 +1589,7 @@ mod meta_test {
                     min_value: Exact(Utf8("a")),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Absent,
@@ -1586,6 +1597,7 @@ mod meta_test {
                     min_value: Exact(UInt64(1)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Exact(0),
@@ -1593,6 +1605,7 @@ mod meta_test {
                     min_value: Exact(Dictionary(Int32, Utf8("a"))),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
                 ColumnStatistics {
                     null_count: Exact(0),
@@ -1600,6 +1613,7 @@ mod meta_test {
                     min_value: Exact(TimestampNanosecond(1, None)),
                     sum_value: Absent,
                     distinct_count: Absent,
+                    byte_size: Absent,
                 },
             ],
         }

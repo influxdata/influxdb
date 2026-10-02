@@ -669,6 +669,49 @@ impl UserDefinedLogicalNodeCore for SeriesLimit {
 
         Self::try_new(input, series_expr, order_expr, limit_expr, skip, fetch)
     }
+
+    /// Returns the necessary input columns for this node required to compute
+    /// the columns in the output schema.
+    ///
+    /// The output schema of `SeriesLimit` is positionally identical to its
+    /// input (only the nullability of limited columns may differ, see
+    /// [`SeriesLimit::try_new`]), so the parent's required output indices map
+    /// 1:1 onto the input. The columns referenced by this node's own
+    /// expressions (`series_expr`, `order_expr`, and both the `expr` and
+    /// `default_value` of every `limit_expr`) are unioned in, so a column the
+    /// parent does not need but this node does is never pruned from the
+    /// child; that would make `try_new` fail when the node is rebuilt via
+    /// [`UserDefinedLogicalNodeCore::with_exprs_and_inputs`].
+    ///
+    /// Returns `None` if any referenced column cannot be resolved against the
+    /// input schema.
+    fn necessary_children_exprs(&self, output_columns: &[usize]) -> Option<Vec<Vec<usize>>> {
+        let input_schema = self.input.schema();
+        let mut indices = Vec::from(output_columns);
+
+        let mut unresolved = false;
+        self.apply_expressions(|expr| {
+            for column in expr.column_refs() {
+                match input_schema.maybe_index_of_column(column) {
+                    Some(idx) => indices.push(idx),
+                    None => unresolved = true,
+                }
+            }
+            Ok(TreeNodeRecursion::Continue)
+        })
+        .expect("cannot error");
+
+        if unresolved {
+            // A reference we cannot resolve against the input means we do
+            // not know what the child must keep; refuse the pushdown rather
+            // than risk pruning a needed column.
+            return None;
+        }
+
+        indices.sort_unstable();
+        indices.dedup();
+        Some(vec![indices])
+    }
 }
 
 #[cfg(test)]
@@ -1058,6 +1101,61 @@ mod tests {
             assert!(result.is_err());
             let err_str = result.unwrap_err().to_string();
             assert!(err_str.contains("expects exactly 1 input"));
+        }
+
+        #[test]
+        fn test_necessary_children_exprs() {
+            // Input columns: a=0, b=1, c=2, time=3
+            let input = test_plan_multi_column();
+            let series_expr = vec![col("a")];
+            let order_expr = vec![SortExpr {
+                expr: col("time"),
+                asc: false,
+                nulls_first: false,
+            }];
+            let limit_expr = vec![LimitExpr {
+                expr: col("b"),
+                null_treatment: NullTreatment::RespectNulls,
+                default_value: lit(ScalarValue::Int64(Some(0))),
+            }];
+            let series_limit = SeriesLimit::try_new(
+                input,
+                series_expr,
+                order_expr,
+                limit_expr,
+                Some(Box::new(lit(3_u64))),
+                Some(Box::new(lit(1_u64))),
+            )
+            .unwrap();
+
+            // The parent only needs `b`; the node itself references `a`
+            // (series), `time` (order) and `b` (limit), so the child must
+            // still keep all three. `c` is referenced by nobody and is
+            // pruned.
+            assert_eq!(
+                series_limit.necessary_children_exprs(&[1]),
+                Some(vec![vec![0, 1, 3]])
+            );
+
+            // Parent-requested indices are unioned, sorted and de-duplicated
+            // with the node's own references.
+            assert_eq!(
+                series_limit.necessary_children_exprs(&[3, 0, 3]),
+                Some(vec![vec![0, 1, 3]])
+            );
+
+            // A column the node does not reference is kept only when the
+            // parent asks for it.
+            assert_eq!(
+                series_limit.necessary_children_exprs(&[2]),
+                Some(vec![vec![0, 1, 2, 3]])
+            );
+
+            // The parent needing nothing still keeps the node's own columns.
+            assert_eq!(
+                series_limit.necessary_children_exprs(&[]),
+                Some(vec![vec![0, 1, 3]])
+            );
         }
 
         #[test]

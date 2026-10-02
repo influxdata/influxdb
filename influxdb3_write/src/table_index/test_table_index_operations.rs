@@ -83,7 +83,7 @@ impl TableIndexSnapshotBuilder {
                     };
                     let file = ParquetFile {
                         id: file_id,
-                        path: format!("test_file_{i}"),
+                        path: format!("test_file_{i}").into(),
                         size_bytes: 100 * (i as u64 + 1),
                         row_count: 1000 * (i as u64 + 1),
                         chunk_time: 0,
@@ -115,7 +115,7 @@ impl TableIndexSnapshotBuilder {
                     };
                     let file = ParquetFile {
                         id: file_id,
-                        path: format!("test_file_{i}"),
+                        path: format!("test_file_{i}").into(),
                         size_bytes: 100 * (i as u64 + 1),
                         row_count: 1000 * (i as u64 + 1),
                         chunk_time: 0,
@@ -227,7 +227,7 @@ struct LoadFromObjectStoreTestCase {
             // Files from first snapshot (seq 10) - 2 files
             files.insert(ParquetFile {
                 id: ParquetFileId::from(100),
-                path: "test_file_0".to_string(),
+                path: "test_file_0".into(),
                 size_bytes: 100,
                 row_count: 1000,
                 chunk_time: 0,
@@ -236,7 +236,7 @@ struct LoadFromObjectStoreTestCase {
             });
             files.insert(ParquetFile {
                 id: ParquetFileId::from(101),
-                path: "test_file_1".to_string(),
+                path: "test_file_1".into(),
                 size_bytes: 200,
                 row_count: 2000,
                 chunk_time: 0,
@@ -246,7 +246,7 @@ struct LoadFromObjectStoreTestCase {
             // File from second snapshot (seq 20) - 1 file
             files.insert(ParquetFile {
                 id: ParquetFileId::from(102),
-                path: "test_file_0".to_string(),
+                path: "test_file_0".into(),
                 size_bytes: 100,
                 row_count: 1000,
                 chunk_time: 0,
@@ -269,7 +269,7 @@ struct LoadFromObjectStoreTestCase {
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(200),
-                path: "existing_file".to_string(),
+                path: "existing_file".into(),
                 size_bytes: 500,
                 row_count: 5000,
                 chunk_time: 0,
@@ -288,7 +288,7 @@ struct LoadFromObjectStoreTestCase {
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(200),
-                path: "existing_file".to_string(),
+                path: "existing_file".into(),
                 size_bytes: 500,
                 row_count: 5000,
                 chunk_time: 0,
@@ -311,7 +311,7 @@ struct LoadFromObjectStoreTestCase {
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(200),
-                path: "existing_file".to_string(),
+                path: "existing_file".into(),
                 size_bytes: 500,
                 row_count: 5000,
                 chunk_time: 0,
@@ -336,7 +336,7 @@ struct LoadFromObjectStoreTestCase {
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(200),
-                path: "existing_file".to_string(),
+                path: "existing_file".into(),
                 size_bytes: 500,
                 row_count: 5000,
                 chunk_time: 0,
@@ -345,7 +345,7 @@ struct LoadFromObjectStoreTestCase {
             });
             files.insert(ParquetFile {
                 id: ParquetFileId::from(201),
-                path: "test_file_0".to_string(),
+                path: "test_file_0".into(),
                 size_bytes: 100,
                 row_count: 1000,
                 chunk_time: 0,
@@ -368,7 +368,7 @@ struct LoadFromObjectStoreTestCase {
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(200),
-                path: "existing_file".to_string(),
+                path: "existing_file".into(),
                 size_bytes: 500,
                 row_count: 5000,
                 chunk_time: 0,
@@ -401,7 +401,7 @@ struct LoadFromObjectStoreTestCase {
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(200),
-                path: "existing_file".to_string(),
+                path: "existing_file".into(),
                 size_bytes: 500,
                 row_count: 5000,
                 chunk_time: 0,
@@ -410,7 +410,7 @@ struct LoadFromObjectStoreTestCase {
             });
             files.insert(ParquetFile {
                 id: ParquetFileId::from(301),
-                path: "test_file_0".to_string(),
+                path: "test_file_0".into(),
                 size_bytes: 100,
                 row_count: 1000,
                 chunk_time: 0,
@@ -433,7 +433,7 @@ struct LoadFromObjectStoreTestCase {
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(100),
-                path: "file_to_keep".to_string(),
+                path: "file_to_keep".into(),
                 size_bytes: 1000,
                 row_count: 10000,
                 chunk_time: 0,
@@ -442,7 +442,7 @@ struct LoadFromObjectStoreTestCase {
             });
             files.insert(ParquetFile {
                 id: ParquetFileId::from(101),
-                path: "file_to_remove".to_string(),
+                path: "file_to_remove".into(),
                 size_bytes: 2000,
                 row_count: 20000,
                 chunk_time: 0,
@@ -472,7 +472,7 @@ struct LoadFromObjectStoreTestCase {
             // File 100 remains
             files.insert(ParquetFile {
                 id: ParquetFileId::from(100),
-                path: "file_to_keep".to_string(),
+                path: "file_to_keep".into(),
                 size_bytes: 1000,
                 row_count: 10000,
                 chunk_time: 0,
@@ -483,7 +483,7 @@ struct LoadFromObjectStoreTestCase {
             // File 102 was added
             files.insert(ParquetFile {
                 id: ParquetFileId::from(102),
-                path: "test_file_0".to_string(),
+                path: "test_file_0".into(),
                 size_bytes: 100,
                 row_count: 1000,
                 chunk_time: 0,
@@ -621,7 +621,7 @@ fn test_merge_validation(
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(1),
-                path: "file1".to_string(),
+                path: "file1".into(),
                 size_bytes: 100,
                 row_count: 1000,
                 chunk_time: 0,
@@ -647,7 +647,7 @@ fn test_merge_validation(
             let mut files = BTreeSet::new();
             files.insert(ParquetFile {
                 id: ParquetFileId::from(2),
-                path: "file2".to_string(),
+                path: "file2".into(),
                 size_bytes: 200,
                 row_count: 2000,
                 chunk_time: 0,

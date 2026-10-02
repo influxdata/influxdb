@@ -11,7 +11,7 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use iox_time::TimeProvider;
 use object_store::{
-    GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
+    GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore, PutMode,
     PutMultipartOptions, PutOptions, PutPayload, PutResult, Result, path::Path,
 };
 
@@ -27,17 +27,17 @@ pub struct ObservedObjectStore {
 /// Update the health handle based on a single operation's outcome. Shared
 /// between per-call observation and per-stream-item observation so the
 /// NotFound-as-success rule stays consistent across all surfaces.
-fn record_outcome<T>(
+fn record_outcome(
     health: &ObjectStoreHealth,
     time_provider: &dyn TimeProvider,
-    result: &Result<T>,
+    result: Result<(), &object_store::Error>,
 ) {
     let now = time_provider.now();
     match result {
         // NotFound means the store responded successfully but the requested
         // path does not exist. For connectivity/credential readiness this
         // is a success: the network and auth paths both worked.
-        Ok(_) | Err(object_store::Error::NotFound { .. }) => health.record_success(now),
+        Ok(()) | Err(object_store::Error::NotFound { .. }) => health.record_success(now),
         Err(e) => health.record_error(now, ErrorCategory::categorize(e)),
     }
 }
@@ -55,7 +55,7 @@ impl ObservedObjectStore {
         }
     }
 
-    fn observe<T>(&self, result: &Result<T>) {
+    fn observe(&self, result: Result<(), &object_store::Error>) {
         record_outcome(&self.health, self.time_provider.as_ref(), result);
     }
 }
@@ -66,11 +66,58 @@ impl std::fmt::Display for ObservedObjectStore {
     }
 }
 
+fn transform_put_opts_result_fn<T>(
+    put_mode: &PutMode,
+) -> fn(&Result<T>) -> Result<(), &object_store::Error> {
+    match put_mode {
+        PutMode::Overwrite => transform_result_for_observe,
+        PutMode::Create => |r| match r {
+            Ok(_) | Err(object_store::Error::AlreadyExists { .. }) => Ok(()),
+            Err(e) => Err(e),
+        },
+        PutMode::Update(_) => |r| match r {
+            Ok(_) | Err(object_store::Error::Precondition { .. }) => Ok(()),
+            Err(e) => Err(e),
+        },
+    }
+}
+
+fn transform_get_opts_result_fn<T>(
+    get_opts: &GetOptions,
+) -> fn(&Result<T>) -> Result<(), &object_store::Error> {
+    let allow_precondition = get_opts.if_match.is_some() || get_opts.if_unmodified_since.is_some();
+    let allow_not_modified =
+        get_opts.if_none_match.is_some() || get_opts.if_modified_since.is_some();
+
+    match (allow_precondition, allow_not_modified) {
+        (false, false) => transform_result_for_observe,
+        (true, false) => |r| match r {
+            Ok(_) | Err(object_store::Error::Precondition { .. }) => Ok(()),
+            Err(e) => Err(e),
+        },
+        (false, true) => |r| match r {
+            Ok(_) | Err(object_store::Error::NotModified { .. }) => Ok(()),
+            Err(e) => Err(e),
+        },
+        (true, true) => |r| match r {
+            Ok(_)
+            | Err(
+                object_store::Error::Precondition { .. } | object_store::Error::NotModified { .. },
+            ) => Ok(()),
+            Err(e) => Err(e),
+        },
+    }
+}
+
+fn transform_result_for_observe<T>(result: &Result<T>) -> Result<(), &object_store::Error> {
+    result.as_ref().map(|_| ())
+}
+
 #[async_trait]
 impl ObjectStore for ObservedObjectStore {
     async fn put(&self, location: &Path, payload: PutPayload) -> Result<PutResult> {
         let r = self.inner.put(location, payload).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
@@ -80,14 +127,15 @@ impl ObjectStore for ObservedObjectStore {
         payload: PutPayload,
         opts: PutOptions,
     ) -> Result<PutResult> {
+        let transform_result = transform_put_opts_result_fn(&opts.mode);
         let r = self.inner.put_opts(location, payload, opts).await;
-        self.observe(&r);
+        self.observe(transform_result(&r));
         r
     }
 
     async fn put_multipart(&self, location: &Path) -> Result<Box<dyn MultipartUpload>> {
         let r = self.inner.put_multipart(location).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
@@ -97,43 +145,44 @@ impl ObjectStore for ObservedObjectStore {
         opts: PutMultipartOptions,
     ) -> Result<Box<dyn MultipartUpload>> {
         let r = self.inner.put_multipart_opts(location, opts).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
         let r = self.inner.get(location).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
+        let transform_result_fn = transform_get_opts_result_fn(&options);
         let r = self.inner.get_opts(location, options).await;
-        self.observe(&r);
+        self.observe(transform_result_fn(&r));
         r
     }
 
     async fn get_range(&self, location: &Path, range: Range<u64>) -> Result<Bytes> {
         let r = self.inner.get_range(location, range).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> Result<Vec<Bytes>> {
         let r = self.inner.get_ranges(location, ranges).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
         let r = self.inner.head(location).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
         let r = self.inner.delete(location).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
@@ -145,7 +194,13 @@ impl ObjectStore for ObservedObjectStore {
         let time_provider = Arc::clone(&self.time_provider);
         self.inner
             .delete_stream(locations)
-            .inspect(move |r| record_outcome(&health, time_provider.as_ref(), r))
+            .inspect(move |r| {
+                record_outcome(
+                    &health,
+                    time_provider.as_ref(),
+                    transform_result_for_observe(r),
+                )
+            })
             .boxed()
     }
 
@@ -154,7 +209,13 @@ impl ObjectStore for ObservedObjectStore {
         let time_provider = Arc::clone(&self.time_provider);
         self.inner
             .list(prefix)
-            .inspect(move |r| record_outcome(&health, time_provider.as_ref(), r))
+            .inspect(move |r| {
+                record_outcome(
+                    &health,
+                    time_provider.as_ref(),
+                    transform_result_for_observe(r),
+                )
+            })
             .boxed()
     }
 
@@ -167,37 +228,43 @@ impl ObjectStore for ObservedObjectStore {
         let time_provider = Arc::clone(&self.time_provider);
         self.inner
             .list_with_offset(prefix, offset)
-            .inspect(move |r| record_outcome(&health, time_provider.as_ref(), r))
+            .inspect(move |r| {
+                record_outcome(
+                    &health,
+                    time_provider.as_ref(),
+                    transform_result_for_observe(r),
+                )
+            })
             .boxed()
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
         let r = self.inner.list_with_delimiter(prefix).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn copy(&self, from: &Path, to: &Path) -> Result<()> {
         let r = self.inner.copy(from, to).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<()> {
         let r = self.inner.rename(from, to).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
         let r = self.inner.copy_if_not_exists(from, to).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 
     async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
         let r = self.inner.rename_if_not_exists(from, to).await;
-        self.observe(&r);
+        self.observe(transform_result_for_observe(&r));
         r
     }
 }

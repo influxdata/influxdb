@@ -1,7 +1,7 @@
 //! v3 in-memory catalog state.
 //!
 //! [`InnerCatalog`] holds the authoritative in-memory representation of the
-//! catalog. Records are applied to it via [`CatalogRecord::apply`][crate::format::CatalogRecord::apply].
+//! catalog. Records are applied to it via [`RecordApply::apply`][crate::format::RecordApply::apply].
 
 use std::sync::Arc;
 
@@ -12,8 +12,9 @@ use uuid::Uuid;
 use bytes::Bytes;
 
 use crate::catalog::{CatalogSequenceNumber, Repository};
-use crate::format::Record;
 use crate::format::apply::serialize_snapshot_file;
+use crate::format::{FeatureLevel, Record, derive_feature_level};
+use crate::object_store::CatalogFileMeta;
 
 use super::schema::{
     database::DatabaseSchema,
@@ -24,15 +25,17 @@ use super::schema::{
     tokens::TokenRepository,
     user::UserRepository,
 };
-use crate::format::{FeatureLevel, derive_feature_level};
 
 /// The authoritative in-memory catalog state for v3.
 ///
-/// This struct is the target of [`CatalogRecord::apply`][crate::format::CatalogRecord::apply] — each record type
+/// This struct is the target of [`RecordApply::apply`][crate::format::RecordApply::apply] — each record type
 /// mutates the catalog through this struct's public fields and methods.
 #[derive(Debug, Clone)]
 pub struct InnerCatalog {
-    /// Monotonically increasing sequence number.
+    /// Monotonically increasing sequence number. This is set within
+    /// [`crate::format::apply::apply_records`], which is called with a catalog transaction, which
+    /// passes in the sequence number immediately following the current one. This sequence number is
+    /// then used whenever a new snapshot is set
     pub(crate) sequence: CatalogSequenceNumber,
     /// User-provided catalog identifier (object store prefix).
     pub(crate) catalog_id: Arc<str>,
@@ -62,15 +65,22 @@ pub struct InnerCatalog {
     pub(crate) query_groups: Repository<QueryGroupId, QueryGroupDefinition>,
     /// Records applied to the catalog, in application order. Used as the
     /// payload when writing a snapshot.
-    ///
-    /// The function responsible for appending records and making sure that they're all validated
-    /// and such is [`apply_records`]. That function replaces hard-delete records with their
-    /// respective [`SetNextId`] records and ensures that no records referencing hard-deleted
-    /// resources exist in this Vec.
-    ///
-    /// [`apply_records`]: crate::format::apply::apply_records
-    /// [`SetNextId`]: crate::format::records::SetNextId
     pub(crate) ordered_records: Vec<Record>,
+
+    /// The meta associated with the last snapshot that was applied through
+    /// [`ObjectStoreCatalog::fast_forward_inner_with_snapshot`] or written by this node - this is
+    /// used when we query object store for a new snapshot as a part of the
+    /// [`Catalog::background_update`] loop. We use `if-none-match` in the object store request to
+    /// retrieve a new snapshot only if it has changed since we last retrieved it.
+    ///
+    /// This is also used when writing a new snapshot - we only write a new snapshot if we are
+    /// certain we've ingested all the records that exist in the current snapshot. So we need the
+    /// versioning information to inform S3 to only put the new snapshot if the old snapshot matches
+    /// this metadata.
+    ///
+    /// [`ObjectStoreCatalog::fast_forward_inner_with_snapshot`]: crate::object_store::versions::v3::ObjectStoreCatalog::fast_forward_inner_with_snapshot
+    /// [`Catalog::background_update`]: crate::catalog::versions::v3::catalog::Catalog::background_update
+    pub(crate) last_snapshot_meta: CatalogFileMeta,
 }
 
 impl InnerCatalog {
@@ -91,6 +101,10 @@ impl InnerCatalog {
             roles: RoleRepository::default(),
             query_groups: Repository::default(),
             ordered_records: Vec::new(),
+            last_snapshot_meta: CatalogFileMeta {
+                etag: None,
+                version: None,
+            },
         }
     }
 
@@ -99,20 +113,7 @@ impl InnerCatalog {
         self.sequence
     }
 
-    pub fn create_snapshot(&mut self) -> Bytes {
-        #[cfg(feature = "true_deletion")]
-        {
-            use crate::format::record_ids;
-
-            // These records were pushed into ordered_records so that they could then be processed and
-            // cause the rest of the system to delete these databases and tables, but we don't actually
-            // need them anymore 'cause we should've already replaced their creation events with
-            // `SetNextId` records. So we can remove them here so we don't have to worry about them anymore.
-            self.ordered_records.retain(|rec| {
-                ![record_ids::DELETE_DATABASE, record_ids::DELETE_TABLE].contains(&rec.id())
-            });
-        }
-
+    pub fn create_snapshot(&self) -> Bytes {
         serialize_snapshot_file(
             self.catalog_uuid,
             self.sequence.get(),

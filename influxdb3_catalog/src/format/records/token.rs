@@ -2,17 +2,18 @@
 
 use std::sync::Arc;
 
-use super::impl_bitcode_encoding;
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{CatalogRecord, RecordApply, record_ids};
 use influxdb3_authz::permissions::{ActionsBitmap, TokenPermissionResourceIdentifier};
 use influxdb3_authz::{Actions, Permission, ResourceIdentifier, ResourceType, TokenInfo};
 use influxdb3_id::TokenId;
 
 /// Create an admin token.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_ADMIN_TOKEN, shape = 0x2aa2ae96)]
 pub struct CreateAdminToken {
     /// Token catalog ID.
     pub token_id: u64,
@@ -34,11 +35,7 @@ pub struct CreateAdminToken {
     pub updated_by: Option<u64>,
 }
 
-impl CatalogRecord for CreateAdminToken {
-    const ID: RecordId = record_ids::CREATE_ADMIN_TOKEN;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateAdminToken";
-
+impl RecordApply for CreateAdminToken {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let token_id = TokenId::from(self.token_id);
         let mut token_info = TokenInfo::new(
@@ -87,12 +84,8 @@ impl CatalogRecord for CreateAdminToken {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateAdminToken>()
-}
-
 /// Regenerate an admin token (new hash).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::REGENERATE_ADMIN_TOKEN, shape = 0x6f9799a8)]
 pub struct RegenerateAdminToken {
     /// Token catalog ID.
     pub token_id: u64,
@@ -102,11 +95,7 @@ pub struct RegenerateAdminToken {
     pub updated_at: Option<i64>,
 }
 
-impl CatalogRecord for RegenerateAdminToken {
-    const ID: RecordId = record_ids::REGENERATE_ADMIN_TOKEN;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "RegenerateAdminToken";
-
+impl RecordApply for RegenerateAdminToken {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let token_id = TokenId::from(self.token_id);
         let updated_at = self.updated_at.unwrap_or(0);
@@ -129,22 +118,15 @@ impl CatalogRecord for RegenerateAdminToken {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<RegenerateAdminToken>()
-}
-
 /// Delete a token.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_TOKEN, shape = 0x12f9b977)]
+#[derive(Copy)]
 pub struct DeleteToken {
     /// Token catalog ID.
     pub token_id: u64,
 }
 
-impl CatalogRecord for DeleteToken {
-    const ID: RecordId = record_ids::DELETE_TOKEN;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteToken";
-
+impl RecordApply for DeleteToken {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let token_id = TokenId::from(self.token_id);
         if catalog.tokens.delete_token_by_id(&token_id).is_none() {
@@ -164,12 +146,6 @@ impl CatalogRecord for DeleteToken {
         }
     }
 }
-
-inventory::submit! {
-    RegisteredRecord::new::<DeleteToken>()
-}
-
-impl_bitcode_encoding!(CreateAdminToken, RegenerateAdminToken, DeleteToken);
 
 #[cfg(test)]
 mod tests;

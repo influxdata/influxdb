@@ -6,11 +6,11 @@ use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::enterprise::format::records::retention::{
     ClearTableRetentionPeriod, SetTableRetentionPeriod,
 };
-use crate::format::CatalogRecord;
 use crate::format::records::CreateDatabase;
 use crate::format::records::CreateTable;
 use crate::format::records::assert_roundtrip;
 use crate::format::records::types::{FieldFamilyMode, RetentionPeriod};
+use crate::format::{CatalogRecord, RecordApply};
 
 /// Helper to create a test catalog.
 fn test_catalog() -> InnerCatalog {

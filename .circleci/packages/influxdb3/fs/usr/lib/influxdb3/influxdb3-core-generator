@@ -1,0 +1,78 @@
+#!/bin/sh
+set -eu
+
+# The package installs this file under /usr/lib/influxdb3, and systemd's
+# generator directory holds only a symlink to it which changes the SELinux
+# domain of the generator. Measured under enforcing mode, a symlink runs as
+# unconfined_service_t on Rocky 10.2 and as initrc_t on Debian 13; a regular
+# file in the generator directory runs as systemd_generic_generator_t and as
+# systemd_generator_t there. Of those four domains, only systemd_generator_t on
+# Debian cannot read /sys/fs/selinux/enforce.
+#
+# While this variance doesn't change the output of the tested distros, the
+# symlink is kept so that this generator does not have to rely on that fallback
+# under a policy not tested here.
+[ "$#" -ge 1 ] || exit 1
+normal_dir="$1"
+selinux_enforce=/sys/fs/selinux/enforce
+dropin_dir="${normal_dir}/influxdb3-core.service.d"
+dropin_file="${dropin_dir}/50-influxdb3-inaccessible-paths.conf"
+
+# Return 0 when the kernel registered selinuxfs, and also when
+# /proc/filesystems cannot be read. Return 1 only when the file is readable
+# and does not list selinuxfs. The kernel cannot mount a filesystem type that
+# it did not register, so a missing entry proves SELinux is off for this boot.
+# /proc/filesystems stays readable in a confined generator domain that cannot
+# read $selinux_enforce.
+selinuxfs_registered() {
+    contents=$(cat /proc/filesystems 2>/dev/null) || return 0
+    [ -n "$contents" ] || return 0
+    case "$contents" in
+        *selinuxfs*) return 0 ;;
+    esac
+    return 1
+}
+
+# Return 0 when SELinux is on for this boot, in any mode. The mode is not
+# used: setenforce 1 can come after the generator ran, and a unit restart does
+# not re-run generators, so the drop-in would survive and fail the unit with
+# status 226.
+selinux_enabled() {
+    if [ -e "$selinux_enforce" ]; then
+        return 0
+    fi
+
+    # The kernel cannot mount selinuxfs if it did not register it, for example
+    # with selinux=0 on the kernel command line.
+    selinuxfs_registered
+}
+
+# Return 0 on the Debian family, whose policy lets init_t mount over a socket.
+# An unreadable or unrecognized /etc/os-release returns 1, so an unknown
+# distribution is treated as one that cannot take the mask.
+is_debian_family() {
+    [ -r /etc/os-release ] || return 1
+    ids=$(sed -n 's/^\(ID\|ID_LIKE\)=//p' /etc/os-release | tr -d \'\" | tr '\n' ' ')
+    case " $ids " in
+        *" debian "*|*" ubuntu "*) return 0 ;;
+    esac
+    return 1
+}
+
+# A daemon reload may reuse the generator output directory, so remove output
+# from an earlier run where SELinux was off before checking the current state.
+rm -f -- "$dropin_file"
+
+if selinux_enabled && ! is_debian_family; then
+    exit 0
+fi
+
+mkdir -p -- "$dropin_dir"
+
+# Only the snapd socket path for InaccessiblePaths is conditional. See the
+# unit file comments for details.
+printf '%s\n' \
+    '[Service]' \
+    "# Disallow snapd's socket" \
+    'InaccessiblePaths=-/run/snapd.socket' \
+    > "$dropin_file"

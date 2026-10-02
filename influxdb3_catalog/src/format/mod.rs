@@ -66,8 +66,9 @@ Actual encoded bytes:\n
 \"{actual}\"\n
 This type is embedded in a catalog record, so its serialized bytes are part of the \
 on-disk catalog format. Once shipped in a released version of the software, they cannot \
-change. To introduce new functionality, add a new enum variant or a new type rather than \
-altering an existing one.\n
+change. To introduce new functionality, add a new type rather than altering an existing \
+one. Appending an enum variant is NOT automatically safe — see the stability rules in \
+records::types and issue #4905.\n
 If this is the first time you're adding this type, or are making modifications to it \
 prior to releasing it, then you can update the expected literal passed to the \
 assert_encoding_stable! macro by copying the string literal from Actual encoded bytes.\n",
@@ -83,7 +84,6 @@ pub mod reader;
 mod record;
 mod record_id;
 pub(crate) mod record_ids;
-#[allow(dead_code)]
 pub mod records;
 mod registry;
 pub mod view;
@@ -95,7 +95,8 @@ pub use reader::CatalogFile;
 pub use record::{RECORD_HEADER_SIZE, Record, RecordBatch, RecordHeader};
 pub use record_id::RecordId;
 pub use registry::{
-    CatalogRecord, MakeRecord, REGISTRY, RecordRegistry, RegisteredRecord, validate_record_flags,
+    CatalogRecord, MakeRecord, REGISTRY, RecordApply, RecordRegistry, RegisteredRecord,
+    validate_record_flags,
 };
 pub use view::{HeaderView, RecordBodyView, RecordHeaderView, RecordTypeCount, RecordView};
 

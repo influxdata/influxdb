@@ -17,7 +17,7 @@ hyper = { workspace = true }
 hyper-util = { workspace = true, features = ["client-legacy", "server-graceful"] }
 iox_http_util = { path = "../iox_http_util" }
 tracing = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = [ "http2" ] }
 snafu = "0.9"
 tokio = { version = "1.52", default-features = false, features = [
     "macros",

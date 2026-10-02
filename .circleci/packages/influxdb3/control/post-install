@@ -36,6 +36,11 @@ SHARE_DIR="/usr/share/influxdb3"
 LIB_DIR="/usr/lib/influxdb3"
 LOG_DIR="/var/log/influxdb3"
 
+# for systemd generator
+SYSTEMD_GENERATOR_DIR="/lib/systemd/system-generators"
+SYSTEMD_GENERATOR_TARGET="$LIB_DIR/$PKG_NAME-generator"
+SYSTEMD_GENERATOR_LINK="$SYSTEMD_GENERATOR_DIR/$PKG_NAME-generator"
+
 rpm_distro() {
     # RPM 4.13 doesn't provide RPM_PACKAGE_NAME, so just assume rpm if not deb
     if [ -z "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
@@ -101,7 +106,44 @@ EOF
     fi
 }
 
+install_systemd_generator() {
+    # For maximum compatibility, keep the executable in the package-owned LIB_DIR
+    # and create its systemd discovery link when the package is installed.
+    if [ ! -d "$SYSTEMD_GENERATOR_DIR" ]; then
+        echo "WARNING: Missing systemd generator directory '$SYSTEMD_GENERATOR_DIR'; skipping generator installation" >&2
+        return 0
+    fi
+
+    if [ -L "$SYSTEMD_GENERATOR_LINK" ]; then
+        current_target=$(readlink "$SYSTEMD_GENERATOR_LINK")
+        if [ "$current_target" = "$SYSTEMD_GENERATOR_TARGET" ]; then
+            return 0
+        fi
+        case "$current_target" in
+        "$LIB_DIR"/*)
+            # Replace a stale discovery symlink whose target no longer matches
+            # the packaged generator, such as when its installed location
+            # changes. Only a target within the package-owned LIB_DIR can come
+            # from this package.
+            rm -f "$SYSTEMD_GENERATOR_LINK"
+            ;;
+        *)
+            # Do not remove an administrator-provided replacement at the same
+            # path. pre-uninstall applies the same rule on removal.
+            echo "WARNING: Refusing to replace administrator-provided '$SYSTEMD_GENERATOR_LINK' pointing to '$current_target'; skipping generator installation" >&2
+            return 0
+            ;;
+        esac
+    elif [ -e "$SYSTEMD_GENERATOR_LINK" ]; then
+        echo "WARNING: Refusing to replace non-symlink '$SYSTEMD_GENERATOR_LINK'; skipping generator installation" >&2
+        return 0
+    fi
+
+    ln -s "$SYSTEMD_GENERATOR_TARGET" "$SYSTEMD_GENERATOR_LINK"
+}
+
 install_systemd() {
+    install_systemd_generator
     systemctl daemon-reload
 
     if ! is_upgrade; then

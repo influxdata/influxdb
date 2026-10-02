@@ -159,7 +159,6 @@ impl<T> RingBufferVec<T> {
 }
 
 /// This is wrapper type adds the time of event
-#[allow(dead_code)]
 #[derive(Default, Clone, Debug)]
 pub struct Event<D> {
     time: i64,

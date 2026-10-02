@@ -7,7 +7,10 @@ use arrow::{
         ArrayRef, Float32Array, Float64Array, RecordBatchOptions, StringArray, downcast_array,
         new_null_array,
     },
-    compute::kernels::sort::{SortColumn, SortOptions, lexsort},
+    compute::{
+        cast,
+        kernels::sort::{SortColumn, SortOptions, lexsort},
+    },
     datatypes::{DataType, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -95,6 +98,34 @@ pub fn batches_to_lines(batches: &[RecordBatch]) -> Vec<String> {
 /// comparing in tests where sorting does not matter.
 pub fn batches_to_sorted_lines(batches: &[RecordBatch]) -> Vec<String> {
     sort_lines(batches_to_lines(batches))
+}
+
+/// Returns the values of string column `column` across `batches` in row
+/// order, decoded from either plain or dictionary encoding.
+///
+/// # Panics
+///
+/// Panics if the column is missing from any batch, holds a null, or does not
+/// cast to a string.
+pub fn string_column_values(batches: &[RecordBatch], column: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    for batch in batches {
+        let index = batch
+            .schema()
+            .index_of(column)
+            .unwrap_or_else(|_| panic!("batch has no '{column}' column"));
+        // Cast rather than matching on the encoding, so dictionary encoded
+        // columns (e.g. tags) decode the same as plain strings.
+        let strings =
+            cast(batch.column(index), &DataType::Utf8).expect("string column casts to Utf8");
+        let strings: StringArray = downcast_array(&strings);
+        values.extend(
+            strings
+                .iter()
+                .map(|value| value.expect("non-null value").to_string()),
+        );
+    }
+    values
 }
 
 /// Sorts the lines (assumed to be the output of `batches_to_lines` for stable comparison)

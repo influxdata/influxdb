@@ -12,14 +12,14 @@ use tonic::{Code, Status};
 use tower::Service;
 
 use crate::http::{HttpApi, route_request};
-use crate::is_grpc_request;
+use trace_http::tower::is_grpc_request;
 
 #[derive(Clone)]
 pub(crate) struct UnifiedService<S> {
     http_api: Arc<HttpApi>,
     grpc_service: S,
     without_auth: bool,
-    paths_without_authz: &'static Vec<&'static str>,
+    paths_without_authz: &'static [&'static str],
     max_request_bytes: usize,
 }
 
@@ -28,7 +28,7 @@ impl<S> UnifiedService<S> {
         http_api: Arc<HttpApi>,
         grpc_service: S,
         without_auth: bool,
-        paths_without_authz: &'static Vec<&'static str>,
+        paths_without_authz: &'static [&'static str],
         max_request_bytes: usize,
     ) -> Self {
         Self {

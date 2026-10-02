@@ -130,6 +130,53 @@ impl NodeDefinition {
     }
 }
 
+/// Whether an operator forced this removal, accepting the data loss it may
+/// cause.
+///
+/// Removal deletes a node's entire object-store footprint in one pass, so a
+/// removal that outruns the compactor destroys writes that were acked but never
+/// absorbed. The pre-flight gates in the `remove_node` handler refuse that,
+/// and `force_finalize` is how an operator overrides them. This records that
+/// override so the compactor's removal driver -- which runs long after the
+/// request, on a different node -- can tell an authorised loss from an
+/// accidental one.
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum RemovalAttestation {
+    /// Written before this was recorded, so the operator's intent is unknowable.
+    ///
+    /// Does not permit the delete. A removal that predates the attestation was
+    /// as likely unforced as forced, and permitting it would delete
+    /// un-absorbed gen0 for a removal nobody authorised -- the exact defect
+    /// this whole mechanism exists to close, reopened for the width of an
+    /// upgrade.
+    ///
+    /// Kept distinct from [`Self::NotForced`] rather than collapsed into it
+    /// because the two mean different things to somebody reading a log: one
+    /// operator declined to force, the other never had the choice.
+    ///
+    /// Refusing is safe here only because it is recoverable. Re-issuing the
+    /// removal with `force_finalize` records [`Self::Forced`] on a node that
+    /// is already `Removing`, so a node caught mid-removal by an upgrade
+    /// blocks once, says so, and clears on one operator action.
+    Unrecorded,
+    /// The removal passed the pre-flight gates on its own merits.
+    NotForced,
+    /// An operator passed `force_finalize` and accepted the loss.
+    Forced,
+}
+
+impl RemovalAttestation {
+    /// Whether cleanup may delete data the compactor never absorbed.
+    ///
+    /// Only an explicit [`Self::Forced`] does. Every other state, including
+    /// [`Self::Unrecorded`] and any tag a later release introduces, refuses --
+    /// an irreversible delete should follow from a decision somebody made, not
+    /// from the absence of one.
+    pub fn permits_unabsorbed_delete(&self) -> bool {
+        matches!(self, Self::Forced)
+    }
+}
+
 /// The state of a node in an InfluxDB 3 cluster
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum NodeState {
@@ -147,6 +194,8 @@ pub enum NodeState {
     Removing {
         requested_time_ns: i64,
         final_snapshot_sequence: Option<SnapshotSequenceNumber>,
+        /// Whether an operator accepted the loss this removal may cause.
+        attestation: RemovalAttestation,
     },
 }
 

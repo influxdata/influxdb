@@ -4,7 +4,7 @@ use datafusion::{
     common::tree_node::{Transformed, TreeNode, TreeNodeRecursion, TreeNodeRewriter},
     config::ConfigOptions,
     datasource::{
-        physical_plan::{FileGroup, FileScanConfig},
+        physical_plan::{FileGroup, FileScanConfig, FileScanConfigBuilder},
         source::DataSourceExec,
     },
     error::Result,
@@ -168,15 +168,15 @@ impl TreeNodeRewriter for ParquetSortnessRewriter<'_> {
             return Ok(Transformed::no(node));
         }
 
-        let file_scan_config = FileScanConfig {
-            file_groups: file_scan_config
-                .file_groups
-                .iter()
-                .flat_map(|g| g.iter())
-                .map(|f| FileGroup::new(vec![f.clone()]))
-                .collect(),
-            ..file_scan_config.clone()
-        };
+        let file_groups = file_scan_config
+            .file_groups
+            .iter()
+            .flat_map(|g| g.iter())
+            .map(|f| FileGroup::new(vec![f.clone()]))
+            .collect();
+        let file_scan_config = FileScanConfigBuilder::from(file_scan_config.clone())
+            .with_file_groups(file_groups)
+            .build();
         let new_data_source_exec = DataSourceExec::from_data_source(file_scan_config);
 
         // did this help?
@@ -197,6 +197,7 @@ mod tests {
             listing::PartitionedFile,
             object_store::ObjectStoreUrl,
             physical_plan::{FileScanConfigBuilder, ParquetSource},
+            table_schema::TableSchema,
         },
         physical_expr::PhysicalSortExpr,
         physical_plan::{
@@ -218,13 +219,13 @@ mod tests {
     #[test]
     fn test_happy_path_sort() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
-        .with_table_partition_cols(vec![])
         .with_output_ordering(vec![ordering(["col2", "col1"], &schema)])
         .build();
         let plan = Arc::new(
@@ -252,10 +253,11 @@ mod tests {
     #[test]
     fn test_happy_path_dedup() {
         let schema = schema_with_chunk_order();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
         .with_output_ordering(vec![ordering(
@@ -286,10 +288,11 @@ mod tests {
     #[test]
     fn test_sort_partitioning() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![
             FileGroup::new(vec![file(1), file(2)]),
@@ -336,10 +339,11 @@ mod tests {
     #[test]
     fn test_parquet_already_flat() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![
             FileGroup::new(vec![file(1)]),
@@ -373,10 +377,11 @@ mod tests {
     #[test]
     fn test_parquet_has_different_ordering() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
         .with_output_ordering(vec![ordering(["col1", "col2"], &schema)])
@@ -406,10 +411,11 @@ mod tests {
     #[test]
     fn test_parquet_has_no_ordering() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
         .build();
@@ -438,10 +444,11 @@ mod tests {
     #[test]
     fn test_fanout_limit() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2), file(3)])])
         .with_output_ordering(vec![ordering(["col2", "col1"], &schema)])
@@ -499,10 +506,11 @@ mod tests {
     #[test]
     fn test_does_not_touch_freestanding_data_source_exec() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
         .with_output_ordering(vec![ordering(["col2", "col1"], &schema)])
@@ -524,10 +532,11 @@ mod tests {
     #[test]
     fn test_ignore_outer_sort_if_inner_preform_resort() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
         .with_output_ordering(vec![ordering(["col1", "col2"], &schema)])
@@ -557,10 +566,11 @@ mod tests {
     #[test]
     fn test_honor_inner_sort_even_if_outer_preform_resort() {
         let schema = schema();
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
         .with_output_ordering(vec![ordering(["col1", "col2"], &schema)])
@@ -591,10 +601,11 @@ mod tests {
     fn test_issue_idpe_17556() {
         let schema = schema_with_chunk_order();
 
+        let parquet_source = ParquetSource::new(TableSchema::new(Arc::clone(&schema), vec![]))
+            .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::parse("test://").unwrap(),
-            Arc::clone(&schema),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(vec![FileGroup::new(vec![file(1), file(2)])])
         .with_output_ordering(vec![ordering(

@@ -75,7 +75,7 @@ impl FakeWorker {
         self.active.fetch_sub(1, Ordering::SeqCst);
         if self
             .failures_before_success
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
                 current.checked_sub(1)
             })
             .is_ok()

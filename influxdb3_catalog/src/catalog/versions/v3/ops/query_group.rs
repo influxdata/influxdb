@@ -14,6 +14,72 @@ use crate::catalog::versions::v3::schema::query_group::{
 };
 use crate::format::RecordBatch;
 use crate::format::records::{CreateQueryGroup, DeleteQueryGroup, UpdateQueryGroup};
+use crate::resource::CatalogResource;
+
+/// Reject a member that already belongs to a different query group.
+///
+/// `skip` names the group being created or edited. A node already in that group
+/// is not a conflict, so a rename or a member reorder still goes through.
+fn reject_member_of_another_group(
+    catalog: &InnerCatalog,
+    members: &[NodeId],
+    skip: Option<QueryGroupId>,
+) -> Result<(), CatalogError> {
+    for member in members {
+        let Some(group) = catalog
+            .query_groups
+            .resource_iter()
+            .filter(|group| Some(group.id()) != skip)
+            .find(|group| group.members().contains(member))
+        else {
+            continue;
+        };
+
+        // Name the node the way the operator does. A stored member always
+        // resolves, so the catalog id is only a fallback.
+        let node_id = catalog
+            .nodes
+            .get_by_id(member)
+            .map_or_else(|| Arc::from(member.to_string()), |node| node.node_id());
+
+        return Err(CatalogError::NodeAlreadyInQueryGroup {
+            node_id,
+            query_group_name: group.name(),
+            query_group_id: group.id(),
+        });
+    }
+
+    Ok(())
+}
+
+/// Check that every member is a registered node that advertises a connection
+/// address.
+///
+/// Members dial each other directly, so a node the others cannot reach serves
+/// nothing and makes a distributed query fail. Reject it at the write, naming
+/// the node, rather than leaving the group in a state only a log warning
+/// reports.
+///
+/// Only the member list an operation writes is checked. An operation that
+/// leaves members alone, or that removes one, must keep working: those are how
+/// an operator repairs a group whose member lost its address.
+fn validate_members_reachable(
+    members: &[NodeId],
+    catalog: &InnerCatalog,
+) -> Result<(), CatalogError> {
+    for member in members {
+        let node = catalog
+            .nodes
+            .get_by_id(member)
+            .ok_or_else(|| CatalogError::NotFound(format!("query group member node {member}")))?;
+        if node.conn_info().is_none() {
+            return Err(CatalogError::QueryGroupMemberNotConnectable {
+                node_id: node.node_id(),
+            });
+        }
+    }
+    Ok(())
+}
 
 fn push_update_record(
     records: &mut RecordBatch,
@@ -62,6 +128,10 @@ impl CatalogOp for CreateQueryGroupOp {
         if catalog.query_groups.name_to_id(&args.name).is_some() {
             return Err(CatalogError::AlreadyExists);
         }
+
+        reject_member_of_another_group(catalog, &args.members, None)?;
+
+        validate_members_reachable(&args.members, catalog)?;
 
         let query_group_id = catalog.query_groups.next_id();
 
@@ -128,7 +198,11 @@ impl CatalogOp for UpdateQueryGroupOp {
         }
 
         let members = match args.update.members.as_deref() {
-            Some(new_members) => new_members,
+            Some(new_members) => {
+                reject_member_of_another_group(catalog, new_members, Some(args.id))?;
+                validate_members_reachable(new_members, catalog)?;
+                new_members
+            }
             None => &group.members,
         };
 
@@ -196,6 +270,12 @@ impl CatalogOp for UpdateQueryGroupMembersOp {
         let mut members = group.members.clone();
         match &args.mutation {
             QueryGroupMemberMutation::Add { member, position } => {
+                reject_member_of_another_group(
+                    catalog,
+                    std::slice::from_ref(member),
+                    Some(args.id),
+                )?;
+                validate_members_reachable(std::slice::from_ref(member), catalog)?;
                 let insert_at = match *position {
                     QueryGroupInsertPosition::Append => members.len(),
                     QueryGroupInsertPosition::Index(index) => {

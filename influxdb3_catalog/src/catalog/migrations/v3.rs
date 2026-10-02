@@ -10,7 +10,7 @@
 // - https://github.com/rust-lang/rust/issues/152370
 // - https://github.com/rust-lang/rust/pull/154377
 // It will work in 1.97, but hopefully the catalog will be wired in by then :)
-#![allow(dead_code)]
+#![expect(dead_code)]
 
 mod conversions;
 
@@ -38,8 +38,8 @@ use crate::format::records::{
     SetStorageMode, SoftDeleteDatabase, SoftDeleteTable, StopNode,
 };
 use crate::log::versions::v4::StorageMode;
-use crate::object_store::PersistCatalogResult;
 use crate::object_store::versions as ostore;
+use crate::object_store::{MaybePutCatalogFile, PersistCatalogResult};
 use crate::serialize::versions as ser;
 use crate::snapshot::versions::v4::{
     self, ActionsSnapshot, ColumnDefinitionSnapshot, DatabaseSnapshot, DistinctCacheSnapshot,
@@ -110,7 +110,7 @@ pub(crate) async fn check_and_migrate_v2_to_v3(
         batch.as_slice(),
         &mut v3_inner,
         catalog_sequence,
-        &mut RestorePreload::empty(),
+        RestorePreload::empty(),
     )
     .map_err(|e| MigrationError::Unexpected(anyhow::anyhow!(e)))?;
     let v3_snapshot_bytes = v3_inner.create_snapshot();
@@ -128,7 +128,7 @@ pub(crate) async fn check_and_migrate_v2_to_v3(
 
     info!("writing the v3 catalog snapshot");
     match v3_store.initialize_snapshot(v3_snapshot_bytes).await? {
-        PersistCatalogResult::Success | PersistCatalogResult::AlreadyExists => {
+        MaybePutCatalogFile::Success(_) | MaybePutCatalogFile::AlreadyExists => {
             Ok(MigrationResult::Migrated)
         }
     }
@@ -141,7 +141,7 @@ pub(crate) async fn check_and_migrate_v2_to_v3(
 /// converts one snapshot type into the corresponding v3 records.
 pub(crate) trait FromV2 {
     // clippy doesn't like the from_ name.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention)]
     fn from_v2(&self, batch: &mut RecordBatch);
 }
 

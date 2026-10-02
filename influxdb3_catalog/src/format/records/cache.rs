@@ -2,12 +2,13 @@
 
 use std::sync::Arc;
 
-use super::impl_bitcode_encoding;
 use super::types::{
     CacheSource as WireCacheSource, ColumnIdentifier as WireColumnId,
     FieldIdentifier as WireFieldId, LastCacheValueColumnsDef as WireLvcDef,
     NodeSpec as WireNodeSpec,
 };
+use influxdb3_catalog_macros::catalog_record;
+
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::cache::{
@@ -16,7 +17,7 @@ use crate::catalog::versions::v3::schema::cache::{
 };
 use crate::catalog::versions::v3::schema::node::NodeSpec as SchemaNodeSpec;
 use crate::format::apply::ApplyError;
-use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
+use crate::format::{RecordApply, record_ids};
 use crate::resource::CatalogResource;
 use influxdb3_id::{
     ColumnIdentifier, DbId, DistinctCacheId, FieldFamilyId, FieldId, FieldIdentifier, LastCacheId,
@@ -24,7 +25,7 @@ use influxdb3_id::{
 };
 
 /// Create a distinct value cache.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_DISTINCT_CACHE, shape = 0x95753f1f)]
 pub struct CreateDistinctCache {
     /// Database catalog ID.
     pub db_id: u32,
@@ -50,18 +51,14 @@ pub struct CreateDistinctCache {
     pub refresh_interval_seconds: Option<u64>,
 }
 
-impl CatalogRecord for CreateDistinctCache {
-    const ID: RecordId = record_ids::CREATE_DISTINCT_CACHE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateDistinctCache";
-
+impl RecordApply for CreateDistinctCache {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let table_id = TableId::new(self.table_id);
         let cache_id = DistinctCacheId::new(self.cache_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
-            db.tables.modify_by_id(&table_id, |tbl| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
+            db.tables.modify_by_id_in_place(&table_id, |tbl| {
                 let cache_def = DistinctCacheDefinition {
                     table_id: tbl.id(),
                     table_name: tbl.name(),
@@ -95,12 +92,9 @@ impl CatalogRecord for CreateDistinctCache {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateDistinctCache>()
-}
-
 /// Delete a distinct value cache.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_DISTINCT_CACHE, shape = 0xa3128960)]
+#[derive(Copy)]
 pub struct DeleteDistinctCache {
     /// Database catalog ID.
     pub db_id: u32,
@@ -110,18 +104,14 @@ pub struct DeleteDistinctCache {
     pub cache_id: u16,
 }
 
-impl CatalogRecord for DeleteDistinctCache {
-    const ID: RecordId = record_ids::DELETE_DISTINCT_CACHE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteDistinctCache";
-
+impl RecordApply for DeleteDistinctCache {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let table_id = TableId::new(self.table_id);
         let cache_id = DistinctCacheId::new(self.cache_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
-            db.tables.modify_by_id(&table_id, |tbl| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
+            db.tables.modify_by_id_in_place(&table_id, |tbl| {
                 tbl.distinct_caches.remove(&cache_id);
                 Ok(())
             })
@@ -137,12 +127,8 @@ impl CatalogRecord for DeleteDistinctCache {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<DeleteDistinctCache>()
-}
-
 /// Create a last value cache.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::CREATE_LAST_CACHE, shape = 0xb2a7ca90)]
 pub struct CreateLastCache {
     /// Database catalog ID.
     pub db_id: u32,
@@ -164,18 +150,14 @@ pub struct CreateLastCache {
     pub ttl_seconds: u64,
 }
 
-impl CatalogRecord for CreateLastCache {
-    const ID: RecordId = record_ids::CREATE_LAST_CACHE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "CreateLastCache";
-
+impl RecordApply for CreateLastCache {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let table_id = TableId::new(self.table_id);
         let cache_id = LastCacheId::new(self.id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
-            db.tables.modify_by_id(&table_id, |tbl| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
+            db.tables.modify_by_id_in_place(&table_id, |tbl| {
                 let cache_def = LastCacheDefinition {
                     table_id: tbl.id(),
                     table: tbl.name(),
@@ -207,12 +189,9 @@ impl CatalogRecord for CreateLastCache {
     }
 }
 
-inventory::submit! {
-    RegisteredRecord::new::<CreateLastCache>()
-}
-
 /// Delete a last value cache.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, bitcode::Encode, bitcode::Decode)]
+#[catalog_record(id = record_ids::DELETE_LAST_CACHE, shape = 0xa3128960)]
+#[derive(Copy)]
 pub struct DeleteLastCache {
     /// Database catalog ID.
     pub db_id: u32,
@@ -222,18 +201,14 @@ pub struct DeleteLastCache {
     pub cache_id: u16,
 }
 
-impl CatalogRecord for DeleteLastCache {
-    const ID: RecordId = record_ids::DELETE_LAST_CACHE;
-    const FLAGS: RecordFlags = RecordFlags::none();
-    const NAME: &'static str = "DeleteLastCache";
-
+impl RecordApply for DeleteLastCache {
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.db_id);
         let table_id = TableId::new(self.table_id);
         let cache_id = LastCacheId::new(self.cache_id);
 
-        catalog.databases.modify_by_id(&db_id, |db| {
-            db.tables.modify_by_id(&table_id, |tbl| {
+        catalog.databases.modify_by_id_in_place(&db_id, |db| {
+            db.tables.modify_by_id_in_place(&table_id, |tbl| {
                 tbl.last_caches.remove(&cache_id);
                 Ok(())
             })
@@ -247,10 +222,6 @@ impl CatalogRecord for DeleteLastCache {
             cache_id: LastCacheId::new(self.cache_id),
         }
     }
-}
-
-inventory::submit! {
-    RegisteredRecord::new::<DeleteLastCache>()
 }
 
 // ---------------------------------------------------------------------------
@@ -302,13 +273,6 @@ impl From<&WireLvcDef> for LastCacheValueColumnsDef {
         }
     }
 }
-
-impl_bitcode_encoding!(
-    CreateDistinctCache,
-    DeleteDistinctCache,
-    CreateLastCache,
-    DeleteLastCache,
-);
 
 #[cfg(test)]
 mod tests;

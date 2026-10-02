@@ -59,7 +59,7 @@ fn find_python_install() -> Option<PathBuf> {
 pub fn find_python() -> PathBuf {
     let python_exe_bn = cfg_select! {
         windows => "python.exe",
-        _ => "python3"
+        _ => "python3",
     };
 
     let python_inst = find_python_install();
@@ -171,7 +171,7 @@ pub fn init_pyo3() {
                     _ => venv_dir
                         .join("lib")
                         .join(format!("python{}.{}", version.major, version.minor))
-                        .join("site-packages")
+                        .join("site-packages"),
                 };
 
                 debug!("Updating sys.path to append: {}", site_packages.display());
@@ -215,7 +215,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
 
     let activate_script = cfg_select! {
         windows => venv_path.join("Scripts").join("activate.bat"),
-        _ => venv_path.join("bin").join("activate")
+        _ => venv_path.join("bin").join("activate"),
     };
 
     if !activate_script.exists() {
@@ -239,7 +239,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
                 "source {} && env",
                 activate_script.to_str().unwrap()
             ))
-            .output()?
+            .output()?,
     };
 
     if !output.status.success() {

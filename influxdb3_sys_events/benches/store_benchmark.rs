@@ -14,7 +14,7 @@ use rand::Rng;
 
 const MAX_WRITE_ITERATIONS: u32 = 100_000;
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Debug)]
 struct SampleSysEvent {
     pub data_fetched_1: u64,
@@ -120,7 +120,7 @@ impl SampleSysEvent {
     }
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Debug)]
 struct SampleSysEvent2 {
     pub data_fetched_1: u64,
@@ -226,7 +226,7 @@ impl SampleSysEvent2 {
     }
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Debug)]
 struct SampleSysEvent3 {
     pub data_fetched_1: u64,

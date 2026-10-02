@@ -2,7 +2,7 @@
 
 use crate::commands::create::token::AdminTokenFile;
 use anyhow::{Context, bail};
-use cli_types::{MaxConcurrentQueries, QUERY_CONCURRENCY_LIMIT_MAX};
+use cli_types::MaxConcurrentQueries;
 use futures::{FutureExt, future::FusedFuture, pin_mut};
 use influxdb3_authz::TokenAuthenticator;
 use influxdb3_cache::{
@@ -16,7 +16,7 @@ use influxdb3_catalog::{
 use influxdb3_clap_blocks::plugins::{PackageManager, PluginTriggerType, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig,
-    memory_size::{ByteSize, MemorySizeMb},
+    memory_size::{LegacyMemorySizeMb, LenientByteSize, MemorySizeMb},
     object_store::ObjectStoreConfig,
     socket_addr::SocketAddr,
     tokio::TokioDatafusionConfig,
@@ -66,6 +66,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::U64Gauge;
 use object_store::ObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
+use object_store_utils::SelfVerifyingCreateStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -241,15 +242,16 @@ pub struct Config {
 
     /// Maximum size of HTTP requests.
     ///
-    /// A bare number is a size in bytes; unit suffixes (`b`, `kb`, `mb`, `gb`, `tb`)
-    /// are also accepted, e.g. `10mb`.
+    /// Prefer an explicit unit suffix (`b`, `kb`, `mb`, `gb`, `tb`),
+    /// e.g. `10mb`. Bare numbers are accepted as bytes (the pre-3.11
+    /// meaning) with a startup warning.
     #[clap(
         long = "max-http-request-size",
         env = "INFLUXDB3_MAX_HTTP_REQUEST_SIZE",
-        default_value = "10485760", // 10 MiB
-        action,
+        default_value = "10mb",
+        action
     )]
-    pub max_http_request_size: ByteSize,
+    pub max_http_request_size: LenientByteSize,
 
     /// The address on which InfluxDB will serve HTTP API requests
     #[clap(
@@ -285,20 +287,33 @@ pub struct Config {
     )]
     pub admin_token_recovery_bind_address: Option<SocketAddr>,
 
-    /// Size of memory pool used during query exec.
+    /// Memory budget for query execution. Queries whose sorts, joins, and
+    /// aggregations exceed the pool fail with a resource exhausted error
+    /// rather than growing unbounded; a larger pool admits bigger queries
+    /// at the expense of memory left for caches and ingest.
     ///
     /// Specify either a percentage of the total available memory (e.g. `20%`)
     /// or an absolute size with an explicit unit suffix (e.g. `8gb`). Bare
-    /// numbers are rejected: they previously meant megabytes and will mean
-    /// bytes in a future release.
+    /// numbers are rejected: they previously meant megabytes; use an
+    /// explicit unit.
     #[clap(
         long = "exec-mem-pool-size",
-        visible_alias = "exec-mem-pool-bytes",
         env = "INFLUXDB3_EXEC_MEM_POOL_SIZE",
         default_value = "20%",
         action
     )]
     pub exec_mem_pool_size: MemorySizeMb,
+
+    /// Deprecated alias of `--exec-mem-pool-size` that accepts the
+    /// pre-3.11 value format (bare numbers mean megabytes). Warned about
+    /// and resolved in [`resolve_legacy_size_options`].
+    #[clap(
+        long = "exec-mem-pool-bytes",
+        env = "INFLUXDB3_EXEC_MEM_POOL_BYTES",
+        hide = true,
+        action
+    )]
+    pub exec_mem_pool_bytes: Option<LegacyMemorySizeMb>,
 
     /// Flag to indicate that server should start without auth
     #[clap(long = "without-auth", env = "INFLUXDB3_WITHOUT_AUTH", action)]
@@ -357,8 +372,13 @@ pub struct Config {
     )]
     pub wal_flush_interval: humantime::Duration,
 
-    /// The number of WAL files to attempt to remove in a snapshot. This times the interval will
-    /// determine how often snapshot is taken.
+    /// Number of WAL files accumulated before a snapshot persists their data
+    /// and removes them; with --wal-flush-interval this sets snapshot
+    /// cadence. Larger batches snapshot less often and more efficiently
+    /// (less per-snapshot overhead, fewer files for the compactor to
+    /// merge). Smaller batches keep fewer un-snapshotted WAL files on the
+    /// query path, let the compactor see new data sooner, and shorten
+    /// restart replay, at the cost of more frequent snapshots.
     #[clap(
         long = "wal-files-per-snapshot",
         visible_alias = "wal-snapshot-size",
@@ -368,14 +388,17 @@ pub struct Config {
     )]
     pub wal_files_per_snapshot: usize,
 
-    /// The maximum number of writes requests that can be buffered before a flush must be run
-    /// and succeed.
+    /// Maximum number of write requests that can be buffered awaiting a WAL
+    /// flush. Writes arriving while the buffer is at this cap are rejected
+    /// until a flush drains it. Hidden because it is not useful to tune in
+    /// most situations.
     #[clap(
         long = "wal-max-buffered-writes",
-        visible_alias = "wal-max-write-buffer-size",
+        alias = "wal-max-write-buffer-size",
         env = "INFLUXDB3_WAL_MAX_BUFFERED_WRITES",
         default_value = "100000",
-        action
+        action,
+        hide = true
     )]
     pub wal_max_buffered_writes: usize,
 
@@ -429,20 +452,22 @@ pub struct Config {
     ///
     /// When this limit is reached, new queries will wait until a running query completes.
     /// Setting a lower value provides backpressure during load spikes at the cost of
-    /// queuing new queries. Defaults to (`usize::MAX >> 3`, ~2^60 on 64-bit platforms)
-    /// — effectively unlimited.
+    /// queuing new queries. Defaults to max(50, 4 × the effective query parallelism:
+    /// the smaller of the CPU core count and the DataFusion thread count).
     #[clap(
         long = "max-concurrent-queries",
         env = "INFLUXDB3_MAX_CONCURRENT_QUERIES",
-        default_value_t = MaxConcurrentQueries(QUERY_CONCURRENCY_LIMIT_MAX),
         action
     )]
-    pub max_concurrent_queries: MaxConcurrentQueries,
+    pub max_concurrent_queries: Option<MaxConcurrentQueries>,
 
     #[clap(flatten)]
     pub node_id: NodeId,
 
-    /// Maximum number of table indices to cache in memory.
+    /// Maximum number of table indices to cache in memory. Queries against
+    /// tables whose index is not cached must first load it from object
+    /// store; a larger cache speeds cold queries across many tables at the
+    /// cost of memory.
     ///
     /// Defaults to 100 entries. Set to 0 for unlimited cache size.
     #[clap(
@@ -480,21 +505,35 @@ pub struct Config {
     ///
     /// Specify either a percentage of the total available memory (e.g. `20%`)
     /// or an absolute size with an explicit unit suffix (e.g. `4gb`). Bare
-    /// numbers are rejected: they previously meant megabytes and will mean
-    /// bytes in a future release.
-    /// breaking: removed parquet-mem-cache-size-mb and env var INFLUXDB3_PARQUET_MEM_CACHE_SIZE_MB
+    /// numbers are rejected: they previously meant megabytes; use an
+    /// explicit unit.
     #[clap(
         long = "file-cache-size",
-        visible_alias = "parquet-mem-cache-size",
         env = "INFLUXDB3_FILE_CACHE_SIZE",
         default_value = "20%",
         action
     )]
     pub file_cache_size: MemorySizeMb,
 
-    /// The percentage of entries to prune during a prune operation on the in-memory Parquet cache.
+    /// Deprecated alias of `--file-cache-size` that accepts the
+    /// pre-3.11 value format (bare numbers mean megabytes). Warned about
+    /// and resolved in [`resolve_legacy_size_options`].
+    #[clap(
+        long = "parquet-mem-cache-size",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_SIZE",
+        hide = true,
+        action
+    )]
+    pub parquet_mem_cache_size: Option<LegacyMemorySizeMb>,
+
+    /// The percentage of cache entries (by count, not bytes) evicted, oldest
+    /// access first, when the in-memory Parquet cache exceeds its size.
+    /// Higher values free memory in bigger steps but drop more cached data
+    /// at once (temporarily lowering hit rate); lower values need more prune
+    /// cycles to get back under budget.
     ///
-    /// This must be a number between 0 and 1.
+    /// Expressed as a fraction of 1 — e.g. 0.1 evicts 10%. Must be greater
+    /// than 0 and less than 1.
     #[clap(
         long = "parquet-mem-cache-prune-percentage",
         env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE",
@@ -503,7 +542,10 @@ pub struct Config {
     )]
     pub parquet_mem_cache_prune_percentage: ParquetCachePrunePercent,
 
-    /// The interval on which to check if the in-memory Parquet cache needs to be pruned.
+    /// The interval on which to check if the in-memory Parquet cache needs
+    /// to be pruned. Shorter intervals keep the cache closer to its size
+    /// budget at the expense of more prune churn; longer intervals let it
+    /// overshoot for longer between checks.
     ///
     /// Enter as a human-readable time, e.g., "1s", "100ms", "1m", etc.
     #[clap(
@@ -560,19 +602,44 @@ pub struct Config {
     #[clap(flatten)]
     pub processing_engine_config: ProcessingEngineConfig,
 
-    /// Threshold for internal buffer.
+    /// Memory used by the write buffer at which a snapshot is forced to free
+    /// memory. Lower thresholds snapshot earlier — lower OOM risk during
+    /// write bursts, but more, smaller persisted files.
     ///
     /// Specify either a percentage of the total available memory (e.g. `70%`)
     /// or an absolute size with an explicit unit suffix (e.g. `1000mb`). Bare
-    /// numbers are rejected: they previously meant megabytes and will mean
-    /// bytes in a future release.
+    /// numbers are rejected: they previously meant megabytes; use an
+    /// explicit unit.
     #[clap(
-        long = "force-snapshot-mem-threshold",
-        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
+        long = "force-snapshot-mem-size",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_SIZE",
         default_value = "50%",
         action
     )]
-    pub force_snapshot_mem_threshold: MemorySizeMb,
+    pub force_snapshot_mem_size: MemorySizeMb,
+
+    /// Maximum time un-snapshotted WAL data may wait before a snapshot is
+    /// forced, regardless of how many WAL files have accumulated. Bounds
+    /// memory growth and restart replay on nodes that receive few or no
+    /// writes; checked every 10 seconds.
+    #[clap(
+        long = "force-snapshot-max-age",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MAX_AGE",
+        default_value = "1h",
+        action
+    )]
+    pub force_snapshot_max_age: humantime::Duration,
+
+    /// Deprecated alias of `--force-snapshot-mem-size` that accepts the
+    /// pre-3.11 value format (bare numbers mean megabytes). Warned about
+    /// and resolved in [`resolve_legacy_size_options`].
+    #[clap(
+        long = "force-snapshot-mem-threshold",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
+        hide = true,
+        action
+    )]
+    pub force_snapshot_mem_threshold: Option<LegacyMemorySizeMb>,
 
     /// Disable sending telemetry data to telemetry.v3.influxdata.com.
     #[clap(
@@ -618,12 +685,19 @@ pub struct Config {
     #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
     pub query_file_limit: Option<usize>,
 
+    /// PEM-encoded private key for the server's TLS certificate.
+    ///
+    /// TLS is enabled when both --tls-key and --tls-cert are provided.
     #[clap(long = "tls-key", env = "INFLUXDB3_TLS_KEY")]
     pub key_file: Option<PathBuf>,
 
+    /// PEM-encoded TLS certificate for the server.
+    ///
+    /// TLS is enabled when both --tls-key and --tls-cert are provided.
     #[clap(long = "tls-cert", env = "INFLUXDB3_TLS_CERT")]
     pub cert_file: Option<PathBuf>,
 
+    /// Lowest TLS protocol version the server accepts from clients.
     #[clap(
         long = "tls-minimum-version",
         env = "INFLUXDB3_TLS_MINIMUM_VERSION",
@@ -655,6 +729,10 @@ pub struct Config {
     #[clap(long = "admin-token-file", env = "INFLUXDB3_ADMIN_TOKEN_FILE")]
     pub admin_token_file: Option<PathBuf>,
 
+    /// Concurrency limit during WAL replay at startup.
+    ///
+    /// Higher values shorten startup; setting this too high can lead to
+    /// OOM.
     #[clap(
         long = "wal-replay-concurrency-limit",
         env = "INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT",
@@ -671,6 +749,16 @@ pub struct Config {
         value_parser = parse_snapshot_concurrency_limit,
     )]
     pub parquet_snapshot_concurrency_limit: NonZeroUsize,
+
+    /// Deprecated: never had any effect; the server always uses the built-in
+    /// default hard-delete duration. Accepted so 3.10 configurations that set
+    /// it warn instead of failing to parse.
+    #[clap(
+        long = "hard-delete-default-duration",
+        env = "INFLUXDB3_HARD_DELETE_DEFAULT_DURATION",
+        hide = true
+    )]
+    pub hard_delete_default_duration: Option<String>,
 
     /// Grace period for hard deleted databases and tables before they are removed permanently from
     /// the catalog.
@@ -805,10 +893,81 @@ impl FromStr for ParquetCachePrunePercent {
     }
 }
 
-pub async fn command(config: Config, user_params: HashMap<String, String>) -> Result<()> {
+/// Apply values given through deprecated legacy aliases of renamed size
+/// options to their new counterparts, and warn about pre-3.11 value formats.
+///
+/// An explicitly set new name wins over its legacy alias, matching the
+/// precedence `env_compat` applied when the old env var name was an alias of
+/// the new one.
+fn resolve_legacy_size_options(config: &mut Config, user_params: &HashMap<String, String>) {
+    fn apply(
+        legacy: Option<LegacyMemorySizeMb>,
+        legacy_flag: &str,
+        new_flag: &str,
+        new_value: &mut MemorySizeMb,
+        user_params: &HashMap<String, String>,
+    ) {
+        let Some(legacy_value) = legacy else { return };
+        if user_params.contains_key(new_flag) {
+            warn!("--{legacy_flag} is deprecated and ignored because --{new_flag} is also set");
+        } else {
+            *new_value = legacy_value.into();
+            warn!(
+                "--{legacy_flag} is deprecated; use --{new_flag} with an explicit unit suffix \
+                (e.g. 500mb) or a percentage"
+            );
+        }
+    }
+
+    apply(
+        config.parquet_mem_cache_size,
+        "parquet-mem-cache-size",
+        "file-cache-size",
+        &mut config.file_cache_size,
+        user_params,
+    );
+    apply(
+        config.exec_mem_pool_bytes,
+        "exec-mem-pool-bytes",
+        "exec-mem-pool-size",
+        &mut config.exec_mem_pool_size,
+        user_params,
+    );
+    apply(
+        config.force_snapshot_mem_threshold,
+        "force-snapshot-mem-threshold",
+        "force-snapshot-mem-size",
+        &mut config.force_snapshot_mem_size,
+        user_params,
+    );
+
+    if config.max_http_request_size.is_bare() {
+        warn!(
+            "--max-http-request-size was given a bare number, which is interpreted as bytes; \
+            specify an explicit unit suffix (e.g. 10mb)"
+        );
+    }
+}
+
+pub async fn command(mut config: Config, user_params: HashMap<String, String>) -> Result<()> {
+    resolve_legacy_size_options(&mut config, &user_params);
+
     let node_id = Arc::from(config.get_node_id()?);
 
-    let max_concurrent_queries = config.max_concurrent_queries.0;
+    let max_concurrent_queries = cli_types::resolve_max_concurrent_queries(
+        config.max_concurrent_queries,
+        config
+            .tokio_datafusion_config
+            .num_threads
+            .map(NonZeroUsize::get),
+        num_cpus::get(),
+    );
+    if config.max_concurrent_queries.is_none() {
+        info!(
+            max_concurrent_queries,
+            "query concurrency limit computed from effective parallelism"
+        );
+    }
 
     // Check that both a cert file and key file are present if TLS is being set up
     match (&config.cert_file, &config.key_file) {
@@ -834,6 +993,14 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     // check if any env vars that are deprecated is still being passed around and warn
     warn_use_of_deprecated_env_vars(DEPRECATED_ENV_VARS);
+
+    if config.hard_delete_default_duration.is_some() {
+        warn!(
+            "--hard-delete-default-duration / INFLUXDB3_HARD_DELETE_DEFAULT_DURATION is \
+            deprecated and has no effect; the built-in default hard-delete duration is \
+            used. Remove it from your configuration."
+        );
+    }
 
     let metrics = setup_metric_registry();
 
@@ -871,6 +1038,21 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         .object_store_config
         .make_object_store_with_metrics(&metrics)
         .map_err(Error::ObjectStoreParsing)?;
+
+    // The WAL tags its conditional creates so it can recognise its own object
+    // when a retried PUT collides with its own hidden success. This layer sits
+    // innermost so the read-back reaches the real store, not the cache. A
+    // backend that discards object metadata has nowhere to carry the tag, so it
+    // is left unwrapped and keeps the un-verified behaviour.
+    let object_store: Arc<dyn ObjectStore> = if config
+        .object_store_config
+        .object_store
+        .supports_object_metadata()
+    {
+        Arc::new(SelfVerifyingCreateStore::new(object_store, &metrics))
+    } else {
+        object_store
+    };
 
     // setup metrics'd object store:
     let object_store: Arc<dyn ObjectStore> = Arc::new(ObjectStoreMetrics::new(
@@ -987,12 +1169,15 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         concurrency_limit: config.table_index_cache_concurrency_limit,
     };
 
-    let persister = Arc::new(Persister::new(
-        Arc::clone(&object_store),
-        Arc::clone(&node_id),
-        Arc::clone(&time_provider) as _,
-        config.checkpoint_interval.map(|v| v.into()),
-    ));
+    let persister = Arc::new(
+        Persister::new(
+            Arc::clone(&object_store),
+            Arc::clone(&node_id),
+            Arc::clone(&time_provider) as _,
+            config.checkpoint_interval.map(|v| v.into()),
+        )
+        .with_snapshot_parse_concurrency((num_cpus / 2).max(1)),
+    );
 
     let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
     let catalog = Catalog::new_with_shutdown(
@@ -1158,7 +1343,8 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     info!("setting up background mem check for query buffer");
     background_buffer_checker(
-        config.force_snapshot_mem_threshold.as_num_bytes(),
+        config.force_snapshot_mem_size.as_num_bytes(),
+        *config.force_snapshot_max_age,
         &write_buffer_impl,
     )
     .await;
@@ -1347,7 +1533,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     // Create the FusedFutures that will be waited on before exiting the process
     let signal = wait_for_signal().fuse();
-    let paths_without_authz: &'static Vec<&'static str> = config
+    let paths_without_authz: &'static [&'static str] = config
         .disable_authz
         .unwrap_or_default()
         .get_mapped_endpoints();
@@ -1680,22 +1866,24 @@ async fn setup_telemetry_store(
 
 async fn background_buffer_checker(
     mem_threshold_bytes: usize,
+    max_unsnapshotted_age: Duration,
     write_buffer_impl: &Arc<WriteBufferImpl>,
 ) {
-    debug!(mem_threshold_bytes, "setting up background buffer checker");
+    debug!(
+        mem_threshold_bytes,
+        ?max_unsnapshotted_age,
+        "setting up background buffer checker"
+    );
     check_mem_and_force_snapshot_loop(
         Arc::clone(write_buffer_impl),
         mem_threshold_bytes,
+        max_unsnapshotted_age,
         Duration::from_secs(10),
     )
     .await;
 }
 
-#[cfg(all(
-    feature = "jemalloc_replacing_malloc",
-    not(target_env = "msvc"),
-    not(feature = "disable_custom_global_allocator")
-))]
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc"),))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
@@ -1705,11 +1893,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 // env var takes precedence at process init, so operators can override
 // (`MALLOC_CONF=prof:false` to disable entirely). The macro itself handles
 // the per-platform symbol naming (`malloc_conf` vs `_rjem_malloc_conf`).
-#[cfg(all(
-    feature = "jemalloc_replacing_malloc",
-    not(target_env = "msvc"),
-    not(feature = "disable_custom_global_allocator"),
-))]
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc"),))]
 jemalloc_stats::install_default_malloc_conf_for_profiling!();
 
 use influxdb3_write::deleter::DeleteManagerArgs;
@@ -1768,7 +1952,10 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
 ///
 /// If an admin token with the same name already exists, this function will succeed without creating a duplicate.
 /// File permissions should be restricted (0600) to protect the token.
-async fn initialize_admin_token_from_file(catalog: &Catalog, token_file: &PathBuf) -> Result<()> {
+async fn initialize_admin_token_from_file(
+    catalog: &Arc<Catalog>,
+    token_file: &PathBuf,
+) -> Result<()> {
     use sha2::{Digest, Sha512};
 
     info!(
@@ -1829,7 +2016,7 @@ async fn initialize_admin_token_from_file(catalog: &Catalog, token_file: &PathBu
 
     // Create admin token with computed hash and name
     match catalog
-        .create_named_admin_token_with_hash(name.clone(), hash, expiry_millis)
+        .create_named_admin_token_with_hash(name.clone(), hash.clone(), expiry_millis)
         .await
     {
         Ok(()) => {
@@ -1842,6 +2029,33 @@ async fn initialize_admin_token_from_file(catalog: &Catalog, token_file: &PathBu
                 existing_name
             );
             Ok(())
+        }
+        Err(CatalogError::TokenHashAlreadyExists) => {
+            if let Some(existing_token) =
+                influxdb3_authz::TokenProvider::get_token(&**catalog, hash.clone())
+            {
+                if existing_token.name.as_ref() == name && existing_token.is_admin() {
+                    info!(
+                        "Admin token '{}' with same token value already exists, skipping initialization",
+                        name
+                    );
+                    Ok(())
+                } else {
+                    let err = CatalogError::unexpected(format!(
+                        "Token hash collision: admin token file refers to token '{name}', but its hash is already used by existing token '{}' (admin={})",
+                        existing_token.name,
+                        existing_token.is_admin()
+                    ));
+                    error!("{}", err);
+                    Err(Error::TokenError(err))
+                }
+            } else {
+                let err = CatalogError::unexpected(format!(
+                    "Token hash collision: admin token file refers to token '{name}', but its hash is already registered in the catalog"
+                ));
+                error!("{}", err);
+                Err(Error::TokenError(err))
+            }
         }
         Err(e) => Err(Error::TokenError(e)),
     }

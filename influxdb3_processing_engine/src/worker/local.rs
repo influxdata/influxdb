@@ -79,6 +79,7 @@ pub(crate) fn make_trigger_worker(context: TriggerWorkerContext) -> Arc<PythonTr
         plugin_shutdown: context.plugin_shutdown,
         plugin_trigger_invocation_registry: context.plugin_trigger_invocation_registry,
         plugins: Default::default(),
+        next_plugin_generation: Default::default(),
         active_work: Default::default(),
         schedulers: Default::default(),
     })
@@ -94,9 +95,16 @@ pub(crate) struct PythonTriggerWorker {
     cache: Arc<Mutex<CacheStore>>,
     plugin_shutdown: CancellationToken,
     plugin_trigger_invocation_registry: Option<Arc<PluginTriggerInvocationRegistry>>,
-    plugins: Mutex<HashMap<TriggerKey, Arc<TriggerPlugin>>>,
+    plugins: Mutex<HashMap<TriggerKey, PluginSlot>>,
+    next_plugin_generation: AtomicU64,
     active_work: ActiveWorkRegistry,
     schedulers: Mutex<HashMap<Arc<str>, Weak<dyn TriggerScheduler>>>,
+}
+
+#[derive(Debug)]
+struct PluginSlot {
+    generation: u64,
+    plugin: Option<Arc<TriggerPlugin>>,
 }
 
 impl Debug for PythonTriggerWorker {
@@ -184,11 +192,16 @@ impl PythonTriggerWorker {
             .ok_or_else(|| anyhow!("trigger not found: {key:?}"))?;
         let db_name = db_schema.name.to_string();
 
-        if let Some(plugin) = self.plugins.lock().get(&key).cloned()
-            && plugin.matches(&db_name, &trigger_definition)
-        {
-            return Ok(plugin);
-        }
+        let load_generation = {
+            let mut plugins = self.plugins.lock();
+            let slot = plugins.entry(key).or_insert_with(|| self.new_plugin_slot());
+            if let Some(plugin) = &slot.plugin
+                && plugin.matches(&db_name, &trigger_definition)
+            {
+                return Ok(Arc::clone(plugin));
+            }
+            slot.generation
+        };
 
         let plugin_code = Arc::new(
             read_plugin_code(
@@ -204,8 +217,53 @@ impl PythonTriggerWorker {
             plugin_code,
             self,
         ));
-        self.plugins.lock().insert(key, Arc::clone(&plugin));
+        let mut plugins = self.plugins.lock();
+        if let Some(slot) = plugins.get_mut(&key)
+            && slot.generation == load_generation
+        {
+            slot.plugin = Some(Arc::clone(&plugin));
+        }
         Ok(plugin)
+    }
+
+    fn new_plugin_slot(&self) -> PluginSlot {
+        PluginSlot {
+            generation: self.next_plugin_generation.fetch_add(1, Ordering::Relaxed),
+            plugin: None,
+        }
+    }
+
+    pub(crate) fn forget_trigger(&self, key: TriggerKey) {
+        let evicted = self.plugins.lock().remove(&key);
+        // dropped outside the lock
+        drop(evicted);
+    }
+
+    pub(crate) fn forget_all_for_db(&self, db_id: DbId) {
+        let evicted: Vec<_> = {
+            let mut plugins = self.plugins.lock();
+            plugins.extract_if(|key, _| key.db_id == db_id).collect()
+        };
+        // dropped outside the lock
+        drop(evicted);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn cached_keys(&self) -> Vec<TriggerKey> {
+        self.plugins
+            .lock()
+            .iter()
+            .filter(|(_, slot)| slot.plugin.is_some())
+            .map(|(key, _)| *key)
+            .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn load_plugin_for_test(
+        &self,
+        key: TriggerKey,
+    ) -> Result<(), TriggerExecutionError> {
+        self.plugin_for_key(key).await.map(|_| ())
     }
 
     async fn execute_once(
@@ -676,5 +734,7 @@ impl TriggerWorker for PythonTriggerWorker {
     }
 }
 
+#[cfg(test)]
+pub(crate) mod test_support;
 #[cfg(test)]
 mod tests;

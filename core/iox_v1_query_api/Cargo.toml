@@ -40,7 +40,7 @@ trace = { path = "../trace" }
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion_util = { path = "../datafusion_util" }
-insta = { version = "1.47.2", features = ["json", "redactions"] }
+insta = { version = "1.47.2", features = ["json", "redactions", "yaml"] }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 tokio = { version = "1.52", features = [

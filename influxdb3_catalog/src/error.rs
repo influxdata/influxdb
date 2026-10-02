@@ -97,6 +97,27 @@ pub enum CatalogError {
     #[error("'{0}' is a reserved column")]
     ReservedColumn(Arc<str>),
 
+    #[error(
+        "table '{table_name}' is not defined in database '{db_name}', which uses explicit schemas; \
+         create the table with the /api/v3/configure/table API before writing to it"
+    )]
+    UndeclaredTable {
+        db_name: Arc<str>,
+        table_name: Arc<str>,
+    },
+
+    #[error(
+        "column '{column_name}' ({column_type}) is not defined in table '{table_name}' of \
+         database '{db_name}', which uses explicit schemas; add the column with the \
+         /api/v3/configure/table API before writing to it"
+    )]
+    UndeclaredColumn {
+        db_name: Arc<str>,
+        table_name: Arc<str>,
+        column_name: Arc<str>,
+        column_type: InfluxColumnType,
+    },
+
     #[error("invalid node registration")]
     InvalidNodeRegistration,
 
@@ -261,6 +282,9 @@ pub enum CatalogError {
     #[error("token name already exists, {0}")]
     TokenNameAlreadyExists(String),
 
+    #[error("token hash already exists")]
+    TokenHashAlreadyExists,
+
     #[error("missing admin token, cannot update")]
     MissingAdminTokenToUpdate,
 
@@ -348,6 +372,29 @@ pub enum CatalogError {
         "cannot remove node '{node_id}' because it is a member of query group '{query_group_name}' (id {query_group_id})"
     )]
     NodeInQueryGroup {
+        node_id: Arc<str>,
+        query_group_name: Arc<str>,
+        query_group_id: QueryGroupId,
+    },
+
+    #[error(
+        "cannot place node '{node_id}' in this query group because it already belongs to query group '{query_group_name}' (id {query_group_id})"
+    )]
+    NodeAlreadyInQueryGroup {
+        node_id: Arc<str>,
+        query_group_name: Arc<str>,
+        query_group_id: QueryGroupId,
+    },
+
+    #[error(
+        "node '{node_id}' advertises no connection address (conn info e.g. 8181), so other query group members cannot reach it"
+    )]
+    QueryGroupMemberNotConnectable { node_id: Arc<str> },
+
+    #[error(
+        "node '{node_id}' cannot clear its connection address (conn info e.g. 8181) while it is a member of query group '{query_group_name}' (id {query_group_id})"
+    )]
+    NodeConnInfoRequiredInQueryGroup {
         node_id: Arc<str>,
         query_group_name: Arc<str>,
         query_group_id: QueryGroupId,

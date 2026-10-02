@@ -554,7 +554,6 @@ impl Partition {
     /// care of computing the [`PartitionHashId`].
     ///
     /// This is only appropriate to use in the catalog or in tests.
-    #[expect(clippy::too_many_arguments)]
     pub fn new_catalog_only(
         id: PartitionId,
         table_id: TableId,

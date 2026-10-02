@@ -157,7 +157,10 @@ mod tests {
     use arrow::datatypes::Schema;
     use datafusion::common::stats::Precision;
     use datafusion::datasource::listing::PartitionedFile;
-    use datafusion::datasource::physical_plan::{FileGroup, FileScanConfigBuilder, ParquetSource};
+    use datafusion::datasource::{
+        physical_plan::{FileGroup, FileScanConfigBuilder, ParquetSource},
+        table_schema::TableSchema,
+    };
     use datafusion::execution::object_store::ObjectStoreUrl;
     use datafusion::physical_expr::{LexOrdering, PhysicalSortExpr};
     use datafusion::physical_plan::Statistics;
@@ -340,10 +343,12 @@ mod tests {
     fn data_source_exec_parquet_with_optional_ranges(
         files: impl IntoIterator<Item = (&'static str, Option<(i64, i64)>)>,
     ) -> Arc<dyn ExecutionPlan> {
+        let parquet_source =
+            ParquetSource::new(TableSchema::new(Arc::new(Schema::empty()), vec![]))
+                .with_table_parquet_options(table_parquet_options());
         let file_scan_config = FileScanConfigBuilder::new(
             ObjectStoreUrl::local_filesystem(),
-            Arc::new(Schema::empty()),
-            Arc::new(ParquetSource::new(table_parquet_options())),
+            Arc::new(parquet_source),
         )
         .with_file_groups(
             files

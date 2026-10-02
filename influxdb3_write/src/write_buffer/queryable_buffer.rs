@@ -1,7 +1,7 @@
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
-use crate::write_buffer::persisted_files::PersistedFiles;
+use crate::write_buffer::persisted_files::{PersistedFiles, sort_by_min_time_desc};
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot, PersistedSnapshotVersion};
 use anyhow::Context;
@@ -36,6 +36,9 @@ use std::time::Duration;
 use tokio::sync::Semaphore;
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
+
+/// The buffer chunks and persisted parquet files for a single table.
+pub type TableChunksAndFiles = (Vec<Arc<dyn QueryChunk>>, Vec<ParquetFile>);
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
@@ -96,7 +99,10 @@ impl QueryableBuffer {
         }
     }
 
-    pub fn get_table_chunks(
+    /// The buffer chunks for a table. Callers that also need the persisted files must use
+    /// [`Self::get_table_chunks_and_parquet_files`], which reads both under one lock.
+    #[cfg(test)]
+    pub(crate) fn get_table_chunks(
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
@@ -104,9 +110,46 @@ impl QueryableBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let influx_schema = table_def.influx_schema();
-
         let buffer = self.buffer.read();
+        Self::table_chunks_locked(&buffer, &db_schema, table_def, buffer_filter)
+    }
+
+    /// The buffer chunks and the persisted parquet files for a table, read under one
+    /// acquisition of the buffer lock.
+    ///
+    /// A persist job swaps the two under a single buffer write guard. Reading them separately
+    /// can return the snapshotted rows twice.
+    pub fn get_table_chunks_and_parquet_files(
+        &self,
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        buffer_filter: &ChunkFilter<'_>,
+        _projection: Option<&Vec<usize>>,
+        _ctx: &dyn Session,
+    ) -> Result<TableChunksAndFiles, DataFusionError> {
+        let table_id = table_def.table_id;
+        let (chunks, mut parquet_files) = {
+            let buffer = self.buffer.read();
+            let chunks = Self::table_chunks_locked(&buffer, &db_schema, table_def, buffer_filter)?;
+            let parquet_files = self.persisted_files.get_files_filtered_unsorted(
+                db_schema.id,
+                table_id,
+                buffer_filter,
+            );
+            (chunks, parquet_files)
+        };
+        sort_by_min_time_desc(&mut parquet_files);
+
+        Ok((chunks, parquet_files))
+    }
+
+    fn table_chunks_locked(
+        buffer: &BufferState,
+        db_schema: &DatabaseSchema,
+        table_def: Arc<TableDefinition>,
+        buffer_filter: &ChunkFilter<'_>,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let influx_schema = table_def.influx_schema();
 
         let Some(db_buffer) = buffer.db_to_table.get(&db_schema.id) else {
             return Ok(vec![]);
@@ -115,32 +158,51 @@ impl QueryableBuffer {
             return Ok(vec![]);
         };
 
-        Ok(table_buffer
+        let partitioned = table_buffer
             .partitioned_record_batches(Arc::clone(&table_def), buffer_filter)
-            .map_err(|e| DataFusionError::Execution(format!("error getting batches {e}")))?
-            .into_iter()
-            .map(|(gen_time, (ts_min_max, batches))| {
+            .map_err(|e| DataFusionError::Execution(format!("error getting batches {e}")))?;
+
+        let mut chunks: Vec<Arc<dyn QueryChunk>> = Vec::with_capacity(partitioned.len());
+        for (gen_time, buffered) in partitioned {
+            let partition_id = PartitionHashId::new(
+                data_types::TableId::new(table_def.table_id.get() as i64),
+                &PartitionKey::from(gen_time.to_string()),
+            );
+            // Snapshotting (frozen, pre-persist) batches rank strictly below
+            // live batches: an overwrite arriving while a snapshot's parquet
+            // files are being written lands in a live chunk and must win
+            // dedup against the frozen state deterministically.
+            let ranked = [
+                (
+                    buffered.snapshotting,
+                    buffered.snapshotting_min_max,
+                    i64::MAX - 1,
+                ),
+                (buffered.live, buffered.live_min_max, i64::MAX),
+            ];
+            for (batches, timestamp_min_max, order) in ranked {
+                if batches.is_empty() {
+                    continue;
+                }
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
                     influx_schema,
-                    Some(ts_min_max),
+                    timestamp_min_max,
                     &NoColumnRanges,
                 );
-                Arc::new(BufferChunk {
+                chunks.push(Arc::new(BufferChunk {
                     batches,
                     schema: influx_schema.clone(),
                     stats: Arc::new(chunk_stats),
-                    partition_id: PartitionHashId::new(
-                        data_types::TableId::new(0),
-                        &PartitionKey::from(gen_time.to_string()),
-                    ),
+                    partition_id: partition_id.clone(),
                     sort_key: None,
                     id: ChunkId::new(),
-                    chunk_order: ChunkOrder::new(i64::MAX),
-                }) as Arc<dyn QueryChunk>
-            })
-            .collect())
+                    chunk_order: ChunkOrder::new(order),
+                }) as Arc<dyn QueryChunk>);
+            }
+        }
+        Ok(chunks)
     }
 
     /// Update the caches managed by the database
@@ -205,12 +267,11 @@ impl QueryableBuffer {
                     // (table_buffer::buffer_chunk). Each chunk needs a distinct path:
                     // with a shared path the persist jobs race, the last PUT wins the
                     // object, and every job's size is recorded — stale records that
-                    // fail reads with "Corrupt footer".
-                    let mut chunk_ordinals: HashMap<i64, u32> = HashMap::new();
+                    // fail reads with "Corrupt footer". `snapshot` assigns the
+                    // ordinal, so one value both names the path and identifies the
+                    // chunk when the finished job hands it over to that file.
                     for chunk in snapshot_chunks {
-                        let ordinal_ref = chunk_ordinals.entry(chunk.chunk_time).or_insert(0);
-                        let chunk_ordinal = *ordinal_ref;
-                        *ordinal_ref += 1;
+                        let chunk_ordinal = chunk.chunk_ordinal;
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
                         let persist_job = PersistJob {
@@ -218,6 +279,7 @@ impl QueryableBuffer {
                             table_id: *table_id,
                             table_name: Arc::clone(&table_name),
                             chunk_time: chunk.chunk_time,
+                            chunk_ordinal,
                             path: ParquetFilePath::new_with_chunk_ordinal(
                                 self.persister.node_identifier_prefix(),
                                 database_id.get(),
@@ -247,7 +309,7 @@ impl QueryableBuffer {
         for (_, tables) in &removed_files {
             for (_, files) in &tables.tables {
                 for file in files {
-                    let path = file.path.clone();
+                    let path = Arc::clone(&file.path);
                     let object_store = Arc::clone(&self.persister.object_store());
                     // We've removed the file from the PersistedFiles field.
                     // We'll store them as part of the snapshot so that other parts
@@ -257,7 +319,7 @@ impl QueryableBuffer {
                     // referenced anymore.
                     tokio::spawn(async move {
                         let mut retry_count = 0;
-                        let path = path.into();
+                        let path = Path::from(path.as_ref());
                         while retry_count <= 10 {
                             match object_store.delete(&path).await {
                                 Ok(()) => break,
@@ -308,7 +370,6 @@ impl QueryableBuffer {
             // persist the individual files, building the snapshot as we go
             let persisted_snapshot = Arc::new(Mutex::new(snapshot));
 
-            let persist_jobs_empty = persist_jobs.is_empty();
             let semaphore = Arc::new(Semaphore::new(parquet_snapshot_concurrency_limit.get()));
             let mut set = JoinSet::new();
             for persist_job in persist_jobs {
@@ -325,10 +386,11 @@ impl QueryableBuffer {
 
                 set.spawn(async move {
                     let _permit = permit;
-                    let path = persist_job.path.to_string();
+                    let path: Arc<str> = persist_job.path.to_string().into();
                     let database_id = persist_job.database_id;
                     let table_id = persist_job.table_id;
                     let chunk_time = persist_job.chunk_time;
+                    let chunk_ordinal = persist_job.chunk_ordinal;
                     let min_time = persist_job.timestamp_min_max.min;
                     let max_time = persist_job.timestamp_min_max.max;
 
@@ -364,16 +426,22 @@ impl QueryableBuffer {
                     };
 
                     {
-                        // we can clear the buffer as we move on
+                        // Hand this chunk over from the buffer to its parquet file
+                        // under one lock, so it is queryable from one of the two at
+                        // every instant.
                         let mut buffer = buffer.write();
 
                         // add file first
                         persisted_files.add_persisted_file(&database_id, &table_id, &parquet_file);
-                        // then clear the buffer
+                        // then drop only the chunk that file covers. The sibling
+                        // chunks of this snapshot are still being written by the
+                        // other jobs in this set; a table-wide clear here would
+                        // evict them before their own parquet files exist and make
+                        // whole chunk_times briefly vanish from query results.
                         if let Some(db) = buffer.db_to_table.get_mut(&database_id)
                             && let Some(table) = db.get_mut(&table_id)
                         {
-                            table.clear_snapshots();
+                            table.remove_snapshotting_chunk(chunk_time, chunk_ordinal);
                         }
                     }
 
@@ -392,60 +460,45 @@ impl QueryableBuffer {
 
             set.join_all().await;
 
-            // persist the snapshot file - only if persist jobs are present or
-            // files have been removed due to retention policies.
-            // If persist_jobs is empty, then the parquet file wouldn't have been
-            // written out, so it's desirable to not write empty snapshot files.
+            // Always persist the snapshot manifest, even when it is empty.
             //
-            // How can persist jobs be empty even though a snapshot is triggered?
+            // The snapshot sequence number is minted eagerly at plan time in the
+            // WAL crate (`SnapshotTracker::increment_snapshot_sequence_number`) and
+            // embedded durably in the WAL file, so by the time we get here the
+            // number has already been spent. Consumers walk the sequence by exact
+            // key: the compactor point-GETs `marker + 1` and treats `NotFound` as
+            // "caught up", and enterprise read replicas block until each manifest
+            // appears. Skipping the write for an empty snapshot would leave a
+            // permanent hole that halts the compactor for this node and wedges
+            // those replicas (influxdb_pro#4827). An empty manifest is cheap and
+            // loads harmlessly, and it shares the same lifecycle as every other
+            // snapshot manifest (there is no separate cleanup path for it in OSS),
+            // so we always write it rather than leave a gap the consumers cannot
+            // distinguish from a failed persist.
             //
-            // When force snapshot is set, wal_periods (tracked by
-            // snapshot_tracker) will never be empty as a no-op is added. This
-            // means even though there is a wal period the query buffer might
-            // still be empty. The reason is, when snapshots are happening very
-            // close to each other (when force snapshot is set), they could get
-            // queued to run immediately one after the other as illustrated in
-            // example series of flushes and force snapshots below,
-            //
-            //   1 (only wal flush) // triggered by flush interval 1s
-            //   2 (snapshot)       // triggered by flush interval 1s
-            //   3 (force_snapshot) // triggered by mem check interval 10s
-            //   4 (force_snapshot) // triggered by mem check interval 10s
-            //
-            // Although the flush interval an mem check intervals aren't same
-            // there's a good chance under high memory pressure there will be
-            // a lot of overlapping.
-            //
-            // In this setup - after 2 (snapshot), we emptied wal buffer and as
-            // soon as snapshot is done, 3 will try to run the snapshot but wal
-            // buffer can be empty at this point, which means it adds a no-op.
-            // no-op has the current time which will be used as the
-            // end_time_marker. That would evict everything from query buffer, so
-            // when 4 (force snapshot) runs there's no data in the query
-            // buffer though it has a wal_period. When normal (i.e without
-            // force_snapshot) snapshot runs, snapshot_tracker will check if
-            // wal_periods are empty so it won't trigger a snapshot in the first
-            // place.
-            let removed_files_empty = persisted_snapshot.lock().removed_files.is_empty();
+            // A forced snapshot can legitimately find nothing to persist:
+            // `force_flush_buffer` adds a `WalOp::Noop` so a wal_period always
+            // exists, but back-to-back forced snapshots under memory pressure can
+            // drain the query buffer before the next one runs, leaving no persist
+            // jobs and no removed files while the sequence number has still been
+            // consumed.
             let persisted_snapshot = PersistedSnapshotVersion::V1(
                 Arc::into_inner(persisted_snapshot)
                     .expect("Should only have one strong reference")
                     .into_inner(),
             );
-            if !persist_jobs_empty || !removed_files_empty {
-                loop {
-                    match persister.persist_snapshot(&persisted_snapshot).await {
-                        Ok(_) => {
-                            let persisted_snapshot = Some(persisted_snapshot.clone());
-                            notify_snapshot_tx
-                                .send(persisted_snapshot)
-                                .expect("persisted snapshot notify tx should not be closed");
-                            break;
-                        }
-                        Err(e) => {
-                            error!(%e, "Error persisting snapshot, sleeping and retrying...");
-                            tokio::time::sleep(Duration::from_secs(1)).await;
-                        }
+            loop {
+                match persister.persist_snapshot(&persisted_snapshot).await {
+                    Ok(_) => {
+                        let persisted_snapshot = Some(persisted_snapshot.clone());
+                        notify_snapshot_tx
+                            .send(persisted_snapshot)
+                            .expect("persisted snapshot notify tx should not be closed");
+                        break;
+                    }
+                    Err(e) => {
+                        error!(%e, "Error persisting snapshot, sleeping and retrying...");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 }
             }
@@ -555,6 +608,9 @@ struct PersistJob {
     table_id: TableId,
     table_name: Arc<str>,
     chunk_time: i64,
+    /// Position among the chunks sharing `chunk_time`; assigned by
+    /// `TableBuffer::snapshot` and stored on its `SnapshotChunk`.
+    chunk_ordinal: u32,
     path: ParquetFilePath,
     batch: RecordBatch,
     schema: Schema,

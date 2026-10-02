@@ -1517,3 +1517,58 @@ async fn test_token_paths_are_not_allowed_when_starting_without_auth() {
     let result = client.delete(delete_url).send().await.unwrap();
     assert_eq!(result.status(), StatusCode::METHOD_NOT_ALLOWED);
 }
+
+// `trigger_settings` and `disabled` are optional and default the same way the CLI does
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_processing_engine_trigger_create_defaults() {
+    let plugin_dir = tempfile::TempDir::new().unwrap();
+    std::fs::write(
+        plugin_dir.path().join("test_plugin.py"),
+        b"def process_scheduled_call(influxdb3_local, schedule_time, args=None): pass\n",
+    )
+    .unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_string_lossy())
+        .spawn()
+        .await;
+    let client = server.http_client();
+    let url = format!(
+        "{base}/api/v3/configure/processing_engine_trigger",
+        base = server.client_addr()
+    );
+
+    server
+        .api_v3_create_database("foo", None)
+        .await
+        .expect("create database");
+
+    // `trigger_settings` and `disabled` omitted entirely
+    let resp = client
+        .post(&url)
+        .json(&json!({
+            "db": "foo",
+            "plugin_filename": "test_plugin.py",
+            "trigger_name": "trigger_omitted_settings",
+            "trigger_specification": "every:1h",
+        }))
+        .send()
+        .await
+        .expect("send request to create trigger");
+    assert_eq!(StatusCode::OK, resp.status());
+
+    // The published OpenAPI example sends `"trigger_settings": {}`
+    let resp = client
+        .post(&url)
+        .json(&json!({
+            "db": "foo",
+            "plugin_filename": "test_plugin.py",
+            "trigger_name": "trigger_empty_settings",
+            "trigger_settings": {},
+            "trigger_specification": "every:1h",
+        }))
+        .send()
+        .await
+        .expect("send request to create trigger");
+    assert_eq!(StatusCode::OK, resp.status());
+}

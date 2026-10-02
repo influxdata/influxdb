@@ -263,6 +263,7 @@ pub(super) fn proj_exec_stats<'a>(
                     max_value: Precision::Exact(ScalarValue::Null),
                     distinct_count: Precision::Exact(1),
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
                 val => ColumnStatistics {
                     null_count: Precision::Exact(0),
@@ -270,6 +271,7 @@ pub(super) fn proj_exec_stats<'a>(
                     max_value: Precision::Exact(val.to_owned()),
                     distinct_count: Precision::Exact(1),
                     sum_value: Precision::Absent,
+                    byte_size: Precision::Absent,
                 },
             }
         } else {
@@ -329,6 +331,7 @@ mod tests {
                         null_count: Precision::Exact(nulls),
                         distinct_count: Precision::Absent,
                         sum_value: Precision::Absent,
+                        byte_size: Precision::Absent,
                     }
                 };
 
@@ -393,9 +396,9 @@ mod tests {
 
         /* Test: works for projection_exec */
         let exprs = [
-            ProjectionExpr::new(col("col_a", &src_schema).unwrap(), "col_a".into()),
-            ProjectionExpr::new(col("col_b", &src_schema).unwrap(), "col_b".into()),
-            ProjectionExpr::new(col("col_c", &src_schema).unwrap(), "col_c".into()),
+            ProjectionExpr::new(col("col_a", &src_schema).unwrap(), "col_a"),
+            ProjectionExpr::new(col("col_b", &src_schema).unwrap(), "col_b"),
+            ProjectionExpr::new(col("col_c", &src_schema).unwrap(), "col_c"),
         ];
         let actual = proj_exec_stats(
             Arc::unwrap_or_clone(src_stats),
@@ -465,8 +468,8 @@ mod tests {
 
         /* Test: works for projection_exec */
         let exprs = [
-            ProjectionExpr::new(col("col_c", &src_schema).unwrap(), "col_c".into()),
-            ProjectionExpr::new(col("col_a", &src_schema).unwrap(), "col_a".into()),
+            ProjectionExpr::new(col("col_c", &src_schema).unwrap(), "col_c"),
+            ProjectionExpr::new(col("col_a", &src_schema).unwrap(), "col_a"),
         ];
         let actual = proj_exec_stats(
             Arc::unwrap_or_clone(src_stats),
@@ -529,6 +532,7 @@ mod tests {
             min_value: Precision::Exact(ScalarValue::Int64(None)),
             distinct_count: Precision::Absent,
             sum_value: Precision::Absent,
+            byte_size: Precision::Absent,
         };
         let expected_stats_with_nulls_at_datasrc = Arc::new(Statistics {
             num_rows: expected_stats.num_rows,
@@ -557,11 +561,11 @@ mod tests {
 
         /* Test: works for projection_exec */
         let exprs = [
-            ProjectionExpr::new(col("col_a", &src_schema).unwrap(), "col_a".into()),
-            ProjectionExpr::new(Arc::new(NoOp::new()), "I am an alias".into()),
+            ProjectionExpr::new(col("col_a", &src_schema).unwrap(), "col_a"),
+            ProjectionExpr::new(Arc::new(NoOp::new()), "I am an alias"),
             ProjectionExpr::new(
                 Arc::new(NoOp::new()),
-                "I am an alias for possible idx bounds-failure".into(),
+                "I am an alias for possible idx bounds-failure",
             ),
         ];
         let actual = proj_exec_stats(
@@ -730,8 +734,8 @@ mod tests {
 
         /* Test: works for projection_exec */
         let exprs = [
-            ProjectionExpr::new(Arc::new(Column::new("col_a", 0)) as _, "col_a_idx0".into()),
-            ProjectionExpr::new(Arc::new(Column::new("col_a", 1)) as _, "col_a_idx1".into()),
+            ProjectionExpr::new(Arc::new(Column::new("col_a", 0)) as _, "col_a_idx0"),
+            ProjectionExpr::new(Arc::new(Column::new("col_a", 1)) as _, "col_a_idx1"),
         ];
         let actual = proj_exec_stats(
             Arc::unwrap_or_clone(src_stats),
@@ -803,8 +807,8 @@ mod tests {
 
         /* Test: works for projection_exec */
         let exprs = [
-            ProjectionExpr::new(Arc::new(Column::new("col_a", 1)) as _, "col_a_idx1".into()),
-            ProjectionExpr::new(Arc::new(Column::new("col_a", 0)) as _, "col_a_idx0".into()),
+            ProjectionExpr::new(Arc::new(Column::new("col_a", 1)) as _, "col_a_idx1"),
+            ProjectionExpr::new(Arc::new(Column::new("col_a", 0)) as _, "col_a_idx0"),
         ];
         let actual = proj_exec_stats(
             Arc::unwrap_or_clone(src_stats),

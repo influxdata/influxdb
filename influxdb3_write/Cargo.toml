@@ -31,11 +31,8 @@ trace = { path = "../core/trace" }
 influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_id = { path = "../influxdb3_id" }
-influxdb3_internal_api = { path = "../influxdb3_internal_api" }
-influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
-influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 influxdb3_types = { path = "../influxdb3_types" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 object_store_utils = { path = "../object_store_utils" }
@@ -49,7 +46,6 @@ bytes.workspace = true
 bimap.workspace = true
 chrono.workspace  = true
 crc32fast.workspace  = true
-crossbeam-channel.workspace  = true
 dashmap.workspace = true
 datafusion.workspace = true
 futures.workspace = true
@@ -60,13 +56,13 @@ indexmap.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
-pyo3.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 sha2.workspace = true
 snap.workspace = true
+siphasher.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
@@ -77,10 +73,12 @@ regex.workspace = true
 [dev-dependencies]
 # Core Crates
 arrow_util = { path = "../core/arrow_util" }
+object_store_utils = { path = "../object_store_utils", features = ["test-helpers"] }
 query_functions = { path = "../core/query_functions" }
 test_helpers = { path = "../core/test_helpers" }
 influxdb3_catalog = { path = "../influxdb3_catalog", features = [ "test_helpers" ] }
 influxdb3_id = { path = "../influxdb3_id", features = [ "test_helpers" ] }
+influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 
 # crates.io deps
 arrow-schema.workspace = true
@@ -92,4 +90,8 @@ criterion.workspace = true
 
 [[bench]]
 name = "persisted_files_bench"
+harness = false
+
+[[bench]]
+name = "table_buffer_bench"
 harness = false

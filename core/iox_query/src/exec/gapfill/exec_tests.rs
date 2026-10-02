@@ -692,7 +692,7 @@ fn test_gapfill_fill_prev() {
                 - "| b  | 1970-01-01T00:00:01.100Z | 21 |"
                 - "| b  | 1970-01-01T00:00:01.125Z | 21 |"
                 - +----+--------------------------+----+
-                "#)
+                "#);
             });
             assert_batch_count(&batches, output_batch_size);
         }
@@ -773,7 +773,7 @@ fn test_gapfill_fill_prev_null_as_missing() {
                 - "| b  | 1970-01-01T00:00:01.100Z | 21 |"
                 - "| b  | 1970-01-01T00:00:01.125Z | 21 |"
                 - +----+--------------------------+----+
-                "#)
+                "#);
             });
             assert_batch_count(&batches, output_batch_size);
         }
@@ -877,7 +877,7 @@ fn test_gapfill_fill_prev_null_as_missing_many_nulls() {
                 - "| b  | 1970-01-01T00:00:01.100Z | 22 |"
                 - "| b  | 1970-01-01T00:00:01.125Z | 22 |"
                 - +----+--------------------------+----+
-                "#)
+                "#);
             });
             assert_batch_count(&batches, output_batch_size);
         }
@@ -989,7 +989,7 @@ fn test_gapfill_fill_interpolate() {
                     - "| b  | 1970-01-01T00:00:01.100Z | 1450 |"
                     - "| b  | 1970-01-01T00:00:01.125Z | 1550 |"
                     - +----+--------------------------+------+
-                    "#)
+                    "#);
                 });
                 assert_batch_count(&batches, output_batch_size);
             }
@@ -1208,7 +1208,7 @@ fn test_gapfill_interpolate_struct() {
                 - "| b  | 1970-01-01T00:00:01.100Z | {value: 1450, time: }  |"
                 - "| b  | 1970-01-01T00:00:01.125Z | {value: 1550, time: 0} |"
                 - +----+--------------------------+------------------------+
-                "#)
+                "#);
             });
             assert_batch_count(&batches, output_batch_size);
         }
@@ -1310,7 +1310,7 @@ fn test_gapfill_interpolate_struct_additional_data() {
                 - "| b  | 1970-01-01T00:00:01.100Z | {value: 1450, time: , other_0: , other_1: }      |"
                 - "| b  | 1970-01-01T00:00:01.125Z | {value: 1550, time: 0, other_0: 14, other_1: 14} |"
                 - +----+--------------------------+--------------------------------------------------+
-                "#)
+                "#);
             });
             assert_batch_count(&batches, output_batch_size);
         }

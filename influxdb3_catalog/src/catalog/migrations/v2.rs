@@ -20,7 +20,6 @@ use schema::InfluxColumnType;
 use std::borrow::Cow;
 use std::sync::Arc;
 
-#[allow(dead_code)]
 pub(super) fn migrate(from: &v1::InnerCatalog) -> crate::Result<v2::InnerCatalog> {
     info!("Migrating Catalog from v1 → v2");
 

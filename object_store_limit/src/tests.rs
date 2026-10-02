@@ -98,3 +98,43 @@ fn display() {
     let store = LimitObjectStore::new(Arc::new(InMemory::new()), 42, &unregistered_metrics());
     assert_eq!(store.to_string(), "LimitObjectStore(42, InMemory)");
 }
+
+#[tokio::test]
+async fn bypass_limit_ops_skip_the_semaphore() {
+    let inner = Arc::new(InMemory::new());
+    let store = LimitObjectStore::new(Arc::clone(&inner) as _, 1, &unregistered_metrics());
+    let path = Path::from("test");
+    store.put(&path, PutPayload::from("data")).await.unwrap();
+
+    // Pin the only permit by holding a list stream open.
+    let mut stream = store.list(None).peekable();
+    Pin::new(&mut stream).peek().await;
+    assert_eq!(store.permits_in_use(), 1);
+
+    // A normal op queues behind the held permit...
+    let fut = store.get_opts(&path, GetOptions::default());
+    assert!(timeout(Duration::from_millis(20), fut).await.is_err());
+
+    // ...while ops carrying BypassLimit proceed without a permit.
+    let mut get_options = GetOptions::default();
+    get_options.extensions.insert(BypassLimit);
+    let got = timeout(Duration::from_secs(5), store.get_opts(&path, get_options))
+        .await
+        .expect("bypass get must not queue")
+        .unwrap();
+    assert_eq!(got.bytes().await.unwrap().as_ref(), b"data");
+
+    let mut put_options = PutOptions::default();
+    put_options.extensions.insert(BypassLimit);
+    timeout(
+        Duration::from_secs(5),
+        store.put_opts(&path, PutPayload::from("data2"), put_options),
+    )
+    .await
+    .expect("bypass put must not queue")
+    .unwrap();
+
+    // The permit accounting never saw the bypass ops.
+    assert_eq!(store.permits_in_use(), 1);
+    drop(stream);
+}

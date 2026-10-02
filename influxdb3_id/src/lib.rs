@@ -117,7 +117,7 @@ impl ParquetFileId {
     pub fn new() -> Self {
         Self(
             NEXT_FILE_ID
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
                 .expect("Overflowed with Parquet File IDs"),
         )
     }
@@ -126,8 +126,12 @@ impl ParquetFileId {
         Self(NEXT_FILE_ID.load(Ordering::SeqCst))
     }
 
-    pub fn set_next_id(&self) {
-        NEXT_FILE_ID.store(self.0, Ordering::SeqCst)
+    /// Advance the global counter to at least this id, never moving it backwards.
+    /// Restoring persisted state must not lower the counter: ids at or above a
+    /// previously observed value may already be in use, and reusing them would
+    /// collide (see #5586).
+    pub fn advance_next_id(&self) {
+        NEXT_FILE_ID.fetch_max(self.0, Ordering::SeqCst);
     }
 
     pub fn as_u64(&self) -> u64 {

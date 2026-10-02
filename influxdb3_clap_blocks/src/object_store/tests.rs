@@ -307,10 +307,23 @@ async fn validate_aws_credential_reloader() {
     // set the duration to five seconds past the default interval reloader interval so we
     // prompt another check
     mock_provider.set(next_expiry + Duration::from_secs(5));
-    tokio::time::sleep(Duration::from_millis(50)).await;
 
-    // verify the credentials have been updated in the reloader
-    assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+    // verify the credentials get updated in the reloader. The mock-time
+    // advance wakes the background task, but it still needs real scheduler
+    // time to run its check, so poll with a deadline instead of asserting
+    // after a fixed sleep (#5531).
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        if reloader.current.read().await.as_ref() == &next_credentials {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "credentials were not reloaded within 10s; current: {:?}",
+            reloader.current.read().await
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
 }
 
 #[derive(Debug)]

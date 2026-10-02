@@ -42,7 +42,7 @@ async fn get_with_retries() {
 
     // Test: Use RetryableObjectStore with retry params that allow 3 retries
     let result = test_store
-        .get_with_retries(&path, "test context".to_string(), test_retry_params(3))
+        .get_with_retries(&path, "test context", test_retry_params(3))
         .await;
 
     // The first call should fail, but retry should succeed
@@ -81,7 +81,7 @@ async fn get_opts_with_retries_retries_transient_errors() {
         .get_opts_with_retries(
             &path,
             GetOptions::default(),
-            "test context".to_string(),
+            "test context",
             test_retry_params(3),
         )
         .await;
@@ -118,7 +118,7 @@ async fn get_opts_precondition_not_retried() {
         .get_opts_with_retries(
             &path,
             options,
-            "precondition get_opts".to_string(),
+            "precondition get_opts",
             test_retry_params(4),
         )
         .await;
@@ -148,12 +148,7 @@ async fn put_with_retries() {
 
     // First put should succeed (1st call)
     let result1 = test_store
-        .put_with_retries(
-            &path,
-            data.clone(),
-            "test context".to_string(),
-            test_retry_params(3),
-        )
+        .put_with_retries(&path, data.clone(), "test context", test_retry_params(3))
         .await;
     assert!(result1.is_ok(), "First put should succeed");
     assert_eq!(
@@ -164,12 +159,7 @@ async fn put_with_retries() {
 
     // Second put should fail initially (2nd call) but succeed on retry (3rd call)
     let result2 = test_store
-        .put_with_retries(
-            &path,
-            data.clone(),
-            "test context".to_string(),
-            test_retry_params(3),
-        )
+        .put_with_retries(&path, data.clone(), "test context", test_retry_params(3))
         .await;
     assert!(result2.is_ok(), "Second put should succeed after retry");
     assert_eq!(
@@ -199,7 +189,7 @@ async fn put_opts_with_retries_retries_transient_errors() {
             &path,
             PutPayload::from("payload"),
             PutOptions::default(),
-            "test context".to_string(),
+            "test context",
             test_retry_params(3),
         )
         .await;
@@ -240,7 +230,7 @@ async fn put_opts_precondition_not_retried() {
             &path,
             PutPayload::from("next"),
             options,
-            "precondition put_opts".to_string(),
+            "precondition put_opts",
             test_retry_params(4),
         )
         .await;
@@ -250,6 +240,44 @@ async fn put_opts_precondition_not_retried() {
         concrete_store.get_call_count(),
         1,
         "Precondition failures should not be retried"
+    );
+}
+
+// Ensures put_opts surfaces AlreadyExists errors without retrying.
+#[tokio::test]
+async fn put_opts_already_exists_not_retried() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let path = Path::from("catalog/0001.json");
+    inner
+        .put(&path, PutPayload::from("theirs"))
+        .await
+        .expect("setup: direct put to InMemory should succeed");
+
+    let concrete_store = Arc::new(TestObjectStore::new(Arc::clone(&inner)));
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    concrete_store.reset_call_count();
+
+    let result = test_store
+        .put_opts_with_retries(
+            &path,
+            PutPayload::from("ours"),
+            PutOptions::from(PutMode::Create),
+            "already exists put_opts",
+            test_retry_params(4),
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(ObjectStoreError::AlreadyExists { .. })
+    ));
+    // A conditional create that lost the race loses it identically on every
+    // attempt. Callers passing max_retries: usize::MAX spin forever.
+    assert_eq!(
+        concrete_store.get_call_count(),
+        1,
+        "AlreadyExists failures should not be retried"
     );
 }
 
@@ -280,7 +308,7 @@ async fn list_with_retries() {
 
     // Test: List should fail first, then succeed on retry
     let mut stream =
-        test_store.list_with_retries(None, None, "test context".to_string(), test_retry_params(3));
+        test_store.list_with_retries(None, None, "test context".into(), test_retry_params(3));
 
     // Collect results
     let mut results = Vec::new();
@@ -329,11 +357,7 @@ async fn list_with_delimiter_with_retries_retries_transient_errors() {
 
     let prefix = Path::from("imports");
     let result = test_store
-        .list_with_delimiter_with_retries(
-            Some(&prefix),
-            "test context".to_string(),
-            test_retry_params(3),
-        )
+        .list_with_delimiter_with_retries(Some(&prefix), "test context", test_retry_params(3))
         .await
         .expect("List should succeed after retry");
 
@@ -369,7 +393,7 @@ async fn list_with_retries_exhaustion() {
 
     // Test: List should fail after exhausting retries
     let mut stream =
-        test_store.list_with_retries(None, None, "test context".to_string(), test_retry_params(4));
+        test_store.list_with_retries(None, None, "test context".into(), test_retry_params(4));
 
     // Collect results - should get error
     let mut has_error = false;
@@ -418,7 +442,7 @@ async fn list_with_retries_every_nth_fails() {
 
     // First list should succeed (1st call)
     let mut stream1 =
-        test_store.list_with_retries(None, None, "test context".to_string(), test_retry_params(3));
+        test_store.list_with_retries(None, None, "test context".into(), test_retry_params(3));
 
     let mut results1 = Vec::new();
     while let Some(item) = stream1.next().await {
@@ -434,7 +458,7 @@ async fn list_with_retries_every_nth_fails() {
 
     // Second list should fail initially (2nd call) but succeed on retry (3rd call)
     let mut stream2 =
-        test_store.list_with_retries(None, None, "test context".to_string(), test_retry_params(3));
+        test_store.list_with_retries(None, None, "test context".into(), test_retry_params(3));
 
     let mut results2 = Vec::new();
     while let Some(item) = stream2.next().await {
@@ -466,7 +490,7 @@ async fn retry_exhaustion() {
 
     // Test: Try to get with limited retries (max_retries = 2)
     let result = test_store
-        .get_with_retries(&path, "test context".to_string(), test_retry_params(2))
+        .get_with_retries(&path, "test context", test_retry_params(2))
         .await;
 
     // Should fail after exhausting retries
@@ -494,7 +518,7 @@ async fn no_retry_on_not_found() {
 
     // Test: Try to get a non-existent file
     let result = test_store
-        .get_with_retries(&path, "test context".to_string(), test_retry_params(5))
+        .get_with_retries(&path, "test context", test_retry_params(5))
         .await;
 
     // Should fail immediately without retries (NotFound is not retried by default)
@@ -528,7 +552,7 @@ async fn raw_delete_returns_ok_for_existing_file() {
     let test_store: Arc<dyn ObjectStore> = Arc::new(TestObjectStore::new(Arc::clone(&inner)));
 
     let result = test_store
-        .raw_delete_with_retries(&path, "test context".to_string(), test_retry_params(3))
+        .raw_delete_with_retries(&path, "test context", test_retry_params(3))
         .await;
 
     assert!(result.is_ok(), "delete should succeed for existing file");
@@ -554,7 +578,7 @@ async fn raw_delete_preserves_not_found() {
     let path = Path::from("test.txt");
 
     let result = test_store
-        .raw_delete_with_retries(&path, "test context".to_string(), test_retry_params(3))
+        .raw_delete_with_retries(&path, "test context", test_retry_params(3))
         .await;
 
     assert!(
@@ -577,7 +601,7 @@ async fn delete_idempotent_on_not_found() {
     let path = Path::from("test.txt");
 
     let result = test_store
-        .delete_with_retries(&path, "test context".to_string(), test_retry_params(3))
+        .delete_with_retries(&path, "test context", test_retry_params(3))
         .await;
 
     assert!(
@@ -607,7 +631,7 @@ async fn custom_retry_condition() {
 
     // Test: Should fail immediately without retries
     let result = test_store
-        .get_with_retries(&path, "test context".to_string(), retry_params)
+        .get_with_retries(&path, "test context", retry_params)
         .await;
 
     assert!(
@@ -676,7 +700,7 @@ async fn fail_next_with_retries() {
 
     // Test: Should fail once then succeed on retry
     let result = test_store
-        .get_with_retries(&path, "test context".to_string(), test_retry_params(3))
+        .get_with_retries(&path, "test context", test_retry_params(3))
         .await;
 
     assert!(
@@ -693,7 +717,7 @@ async fn fail_next_with_retries() {
 
     // Subsequent call should work without retry
     let result2 = test_store
-        .get_with_retries(&path, "test context".to_string(), test_retry_params(0))
+        .get_with_retries(&path, "test context", test_retry_params(0))
         .await;
     assert!(
         result2.is_ok(),

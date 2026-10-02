@@ -15,7 +15,6 @@ struct MockObjectDeleter {
     table_sender: mpsc::UnboundedSender<(DbId, TableId)>,
 }
 
-#[allow(dead_code, reason = "used in future PR")]
 struct MockObjectDeleterWaiter {
     db_receiver: mpsc::UnboundedReceiver<DbId>,
     table_receiver: mpsc::UnboundedReceiver<(DbId, TableId)>,

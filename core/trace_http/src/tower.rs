@@ -37,10 +37,57 @@ use crate::query_variant::QueryVariantExt;
 /// ServiceProtocol is used to denote what protocol is being handled by the `Service`.
 /// This is used as part of the algorithm for determining when
 /// a request has fully completed rather than been aborted by the client.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceProtocol {
     Http,
     Grpc,
+}
+
+/// Determine whether a request is a gRPC request (HTTP/2 with a gRPC content-type).
+pub fn request_protocol<B>(request: &Request<B>) -> ServiceProtocol {
+    let is_grpc = request.version() == http::Version::HTTP_2
+        && request
+            .headers()
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|ct| ct.to_str().ok())
+            .is_some_and(is_grpc_content_type);
+    if is_grpc {
+        ServiceProtocol::Grpc
+    } else {
+        ServiceProtocol::Http
+    }
+}
+
+/// Whether a `content-type` header value denotes gRPC.
+///
+/// The gRPC wire spec defines the type as `application/grpc` optionally
+/// followed by a `+subtype` (e.g. `+proto`, `+json`) or media-type parameters.
+/// Matching is case-insensitive (RFC 9110 §8.3.1) and tolerant of leading
+/// whitespace. The base must be terminated by end-of-string, `+`, `;`, or
+/// whitespace, so unrelated types that merely share the prefix -- notably
+/// `application/grpc-web`, a distinct framing tonic cannot decode -- are not
+/// treated as gRPC.
+fn is_grpc_content_type(value: &str) -> bool {
+    const GRPC_CONTENT_TYPE: &str = "application/grpc";
+    let value = value.trim_start();
+    let Some(prefix) = value.get(..GRPC_CONTENT_TYPE.len()) else {
+        return false;
+    };
+    prefix.eq_ignore_ascii_case(GRPC_CONTENT_TYPE)
+        && match value[GRPC_CONTENT_TYPE.len()..].chars().next() {
+            None => true,
+            Some(c) => c == '+' || c == ';' || c.is_whitespace(),
+        }
+}
+
+/// Whether a request should be routed and instrumented as gRPC.
+///
+/// Routing and metrics must agree on this predicate: if a router uses a
+/// different notion of "is gRPC" than the trace layers, requests can be
+/// dispatched to one protocol's handler while being recorded (or dropped)
+/// by the other protocol's metrics.
+pub fn is_grpc_request<B>(request: &Request<B>) -> bool {
+    request_protocol(request) == ServiceProtocol::Grpc
 }
 
 /// `TraceLayer` implements `tower::Layer` and can be used to decorate a
@@ -140,6 +187,22 @@ where
     }
 
     fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
+        // A unified listener stacks one TraceLayer per protocol; only the
+        // layer whose protocol matches the request may record it, otherwise
+        // every request produces series in both metric families and the
+        // layers clobber each other's request extensions.
+        if request_protocol(&request) != self.service_protocol {
+            return TracedFuture {
+                request_ctx: None,
+                span_recorder: SpanRecorder::new(None),
+                metrics_recorder: None,
+                was_ready: false,
+                instrumented: false,
+                protocol: self.service_protocol,
+                inner: self.service.call(request),
+            };
+        }
+
         let query_variant = QueryVariantExt::default();
         let metrics_recorder = Some(self.metrics.recorder(&request, query_variant.clone()));
         request.extensions_mut().insert(query_variant);
@@ -179,6 +242,7 @@ where
             metrics_recorder,
             span_recorder: SpanRecorder::new(span),
             was_ready: false,
+            instrumented: true,
             protocol: self.service_protocol,
             inner: self.service.call(request),
         }
@@ -194,6 +258,7 @@ pub struct TracedFuture<F> {
     span_recorder: SpanRecorder,
     metrics_recorder: Option<MetricsRecorder>,
     was_ready: bool,
+    instrumented: bool,
     protocol: ServiceProtocol,
     #[pin]
     inner: F,
@@ -202,7 +267,7 @@ pub struct TracedFuture<F> {
 #[pinned_drop]
 impl<F> PinnedDrop for TracedFuture<F> {
     fn drop(self: Pin<&mut Self>) {
-        if !self.was_ready {
+        if self.instrumented && !self.was_ready {
             let trace = self.request_ctx.format_jaeger();
             debug!(
                 %trace,
@@ -226,25 +291,30 @@ where
 
         let projected = self.as_mut().project();
         *projected.was_ready = true;
-        let span_recorder = projected.span_recorder;
-        let mut metrics_recorder = projected.metrics_recorder.take().unwrap();
-        match &result {
-            Ok(response) => match classify_response(response) {
-                (_, Classification::Ok) => match response.body().is_end_stream() {
-                    true => {
-                        metrics_recorder.set_classification(Classification::Ok);
-                        span_recorder.ok("request processed with empty response")
+        let mut metrics_recorder = projected.metrics_recorder.take();
+        // Skip response classification and span bookkeeping for protocol-mismatch
+        // pass-throughs: `metrics_recorder` is `None` and the span recorder is
+        // empty, so `classify_response` would be avoidable work on the hot path.
+        if let Some(mr) = metrics_recorder.as_mut() {
+            let span_recorder = projected.span_recorder;
+            match &result {
+                Ok(response) => match classify_response(response) {
+                    (_, Classification::Ok) => match response.body().is_end_stream() {
+                        true => {
+                            mr.set_classification(Classification::Ok);
+                            span_recorder.ok("request processed with empty response")
+                        }
+                        false => span_recorder.event(SpanEvent::new("request processed")),
+                    },
+                    (error, c) => {
+                        mr.set_classification(c);
+                        span_recorder.error(error);
                     }
-                    false => span_recorder.event(SpanEvent::new("request processed")),
                 },
-                (error, c) => {
-                    metrics_recorder.set_classification(c);
-                    span_recorder.error(error);
+                Err(_) => {
+                    mr.set_classification(Classification::ServerErr);
+                    span_recorder.error("error processing request")
                 }
-            },
-            Err(_) => {
-                metrics_recorder.set_classification(Classification::ServerErr);
-                span_recorder.error("error processing request")
             }
         }
 
@@ -281,7 +351,7 @@ where
 pub struct TracedBody<B> {
     request_ctx: Option<RequestLogContext>,
     span_recorder: SpanRecorder,
-    metrics_recorder: MetricsRecorder,
+    metrics_recorder: Option<MetricsRecorder>,
     was_done_data: AtomicBool,
     was_ready_trailers: AtomicBool,
     protocol: ServiceProtocol,
@@ -292,6 +362,11 @@ pub struct TracedBody<B> {
 #[pinned_drop]
 impl<B> PinnedDrop for TracedBody<B> {
     fn drop(self: Pin<&mut Self>) {
+        // Pass-through bodies (protocol mismatch) carry no recorder; their
+        // completion bookkeeping is meaningless and must not log.
+        if self.metrics_recorder.is_none() {
+            return;
+        }
         if !self.was_done_data.load(Ordering::SeqCst) {
             let trace = self.request_ctx.format_jaeger();
             debug!(
@@ -340,9 +415,9 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
                         // Hyper v0.14.31 does not ever poll the trailers for HTTP 1 connections.
                         // As a result, we need to record an `ok` metric here to prevent all
                         // HTTP 1 requests from being considered as `aborted`.
-                        projected
-                            .metrics_recorder
-                            .set_classification(Classification::Ok);
+                        if let Some(metrics_recorder) = projected.metrics_recorder.as_mut() {
+                            metrics_recorder.set_classification(Classification::Ok);
+                        }
 
                         projected.was_ready_trailers.store(true, Ordering::SeqCst);
                     }
@@ -380,11 +455,15 @@ impl<B: http_body::Body> TracedBody<B> {
         let metrics_recorder = projected.metrics_recorder;
 
         let size = body.remaining() as i64;
-        metrics_recorder.add_response_body_size(size as u64);
+        if let Some(metrics_recorder) = metrics_recorder.as_mut() {
+            metrics_recorder.add_response_body_size(size as u64);
+        }
 
         match projected.inner.is_end_stream() {
             true => {
-                metrics_recorder.set_classification(Classification::Ok);
+                if let Some(metrics_recorder) = metrics_recorder.as_mut() {
+                    metrics_recorder.set_classification(Classification::Ok);
+                }
 
                 let mut evt = SpanEvent::new("returned body data and no trailers");
                 evt.set_metadata("size", size);
@@ -413,11 +492,15 @@ impl<B: http_body::Body> TracedBody<B> {
 
         match classify_headers(headers) {
             (_, Classification::Ok) => {
-                metrics_recorder.set_classification(Classification::Ok);
+                if let Some(metrics_recorder) = metrics_recorder.as_mut() {
+                    metrics_recorder.set_classification(Classification::Ok);
+                }
                 span_recorder.ok("returned trailers")
             }
             (error, c) => {
-                metrics_recorder.set_classification(c);
+                if let Some(metrics_recorder) = metrics_recorder.as_mut() {
+                    metrics_recorder.set_classification(c);
+                }
                 span_recorder.error(error)
             }
         }
@@ -428,9 +511,309 @@ impl<B: http_body::Body> TracedBody<B> {
         let span_recorder = projected.span_recorder;
         let metrics_recorder = projected.metrics_recorder;
 
-        metrics_recorder.set_classification(Classification::ServerErr);
+        if let Some(metrics_recorder) = metrics_recorder.as_mut() {
+            metrics_recorder.set_classification(Classification::ServerErr);
+        }
         span_recorder.error("error getting frame");
         projected.was_done_data.store(true, Ordering::SeqCst);
         projected.was_ready_trailers.store(true, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metrics::MetricFamily;
+    use http::Method;
+    use http_body::Body as _;
+    use metric::{Observation, RawReporter};
+    use std::convert::Infallible;
+
+    #[derive(Debug)]
+    struct EmptyBody;
+
+    impl http_body::Body for EmptyBody {
+        type Data = bytes::Bytes;
+        type Error = Infallible;
+
+        fn poll_frame(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+            Poll::Ready(None)
+        }
+
+        fn is_end_stream(&self) -> bool {
+            true
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct OkService;
+
+    impl Service<Request<EmptyBody>> for OkService {
+        type Response = Response<EmptyBody>;
+        type Error = Infallible;
+        type Future = std::future::Ready<Result<Self::Response, Self::Error>>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _req: Request<EmptyBody>) -> Self::Future {
+            std::future::ready(Ok(Response::new(EmptyBody)))
+        }
+    }
+
+    fn drive(
+        service_protocol: ServiceProtocol,
+        family: MetricFamily,
+        request: Request<EmptyBody>,
+    ) -> Arc<metric::Registry> {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(RequestMetrics::new(Arc::clone(&registry), family));
+        let layer = TraceLayer::new(
+            TraceHeaderParser::new(),
+            metrics,
+            None,
+            "test",
+            service_protocol,
+        );
+        let mut service = layer.layer(OkService);
+        let response = futures::executor::block_on(service.call(request)).unwrap();
+        drop(response);
+        registry
+    }
+
+    fn http_request() -> Request<EmptyBody> {
+        Request::builder()
+            .method(Method::GET)
+            .uri("/health")
+            .body(EmptyBody)
+            .unwrap()
+    }
+
+    fn grpc_request() -> Request<EmptyBody> {
+        Request::builder()
+            .method(Method::POST)
+            .uri("/pkg.Service/Method")
+            .version(http::Version::HTTP_2)
+            .header(http::header::CONTENT_TYPE, "application/grpc")
+            .body(EmptyBody)
+            .unwrap()
+    }
+
+    fn has_metric(registry: &metric::Registry, name: &str) -> bool {
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        reporter.metric(name).is_some()
+    }
+
+    #[test]
+    fn grpc_layer_ignores_http_requests() {
+        let registry = drive(
+            ServiceProtocol::Grpc,
+            MetricFamily::GrpcServer,
+            http_request(),
+        );
+        assert!(
+            !has_metric(&registry, "grpc_requests"),
+            "gRPC-family layer must not record HTTP requests"
+        );
+    }
+
+    #[test]
+    fn http_layer_ignores_grpc_requests() {
+        let registry = drive(
+            ServiceProtocol::Http,
+            MetricFamily::HttpServer,
+            grpc_request(),
+        );
+        assert!(
+            !has_metric(&registry, "http_requests"),
+            "HTTP-family layer must not record gRPC requests"
+        );
+    }
+
+    #[test]
+    fn http_layer_records_http_requests() {
+        let registry = drive(
+            ServiceProtocol::Http,
+            MetricFamily::HttpServer,
+            http_request(),
+        );
+        assert!(has_metric(&registry, "http_requests"));
+    }
+
+    #[test]
+    fn grpc_layer_records_grpc_requests() {
+        let registry = drive(
+            ServiceProtocol::Grpc,
+            MetricFamily::GrpcServer,
+            grpc_request(),
+        );
+        assert!(has_metric(&registry, "grpc_requests"));
+    }
+
+    #[test]
+    fn request_protocol_detection() {
+        assert_eq!(request_protocol(&http_request()), ServiceProtocol::Http);
+        assert_eq!(request_protocol(&grpc_request()), ServiceProtocol::Grpc);
+        // grpc content-type without HTTP/2 is not gRPC
+        let req = Request::builder()
+            .header(http::header::CONTENT_TYPE, "application/grpc")
+            .body(EmptyBody)
+            .unwrap();
+        assert_eq!(request_protocol(&req), ServiceProtocol::Http);
+
+        // Content-Type is case-insensitive; a gRPC subtype (+proto) or
+        // media-type parameter (;) still counts.
+        for content_type in [
+            "APPLICATION/GRPC",
+            "Application/gRPC+proto",
+            "application/grpc; charset=utf-8",
+        ] {
+            let req = Request::builder()
+                .method(Method::POST)
+                .version(http::Version::HTTP_2)
+                .header(http::header::CONTENT_TYPE, content_type)
+                .body(EmptyBody)
+                .unwrap();
+            assert_eq!(
+                request_protocol(&req),
+                ServiceProtocol::Grpc,
+                "content-type {content_type:?} should be detected as gRPC"
+            );
+        }
+
+        // Types that merely share the `application/grpc` prefix are not gRPC:
+        // grpc-web is a distinct framing tonic cannot decode.
+        for content_type in ["application/grpc-web", "application/grpc-web+proto"] {
+            let req = Request::builder()
+                .method(Method::POST)
+                .version(http::Version::HTTP_2)
+                .header(http::header::CONTENT_TYPE, content_type)
+                .body(EmptyBody)
+                .unwrap();
+            assert_eq!(
+                request_protocol(&req),
+                ServiceProtocol::Http,
+                "content-type {content_type:?} must not be detected as gRPC"
+            );
+        }
+    }
+
+    /// Yields `frames` data frames, then end-of-stream.
+    #[derive(Debug)]
+    struct DataBody {
+        frames: usize,
+    }
+
+    impl http_body::Body for DataBody {
+        type Data = bytes::Bytes;
+        type Error = Infallible;
+
+        fn poll_frame(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+            if self.frames == 0 {
+                return Poll::Ready(None);
+            }
+            self.frames -= 1;
+            Poll::Ready(Some(Ok(Frame::data(bytes::Bytes::from_static(b"abcd")))))
+        }
+
+        fn is_end_stream(&self) -> bool {
+            self.frames == 0
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct DataService;
+
+    impl Service<Request<EmptyBody>> for DataService {
+        type Response = Response<DataBody>;
+        type Error = Infallible;
+        type Future = std::future::Ready<Result<Self::Response, Self::Error>>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _req: Request<EmptyBody>) -> Self::Future {
+            std::future::ready(Ok(Response::new(DataBody { frames: 2 })))
+        }
+    }
+
+    /// Drive a two-frame response body to completion, returning the registry.
+    fn drive_data_body() -> Arc<metric::Registry> {
+        let registry = Arc::new(metric::Registry::new());
+        let metrics = Arc::new(RequestMetrics::new(
+            Arc::clone(&registry),
+            MetricFamily::HttpServer,
+        ));
+        let layer = TraceLayer::new(
+            TraceHeaderParser::new(),
+            metrics,
+            None,
+            "test",
+            ServiceProtocol::Http,
+        );
+        let mut service = layer.layer(DataService);
+
+        let response = futures::executor::block_on(service.call(http_request())).unwrap();
+        let mut body = Box::pin(response.into_body());
+        futures::executor::block_on(futures::future::poll_fn(|cx| {
+            loop {
+                match body.as_mut().poll_frame(cx) {
+                    Poll::Ready(Some(Ok(_))) => continue,
+                    Poll::Ready(Some(Err(_))) => unreachable!("DataBody is infallible"),
+                    Poll::Ready(None) => return Poll::Ready(()),
+                    Poll::Pending => return Poll::Pending,
+                }
+            }
+        }));
+        drop(body);
+
+        registry
+    }
+
+    /// `handle_data` is reached only by a response body that yields data
+    /// frames, which the `EmptyBody` harness never does, leaving
+    /// `add_response_body_size` and its accumulation across frames uncovered.
+    #[test]
+    fn body_data_frames_are_recorded() {
+        let registry = drive_data_body();
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+
+        let requests = reporter.metric("http_requests").unwrap();
+        assert_eq!(
+            requests.observation(&[
+                ("method", "GET"),
+                ("method_path", "GET /health"),
+                ("path", "/health"),
+                ("status", "ok"),
+            ]),
+            Some(&Observation::U64Counter(1)),
+            "end-of-stream should classify the request ok: {:?}",
+            requests.observations
+        );
+
+        let sizes = reporter.metric("http_response_body_size_bytes").unwrap();
+        let observation = sizes
+            .observation(&[
+                ("method", "GET"),
+                ("method_path", "GET /health"),
+                ("path", "/health"),
+                ("status", "ok"),
+            ])
+            .expect("body size should be recorded against the ok series");
+        let Observation::U64Histogram(histogram) = observation else {
+            panic!("expected a histogram, got {observation:?}");
+        };
+        assert_eq!(histogram.total, 8, "two 4-byte frames should accumulate");
+        assert_eq!(histogram.sample_count(), 1, "one observation per request");
     }
 }

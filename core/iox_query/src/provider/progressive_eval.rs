@@ -57,7 +57,7 @@ use crate::physical_optimizer::sort::lexical_range::LexicalRange;
 ///  (in some order)                                           (in same order)
 /// ```
 #[derive(Debug, Clone)]
-pub(crate) struct ProgressiveEvalExec {
+pub struct ProgressiveEvalExec {
     /// Input plan
     input: Arc<dyn ExecutionPlan>,
 

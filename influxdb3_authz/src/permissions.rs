@@ -209,19 +209,23 @@ impl SystemResourceIdentifier {
     pub fn as_u16(&self) -> u16 {
         self.0
     }
+
+    pub fn name(&self) -> Option<&'static str> {
+        match self.0 {
+            Self::HEALTH => Some(Self::HEALTH_NAME),
+            Self::METRICS => Some(Self::METRICS_NAME),
+            Self::PING => Some(Self::PING_NAME),
+            Self::READY => Some(Self::READY_NAME),
+            _ => None,
+        }
+    }
 }
 
 impl Display for SystemResourceIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let stringified = match self.0 {
-            Self::HEALTH => Self::HEALTH_NAME,
-            Self::METRICS => Self::METRICS_NAME,
-            Self::PING => Self::PING_NAME,
-            Self::READY => Self::READY_NAME,
-            _ => {
-                error!(identifier = ?self.0, "cannot map system resource identifier");
-                panic!("unrecognized system resource identifier")
-            }
+        let Some(stringified) = self.name() else {
+            error!(identifier = ?self.0, "cannot map system resource identifier");
+            panic!("unrecognized system resource identifier")
         };
         write!(f, "{stringified}")
     }

@@ -1,3 +1,4 @@
+use crate::catalog::versions::v3::schema::database::SchemaMode;
 use std::time::Duration;
 
 use iox_time::Time;
@@ -22,6 +23,7 @@ fn prepare_create_database() {
         &CreateDatabaseArgs {
             name: "mydb".to_string(),
             retention_period: None,
+            schema_mode: SchemaMode::Implicit,
         },
         &catalog,
         &mut batch,
@@ -45,6 +47,7 @@ fn prepare_create_database_with_retention() {
         &CreateDatabaseArgs {
             name: "mydb".to_string(),
             retention_period: Some(Duration::from_secs(86400)),
+            schema_mode: SchemaMode::Implicit,
         },
         &catalog,
         &mut batch,
@@ -72,6 +75,7 @@ fn prepare_create_database_duplicate() {
         &CreateDatabaseArgs {
             name: "mydb".to_string(),
             retention_period: None,
+            schema_mode: SchemaMode::Implicit,
         },
         &catalog,
         &mut batch,

@@ -29,6 +29,7 @@ fn can_re_register_matrix() {
     let removing = NodeState::Removing {
         requested_time_ns: 0,
         final_snapshot_sequence: None,
+        attestation: RemovalAttestation::NotForced,
     };
 
     assert!(mk(running, "i1").can_re_register("i1"));

@@ -14,7 +14,7 @@ use crate::table_index::{CoreTableIndex, IndexMetadata, TableIndexSnapshot};
 fn create_test_parquet_file(file_id: ParquetFileId, size: u64, row_count: u64) -> ParquetFile {
     ParquetFile {
         id: file_id,
-        path: format!("fake/test/file_{}.parquet", file_id.as_u64()),
+        path: format!("fake/test/file_{}.parquet", file_id.as_u64()).into(),
         size_bytes: size,
         row_count,
         chunk_time: 1000,
@@ -1300,7 +1300,7 @@ mod split_and_update_indices {
                 for i in 0..file_count {
                     let file = ParquetFile {
                         id: ParquetFileId::from(next_file_id),
-                        path: format!("test_file_{next_file_id}.parquet"),
+                        path: format!("test_file_{next_file_id}.parquet").into(),
                         size_bytes: 1000 * (i as u64 + 1),
                         row_count: 100 * (i as u64 + 1),
                         chunk_time: 0,
@@ -1344,7 +1344,7 @@ mod split_and_update_indices {
         for i in 0..file_count {
             files.insert(ParquetFile {
                 id: ParquetFileId::from(i as u64),
-                path: format!("test_file_{i}.parquet"),
+                path: format!("test_file_{i}.parquet").into(),
                 size_bytes: 100 * (i as u64 + 1),
                 row_count: 1000 * (i as u64 + 1),
                 chunk_time: 0,
@@ -2323,7 +2323,7 @@ mod purge {
     struct PurgeTestRunner {
         object_store: Arc<dyn ObjectStore>,
         cache: TableIndexCache,
-        loaded_file_paths: HashMap<TableIndexId, Vec<String>>,
+        loaded_file_paths: HashMap<TableIndexId, Vec<Arc<str>>>,
         // Track file info for purge_expired tests
         file_time_info: HashMap<TableIndexId, FileInfo>,
     }
@@ -2354,10 +2354,10 @@ mod purge {
                             .expect("failed to load table index into cache");
 
                         // Collect file paths from the loaded index
-                        let file_paths: Vec<String> = index
+                        let file_paths: Vec<Arc<str>> = index
                             .parquet_files()
                             .await
-                            .map(|file| file.path.clone())
+                            .map(|file| Arc::clone(&file.path))
                             .collect();
                         self.loaded_file_paths.insert(table_id.clone(), file_paths);
                     }
@@ -2441,7 +2441,7 @@ mod purge {
                                 for (_table_id, index) in tables.iter() {
                                     let tx_clone = tx.clone();
                                     for file in index.parquet_files().await {
-                                        let path = ObjPath::from(file.path.clone());
+                                        let path = ObjPath::from(file.path.as_ref());
                                         let _ = tx_clone.send(path);
                                     }
                                 }
@@ -2473,7 +2473,7 @@ mod purge {
                                 for path in file_paths {
                                     let exists = self
                                         .object_store
-                                        .head(&object_store::path::Path::from(path.clone()))
+                                        .head(&object_store::path::Path::from(path.as_ref()))
                                         .await
                                         .is_ok();
                                     assert!(
@@ -2696,7 +2696,7 @@ mod purge {
 
             let parquet_file = ParquetFile {
                 id: file_id,
-                path: file_path,
+                path: file_path.into(),
                 size_bytes: 1000,
                 row_count: 100,
                 chunk_time: 1234567890,
@@ -2764,7 +2764,7 @@ mod purge {
 
             let parquet_file = ParquetFile {
                 id: file_id,
-                path: file_path.clone(),
+                path: file_path.clone().into(),
                 size_bytes: 1000 + i as u64 * 100, // Vary size for testing
                 row_count: 100 + i as u64 * 10,
                 chunk_time: min_time,
@@ -2818,7 +2818,7 @@ mod purge {
             let file_id = ParquetFileId::new();
             let parquet_file = ParquetFile {
                 id: file_id,
-                path: format!("test_file_{i}.parquet"),
+                path: format!("test_file_{i}.parquet").into(),
                 size_bytes: 1000,
                 row_count: 100,
                 chunk_time: 1234567890,
@@ -2833,7 +2833,7 @@ mod purge {
             let content = b"fake parquet data";
             object_store
                 .put(
-                    &object_store::path::Path::from(file.path.clone()),
+                    &object_store::path::Path::from(file.path.as_ref()),
                     content.to_vec().into(),
                 )
                 .await
@@ -2888,7 +2888,7 @@ mod purge {
             let file_id = ParquetFileId::new();
             let parquet_file = ParquetFile {
                 id: file_id,
-                path: format!("test_file_{i}.parquet"),
+                path: format!("test_file_{i}.parquet").into(),
                 size_bytes: 1000,
                 row_count: 100,
                 chunk_time: 1234567890,
@@ -3088,7 +3088,7 @@ mod purge {
         );
 
         // Track loaded file paths for verification
-        let loaded_file_paths: HashMap<TableIndexId, Vec<String>> = HashMap::new();
+        let loaded_file_paths: HashMap<TableIndexId, Vec<Arc<str>>> = HashMap::new();
         let mut runner = PurgeTestRunner {
             object_store,
             cache,
