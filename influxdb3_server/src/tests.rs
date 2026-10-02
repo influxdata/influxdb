@@ -38,7 +38,9 @@ use pretty_assertions::assert_eq;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::sync::{Arc, OnceLock};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
 static EMPTY_PATHS: OnceLock<Vec<&'static str>> = OnceLock::new();
@@ -1276,6 +1278,14 @@ async fn query_from_last_cache() {
 }
 
 async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
+    setup_server_with_max_request_bytes(start_time, usize::MAX).await
+}
+
+/// Like [`setup_server`], but with a configurable HTTP request body limit.
+async fn setup_server_with_max_request_bytes(
+    start_time: i64,
+    max_request_bytes: usize,
+) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
     let server_start_time = tokio::time::Instant::now();
     let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
     let metrics = Arc::new(metric::Registry::new());
@@ -1448,7 +1458,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
         Arc::clone(&query_executor) as _,
         Arc::clone(&processing_engine),
         vec![],
-        usize::MAX,
+        max_request_bytes,
         Arc::clone(&authorizer) as _,
     ));
 
@@ -1575,4 +1585,92 @@ pub(crate) async fn query(
 
     // Convert Response<Incoming> to Response<UnsyncBoxBody>
     response.map(|body| body.map_err(|e| Box::new(e) as _).boxed_unsync())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn request_body_over_content_length_limit_rejected_before_body_read() {
+    let (server, shutdown, _) = setup_server_with_max_request_bytes(0, 1 << 20).await;
+    let host = server.trim_start_matches("http://").to_string();
+
+    let mut stream = TcpStream::connect(&host).await.unwrap();
+    let total = 2usize << 20; // 2 MiB > 1 MiB limit
+    let headers = format!(
+        "POST /api/v3/write_lp?db=foo HTTP/1.1\r\nHost: {host}\r\nContent-Type: text/plain\r\nContent-Length: {total}\r\n\r\n"
+    );
+    stream.write_all(headers.as_bytes()).await.unwrap();
+    // The server has to answer 413 based on Content-Length alone, before the
+    // body is received (we send only a few bytes of it).
+    stream.write_all(b"cpu,host=a val=1i 1").await.unwrap();
+
+    let mut buf = [0u8; 4096];
+    let n = tokio::time::timeout(std::time::Duration::from_secs(10), stream.read(&mut buf))
+        .await
+        .expect("timed out waiting for 413 response")
+        .expect("failed to read 413 response");
+    let response = String::from_utf8_lossy(&buf[..n]);
+    assert!(
+        response.starts_with("HTTP/1.1 413"),
+        "expected 413, got: {response}"
+    );
+
+    shutdown.cancel();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn request_body_chunked_over_limit_rejected() {
+    let (server, shutdown, _) = setup_server_with_max_request_bytes(0, 1 << 20).await;
+    let host = server.trim_start_matches("http://").to_string();
+
+    let mut stream = TcpStream::connect(&host).await.unwrap();
+    stream
+        .write_all(
+            format!(
+                "POST /api/v3/write_lp?db=foo HTTP/1.1\r\nHost: {host}\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n"
+            )
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+
+    // 17 * 64 KiB = 1.0625 MiB > 1 MiB limit. The server must terminate the
+    // request as soon as the accumulated chunk size passes the limit.
+    let chunk = vec![b'a'; 64 * 1024];
+    for _ in 0..17 {
+        let _ = stream
+            .write_all(format!("{:x}\r\n", chunk.len()).as_bytes())
+            .await;
+        let _ = stream.write_all(&chunk).await;
+        let _ = stream.write_all(b"\r\n").await;
+    }
+
+    let mut buf = [0u8; 4096];
+    let n = tokio::time::timeout(std::time::Duration::from_secs(10), stream.read(&mut buf))
+        .await
+        .expect("timed out waiting for 413 response")
+        .expect("failed to read 413 response");
+    let response = String::from_utf8_lossy(&buf[..n]);
+    assert!(
+        response.starts_with("HTTP/1.1 413"),
+        "expected 413, got: {response}"
+    );
+
+    shutdown.cancel();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn request_body_under_limit_processed_normally() {
+    let (server, shutdown, _) = setup_server_with_max_request_bytes(0, 1 << 20).await;
+
+    let resp = write_lp(
+        &server,
+        "foo",
+        "cpu,host=a val=1i 1",
+        None,
+        false,
+        "nanosecond",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    shutdown.cancel();
 }
