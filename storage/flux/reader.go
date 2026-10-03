@@ -205,7 +205,10 @@ func (fi *filterIterator) handleRead(f func(flux.Table) error, rs storage.Result
 
 READ:
 	for rs.Next() {
-		cur = rs.Cursor()
+		cur, err := rs.Cursor()
+		if err != nil {
+			return err
+		}
 		if cur == nil {
 			// no data for series key + field combination
 			continue
@@ -232,7 +235,7 @@ READ:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
 			table = newStringTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, fi.cache, fi.alloc)
 		default:
-			panic(fmt.Sprintf("unreachable: %T", typedCur))
+			return fmt.Errorf("unexpected cursor type: %T", typedCur)
 		}
 
 		cur = nil
@@ -319,6 +322,8 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 }
 
 func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupResultSet) error {
+	// error declaration to be used with our cursor iterations below
+	var err error
 	// these resources must be closed if not nil on return
 	var (
 		gc    storage.GroupCursor
@@ -347,7 +352,10 @@ func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupRe
 READ:
 	for gc != nil {
 		for gc.Next() {
-			cur = gc.Cursor()
+			cur, err = gc.Cursor()
+			if err != nil {
+				return err
+			}
 			if cur != nil {
 				break
 			}
@@ -380,7 +388,7 @@ READ:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString, gc.Aggregate(), key)
 			table = newStringGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		default:
-			panic(fmt.Sprintf("unreachable: %T", typedCur))
+			return fmt.Errorf("unexpected cursor type: %T", typedCur)
 		}
 
 		// table owns these resources and is responsible for closing them
@@ -761,7 +769,10 @@ func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs stor
 
 READ:
 	for rs.Next() {
-		cur = rs.Cursor()
+		cur, err = rs.Cursor()
+		if err != nil {
+			return err
+		}
 		if cur == nil {
 			// no data for series key + field combination
 			continue
@@ -848,7 +859,7 @@ READ:
 				table = newStringWindowSelectorTable(done, typedCur, bnds, window, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 			}
 		default:
-			panic(fmt.Sprintf("unreachable: %T", typedCur))
+			return fmt.Errorf("unexpected cursor type: %T", typedCur)
 		}
 
 		cur = nil

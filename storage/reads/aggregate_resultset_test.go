@@ -2,6 +2,7 @@ package reads_test
 
 import (
 	"context"
+	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 	"time"
@@ -196,7 +197,8 @@ func TestNewWindowAggregateResultSet_Mean(t *testing.T) {
 	if !resultSet.Next() {
 		t.Fatalf("unexpected: resultSet could not advance")
 	}
-	cursor := resultSet.Cursor()
+	cursor, err := resultSet.Cursor()
+	require.NoError(t, err, "create cursor failed")
 	if cursor == nil {
 		t.Fatalf("unexpected: cursor was nil")
 	}
@@ -238,7 +240,8 @@ func TestNewWindowAggregateResultSet_Months(t *testing.T) {
 	if !resultSet.Next() {
 		t.Fatalf("unexpected: resultSet could not advance")
 	}
-	cursor := resultSet.Cursor()
+	cursor, err := resultSet.Cursor()
+	require.NoError(t, err, "create cursor failed")
 	if cursor == nil {
 		t.Fatalf("unexpected: cursor was nil")
 	}
