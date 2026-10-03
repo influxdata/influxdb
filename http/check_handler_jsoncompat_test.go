@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -117,7 +118,7 @@ func (s staticChecker) Check(context.Context) check.Response { return s.resp }
 // renaming or restructuring a wire field is a breaking change to any
 // /health or /ready consumer (k8s probes, dashboards, scripts).
 //
-// Dynamic fields (started, up, version, commit) are validated for
+// Dynamic fields (started, up, uptime, version, commit) are validated for
 // type/format and then replaced with sentinels so the rest of the tree
 // can be compared against constants.
 func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
@@ -226,13 +227,16 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		require.IsType(t, "", got["started"])
 		require.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, got["started"])
 		require.IsType(t, "", got["up"])
+		requireUptimeMatchesUp(t, got)
 		got["started"] = sentinelStarted
 		got["up"] = sentinelUp
+		got["uptime"] = sentinelUp
 
 		require.Equal(t, map[string]any{
 			"status":  "ready",
 			"started": sentinelStarted,
 			"up":      sentinelUp,
+			"uptime":  sentinelUp,
 		}, got)
 	})
 
@@ -247,13 +251,16 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		got := decodeBody(t, res)
 		require.IsType(t, "", got["started"])
 		require.IsType(t, "", got["up"])
+		requireUptimeMatchesUp(t, got)
 		got["started"] = sentinelStarted
 		got["up"] = sentinelUp
+		got["uptime"] = sentinelUp
 
 		require.Equal(t, map[string]any{
 			"status":  "starting",
 			"started": sentinelStarted,
 			"up":      sentinelUp,
+			"uptime":  sentinelUp,
 			"checks": []any{
 				map[string]any{
 					"name":    "metastores",
@@ -276,4 +283,75 @@ func TestCheckHandler_WireFormat_FullDocumentPin(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "{\"status\":\"starting\"}\n", string(body))
 	})
+}
+
+// requireUptimeMatchesUp checks that /ready's uptime is a seconds measure and
+// that it carries the same reading as the up string beside it: both are
+// rendered from one time.Since, so they agree to the nanosecond.
+func requireUptimeMatchesUp(t *testing.T, got map[string]any) {
+	t.Helper()
+	up, err := time.ParseDuration(got["up"].(string))
+	require.NoError(t, err)
+	uptime, ok := got["uptime"].(map[string]any)
+	require.True(t, ok, "uptime must be an object, got %T", got["uptime"])
+	require.Len(t, uptime, 2, "uptime must carry exactly value and unit")
+	require.Equal(t, check.UnitSeconds, uptime["unit"])
+	value, ok := uptime["value"].(float64)
+	require.True(t, ok, "uptime.value must be a number, got %T", uptime["value"])
+	require.InDelta(t, up.Seconds(), value, 1e-9)
+}
+
+// TestCheckHandler_WireFormat_MeasurePin pins how a check's measure groups
+// render on /health: each group is a key of its own on the check object,
+// beside name, status and message, holding its values and a unit.
+func TestCheckHandler_WireFormat_MeasurePin(t *testing.T) {
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
+	require.NoError(t, h.AddNamedHealthCheck(check.Named("shards", check.CheckerFunc(func(context.Context) check.Response {
+		return check.Fail("2 shard(s) failed to load").
+			WithMeasure("failures", check.Measure{Unit: "shards", Values: map[string]float64{"count": 2}})
+	}))))
+
+	res := doRequest(t, h, http.MethodGet, "/health")
+	defer closeBody(t, res)
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+
+	got := decodeBody(t, res)
+	got["version"] = "<version>"
+	got["commit"] = "<commit>"
+
+	require.Equal(t, map[string]any{
+		"name":    "influxdb",
+		"status":  "fail",
+		"message": "2 shard(s) failed to load",
+		"checks": []any{
+			map[string]any{
+				"name":     "shards",
+				"status":   "fail",
+				"message":  "2 shard(s) failed to load",
+				"failures": map[string]any{"count": float64(2), "unit": "shards"},
+			},
+		},
+		"version": "<version>",
+		"commit":  "<commit>",
+	}, got)
+}
+
+// TestCheckHandler_MeasuresSurviveQueryHealthCheck is the client half of the
+// round trip: the in-repo remote-health client decodes a full /health body --
+// version, commit and all -- and must keep each check's measure groups.
+func TestCheckHandler_MeasuresSurviveQueryHealthCheck(t *testing.T) {
+	progress := check.Measure{Unit: "shards", Values: map[string]float64{"completed": 94, "total": 200}}
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
+	require.NoError(t, h.AddNamedHealthCheck(check.Named("shards", check.CheckerFunc(func(context.Context) check.Response {
+		return check.Info("loading").WithMeasure("progress", progress)
+	}))))
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	resp := QueryHealthCheck(srv.URL, false)
+	require.Equal(t, check.StatusPass, resp.Status(), "message: %s", resp.Message())
+	require.Nil(t, resp.Measures(), "the top-level envelope carries no groups of its own")
+	require.Len(t, resp.Checks(), 1)
+	require.Equal(t, "shards", resp.Checks()[0].Name())
+	require.Equal(t, check.Measures{"progress": progress}, resp.Checks()[0].Measures())
 }

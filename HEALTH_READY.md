@@ -124,15 +124,16 @@ downstream can break on it unannounced.
 
 The **HTTP status code never changes**. A credential-free liveness or
 readiness probe continues to work exactly as before; only the body is
-reduced. What is withheld is every check `message`, the build fields,
-and — once something is actually failing — which check it was:
+reduced. What is withheld is every check `message` and its
+[measure groups](#measure-groups), the build fields, and — once
+something is actually failing — which check it was:
 
 | Endpoint / state    | Authorized                                    | Rejected                              | Unidentifiable †                      |
 |---------------------|-----------------------------------------------|---------------------------------------|---------------------------------------|
-| `/health` passing   | `name`, `status`, `message`, `checks`, `version`, `commit` | `name`, `status`, `message`, `checks` (no per-check messages) | same as "rejected" |
-| `/health` failing   | `name`, `status`, `message`, `checks`, `version`, `commit` | `name`, `status`         | `name`, `status`, `checks` (no messages) |
-| `/ready` ready      | `status`, `started`, `up`                     | `status`, `started`, `up`             | `status`, `started`, `up`             |
-| `/ready` starting   | `status`, `started`, `up`, `checks`           | `status`, `started`, `up`             | `status`, `started`, `up`, `checks` (no messages) |
+| `/health` passing   | `name`, `status`, `message`, `checks`, `version`, `commit` | `name`, `status`, `message`, `checks` (names and statuses only) | same as "rejected" |
+| `/health` failing   | `name`, `status`, `message`, `checks`, `version`, `commit` | `name`, `status`         | `name`, `status`, `checks` (names and statuses only) |
+| `/ready` ready      | `status`, `started`, `up`, `uptime`           | `status`, `started`, `up`, `uptime`   | `status`, `started`, `up`, `uptime`   |
+| `/ready` starting   | `status`, `started`, `up`, `uptime`, `checks` | `status`, `started`, `up`, `uptime`   | `status`, `started`, `up`, `uptime`, `checks` (names and statuses only) |
 
 † **Rejected** means a credential was resolved and found wanting — or
 none was presented, which is every credential-free probe.
@@ -140,7 +141,8 @@ none was presented, which is every credential-free probe.
 [startup window](#the-startup-window) or a
 [wedged KV store](#behavior-when-the-kv-store-is-wedged). Both are global
 server state that no caller can bring about, so not being able to ask
-releases the check names and statuses — never the messages.
+releases the check names and statuses — never the messages or the
+measure groups.
 
 A [saturated resolution cap](#behavior-when-the-kv-store-is-wedged) is
 deliberately *not* one of them, and is answered as **rejected**: it is
@@ -156,8 +158,9 @@ install of the same configuration, saying nothing the `200` does not
 already say — and `message` is the constant `"healthy"`. Withholding
 those would break every consumer that reads them, on the path that is
 true almost all of the time, and protect nothing. What a non-operator
-does not get is the per-check messages (the `task-scheduler` check
-reports its next-run timing in one) and `version`/`commit`.
+does not get is the per-check messages and measure groups (the
+`task-scheduler` check reports its next-run timing in both) and
+`version`/`commit`.
 
 Once a check fails, *which* check failed is this server's state rather
 than its shape, so it is withheld — along with the top-level `message`,
@@ -171,8 +174,8 @@ That body is a `check.BasicResponse`, the same type the in-repo
 remote-health client decodes, so existing consumers keep parsing it.
 
 `/ready` only ever emits `checks` when it is failing, so on a ready
-instance the authorized and unauthorized bodies are identical. `started`
-and `up` are not withheld: neither is sensitive, and a probe reading
+instance the authorized and unauthorized bodies are identical. `started`,
+`up` and `uptime` are not withheld: none is sensitive, and a probe reading
 uptime should keep working.
 
 ### Who counts as authorized
@@ -391,19 +394,52 @@ Each entry in `checks` is:
 {
   "name":    "<check name>",      // always present
   "status":  "pass" | "fail",     // always present
-  "message": "<detail>"           // omitted when empty
+  "message": "<detail>",          // omitted when empty
+  "<group>": <Measure>, ...       // zero or more; see Measure groups
 }
 ```
 
 Per-check `message` and the rarely-used `checks` sub-array are
 `omitempty` (see `kit/check/response.go`).
 
+### Measure groups
+
+A check may report the numbers in its `message` as JSON numbers too, so a
+poller can read them without parsing text. Each group of numbers sharing
+a unit is a key of its own on the check object, beside `name`, `status`
+and `message`:
+
+```json
+{
+  "name": "shards",
+  "status": "fail",
+  "message": "loading shards 47.0% (94 / 200)",
+  "progress": { "completed": 94, "total": 200, "unit": "shards" }
+}
+```
+
+- A group holds one or more number-valued keys plus a string `unit`.
+  Durations are float seconds, unrounded, with `"unit": "seconds"`;
+  the message keeps its own rounding.
+- Group names, value keys and units are `[a-z0-9_]+`. A group is never
+  named `name`, `status`, `message` or `checks`, and no value is keyed
+  `unit`.
+- A check with no numbers to report has no groups, and its object is
+  byte-identical to the shape above without them.
+- Groups are detail: they are withheld wherever the check's `message`
+  is. See [Authentication](#authentication).
+- To find the groups on a check, take every key other than `name`,
+  `status`, `message` and `checks` whose value is an object.
+
+The groups each check reports are listed with the check below.
+`check.Measure` in `kit/check/measure.go` is the Go type.
+
 > **This envelope is the unauthenticated default.** With
 > `--health-auth-mode=required` (or `--hardening-enabled` with the mode at
 > `auto`) a caller who cannot
 > prove operator permissions still gets `name`, `status`, `message` and
-> `checks` on a `200`, but with the per-check messages and the build
-> fields removed; on a `503` it gets `{"name","status"}` and no `checks`
+> `checks` on a `200`, but with the per-check messages, measure groups
+> and the build fields removed; on a `503` it gets `{"name","status"}` and no `checks`
 > key at all. If you parse `/health`, read
 > [Authentication](#authentication) before assuming a field is present.
 
@@ -573,7 +609,14 @@ check flips to `"fail"` with a message of the form:
 stale: last probe <age> ago (threshold 5s)
 ```
 
-Other failure modes:
+and the same two durations as a measure group:
+
+```json
+"probe": { "age": 12.3, "threshold": 5, "unit": "seconds" }
+```
+
+No `probe` group is reported while the probe is fresh. Other failure
+modes:
 
 - `"bolt database not open"` — store was closed or never opened.
 - The underlying error string from `bolt.View` when a probe transaction
@@ -608,12 +651,15 @@ Source: `query/bridges.go`, `influxql/query/proxy_executor.go`,
 Compares the task scheduler's next-run timestamp (`TreeScheduler.When()`)
 to wall-clock time. Possible states:
 
-| Condition                                              | Status | Message                          |
-|--------------------------------------------------------|--------|----------------------------------|
-| `When()` returns zero (no scheduled work)              | pass   | `scheduler idle: no scheduled runs` |
-| `When()` is in the future                              | pass   | `next run in <duration>`         |
-| `When()` is in the past by ≤ 30s (the pulse threshold) | pass   | `on time, dispatch lag <duration>` |
-| `When()` is in the past by > 30s                       | fail   | `scheduler stalled: next run due <duration> ago` |
+| Condition                                              | Status | Message                          | `dispatch` group (seconds) |
+|--------------------------------------------------------|--------|----------------------------------|----------------------------|
+| `When()` returns zero (no scheduled work)              | pass   | `scheduler idle: no scheduled runs` | none                    |
+| `When()` is in the future                              | pass   | `next run in <duration>`         | `next_run_in`              |
+| `When()` is in the past by ≤ 30s (the pulse threshold) | pass   | `on time, dispatch lag <duration>` | `lag`                    |
+| `When()` is in the past by > 30s                       | fail   | `scheduler stalled: next run due <duration> ago` | `lag`      |
+
+`lag` is the same quantity in both rows it appears in, so it reads as
+one gauge across the pass/fail boundary; the threshold is not reported.
 
 The threshold is `DefaultSchedulerPulseThreshold = 30 * time.Second`
 (`cmd/influxd/run/scheduler_pulse.go`).
@@ -627,6 +673,15 @@ startup. `"pass"` until at least one shard fails to load; thereafter
 ```text
 <n> shard(s) failed to load: shard <id>: <err>; shard <id>: <err>; ...
 ```
+
+In both states it reports the count as a measure group, `0` while
+passing:
+
+```json
+"failures": { "count": 3, "unit": "shards" }
+```
+
+The shard IDs stay in the message only, paired with their errors.
 
 The same name (`shards`) appears in `/ready` with different semantics —
 see below.
@@ -644,6 +699,7 @@ Source: `cmd/influxd/run/startup_logger.go`.
   "status":  "ready" | "starting",   // aggregate over all ready gates
   "started": "<RFC3339Nano timestamp>",
   "up":      "<duration>",
+  "uptime":  { "value": <seconds>, "unit": "seconds" },
   "checks":  [ <Check>, ... ]        // omitted on 200; failing-only on 503
 }
 ```
@@ -654,6 +710,8 @@ Notes:
   not change across requests.
 - `up` is `time.Since(started)`, formatted as a `toml.Duration` string
   (e.g. `"2.5s"`, `"1h23m45.6s"`).
+- `uptime` is the same reading as `up`, as float seconds in the
+  [measure group](#measure-groups) shape.
 - `checks` is `omitempty`. On a `200` response it is **absent
   entirely**, not an empty array. On a `503` it contains **only the
   failing** gates.
@@ -662,8 +720,8 @@ Notes:
 > mode at `auto`) the `503`
 > `checks` array is withheld from a caller who cannot prove operator
 > permissions, and carries names and statuses without messages during
-> the [startup window](#the-startup-window). `status`, `started` and
-> `up` are never withheld.
+> the [startup window](#the-startup-window). `status`, `started`, `up`
+> and `uptime` are never withheld.
 
 Source: `http/check_handler.go`.
 
@@ -681,7 +739,8 @@ Source: `http/check_handler.go`.
 {
   "status": "ready",
   "started": "2026-05-26T15:42:30.123456789Z",
-  "up": "1m32.4s"
+  "up": "1m32.4s",
+  "uptime": { "value": 92.4, "unit": "seconds" }
 }
 ```
 
@@ -694,6 +753,7 @@ Source: `http/check_handler.go`.
   "status": "starting",
   "started": "2026-05-26T15:42:30.123456789Z",
   "up": "1.2s",
+  "uptime": { "value": 1.2, "unit": "seconds" },
   "checks": [
     {
       "name": "metastores",
@@ -780,15 +840,23 @@ entry that carries a reason, not this one.
 The `shards` ready gate is the only one that reports progress before
 latching. Its observable states are:
 
-| When                                                                            | Status | Message                                       |
-|---------------------------------------------------------------------------------|--------|-----------------------------------------------|
-| Engine has not yet enumerated any shard                                         | fail   | `waiting for shard enumeration`               |
-| Enumeration started, some shards still loading                                  | fail   | `loading shards N.N% (<completed> / <total>)` |
-| `engine.Open` returned with no error                                            | pass   | `ready: <n> shards loaded in <duration>`      |
-| `engine.Open` returned an error (terminal)                                      | fail   | `shard loading failed: <error>`               |
+| When                                                                            | Status | Message                                       | `progress` group |
+|---------------------------------------------------------------------------------|--------|-----------------------------------------------|------------------|
+| Engine has not yet enumerated any shard                                         | fail   | `waiting for shard enumeration`               | yes (`total` 0)  |
+| Enumeration started, some shards still loading                                  | fail   | `loading shards N.N% (<completed> / <total>)` | yes              |
+| `engine.Open` returned with no error                                            | pass   | `ready: <n> shards loaded in <duration>`      | none             |
+| `engine.Open` returned an error (terminal)                                      | fail   | `shard loading failed: <error>`               | yes              |
 
 The percentage updates every time an individual shard finishes loading;
 it is computed as `completed / total * 100` against atomic counters.
+The `progress` group carries the two counters, not the percentage:
+
+```json
+"progress": { "completed": 94, "total": 200, "unit": "shards" }
+```
+
+The passing state carries no group because `/ready` lists only failing
+checks, so it is never served.
 
 Source: `cmd/influxd/run/startup_logger.go`.
 
@@ -1065,7 +1133,8 @@ For each scenario below, the JSON snippet is the relevant portion of the
 {
   "status": "starting",
   "checks": [
-    { "name": "shards", "status": "fail", "message": "loading shards 47.0% (94 / 200)" }
+    { "name": "shards", "status": "fail", "message": "loading shards 47.0% (94 / 200)",
+      "progress": { "completed": 94, "total": 200, "unit": "shards" } }
   ]
 }
 ```
@@ -1084,7 +1153,8 @@ currently in flight is logged when it completes.
 {
   "status": "starting",
   "checks": [
-    { "name": "shards", "status": "fail", "message": "waiting for shard enumeration" }
+    { "name": "shards", "status": "fail", "message": "waiting for shard enumeration",
+      "progress": { "completed": 0, "total": 0, "unit": "shards" } }
   ]
 }
 ```
@@ -1120,7 +1190,8 @@ Address the underlying error before you restart.
   "status": "fail",
   "message": "stale: last probe 12.3s ago (threshold 5s)",
   "checks": [
-    { "name": "bolt", "status": "fail", "message": "stale: last probe 12.3s ago (threshold 5s)" }
+    { "name": "bolt", "status": "fail", "message": "stale: last probe 12.3s ago (threshold 5s)",
+      "probe": { "age": 12.3, "threshold": 5, "unit": "seconds" } }
   ]
 }
 ```
@@ -1136,8 +1207,8 @@ from running.
 
 **With health auth required,** this is the one failure where an
 operator token buys nothing: resolving it would read the store that is
-wedged. The body above loses its `message` fields for every caller and
-keeps the `checks` names and statuses, so you can still see what is
+wedged. The body above loses its `message` fields and measure groups
+for every caller and keeps the `checks` names and statuses, so you can still see what is
 failing here and in the other subsystems — see
 [Behavior when the KV store is wedged](#behavior-when-the-kv-store-is-wedged).
 
@@ -1148,7 +1219,8 @@ failing here and in the other subsystems — see
   "status": "fail",
   "message": "scheduler stalled: next run due 1m45s ago",
   "checks": [
-    { "name": "task-scheduler", "status": "fail", "message": "scheduler stalled: next run due 1m45s ago" }
+    { "name": "task-scheduler", "status": "fail", "message": "scheduler stalled: next run due 1m45s ago",
+      "dispatch": { "lag": 105, "unit": "seconds" } }
   ]
 }
 ```
@@ -1248,7 +1320,8 @@ another process is holding a long-running write transaction.
   "message": "3 shard(s) failed to load: shard 41: I/O error; shard 87: corrupt index; shard 102: I/O error",
   "checks": [
     { "name": "shards", "status": "fail",
-      "message": "3 shard(s) failed to load: shard 41: I/O error; shard 87: corrupt index; shard 102: I/O error" }
+      "message": "3 shard(s) failed to load: shard 41: I/O error; shard 87: corrupt index; shard 102: I/O error",
+      "failures": { "count": 3, "unit": "shards" } }
   ]
 }
 ```

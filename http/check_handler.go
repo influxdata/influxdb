@@ -153,12 +153,19 @@ type healthBody struct {
 	Commit  string          `json:"commit"`
 }
 
+// readyBody is the /ready envelope. Uptime carries Up as a number of
+// seconds, for pollers that should not have to parse a Go duration string;
+// like Up it is never withheld.
 type readyBody struct {
 	Status string          `json:"status"`
 	Start  time.Time       `json:"started"`
 	Up     toml.Duration   `json:"up"`
+	Uptime check.Measure   `json:"uptime"`
 	Checks check.Responses `json:"checks,omitempty"`
 }
+
+// measureKeyUptime is the single value key of readyBody.Uptime.
+const measureKeyUptime = "value"
 
 // NewHealthReadyHandler returns a HealthReadyHandler with no registered
 // checkers and no delegate installed. A nil log is replaced with zap.NewNop
@@ -619,10 +626,13 @@ func (h *HealthReadyHandler) writeReady(w http.ResponseWriter, r *http.Request) 
 			checks = failingChecksStripped(resp.Checks())
 		}
 	}
+	// One reading feeds both renderings of the uptime, so they cannot disagree.
+	up := time.Since(h.startTime)
 	h.writeJSON(w, r, status, readyBody{
 		Status: readyStatus,
 		Start:  h.startTime,
-		Up:     toml.Duration(time.Since(h.startTime)),
+		Up:     toml.Duration(up),
+		Uptime: check.Measure{Unit: check.UnitSeconds, Values: map[string]float64{measureKeyUptime: up.Seconds()}},
 		Checks: checks,
 	})
 }
@@ -670,6 +680,8 @@ func firstFailureMessage(checks check.Responses) string {
 // carries the startup error text -- filesystem paths, addresses, DSNs -- which
 // is the whole reason health auth exists. Sub-checks go with them: they carry
 // messages of their own, and no check registered on this handler nests any.
+// Measures go too, by the same rebuild through NewBasicResponse: they are the
+// message's numbers, and are withheld wherever the message is.
 //
 // A nil return rather than an empty slice matters: BasicResponse.Checks is
 // omitempty, so an empty result must omit the field rather than emit

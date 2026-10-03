@@ -2,6 +2,7 @@ package check
 
 import (
 	"encoding/json"
+	"math"
 	"regexp"
 	"sync"
 	"sync/atomic"
@@ -249,7 +250,7 @@ func TestFreshnessResponse_ConcurrentUpdateAndRead(t *testing.T) {
 			bumpMax()
 			for n := range iterations {
 				if (idx+n)%2 == 0 {
-					f.Update(Pass())
+					f.Update(Pass().WithMeasure("progress", Measure{Unit: "shards", Values: map[string]float64{"completed": float64(n)}}))
 				} else {
 					f.Update(Fail("oops"))
 				}
@@ -270,6 +271,10 @@ func TestFreshnessResponse_ConcurrentUpdateAndRead(t *testing.T) {
 				_ = f.Status()
 				_ = f.Message()
 				_ = f.Checks()
+				for _, m := range f.Measures() {
+					_ = m.Values["completed"]
+				}
+				_ = f.Snapshot().Measures()
 				if _, err := json.Marshal(f); err != nil {
 					marshalErr.CompareAndSwap(nil, &err)
 				}
@@ -299,4 +304,38 @@ func TestFreshnessResponse_MonotonicClock(t *testing.T) {
 
 	time.Sleep(staleness / 4)
 	require.Equal(t, StatusPass, f.Status(), "snapshot still within staleness")
+}
+
+// TestFreshnessResponse_Measures covers the three states: nothing before the
+// first probe, the probe group once stale, the probe's own groups while fresh.
+func TestFreshnessResponse_Measures(t *testing.T) {
+	const staleness = 20 * time.Millisecond
+
+	f := NewFreshnessResponse("svc", staleness)
+	require.Nil(t, f.Measures())
+	require.Nil(t, f.Snapshot().Measures())
+
+	inner := Pass().WithMeasure("dispatch", Measure{Unit: UnitSeconds, Values: map[string]float64{"lag": 1.5}})
+	f.Update(inner)
+	require.Equal(t, inner.Measures(), f.Measures())
+	require.Equal(t, inner.Measures(), f.Snapshot().Measures())
+
+	time.Sleep(3 * staleness)
+	for name, ms := range map[string]Measures{
+		"accessor": f.Measures(),
+		"snapshot": f.Snapshot().Measures(),
+	} {
+		require.Len(t, ms, 1, name)
+		probe, ok := ms[MeasureGroupProbe]
+		require.True(t, ok, "%s: a stale response must carry the probe group", name)
+		require.Equal(t, UnitSeconds, probe.Unit, name)
+		require.Len(t, probe.Values, 2, name)
+		require.Equal(t, staleness.Seconds(), probe.Values[MeasureKeyThreshold], name)
+		require.Greater(t, probe.Values[MeasureKeyAge], staleness.Seconds(), name)
+	}
+
+	// The age in the group and the age in the message come from one reading.
+	s := f.Snapshot()
+	age := time.Duration(math.Round(s.Measures()[MeasureGroupProbe].Values[MeasureKeyAge] * float64(time.Second)))
+	require.Equal(t, staleMessage(age, staleness), s.Message())
 }

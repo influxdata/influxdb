@@ -62,10 +62,11 @@ type renamedResponse struct {
 	inner Response
 }
 
-func (r renamedResponse) Name() string      { return r.name }
-func (r renamedResponse) Status() Status    { return r.inner.Status() }
-func (r renamedResponse) Message() string   { return r.inner.Message() }
-func (r renamedResponse) Checks() Responses { return r.inner.Checks() }
+func (r renamedResponse) Name() string       { return r.name }
+func (r renamedResponse) Status() Status     { return r.inner.Status() }
+func (r renamedResponse) Message() string    { return r.inner.Message() }
+func (r renamedResponse) Checks() Responses  { return r.inner.Checks() }
+func (r renamedResponse) Measures() Measures { return r.inner.Measures() }
 
 // Snapshot implements HealthSnapshotter by delegating to the inner Response, so a
 // rename does not cost the caller the single coherent read: without this, a
@@ -75,7 +76,8 @@ func (r renamedResponse) Snapshot() BasicResponse {
 	if s, ok := r.inner.(HealthSnapshotter); ok {
 		return s.Snapshot().WithName(r.name)
 	}
-	return NewBasicResponse(r.name, r.inner.Status(), r.inner.Message(), r.inner.Checks())
+	return NewBasicResponse(r.name, r.inner.Status(), r.inner.Message(), r.inner.Checks()).
+		withMeasures(r.inner.Measures())
 }
 
 // MarshalJSON emits the renamed wire shape from a single snapshot, for the
@@ -111,10 +113,10 @@ func ErrCheck(fn func() error) Checker {
 // basic builds a BasicResponse with no nested checks. Internal helper
 // used by the Pass/Info/Error/Fail/NamedPass/NamedFail factories so
 // each call site reads as "this response has name/status/message"
-// rather than repeating the BasicResponse{wireResponse{...}} literal.
+// rather than repeating the BasicResponse{wireResponse: ...} literal.
 // Use NewBasicResponse when nested checks are needed.
 func basic(name string, status Status, msg string) BasicResponse {
-	return BasicResponse{wireResponse{Name: name, Status: status, Message: msg}}
+	return BasicResponse{wireResponse: wireResponse{Name: name, Status: status, Message: msg}}
 }
 
 // Pass is a utility function to generate a passing status response with the default parameters.

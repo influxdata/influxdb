@@ -28,10 +28,17 @@ const (
 	// check set. /health carries neither.
 	FieldStarted = "started"
 	FieldUp      = "up"
+	// FieldUptime is up again as a {"value","unit"} measure, and moves with
+	// it. Only its value is masked; the unit is pinned.
+	FieldUptime = "uptime"
 
 	// FieldMessage is common to both, and moves only while it carries a
 	// staleness message; see StaleMessagePattern.
 	FieldMessage = "message"
+	// FieldProbe is the measure group a stale check.FreshnessResponse
+	// carries beside that message. Its age moves with the message; its
+	// threshold does not and stays pinned.
+	FieldProbe = "probe"
 
 	SentinelStarted = "<started>"
 	SentinelUp      = "<up>"
@@ -69,10 +76,30 @@ func Normalize(t testing.TB, doc map[string]any) map[string]any {
 		require.Truef(t, isString, "%s must be a string: %v", FieldUp, v)
 		doc[FieldUp] = SentinelUp
 	}
+	if v, ok := doc[FieldUptime]; ok {
+		maskMeasureValue(t, FieldUptime, v, "value", SentinelUp)
+	}
 	if msg, ok := doc[FieldMessage].(string); ok && StaleMessagePattern.MatchString(msg) {
 		doc[FieldMessage] = SentinelStale
+		if v, ok := doc[FieldProbe]; ok {
+			maskMeasureValue(t, FieldProbe, v, "age", SentinelStale)
+		}
 	}
 	return doc
+}
+
+// maskMeasureValue replaces the number under key in the decoded measure v
+// with sentinel, after checking that v is an object with a string unit and
+// that the value is a number.
+func maskMeasureValue(t testing.TB, field string, v any, key, sentinel string) {
+	t.Helper()
+	m, isObject := v.(map[string]any)
+	require.Truef(t, isObject, "%s must be an object: %v", field, v)
+	_, isString := m["unit"].(string)
+	require.Truef(t, isString, "%s.unit must be a string: %v", field, m["unit"])
+	_, isNumber := m[key].(float64)
+	require.Truef(t, isNumber, "%s.%s must be a number: %v", field, key, m[key])
+	m[key] = sentinel
 }
 
 // NormalizeJSON decodes a rendered check document and normalizes it.

@@ -19,6 +19,13 @@ const (
 	msgSchedulerIdle       = "scheduler idle: no scheduled runs"
 	msgSchedulerNextRunFmt = "next run in %s"
 	msgSchedulerOnTimeFmt  = "on time, dispatch lag %s"
+
+	// Every non-idle state reports one duration under measureGroupDispatch,
+	// in seconds: measureKeyLag when the next run is due or overdue,
+	// measureKeyNextRunIn while it is still in the future.
+	measureGroupDispatch = "dispatch"
+	measureKeyLag        = "lag"
+	measureKeyNextRunIn  = "next_run_in"
 )
 
 // NextRunScheduled is implemented by task schedulers that expose the time at
@@ -61,10 +68,21 @@ func (c *SchedulerPulseCheck) Check(_ context.Context) check.Response {
 	deadline := w.Add(c.threshold)
 
 	if now.After(deadline) {
-		return check.Fail(fmt.Sprintf(msgSchedulerStalledFmt, now.Sub(w).Round(time.Second)))
+		lag := now.Sub(w)
+		return check.Fail(fmt.Sprintf(msgSchedulerStalledFmt, lag.Round(time.Second))).
+			WithMeasure(measureGroupDispatch, dispatchMeasure(measureKeyLag, lag))
 	}
 	if now.Before(w) {
-		return check.Info(msgSchedulerNextRunFmt, w.Sub(now).Round(time.Second))
+		until := w.Sub(now)
+		return check.Info(msgSchedulerNextRunFmt, until.Round(time.Second)).
+			WithMeasure(measureGroupDispatch, dispatchMeasure(measureKeyNextRunIn, until))
 	}
-	return check.Info(msgSchedulerOnTimeFmt, now.Sub(w).Round(time.Second))
+	lag := now.Sub(w)
+	return check.Info(msgSchedulerOnTimeFmt, lag.Round(time.Second)).
+		WithMeasure(measureGroupDispatch, dispatchMeasure(measureKeyLag, lag))
+}
+
+// dispatchMeasure reports d, unrounded, under key in seconds.
+func dispatchMeasure(key string, d time.Duration) check.Measure {
+	return check.Measure{Unit: check.UnitSeconds, Values: map[string]float64{key: d.Seconds()}}
 }

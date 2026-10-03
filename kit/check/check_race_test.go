@@ -2,6 +2,7 @@ package check
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -124,8 +125,9 @@ func TestCheck_ConcurrentFreeze(t *testing.T) {
 		numChecksEach  = 32
 		numEvaluations = 64
 
-		healthName = "h"
-		readyName  = "r"
+		healthName   = "h"
+		readyName    = "r"
+		measuredName = "m"
 	)
 
 	c := NewCheck()
@@ -135,6 +137,12 @@ func TestCheck_ConcurrentFreeze(t *testing.T) {
 	// wins the race against every registerer.
 	require.NoError(t, c.AddNamedHealthCheck(Named(healthName, mockPass(healthName))))
 	require.NoError(t, c.AddNamedReadyCheck(Named(readyName, mockPass(readyName))))
+	// One check carrying measures, so frozen measure maps are read and
+	// marshaled from every evaluator at once; -race flags any write to them.
+	require.NoError(t, c.AddNamedHealthCheck(NamedFunc(measuredName, func(context.Context) Response {
+		return NamedPass(measuredName).WithMeasure("progress",
+			Measure{Unit: "shards", Values: map[string]float64{"completed": 1, "total": 2}})
+	})))
 
 	var (
 		startMu        sync.RWMutex
@@ -204,7 +212,12 @@ func TestCheck_ConcurrentFreeze(t *testing.T) {
 					for _, sub := range resp.Checks() {
 						assert.NotEmpty(t, sub.Name())
 						assert.Contains(t, []Status{StatusPass, StatusFail}, sub.Status())
+						if sub.Name() == measuredName {
+							assert.Equal(t, float64(2), sub.Measures()["progress"].Values["total"])
+						}
 					}
+					_, err := json.Marshal(resp)
+					assert.NoError(t, err)
 				}
 			}
 		}()
@@ -228,8 +241,9 @@ func TestCheck_ConcurrentFreeze(t *testing.T) {
 
 	// Nothing registered after the winning freeze survived, so both lists are
 	// bounded by what was registered before it.
-	require.LessOrEqual(t, len(first.Checks()), 1+numRegisterers*(numChecksEach/2))
-	require.GreaterOrEqual(t, len(first.Checks()), 1)
+	require.LessOrEqual(t, len(first.Checks()), 2+numRegisterers*(numChecksEach/2))
+	require.GreaterOrEqual(t, len(first.Checks()), 2)
+	require.True(t, HasCheck(first, measuredName))
 }
 
 // TestCheck_ConcurrentDuplicateRegistration races many registrations of one
