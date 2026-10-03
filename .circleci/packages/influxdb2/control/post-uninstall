@@ -1,6 +1,7 @@
 #!/bin/bash
 
 function disable_systemd {
+    systemctl stop influxdb
     systemctl disable influxdb
 }
 
