@@ -48,7 +48,7 @@ testcase last_multi_shard {
     )
     result = csv.from(csv: input)
         |> testing.load()
-        |> range(start: -3y)
+        |> range(start: 2015-01-01T00:00:00Z)
         |> filter(fn: (r) => r._measurement == "pge_bill" and r._field == "bank")
         |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
