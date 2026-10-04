@@ -28,6 +28,19 @@ func NewUserCommand() *cobra.Command {
 		},
 	}
 
+	// A mistyped subcommand, e.g. `influxd recovery user crete`, used to be
+	// reported as `unknown flag` because cobra parses flags before it validates
+	// positional arguments. If flag parsing fails on this parent command while a
+	// positional argument is present, that argument is the subcommand the user
+	// tried to run, so report it as an unknown command instead.
+	base.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		if args := c.Flags().Args(); len(args) > 0 {
+			return fmt.Errorf("unknown command %q for %q\nSee '%s -h' for help",
+				args[0], c.CommandPath(), c.CommandPath())
+		}
+		return err
+	})
+
 	base.AddCommand(NewUserListCommand())
 	base.AddCommand(NewUserCreateCommand())
 	base.AddCommand(NewUserUpdateCommand())
