@@ -44,8 +44,10 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 	require.NoError(t, Migration0016_AddAnnotationsNotebooksToOperToken.Up(context.Background(), ts.Store))
 
 	// Seed some authorizations
-	id1 := snowflake.NewIDGenerator().ID()
-	id2 := snowflake.NewIDGenerator().ID()
+	idGen := snowflake.NewIDGenerator()
+	id1 := idGen.ID()
+	id2 := idGen.ID()
+	require.NotEqual(t, id1, id2)
 	OrgID := ts.Org.ID
 	UserID := ts.User.ID
 
