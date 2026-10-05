@@ -57,6 +57,20 @@ ignore = [
     "RUSTSEC-2026-0313",
     "RUSTSEC-2026-0314",
     "RUSTSEC-2026-0316",
+    # RustSec published these Wasmtime advisories on 2026-10-02.
+    # Wasmtime 48.0.4 and later fix them, but 3.11 uses 41.0.4, and there is no patched 41.x release.
+    # The reasons for staying on 41.0.4 are the same as for the entries above.
+    # RUSTSEC-2026-0320 and RUSTSEC-2026-0324 do not affect versions below 46.0.0, and RUSTSEC-2026-0325 and RUSTSEC-2026-0326 do not affect versions below 47.0.0, so they are not listed.
+    # UDFs are off by default.
+    # 0321: The UDF host does not turn on the wasmtime-wasi `p0` Cargo feature and does not turn on fuel.
+    # 0322: The UDF host does not set stdout, so wasmtime uses its sink stream, which has the bug. But the Python guest does not import `write-zeroes` or `blocking-write-zeroes-and-flush`, so it cannot reach it.
+    # 0323: The UDF host does not turn on the wasmtime-wasi `p1` Cargo feature, which holds `fd_readdir`. The Python guest imports only WASI 0.2 interfaces.
+    # 0327: The UDF host does not turn on the wasmtime `component-model-async` Cargo feature, so it rejects async components. The Python guest has no async-lifted export.
+    # Remove these entries after the UDF host uses Wasmtime 48.0.4 or later.
+    "RUSTSEC-2026-0321",
+    "RUSTSEC-2026-0322",
+    "RUSTSEC-2026-0323",
+    "RUSTSEC-2026-0327",
 
     # wasmtime 41.0.4 advisories (transitive dep via datafusion-udf-wasm)
     #
