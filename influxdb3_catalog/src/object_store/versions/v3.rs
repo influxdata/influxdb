@@ -194,6 +194,12 @@ impl ObjectStoreCatalog {
         }
         log_metas.sort_unstable_by(|a, b| a.location.cmp(&b.location));
 
+        info!(
+            log_files = log_metas.len(),
+            total_bytes = log_metas.iter().map(|m| m.size).sum::<u64>(),
+            "loading catalog log files newer than the snapshot"
+        );
+
         let store = Arc::clone(&self.store);
         let prefix = Arc::clone(&self.prefix);
         let fetched: Vec<CatalogFile> = stream::iter(log_metas)
@@ -578,6 +584,14 @@ impl CatalogFilePath {
     pub fn snapshot(catalog_prefix: &str) -> Self {
         Self(ObjPath::from(format!(
             "{catalog_prefix}/{CATALOG_VERSION_PATH}/snapshot",
+        )))
+    }
+
+    /// Where catalog repair backs up the snapshot it replaces; outside the
+    /// snapshot path and logs dir, so loads and GC never touch it.
+    pub fn repair_backup(catalog_prefix: &str, sequence_number: u64) -> Self {
+        Self(ObjPath::from(format!(
+            "{catalog_prefix}/{CATALOG_VERSION_PATH}/repair/{sequence_number:020}.snapshot.backup",
         )))
     }
 

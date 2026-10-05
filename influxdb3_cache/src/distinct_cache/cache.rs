@@ -15,7 +15,7 @@ use influxdb3_catalog::catalog::legacy;
 use influxdb3_catalog::catalog::{MaxAge, MaxCardinality, TableDefinition};
 use influxdb3_id::{ColumnId, ColumnIdentifier};
 use influxdb3_wal::{FieldData, Row};
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::debug;
 use schema::{InfluxColumnType, InfluxFieldType};
 
@@ -198,15 +198,12 @@ impl DistinctCache {
             .take(n_columns)
             .collect();
 
-        let expired_time_ns = self.expired_time_ns();
+        let cutoff = self.age_cutoff();
         // a limit of usize::MAX would never be reached and therefore considered as no limit
         let limit = limit.unwrap_or(usize::MAX);
-        let _ = self.data.evaluate_predicates(
-            expired_time_ns,
-            predicates.as_slice(),
-            limit,
-            &mut builders,
-        );
+        let _ = self
+            .data
+            .evaluate_predicates(cutoff, predicates.as_slice(), limit, &mut builders);
 
         RecordBatch::try_new(
             schema,
@@ -224,8 +221,13 @@ impl DistinctCache {
     /// of the cache is still over its `max_cardinality`, it will do another pass to bring the cache
     /// size down.
     pub(crate) fn prune(&mut self) {
-        let before_time_ns = self.expired_time_ns();
-        let _ = self.data.remove_before(before_time_ns);
+        match self.age_cutoff() {
+            AgeCutoff::None => {}
+            AgeCutoff::Before(time_ns) => {
+                let _ = self.data.remove_before(time_ns);
+            }
+            AgeCutoff::All => self.data = Node::default(),
+        }
         self.state.cardinality = self.data.cardinality();
         if self.state.cardinality > self.max_cardinality {
             let n_to_remove = self.state.cardinality - self.max_cardinality;
@@ -234,14 +236,30 @@ impl DistinctCache {
         }
     }
 
-    /// Get the nanosecond timestamp as an `i64`, before which, entries that have not been seen
-    /// since are considered expired.
-    fn expired_time_ns(&self) -> i64 {
-        self.time_provider
-            .now()
-            .checked_sub(self.max_age)
-            .expect("max age on cache should not cause an overflow")
-            .timestamp_nanos()
+    /// The cache's age window, as the eviction and query paths consume it.
+    ///
+    /// The cutoff is `now - max_age`, and it is needed as `i64` nanoseconds for pruning and
+    /// filtering. `max_age` is user supplied and stored unvalidated (EAR 7029 stored `u64::MAX`
+    /// seconds), so the subtraction can fail two ways: it can overflow outright, or succeed and
+    /// land outside the `i64` nanosecond range. The cases and their answers:
+    ///
+    /// - the subtraction overflows, or the cutoff is below `i64::MIN`: no entry expires by age
+    ///   ([`AgeCutoff::None`]);
+    /// - the cutoff is above `i64::MAX`, which takes a clock past 2262: every possible entry is
+    ///   expired ([`AgeCutoff::All`]);
+    /// - otherwise, prune and filter against the cutoff ([`AgeCutoff::Before`]).
+    ///
+    /// This used to `expect` on the overflow, which panicked the eviction task (and with it
+    /// eviction for every cache in the process) and every query into the cache.
+    fn age_cutoff(&self) -> AgeCutoff {
+        let Some(cutoff) = self.time_provider.now().checked_sub(self.max_age) else {
+            return AgeCutoff::None;
+        };
+        match cutoff.date_time().timestamp_nanos_opt() {
+            Some(ns) => AgeCutoff::Before(ns),
+            None if cutoff > Time::from_timestamp_nanos(i64::MAX) => AgeCutoff::All,
+            None => AgeCutoff::None,
+        }
     }
 
     /// Get the arrow [`SchemaRef`] for this cache
@@ -295,6 +313,31 @@ impl DistinctCache {
 /// the node in the next level of the tree.
 #[derive(Debug, Default)]
 pub(crate) struct Node(pub(crate) BTreeMap<Option<Value>, (i64, Option<Node>)>);
+
+/// The cache's age window, as `now - max_age` resolves for the eviction and query paths (see
+/// `DistinctCache::age_cutoff`). Three cases rather than one timestamp, because the two
+/// overflow directions need opposite answers and neither is a sentinel the strict compare in
+/// [`AgeCutoff::retains`] could express.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AgeCutoff {
+    /// The window reaches back further than any entry can be: nothing is old enough to expire.
+    None,
+    /// Entries last seen at or before this nanosecond timestamp are expired.
+    Before(i64),
+    /// The window starts after any entry can be: everything is expired.
+    All,
+}
+
+impl AgeCutoff {
+    /// Whether an entry last seen at `t` is still inside the age window.
+    fn retains(self, t: i64) -> bool {
+        match self {
+            Self::None => true,
+            Self::Before(cutoff) => t > cutoff,
+            Self::All => false,
+        }
+    }
+}
 
 impl Node {
     /// Remove all elements before the given nanosecond timestamp returning `true` if the resulting
@@ -361,7 +404,7 @@ impl Node {
     /// the number of columns in the cache.
     fn evaluate_predicates(
         &self,
-        expired_time_ns: i64,
+        cutoff: AgeCutoff,
         predicates: &[Option<&Predicate>],
         mut limit: usize,
         builders: &mut [Option<StringViewBuilder>],
@@ -372,11 +415,11 @@ impl Node {
         };
         // if there is a predicate, evaluate it, otherwise, just grab everything from the node:
         let values_and_nodes = if let Some(predicate) = predicate {
-            self.evaluate_predicate(expired_time_ns, predicate, limit)
+            self.evaluate_predicate(cutoff, predicate, limit)
         } else {
             self.0
                 .iter()
-                .filter(|&(_, (t, _))| t > &expired_time_ns)
+                .filter(|&(_, (t, _))| cutoff.retains(*t))
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
                 .take(limit)
                 .collect()
@@ -388,12 +431,7 @@ impl Node {
         // the values to the arrow builders:
         for (value, node) in values_and_nodes {
             if let Some(node) = node {
-                let count = node.evaluate_predicates(
-                    expired_time_ns,
-                    next_predicates,
-                    limit,
-                    next_builders,
-                );
+                let count = node.evaluate_predicates(cutoff, next_predicates, limit, next_builders);
                 if count > 0 {
                     if let Some(builder) = builder {
                         if let Some(value) = &value {
@@ -446,7 +484,7 @@ impl Node {
     /// branch node in the cache tree, a reference to the next [`Node`].
     fn evaluate_predicate(
         &self,
-        expired_time_ns: i64,
+        cutoff: AgeCutoff,
         predicate: &Predicate,
         limit: usize,
     ) -> Vec<(Option<Value>, Option<&Node>)> {
@@ -456,9 +494,7 @@ impl Node {
                 .filter_map(|v| {
                     self.0
                         .get_key_value(&Some(v.clone()))
-                        .and_then(|(v, (t, n))| {
-                            (t > &expired_time_ns).then(|| (v.clone(), n.as_ref()))
-                        })
+                        .and_then(|(v, (t, n))| cutoff.retains(*t).then(|| (v.clone(), n.as_ref())))
                 })
                 .take(limit)
                 .collect(),
@@ -466,7 +502,7 @@ impl Node {
                 .0
                 .iter()
                 .filter(|(v, (t, _))| {
-                    t > &expired_time_ns
+                    cutoff.retains(*t)
                         // If the value is None or the value is not in the set, include it
                         && (v.is_none() || !not_in_set.contains(v.as_ref().unwrap()))
                 })

@@ -70,6 +70,7 @@ test_helpers = { path = "../core/test_helpers" }
 influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 
 # crates.io deps
+async-trait.workspace = true
 criterion.workspace = true
 insta.workspace = true
 pretty_assertions.workspace = true

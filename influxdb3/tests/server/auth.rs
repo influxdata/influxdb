@@ -565,3 +565,71 @@ async fn disabled_auth_test_exhaustive() {
         "finished running the tests for"
     );
 }
+
+/// Verify that `GET /metrics` and `GET /health` are served on the operator
+/// socket without auth, and that nothing else is.
+#[cfg(all(unix, feature = "operator_socket"))]
+#[test_log::test(tokio::test)]
+async fn metrics_and_health_over_operator_socket() {
+    use http_body_util::{BodyExt, Full};
+    use hyper::{Method, Request};
+    use hyper_util::rt::TokioIo;
+    use tokio::net::UnixStream;
+
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let socket_path = tmp_dir.path().join("operator.sock");
+
+    let _server = TestServer::configure()
+        .with_auth()
+        .with_operator_socket_path(socket_path.to_str().unwrap())
+        .spawn()
+        .await;
+
+    // The main HTTP server and the operator socket are driven by separate
+    // futures in the same `futures::select!`; the harness only waits for the
+    // main HTTP server. Retry briefly so we do not race the socket bind.
+    let connect = || async {
+        let mut attempts = 0;
+        loop {
+            match UnixStream::connect(&socket_path).await {
+                Ok(s) => break s,
+                Err(e) if attempts >= 20 => {
+                    panic!("UDS connect failed after {attempts} attempts: {e}")
+                }
+                Err(_) => {
+                    attempts += 1;
+                    tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+                }
+            }
+        }
+    };
+
+    let get = |path: &'static str| async move {
+        let io = TokioIo::new(connect().await);
+        let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+        let request: Request<Full<bytes::Bytes>> = Request::builder()
+            .method(Method::GET)
+            .uri(path)
+            .body(Full::default())
+            .unwrap();
+        let response = sender.send_request(request).await.unwrap();
+        let status = response.status();
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        (status, String::from_utf8(body.to_vec()).unwrap())
+    };
+
+    let (status, body) = get("/health").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, "OK");
+
+    let (status, body) = get("/metrics").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.ends_with("# EOF\n"), "not OpenMetrics: {body:?}");
+
+    // Anything outside the allowlist is not reachable over the socket.
+    let (status, _) = get("/api/v3/query_sql").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

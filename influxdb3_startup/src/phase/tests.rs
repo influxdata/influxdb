@@ -199,3 +199,66 @@ fn report_completed_logs_both_lines_and_clamps_before_origin() {
         "{logs}"
     );
 }
+
+#[test]
+fn ready_logs_a_summary_of_completed_phases() {
+    let capture = test_helpers::tracing::TracingCapture::new();
+    let (_observer, phases) = phases();
+    phases
+        .begin(StartupPhase::CatalogLoad, "")
+        .success("uuid_abc");
+    phases
+        .begin(StartupPhase::WalReplay, "")
+        .error("wal_replay_failed");
+    // Begun but unfinished when ready fires, like a background phase still running at boot end.
+    let pending_guard = phases.begin(StartupPhase::TableIndexCache, "");
+    // Begun and dropped without an outcome: dead, so it must not render as pending.
+    drop(phases.begin(StartupPhase::CacheWarm, ""));
+    phases.ready("listening");
+    let logs = capture.to_string();
+    let summary_line = logs
+        .lines()
+        .find(|l| l.contains("startup phase summary"))
+        .expect("a summary line is logged");
+    assert!(summary_line.contains("catalog_load="), "{logs}");
+    assert!(summary_line.contains("wal_replay="), "{logs}");
+    assert!(summary_line.contains("ms(failed)"), "{logs}");
+    assert!(summary_line.contains("table_index_cache=pending"), "{logs}");
+    assert!(summary_line.contains("ms(incomplete)"), "{logs}");
+    assert!(summary_line.contains("total_ms = "), "{logs}");
+    pending_guard.success("snapshots=0 split_bytes=0 entries=0");
+}
+
+#[test]
+fn summary_includes_phases_completed_by_clones() {
+    let (_observer, phases) = phases();
+    let clone = phases.clone();
+    clone
+        .begin(StartupPhase::TableIndexCache, "")
+        .success("snapshots=0 split_bytes=0 entries=0");
+    // The clone shares the completion list, so the original's summary sees the phase.
+    assert!(phases.summary_line().contains("table_index_cache="));
+}
+
+#[test]
+fn register_pending_shows_in_summary_without_begin() {
+    let (_observer, phases) = phases();
+    phases.register_pending(StartupPhase::TableIndexCache);
+    assert_eq!(phases.summary_line(), "table_index_cache=pending");
+}
+
+#[test]
+fn begin_after_register_pending_updates_the_same_entry() {
+    let (_observer, phases) = phases();
+    phases.register_pending(StartupPhase::TableIndexCache);
+    phases
+        .begin(StartupPhase::TableIndexCache, "")
+        .success("snapshots=0 split_bytes=0 entries=0");
+    let summary = phases.summary_line();
+    assert_eq!(
+        summary.matches("table_index_cache=").count(),
+        1,
+        "{summary}"
+    );
+    assert!(!summary.contains("pending"), "{summary}");
+}

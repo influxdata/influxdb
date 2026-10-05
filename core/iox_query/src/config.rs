@@ -65,6 +65,15 @@ extensions_options! {
         /// - decouples tokio IO/main-runtime from CPU-bound DataFusion runtime
         pub use_cached_parquet_loader: bool, default = true
 
+        /// Share one whole-file fetch across all readers of the same file within a scan when
+        /// using the cached parquet loader.
+        ///
+        /// With `repartition_file_scans`, DataFusion splits a large file into one byte-range part
+        /// per partition and the cached loader fetches the entire file for each part's reader, so
+        /// a scan buffers up to `target_partitions` copies of the file unless the fetches are
+        /// shared. Off by default so consumers of this crate opt in to the behavior change.
+        pub share_cached_parquet_loader_fetches: bool, default = false
+
         /// Hint known object store size from catalog to object store subsystem.
         pub hint_known_object_size_to_object_store: bool, default = true
 

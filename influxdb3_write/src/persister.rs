@@ -71,6 +71,9 @@ pub enum PersisterError {
     #[error("table snapshot persistence task panicked: {0}")]
     TableSnapshotPersistenceTaskFailed(#[source] tokio::task::JoinError),
 
+    #[error("snapshot manifest parse task panicked: {0}")]
+    SnapshotParseTaskFailed(#[source] tokio::task::JoinError),
+
     #[error("table index error: {0}")]
     TableIndexPathError(#[source] crate::paths::PathError),
 
@@ -142,6 +145,10 @@ pub struct Persister {
     cached_checkpoint: RwLock<Option<CachedCheckpoint>>,
     /// Max snapshot manifests fetched concurrently during startup restore.
     snapshot_load_concurrency: usize,
+    /// Max snapshot manifests parsed concurrently. Each parse holds its raw
+    /// buffer plus the decoded snapshot, none of it memory-accounted, so the
+    /// default is serial and `serve` raises it from the resolved core count.
+    snapshot_parse_concurrency: usize,
 }
 
 impl Persister {
@@ -170,6 +177,7 @@ impl Persister {
             last_checkpoint_time: RwLock::new(None),
             cached_checkpoint: RwLock::new(None),
             snapshot_load_concurrency: DEFAULT_MAX_CONCURRENT_SNAPSHOT_LOADS,
+            snapshot_parse_concurrency: 1,
         }
     }
 
@@ -177,6 +185,12 @@ impl Persister {
     /// startup restore. Defaults to [`DEFAULT_MAX_CONCURRENT_SNAPSHOT_LOADS`].
     pub fn with_snapshot_load_concurrency(mut self, concurrency: usize) -> Self {
         self.snapshot_load_concurrency = concurrency.max(1);
+        self
+    }
+
+    /// Override the number of snapshot manifests parsed concurrently. Defaults to 1.
+    pub fn with_snapshot_parse_concurrency(mut self, concurrency: usize) -> Self {
+        self.snapshot_parse_concurrency = concurrency.max(1);
         self
     }
 
@@ -222,6 +236,7 @@ impl Persister {
         );
         let mut fetches = Vec::new();
         let mut offset: Option<ObjPath> = None;
+        let parse_permits = Arc::new(Semaphore::new(self.snapshot_parse_concurrency));
 
         while most_recent_n > 0 {
             let count = if most_recent_n > 1000 {
@@ -267,6 +282,7 @@ impl Persister {
                 last_modified: DateTime<Utc>,
                 object_size: u64,
                 object_store: Arc<dyn ObjectStore>,
+                parse_permits: Arc<Semaphore>,
             ) -> Result<(usize, PersistedSnapshotVersion)> {
                 // Manifests can be multi-GiB; get_adaptive chunks large
                 // reads. Size is known from list(), so pass it to skip a
@@ -275,7 +291,13 @@ impl Persister {
                     .get_adaptive(&location, Some(object_size))
                     .await?;
                 let size = bytes.len();
-                let mut snapshot: PersistedSnapshotVersion = serde_json::from_slice(&bytes)?;
+                // serde_json can hold the polling task for seconds on a large
+                // manifest, so parse on the blocking pool.
+                let _permit = parse_permits.acquire().await.expect("semaphore not closed");
+                let mut snapshot: PersistedSnapshotVersion =
+                    tokio::task::spawn_blocking(move || serde_json::from_slice(&bytes))
+                        .await
+                        .map_err(PersisterError::SnapshotParseTaskFailed)??;
                 match &mut snapshot {
                     PersistedSnapshotVersion::V1(ps) => {
                         ps.persisted_at = Some(last_modified.timestamp_millis());
@@ -292,6 +314,7 @@ impl Persister {
                     item.last_modified,
                     item.size,
                     Arc::clone(&self.object_store),
+                    Arc::clone(&parse_permits),
                 ));
             }
 

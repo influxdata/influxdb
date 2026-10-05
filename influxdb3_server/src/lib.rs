@@ -189,7 +189,7 @@ impl<'a> Server<'a> {
     }
 
     /// Create an HTTP trace layer for request monitoring and metrics
-    fn create_http_trace_layer(&self) -> TraceLayer {
+    pub fn create_http_trace_layer(&self) -> TraceLayer {
         TraceLayer::new(
             self.common_state.trace_header_parser(),
             Arc::new(RequestMetrics::new(

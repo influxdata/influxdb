@@ -3012,5 +3012,10 @@ fn validate_restricted_plugin_trigger_specification(
     }
 }
 
+#[cfg(all(unix, feature = "operator_socket"))]
+mod operator;
+#[cfg(all(unix, feature = "operator_socket"))]
+pub use operator::route_operator_request;
+
 #[cfg(test)]
 mod tests;

@@ -44,6 +44,19 @@ ignore = [
     # CRLs anywhere in this repo, so the panic is unreachable in practice on that
     # remaining 0.102.x path.
     "RUSTSEC-2026-0104",
+    # RustSec published these Wasmtime advisories on 2026-09-29.
+    # Wasmtime 48.0.3 and later fix them, but 3.11 uses 41.0.4, and there is no patched 41.x release.
+    # The UDF host (datafusion-udf-wasm 89ab4ae) uses 41.0.4.
+    # The datafusion-udf-wasm revisions that use Wasmtime 48 need DataFusion 52, and 3.11 uses DataFusion 51.
+    # RUSTSEC-2026-0315 does not affect versions below 47.0.0, so it is not listed.
+    # UDFs are off by default.
+    # 0313: The UDF Python guest (datafusion-udf-wasm commit 89ab4ae) gives Python code only `blocking_write_and_flush` for HTTP bodies, and the host rejects calls over 4096 bytes.
+    # 0314: The UDF host's file system rejects time changes.
+    # 0316: The UDF host does not use `component::Val`.
+    # Remove these entries after the UDF host uses Wasmtime 48.0.3 or later.
+    "RUSTSEC-2026-0313",
+    "RUSTSEC-2026-0314",
+    "RUSTSEC-2026-0316",
 
     # wasmtime 41.0.4 advisories (transitive dep via datafusion-udf-wasm)
     #

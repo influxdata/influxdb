@@ -100,10 +100,18 @@ fn test_all_config_params_categorized() {
         );
     }
 
+    // Params whose clap definition is feature-gated: they must stay
+    // categorized for the builds that have them, but are undiscoverable
+    // when this test builds without the feature.
+    #[cfg(not(all(unix, feature = "operator_socket")))]
+    let feature_gated_params: &[&str] = &["operator-socket-path"];
+    #[cfg(all(unix, feature = "operator_socket"))]
+    let feature_gated_params: &[&str] = &[];
+
     let mut needlessly_categorized = Vec::new();
 
     for arg in NON_SENSITIVE_PARAMS.iter().chain(SENSITIVE_PARAMS) {
-        let is_discovered = discovered_args.contains(*arg);
+        let is_discovered = discovered_args.contains(*arg) || feature_gated_params.contains(arg);
         if !is_discovered {
             needlessly_categorized.push(arg.to_owned());
         }

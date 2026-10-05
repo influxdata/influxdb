@@ -308,8 +308,8 @@ fn record_removal_is_best_effort() {
     use crate::format::{
         record_ids,
         records::{
-            AckStopNode, CreateAdminToken, CreateDatabase, CreateTable, SetDbRetentionPeriod,
-            SoftDeleteDatabase,
+            AckStopNode, CreateAdminToken, CreateDatabase, CreateTable, HardDeleteDatabase,
+            SetDbRetentionPeriod, SoftDeleteDatabase,
             types::{FieldFamilyMode, RetentionPeriod},
         },
     };
@@ -385,6 +385,10 @@ fn record_removal_is_best_effort() {
         hard_deletion_time_ns: None,
         hard_delete_scope: None,
     });
+
+    // Clearing is bounded by the hard-delete record's position, so the
+    // delete must be in the batch, as it always is in the apply path.
+    batch.push(&HardDeleteDatabase { db_id: database_id });
 
     let err = hard_delete_records_for(
         &mut batch.records,

@@ -535,24 +535,34 @@ impl Cache {
     /// This is a no-op if the `used` amount on the cache is not >= its `capacity`
     fn prune(&self) -> Option<usize> {
         let used = self.used.load(Ordering::SeqCst);
-        let n_to_prune = (self.map.len() as f64 * self.prune_percent).floor() as usize;
-        if used < self.capacity || n_to_prune == 0 {
+        if used < self.capacity {
             return None;
         }
+        // In-flight fetches are skipped below, so they must not count toward the quota.
+        // `used` counts only `Success` bytes, so over capacity a prunable entry exists.
+        let n_prunable = self
+            .map
+            .iter()
+            .filter(|map_ref| !map_ref.value().is_fetching())
+            .count();
+        let n_to_prune = ((n_prunable as f64 * self.prune_percent).floor() as usize).max(1);
         // use a BinaryHeap to determine the cut-off time, at which, entries that were
         // last hit before that time will be pruned:
         let mut prune_heap = BinaryHeap::with_capacity(n_to_prune);
 
         for map_ref in self.map.iter() {
+            // An in-flight fetch holds no bytes to free; evicting it would discard the
+            // download and the entry coalescing concurrent readers.
+            if map_ref.value().is_fetching() {
+                continue;
+            }
             let hit_time = map_ref.value().hit_time.load(Ordering::SeqCst);
-            let size = map_ref.value().size();
             let path = map_ref.key().as_ref();
             if prune_heap.len() < n_to_prune {
                 // if the heap isn't full yet, throw this item on:
                 prune_heap.push(PruneHeapItem {
                     hit_time,
                     path_ref: path.into(),
-                    size,
                 });
             } else if hit_time < prune_heap.peek().map(|item| item.hit_time).unwrap() {
                 // otherwise, the heap is at its capacity, so only push if the hit_time
@@ -562,25 +572,32 @@ impl Cache {
                 prune_heap.push(PruneHeapItem {
                     path_ref: path.into(),
                     hit_time,
-                    size,
                 });
             }
         }
 
-        // track the total size of entries that get freed:
+        Some(self.remove_victims(prune_heap))
+    }
+
+    /// Remove the selected prune victims from the cache and return the bytes freed
+    fn remove_victims(&self, prune_heap: BinaryHeap<PruneHeapItem>) -> usize {
         let mut freed = 0;
-        let n_files = prune_heap.len() as u64;
-        // drop entries with hit times before the cut-off:
+        let mut n_files = 0u64;
         for item in prune_heap {
-            self.map.remove(&Path::from(item.path_ref.as_ref()));
-            freed += item.size;
+            // A victim may have been evicted and re-registered as a new fetch since the
+            // scan, so re-check at removal and account only what is actually removed:
+            if let Some((_, entry)) = self
+                .map
+                .remove_if(&Path::from(item.path_ref.as_ref()), |_, e| e.is_success())
+            {
+                freed += entry.size();
+                n_files += 1;
+            }
         }
         self.size_metrics
             .record_file_deletions(freed as u64, n_files);
-        // update used mem size with freed amount:
         self.used.fetch_sub(freed, Ordering::SeqCst);
-
-        Some(freed)
+        freed
     }
 }
 
@@ -591,8 +608,6 @@ struct PruneHeapItem {
     path_ref: Arc<str>,
     /// Entry's hit time for comparison and heap insertion
     hit_time: i64,
-    /// Entry size used to calculate the amount of memory freed after a prune
-    size: usize,
 }
 
 impl PartialEq for PruneHeapItem {
@@ -882,6 +897,12 @@ fn background_cache_request_handler(
             }
 
             trace!(?path, "caching parquet file path");
+            // Racing registrations can both enqueue. Only this task inserts `Fetching`
+            // entries, so re-checking here closes the race.
+            if mem_store.cache.path_already_fetched(&path) {
+                let _ = notifier.send(());
+                continue;
+            }
             // Create a future that will go and fetch the cache value from the store:
             let path_cloned = path.clone();
             let store_cloned = Arc::clone(&mem_store.inner);

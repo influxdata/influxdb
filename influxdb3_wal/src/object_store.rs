@@ -168,10 +168,13 @@ impl WalObjectStore {
         async fn get_contents(
             object_store: Arc<dyn ObjectStore>,
             path: Path,
-        ) -> (Path, Result<WalContents, crate::Error>) {
+        ) -> (Path, Result<(WalContents, u64), crate::Error>) {
             let result = async {
                 let file_bytes = object_store.get(&path).await?.bytes().await?;
-                verify_file_type_and_deserialize(file_bytes).map_err(Into::into)
+                let size_bytes = file_bytes.len() as u64;
+                verify_file_type_and_deserialize(file_bytes)
+                    .map(|contents| (contents, size_bytes))
+                    .map_err(Into::into)
             }
             .await;
             (path, result)
@@ -193,8 +196,8 @@ impl WalObjectStore {
                 use crate::Error;
                 use crate::serialize::Error as SerializeError;
 
-                let wal_contents = match result.await? {
-                    (_, Ok(wal_contents)) => wal_contents,
+                let (wal_contents, size_bytes) = match result.await? {
+                    (_, Ok(contents_and_size)) => contents_and_size,
                     (
                         path,
                         Err(Error::Serialize(
@@ -213,6 +216,7 @@ impl WalObjectStore {
                 };
                 info!(
                     n_ops = %wal_contents.ops.len(),
+                    size_bytes,
                     min_timestamp_ns = %wal_contents.min_timestamp_ns,
                     max_timestamp_ns = %wal_contents.max_timestamp_ns,
                     wal_file_number = %wal_contents.wal_file_number,
@@ -323,19 +327,20 @@ impl WalObjectStore {
                 .flush_buffer_into_contents_and_responses(force_snapshot)
                 .await
         };
+        let wal_path = wal_path(&self.node_identifier_prefix, wal_contents.wal_file_number);
+        let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
+            .expect("unable to serialize wal contents into bytes for file");
+        let data = Bytes::from(data);
         info!(
             host = self.node_identifier_prefix,
             n_ops = %wal_contents.ops.len(),
+            size_bytes = data.len(),
             min_timestamp_ns = %wal_contents.min_timestamp_ns,
             max_timestamp_ns = %wal_contents.max_timestamp_ns,
             wal_file_number = %wal_contents.wal_file_number,
             "flushing WAL buffer to object store"
         );
 
-        let wal_path = wal_path(&self.node_identifier_prefix, wal_contents.wal_file_number);
-        let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
-            .expect("unable to serialize wal contents into bytes for file");
-        let data = Bytes::from(data);
         // One nonce per WAL file, minted outside the retry loop below so that
         // every attempt at this file carries the same one.
         let nonce = PutNonce::generate();
