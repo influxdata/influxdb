@@ -235,17 +235,6 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         id_in_repo
     }
 
-    /// Check if a resource exists in the repository by `id` and `name`
-    ///
-    /// # Panics
-    ///
-    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
-    /// that would be a bad state for the repository to be in.
-    fn id_and_name_exists(&self, id: &I, name: &str) -> bool {
-        let name_in_map = self.id_name_map.contains_right(name);
-        self.id_exists(id) && name_in_map
-    }
-
     /// Insert a new resource to the repository
     pub(crate) fn insert(
         &mut self,
@@ -253,13 +242,22 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         resource: impl Into<Arc<R>>,
     ) -> Result<(), RepositoryError<I>> {
         let resource = resource.into();
-        if self.id_and_name_exists(&id, resource.name().as_ref()) {
+        if self.id_exists(&id) {
             return Err(RepositoryError::AlreadyExists {
                 resource: R::CATEGORY,
                 id,
             });
         }
-        self.id_name_map.insert(id, resource.name());
+
+        let name = resource.name();
+        if self.id_name_map.contains_right(&name) {
+            return Err(RepositoryError::AlreadyExistsByName {
+                resource: R::CATEGORY,
+                name: name.to_string(),
+            });
+        }
+
+        self.id_name_map.insert(id, name);
         self.repo.insert(id, resource);
         self.next_id = match self.next_id.cmp(&id) {
             // If id is has reached MAX, we can't increment it.

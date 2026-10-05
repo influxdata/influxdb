@@ -1186,3 +1186,131 @@ async fn test_distinct_with_where_clause_bug() {
         &results
     );
 }
+
+/// The Distinct Value Cache half of EAR 7029. `max_age` is user supplied and persisted in the
+/// catalog unvalidated, and the subtraction that computes the expiry time can leave the
+/// representable range two ways: 400 years is within chrono's range but lands `now - max_age`
+/// before the earliest `i64` nanosecond timestamp (1677), and `u64::MAX` seconds is past
+/// chrono's range altogether.
+/// `expired_time_ns` used to unwrap both, which panicked the eviction task on its next tick
+/// (taking eviction down for every cache in the process) and every `distinct_cache()` query into
+/// the cache. Both paths must survive both values, and an unrepresentable max age means the
+/// entries never expire.
+#[tokio::test]
+async fn max_age_past_chrono_range_never_expires_instead_of_panicking() {
+    let writer = TestWriter::new().await;
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    // The second row is stamped at the very bottom of the i64 range: with the age filters
+    // comparing strictly, a sentinel cutoff of `i64::MIN` would still expire it, which is why the
+    // overflow has to mean "no cutoff" rather than "the smallest cutoff".
+    let rows = writer
+        .write_lp_to_rows(
+            format!(
+                "cpu,region=us-east,host=a usage=100\n\
+                 cpu,region=eu-west,host=b usage=100 {}\n",
+                i64::MIN
+            ),
+            time_provider.now().timestamp_nanos(),
+        )
+        .await;
+    let table_def = writer.db_schema().table_definition("cpu").unwrap();
+    let column_ids: Vec<ColumnIdentifier> = ["region", "host"]
+        .into_iter()
+        .map(|name| table_def.column_name_to_id_unchecked(name))
+        .collect();
+    for max_age_secs in [400 * 365 * 24 * 60 * 60, u64::MAX] {
+        let mut cache = DistinctCache::new(
+            Arc::clone(&time_provider) as _,
+            CreateDistinctCacheArgs {
+                table_def: Arc::clone(&table_def),
+                max_cardinality: MaxCardinality::try_from(10).unwrap(),
+                max_age: MaxAge::from(Duration::from_secs(max_age_secs)),
+                column_ids: column_ids.clone(),
+            },
+        )
+        .expect("create cache");
+        for row in &rows {
+            cache.push(row);
+        }
+        // A current-era clock (2023-11-14). Any representable max age has long expired an entry
+        // stamped near 1970, and 400 years before 2023 is earlier than the first `i64`
+        // nanosecond timestamp (1677), so the second overflow is really reached: with a clock
+        // near `i64::MAX` the subtraction would stay representable and only the `u64::MAX`
+        // case would be tested.
+        time_provider.set(Time::from_timestamp_nanos(1_700_000_000_000_000_000));
+
+        // The eviction path.
+        cache.prune();
+        // The query path.
+        let records = cache
+            .to_record_batch(cache.arrow_schema(), &Default::default(), None, None)
+            .unwrap();
+        assert_batches_sorted_eq!(
+            [
+                "+---------+------+",
+                "| region  | host |",
+                "+---------+------+",
+                "| eu-west | b    |",
+                "| us-east | a    |",
+                "+---------+------+",
+            ],
+            &[records]
+        );
+    }
+}
+
+/// The mirror image of the test above: `now - max_age` can only sit ABOVE the `i64` nanosecond
+/// range when the clock itself does, and then every entry is older than the cutoff. That must
+/// expire everything, not read as "no cutoff" just because `timestamp_nanos_opt` says `None`.
+#[tokio::test]
+async fn clock_past_the_i64_range_expires_everything() {
+    let writer = TestWriter::new().await;
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    // The second row is stamped at the very top of the i64 range: "everything expires" has to
+    // cover the entries nearest the cutoff too. (On main this is `MAX_WRITE_TIMESTAMP_NS`, since
+    // #6063's write validator rejects timestamps past it; this branch has no such limit.)
+    let rows = writer
+        .write_lp_to_rows(
+            format!(
+                "cpu,region=us-east,host=a usage=100\n\
+                 cpu,region=eu-west,host=b usage=100 {}\n",
+                i64::MAX
+            ),
+            time_provider.now().timestamp_nanos(),
+        )
+        .await;
+    let table_def = writer.db_schema().table_definition("cpu").unwrap();
+    let column_ids: Vec<ColumnIdentifier> = ["region", "host"]
+        .into_iter()
+        .map(|name| table_def.column_name_to_id_unchecked(name))
+        .collect();
+    let mut cache = DistinctCache::new(
+        Arc::clone(&time_provider) as _,
+        CreateDistinctCacheArgs {
+            table_def,
+            max_cardinality: MaxCardinality::try_from(10).unwrap(),
+            max_age: MaxAge::from(Duration::from_secs(3600)),
+            column_ids,
+        },
+    )
+    .expect("create cache");
+    for row in &rows {
+        cache.push(row);
+    }
+    // chrono's last representable instant, far past 2262: an hour before it is still past 2262.
+    time_provider.set(Time::MAX);
+
+    let records = cache
+        .to_record_batch(cache.arrow_schema(), &Default::default(), None, None)
+        .unwrap();
+    assert_eq!(
+        records.num_rows(),
+        0,
+        "every entry is older than a cutoff past the i64 range"
+    );
+    cache.prune();
+    let records = cache
+        .to_record_batch(cache.arrow_schema(), &Default::default(), None, None)
+        .unwrap();
+    assert_eq!(records.num_rows(), 0);
+}

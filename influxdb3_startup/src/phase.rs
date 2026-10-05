@@ -12,8 +12,9 @@
 //! are not redundant.
 
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::fmt::Write as _;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use observability_deps::tracing::{error, info};
 // The startup path threads a `tokio::time::Instant` as its origin, so match that rather than
@@ -21,7 +22,7 @@ use observability_deps::tracing::{error, info};
 use tokio::time::Instant;
 
 /// A named startup phase the enterprise serve path emits SLL events for.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartupPhase {
     /// The throwaway catalog load `command` runs on the temporary runtime to look up the
     /// instance id and the persisted storage mode. Finishes before logging is initialised, so it
@@ -36,35 +37,42 @@ pub enum StartupPhase {
     /// Load of the persisted catalog. Success detail: `uuid_<catalog uuid>`.
     CatalogLoad,
     /// Load (or first-boot create) of the persisted `EnterpriseConfig`.
-    /// Success detail: `loaded` or `created_default`.
+    /// Success detail: `loaded bytes=<n>` or `created_default`.
     EnterpriseConfig,
     /// Background table-index-cache initialization on ingest-capable nodes. Runs concurrently
     /// with later phases, so its lines interleave with theirs.
-    /// Success detail: `snapshots=<split> entries=<held>`.
+    /// Success detail: `snapshots=<split> split_bytes=<listed bytes split> entries=<held>`.
     TableIndexCache,
     /// Load of compacted data: the producer's state on compact nodes, or the consumer's copy on
     /// other modes when a compactor node is running.
-    /// Success detail: `tables=<n> generations=<n>`, plus ` retries=<n>` for the consumer.
+    /// Success detail: `tables=<n> generations=<n> files=<n> bytes=<n>`, plus ` retries=<n>`
+    /// for the consumer.
     CompactedDataLoad,
-    /// Restore of persisted snapshots into the write buffer. Success detail:
-    /// `checkpoints=<n> additional_snapshots=<n>`, `snapshots=<n>`, or `skipped`.
+    /// Restore of persisted snapshots into the write buffer. Success detail: `skipped`,
+    /// `checkpoints=<n> checkpoint_bytes=<n> additional_snapshots=<n>`, or `snapshots=<n>`,
+    /// followed by
+    /// `files=<tracked> size_mb=<total> rows=<n> wal_seq=<n|none> snapshot_seq=<n|none>`.
     SnapshotRestore,
-    /// Replay of WAL files written since the last snapshot. Success detail:
-    /// `no_wal files=<n>` or `replayed_through_seq_<seq> files=<n>`.
+    /// Replay of WAL files written since the last snapshot. Success detail: `no_wal` or
+    /// `replayed_through_seq_<seq>`, followed by
+    /// `files=<n> ops=<n> bytes=<n> skipped=<n> snapshots=<n>`.
     WalReplay,
     /// Binding the HTTP listener and, when configured, the internode listener.
     /// Success detail: `internode_bound` or `http_only` (addresses stay out of the service log).
     ListenerBind,
     /// Creation of replicated buffers for every ingest peer on query-capable nodes.
-    /// Success detail: `peers=<n>`.
+    /// Success detail: `peers=<n> wal_files=<n> snapshots=<n>`, summed over the peers.
     ReplicaBootstrap,
     /// Warm-up of the last-value and distinct-value caches.
-    /// Success detail: `both_caches`, `lvc_only`, `dvc_only`, or `skipped`.
+    /// Success detail: `both_caches`, `lvc_only`, `dvc_only`, or `skipped`, followed by
+    /// `lvc_caches=<n> dvc_caches=<n>`.
     CacheWarm,
-    /// Registration of this node in the catalog. Success detail: `instance_<instance id>`.
+    /// Registration of this node in the catalog.
+    /// Success detail: `instance_<instance id> known_nodes=<n>`.
     NodeRegistration,
     /// Processing engine setup and trigger start on process-capable nodes.
-    /// Success detail: `triggers_started`.
+    /// Success detail: `triggers_attempted=<n> triggers_failed=<n>`. A trigger that reports no
+    /// error may still not run on this node, so this counts attempts, not running triggers.
     ProcessingEngine,
     /// Terminal phase: the node is serving. See [`StartupPhases::ready`].
     /// Detail: `listening` (the address is on the adjacent startup-time tracing line only).
@@ -113,6 +121,17 @@ impl StartupPhaseObserver for NoopStartupPhaseObserver {
     fn on_phase_error(&self, _: StartupPhase, _: &'static str, _: u64) {}
 }
 
+/// How a recorded phase ended, for the summary line.
+#[derive(Debug, Clone, Copy)]
+enum PhaseOutcome {
+    /// Begun but not finished when the summary was rendered (background phases can outlive boot).
+    Pending,
+    Success,
+    Failed,
+    /// The guard was dropped without reporting, so the phase is dead, not still running.
+    Incomplete,
+}
+
 /// Issues one [`PhaseGuard`] per startup phase.
 ///
 /// `process_start` should be the same instant used to report total startup time, so that the
@@ -121,6 +140,10 @@ impl StartupPhaseObserver for NoopStartupPhaseObserver {
 pub struct StartupPhases {
     observer: Arc<dyn StartupPhaseObserver>,
     process_start: Instant,
+    /// Every phase that began or reported an outcome, with its duration, in begin order. Shared by
+    /// clones (the tracker is cloned into background tasks) so [`StartupPhases::ready`] can log one
+    /// summary line covering all of them.
+    recorded: Arc<Mutex<Vec<(StartupPhase, u64, PhaseOutcome)>>>,
 }
 
 impl StartupPhases {
@@ -130,6 +153,7 @@ impl StartupPhases {
         Self {
             observer,
             process_start,
+            recorded: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -149,6 +173,7 @@ impl StartupPhases {
     /// say up front. The guard must be finished with [`PhaseGuard::success`] or
     /// [`PhaseGuard::error`]; dropping it without either logs the phase as incomplete.
     pub fn begin(&self, phase: StartupPhase, plan: impl AsRef<str>) -> PhaseGuard<'_> {
+        self.register_pending(phase);
         let plan = plan.as_ref();
         info!(
             startup_phase = phase.as_str(),
@@ -195,6 +220,7 @@ impl StartupPhases {
             detail = detail.as_str(),
             "startup phase finished"
         );
+        self.record_outcome(phase, duration_ms, PhaseOutcome::Success);
         self.observer.on_phase_success(phase, duration_ms, detail);
     }
 
@@ -203,9 +229,17 @@ impl StartupPhases {
     /// Unlike the other phases this is a point event, not a span: its duration is the whole boot,
     /// measured from the same origin as every `elapsed_total_ms` above it. Call it once, after the
     /// last fallible setup step, so an aborted boot never reports ready.
+    ///
+    /// Logs the per-phase summary first. Ready itself is deliberately not in that summary: its
+    /// duration is the summary's `total_ms`.
     pub fn ready(&self, detail: impl Into<String>) {
         let detail = detail.into();
         let duration_ms = self.elapsed_total_ms();
+        info!(
+            phases = %self.summary_line(),
+            total_ms = duration_ms,
+            "startup phase summary"
+        );
         info!(
             startup_phase = StartupPhase::Ready.as_str(),
             duration_ms,
@@ -214,6 +248,63 @@ impl StartupPhases {
         );
         self.observer
             .on_phase_success(StartupPhase::Ready, duration_ms, detail);
+    }
+
+    /// Lock the recorded-phase list. Observability must never panic a boot, so a poisoned lock
+    /// is entered rather than unwrapped.
+    fn lock_recorded(&self) -> MutexGuard<'_, Vec<(StartupPhase, u64, PhaseOutcome)>> {
+        self.recorded.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Insert a `Pending` entry for `phase` unless one is already there.
+    ///
+    /// [`StartupPhases::begin`] calls this, but a phase that begins inside a spawned task can lose
+    /// the race against [`StartupPhases::ready`] rendering the summary before the task is first
+    /// polled. Call this on the boot thread right before such a spawn, so the summary shows the
+    /// phase as `pending` instead of omitting it; the later `begin` updates the same entry.
+    pub fn register_pending(&self, phase: StartupPhase) {
+        let mut recorded = self.lock_recorded();
+        if !recorded
+            .iter()
+            .any(|(p, _, o)| *p == phase && matches!(o, PhaseOutcome::Pending))
+        {
+            recorded.push((phase, 0, PhaseOutcome::Pending));
+        }
+    }
+
+    /// Record `phase` finishing with `outcome`, updating its pending entry, or appending one for
+    /// phases reported without a guard ([`StartupPhases::report_completed`]).
+    fn record_outcome(&self, phase: StartupPhase, duration_ms: u64, outcome: PhaseOutcome) {
+        let mut recorded = self.lock_recorded();
+        match recorded
+            .iter_mut()
+            .rev()
+            .find(|(p, _, o)| *p == phase && matches!(o, PhaseOutcome::Pending))
+        {
+            Some(entry) => *entry = (phase, duration_ms, outcome),
+            None => recorded.push((phase, duration_ms, outcome)),
+        }
+    }
+
+    /// One entry per recorded phase, in begin order: `phase=<n>ms`, `phase=<n>ms(failed)`, or
+    /// `phase=pending` for a phase still running when the summary is rendered.
+    fn summary_line(&self) -> String {
+        let recorded = self.lock_recorded();
+        let mut line = String::new();
+        for (phase, duration_ms, outcome) in recorded.iter() {
+            if !line.is_empty() {
+                line.push(' ');
+            }
+            let _ = match outcome {
+                PhaseOutcome::Pending => write!(line, "{}=pending", phase.as_str()),
+                PhaseOutcome::Success => write!(line, "{}={duration_ms}ms", phase.as_str()),
+                PhaseOutcome::Failed => write!(line, "{}={duration_ms}ms(failed)", phase.as_str()),
+                PhaseOutcome::Incomplete => {
+                    write!(line, "{}={duration_ms}ms(incomplete)", phase.as_str())
+                }
+            };
+        }
+        line
     }
 
     fn elapsed_total_ms(&self) -> u64 {
@@ -252,6 +343,8 @@ impl PhaseGuard<'_> {
             "startup phase finished"
         );
         self.phases
+            .record_outcome(self.phase, duration_ms, PhaseOutcome::Success);
+        self.phases
             .observer
             .on_phase_success(self.phase, duration_ms, detail);
     }
@@ -270,6 +363,8 @@ impl PhaseGuard<'_> {
             error_code,
             "startup phase failed"
         );
+        self.phases
+            .record_outcome(self.phase, duration_ms, PhaseOutcome::Failed);
         self.phases
             .observer
             .on_phase_error(self.phase, error_code, duration_ms);
@@ -292,10 +387,14 @@ impl Drop for PhaseGuard<'_> {
             return;
         }
         // Reached when a phase returns early without reporting. Logged rather than ignored so the
-        // gap is visible instead of the phase silently never finishing.
+        // gap is visible instead of the phase silently never finishing, and recorded as a terminal
+        // outcome so the summary does not claim a dead phase is still running.
+        let duration_ms = self.duration_ms();
+        self.phases
+            .record_outcome(self.phase, duration_ms, PhaseOutcome::Incomplete);
         error!(
             startup_phase = self.phase.as_str(),
-            duration_ms = self.duration_ms(),
+            duration_ms,
             elapsed_total_ms = self.phases.elapsed_total_ms(),
             "startup phase did not report an outcome"
         );

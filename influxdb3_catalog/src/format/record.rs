@@ -212,15 +212,20 @@ impl RecordBatch {
 #[cfg(feature = "true_deletion")]
 fn best_effort_remove_records_with(
     records: &mut Vec<Record>,
-    mut condition: impl FnMut(&mut Record) -> Result<bool, FormatError>,
+    mut condition: impl FnMut(usize, &mut Record) -> Result<bool, FormatError>,
 ) -> Result<(), FormatError> {
     let mut res = Ok(());
-    records.retain_mut(|rec| match condition(rec) {
-        Ok(should_remove) => !should_remove,
-        Err(e) => {
-            res = Err(e);
-            true
-        }
+    let mut index = 0;
+    records.retain_mut(|rec| {
+        let keep = match condition(index, rec) {
+            Ok(should_remove) => !should_remove,
+            Err(e) => {
+                res = Err(e);
+                true
+            }
+        };
+        index += 1;
+        keep
     });
     res
 }
@@ -254,6 +259,10 @@ fn best_effort_remove_records_with(
 /// creation event with the [`SetNextId`], we see that the id-incrementing records stay in their
 /// natural, expected order.
 ///
+/// Clearing is generation-aware: everything up to an id's last hard-delete record clears, and
+/// past it everything before the id's first re-create (stale watermarks included) still does.
+/// Only a re-created generation — as catalog repair synthesizes — is kept.
+///
 /// # Errors
 ///
 /// This function is best-effort; if it encounters an error, it will return that error, but not
@@ -261,7 +270,7 @@ fn best_effort_remove_records_with(
 pub(crate) fn hard_delete_records_for(
     records: &mut Vec<Record>,
     db_ids: &std::collections::BTreeSet<influxdb3_id::DbId>,
-    table_ids: &std::collections::BTreeSet<influxdb3_id::TableId>,
+    table_ids: &std::collections::BTreeSet<(influxdb3_id::DbId, influxdb3_id::TableId)>,
 ) -> Result<(), FormatError> {
     use super::{
         Decode, record_ids,
@@ -274,7 +283,79 @@ pub(crate) fn hard_delete_records_for(
     };
     use influxdb3_id::{DbId, TableId};
 
-    best_effort_remove_records_with(records, |rec| {
+    // Positions delimiting each id's dead range: everything up to its last
+    // hard delete clears, and past that everything before its first
+    // re-create (if any) still does — only a re-created generation is kept.
+    let mut last_db_delete = std::collections::BTreeMap::<u32, usize>::new();
+    let mut last_table_delete = std::collections::BTreeMap::<(u32, u32), usize>::new();
+    for (index, rec) in records.iter().enumerate() {
+        match rec.id() {
+            record_ids::DELETE_DATABASE => {
+                if let Ok(d) = HardDeleteDatabase::decode(&rec.data)
+                    && db_ids.contains(&DbId::new(d.db_id))
+                {
+                    last_db_delete.insert(d.db_id, index);
+                }
+            }
+            record_ids::DELETE_TABLE => {
+                if let Ok(d) = HardDeleteTable::decode(&rec.data)
+                    && table_ids.contains(&(DbId::new(d.db_id), TableId::new(d.table_id)))
+                {
+                    last_table_delete.insert((d.db_id, d.table_id), index);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut db_recreate = std::collections::BTreeMap::<u32, usize>::new();
+    let mut table_recreate = std::collections::BTreeMap::<(u32, u32), usize>::new();
+    for (index, rec) in records.iter().enumerate() {
+        match rec.id() {
+            record_ids::CREATE_DATABASE => {
+                if let Ok(c) = CreateDatabase::decode(&rec.data)
+                    && last_db_delete
+                        .get(&c.database_id)
+                        .is_some_and(|&deleted| index > deleted)
+                {
+                    db_recreate.entry(c.database_id).or_insert(index);
+                }
+            }
+            record_ids::CREATE_TABLE => {
+                if let Ok(c) = CreateTable::decode(&rec.data)
+                    && last_table_delete
+                        .get(&(c.database_id, c.table_id))
+                        .is_some_and(|&deleted| index > deleted)
+                {
+                    table_recreate
+                        .entry((c.database_id, c.table_id))
+                        .or_insert(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    let db_cleared = |raw: u32, index: usize| match last_db_delete.get(&raw) {
+        None => false,
+        Some(&deleted) => {
+            index <= deleted
+                || db_recreate
+                    .get(&raw)
+                    .is_none_or(|&recreated| index < recreated)
+        }
+    };
+    let table_cleared = |db_raw: u32, table_raw: u32, index: usize| match last_table_delete
+        .get(&(db_raw, table_raw))
+    {
+        None => false,
+        Some(&deleted) => {
+            index <= deleted
+                || table_recreate
+                    .get(&(db_raw, table_raw))
+                    .is_none_or(|&recreated| index < recreated)
+        }
+    };
+
+    best_effort_remove_records_with(records, |index, rec| {
         /// if these macros were fns instead, they wouldn't really save much verbosity since we'd
         /// need to define some way for the `table_id` and `database_id` fields to be extracted from
         /// the types.
@@ -283,7 +364,7 @@ pub(crate) fn hard_delete_records_for(
                 contains_db!($t, database_id)
             };
             ($t:ty, $field:ident) => {
-                <$t>::decode(&rec.data).map(|rec| db_ids.contains(&DbId::new(rec.$field)))
+                <$t>::decode(&rec.data).map(|rec| db_cleared(rec.$field, index))
             };
         }
 
@@ -293,8 +374,8 @@ pub(crate) fn hard_delete_records_for(
             };
             ($t:ty, $db_field:ident) => {
                 <$t>::decode(&rec.data).map(|rec| {
-                    db_ids.contains(&DbId::new(rec.$db_field))
-                        || table_ids.contains(&TableId::new(rec.table_id))
+                    db_cleared(rec.$db_field, index)
+                        || table_cleared(rec.$db_field, rec.table_id, index)
                 })
             };
         }
@@ -304,7 +385,7 @@ pub(crate) fn hard_delete_records_for(
                 let decoded = CreateDatabase::decode(&rec.data)?;
 
                 // If it is relevant, we want to replace it with the placeholder record.
-                if db_ids.contains(&DbId::new(decoded.database_id)) {
+                if db_cleared(decoded.database_id, index) {
                     *rec = SetNextId {
                         id: u64::from(decoded.database_id),
                         scope: NextIdScope::Databases,
@@ -321,13 +402,13 @@ pub(crate) fn hard_delete_records_for(
                 let decoded = CreateTable::decode(&rec.data)?;
 
                 // if it contains a database that we want to completely delete, get rid of it.
-                if db_ids.contains(&DbId::new(decoded.database_id)) {
+                if db_cleared(decoded.database_id, index) {
                     return Ok(true);
                 }
 
                 // and if it instead just contains a table we're getting rid of, just replace it and
                 // keep the item in the vec.
-                if table_ids.contains(&TableId::new(decoded.table_id)) {
+                if table_cleared(decoded.database_id, decoded.table_id, index) {
                     *rec = SetNextId {
                         id: u64::from(decoded.table_id),
                         scope: NextIdScope::Tables {
@@ -358,7 +439,7 @@ pub(crate) fn hard_delete_records_for(
             // of, we want that `SetNextId` to be removed as well.
             record_ids::SET_NEXT_ID => SetNextId::decode(&rec.data).map(|rec| match rec.scope {
                 NextIdScope::Tables { database_id } | NextIdScope::Triggers { database_id } => {
-                    db_ids.contains(&DbId::new(database_id))
+                    db_cleared(database_id, index)
                 }
                 NextIdScope::Columns {
                     database_id,
@@ -375,10 +456,7 @@ pub(crate) fn hard_delete_records_for(
                 | NextIdScope::DistinctCaches {
                     database_id,
                     table_id,
-                } => {
-                    db_ids.contains(&DbId::new(database_id))
-                        || table_ids.contains(&TableId::new(table_id))
-                }
+                } => db_cleared(database_id, index) || table_cleared(database_id, table_id, index),
                 NextIdScope::Nodes
                 | NextIdScope::Databases
                 | NextIdScope::Tokens

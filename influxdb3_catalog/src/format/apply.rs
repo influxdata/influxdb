@@ -343,7 +343,7 @@ pub fn apply_records(
     preload: &mut RestorePreload,
 ) -> Result<Vec<CatalogEvent>, FormatError> {
     let mut events = Vec::with_capacity(records.len());
-    let mut table_ids_to_clear = BTreeSet::<TableId>::new();
+    let mut table_ids_to_clear = BTreeSet::<(DbId, TableId)>::new();
     let mut db_ids_to_clear = BTreeSet::<DbId>::new();
 
     for record in records {
@@ -375,7 +375,10 @@ pub fn apply_records(
             // ones are never persisted after we start clearing the obsolete records
             record_ids::DELETE_TABLE => {
                 let hard_delete = HardDeleteTable::decode(&record.data)?;
-                table_ids_to_clear.insert(TableId::new(hard_delete.table_id));
+                table_ids_to_clear.insert((
+                    DbId::new(hard_delete.db_id),
+                    TableId::new(hard_delete.table_id),
+                ));
             }
             record_ids::DELETE_DATABASE => {
                 let hard_delete = HardDeleteDatabase::decode(&record.data)?;

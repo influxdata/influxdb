@@ -39,6 +39,8 @@ use influxdb3_processing_engine_telemetry::{
 };
 use influxdb3_query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
 use influxdb3_server::http::HttpApi;
+#[cfg(all(unix, feature = "operator_socket"))]
+use influxdb3_server::http::route_operator_request;
 use influxdb3_server::{
     CommonServerState, CreateServerArgs, Server, serve, serve_admin_token_recovery_endpoint,
 };
@@ -155,6 +157,12 @@ pub enum Error {
 
     #[error("lost HTTP/gRPC service")]
     LostHttpGrpc,
+
+    #[error("lost operator socket service")]
+    LostOperatorSocket,
+
+    #[error("operator socket error: {0}")]
+    OperatorSocket(#[source] influxdb3_operator_socket::Error),
 
     #[error("lost admin token recovery service")]
     LostAdminTokenRecovery,
@@ -723,6 +731,24 @@ pub struct Config {
     )]
     pub admin_token_recovery_tcp_listener_file_path: Option<PathBuf>,
 
+    /// Path for the operator control socket (Unix Domain Socket).
+    ///
+    /// When set, the server also listens on a UDS at this path and answers `GET /metrics`
+    /// and `GET /health` there without authentication. Access control is enforced via
+    /// filesystem permissions on the socket, which is created with 0660 permissions
+    /// (owner and group read/write). Off by default.
+    ///
+    /// This is intended for use by operators (e.g., AWS) who run the process and need to
+    /// observe it without access to admin tokens. Only present in builds with the
+    /// `operator_socket` feature.
+    #[cfg(all(unix, feature = "operator_socket"))]
+    #[clap(
+        long = "operator-socket-path",
+        env = "INFLUXDB3_OPERATOR_SOCKET_PATH",
+        hide = true
+    )]
+    pub operator_socket_path: Option<PathBuf>,
+
     /// File path containing offline admin token (JSON format with token and metadata)
     #[clap(long = "admin-token-file", env = "INFLUXDB3_ADMIN_TOKEN_FILE")]
     pub admin_token_file: Option<PathBuf>,
@@ -1154,12 +1180,15 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
         concurrency_limit: config.table_index_cache_concurrency_limit,
     };
 
-    let persister = Arc::new(Persister::new(
-        Arc::clone(&object_store),
-        Arc::clone(&node_id),
-        Arc::clone(&time_provider) as _,
-        config.checkpoint_interval.map(|v| v.into()),
-    ));
+    let persister = Arc::new(
+        Persister::new(
+            Arc::clone(&object_store),
+            Arc::clone(&node_id),
+            Arc::clone(&time_provider) as _,
+            config.checkpoint_interval.map(|v| v.into()),
+        )
+        .with_snapshot_parse_concurrency((num_cpus / 2).max(1)),
+    );
 
     let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
     let catalog = Catalog::new_with_shutdown(
@@ -1483,7 +1512,7 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
 
     let server = Server::new(CreateServerArgs {
         common_state,
-        http,
+        http: Arc::clone(&http),
         authorizer,
         listener,
         cert_file,
@@ -1525,6 +1554,10 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
         "setting up server with authz disabled for paths"
     );
 
+    // Create trace layer before server is consumed by serve()
+    #[cfg(all(unix, feature = "operator_socket"))]
+    let operator_socket_trace_layer = server.create_http_trace_layer();
+
     let frontend = serve(
         server,
         frontend_shutdown.clone(),
@@ -1554,12 +1587,30 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
         )
     };
 
+    // Pends forever unless a socket path is configured (Unix only, feature-gated)
+    #[cfg(all(unix, feature = "operator_socket"))]
+    let operator_socket_frontend = {
+        let http = Arc::clone(&http);
+        influxdb3_operator_socket::serve(
+            config.operator_socket_path.clone(),
+            operator_socket_trace_layer,
+            frontend_shutdown.clone(),
+            move |req| route_operator_request(Arc::clone(&http), req),
+        )
+        .fuse()
+    };
+
+    #[cfg(not(all(unix, feature = "operator_socket")))]
+    let operator_socket_frontend =
+        futures::future::pending::<influxdb3_operator_socket::Result<()>>().fuse();
+
     // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T
     // from the current stack frame and constructing a Pin<&mut T> to it
     pin_mut!(signal);
     pin_mut!(frontend);
     pin_mut!(backend);
     pin_mut!(recovery_frontend);
+    pin_mut!(operator_socket_frontend);
 
     let mut res = Ok(());
     let mut recovery_endpoint_active = recovery_endpoint_enabled;
@@ -1631,6 +1682,20 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
                 }
                 // If recovery endpoint was disabled, this branch will never be taken again
                 // because pending() futures never complete
+            }
+            // Operator socket has stopped
+            operator_result = operator_socket_frontend => {
+                match operator_result {
+                    Ok(_) if frontend_shutdown.is_cancelled() => info!("operator socket shutdown"),
+                    Ok(_) => {
+                        error!("early operator socket exit");
+                        res = res.and(Err(Error::LostOperatorSocket));
+                    }
+                    Err(error) => {
+                        error!(%error, "operator socket error");
+                        res = res.and(Err(Error::OperatorSocket(error)));
+                    }
+                }
             }
         }
         shutdown_manager.shutdown()

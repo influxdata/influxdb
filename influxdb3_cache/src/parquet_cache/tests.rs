@@ -645,3 +645,270 @@ fn test_should_request_be_cached_no_timestamp_set() {
     let should_cache = should_request_be_cached(file_timestamp_min_max, &cache);
     assert!(!should_cache);
 }
+
+#[test_log::test(tokio::test)]
+async fn prune_does_not_evict_fetching_entries() {
+    // Object store layers: Synchronized -> RequestCounted -> Inner
+    let to_store_notify = Arc::new(Notify::new());
+    let from_store_notify = Arc::new(Notify::new());
+    let counter = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+    let inner_store = Arc::new(
+        SynchronizedObjectStore::new(Arc::clone(&counter) as _)
+            .with_get_notifies(Arc::clone(&to_store_notify), Arc::clone(&from_store_notify)),
+    );
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    // capacity and prune percent such that with two entries in the map, one prune evicts
+    // exactly one entry, and the oldest entry by hit time is the in-flight fetch:
+    let (cached_store, oracle) = create_cached_obj_store_and_oracle(
+        Arc::clone(&inner_store) as _,
+        Arc::clone(&time_provider) as _,
+        Default::default(),
+        60,
+        Duration::from_millis(10),
+        0.6,
+        Duration::from_millis(10),
+    );
+    let mut prune_notifier = oracle.prune_notifier();
+
+    // PUT the payload that will be fetched into a `Fetching` entry:
+    let path_fetching = Path::from("0.parquet");
+    let payload_fetching = b"in-flight";
+    cached_store
+        .put(&path_fetching, PutPayload::from_static(payload_fetching))
+        .await
+        .unwrap();
+
+    // register the fetch and wait until it is blocked inside the object store `get`, so the
+    // cache holds a `Fetching` entry with the oldest hit time in the map:
+    let (cache_request, notifier_rx) =
+        CacheRequest::create_eventual_mode_cache_request(path_fetching.clone(), None);
+    oracle.register(cache_request);
+    from_store_notify.notified().await;
+
+    // at a later time, directly cache a success entry big enough to exceed the cache capacity
+    // on its own, making the pruner run:
+    time_provider.set(Time::from_timestamp_nanos(1));
+    let path_success = Path::from("1.parquet");
+    let payload_success = [b'x'; 64];
+    let to_cache = ParquetFileDataToCache::new(
+        &path_success,
+        time_provider.now().date_time(),
+        Bytes::copy_from_slice(&payload_success),
+        PutResult {
+            e_tag: None,
+            version: None,
+        },
+    );
+    oracle.register(CacheRequest::create_immediate_mode_cache_request(
+        path_success.clone(),
+        to_cache,
+    ));
+
+    // wait for the prune: the success entry is the only valid victim; the in-flight fetch
+    // holds no bytes and must not be evicted:
+    prune_notifier.changed().await.unwrap();
+
+    // release the in-flight fetch and wait for the cache request to complete:
+    to_store_notify.notify_one();
+    let _ = notifier_rx.await;
+
+    // the fetched entry must have landed in the cache: one read request from the oracle's
+    // fetch, and none from this GET:
+    assert!(oracle.in_cache(&path_fetching));
+    assert_payload_at_equals!(cached_store, payload_fetching, path_fetching);
+    assert_eq!(1, counter.total_read_request_count(&path_fetching));
+}
+
+#[test_log::test(tokio::test)]
+async fn concurrent_registrations_share_one_fetch() {
+    // Object store layers: Synchronized -> RequestCounted -> Inner
+    let to_store_notify = Arc::new(Notify::new());
+    let from_store_notify = Arc::new(Notify::new());
+    let counter = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+    let inner_store = Arc::new(
+        SynchronizedObjectStore::new(Arc::clone(&counter) as _)
+            .with_get_notifies(Arc::clone(&to_store_notify), Arc::clone(&from_store_notify)),
+    );
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let (cached_store, oracle) = test_cached_obj_store_and_oracle(
+        Arc::clone(&inner_store) as _,
+        Arc::clone(&time_provider),
+        Default::default(),
+    );
+
+    let path = Path::from("0.parquet");
+    let payload = b"only-once";
+    cached_store
+        .put(&path, PutPayload::from_static(payload))
+        .await
+        .unwrap();
+
+    // register the same path twice with no await point in between: both registrations see the
+    // path as not yet fetched (the single-threaded runtime has not run the request handler
+    // yet), so both are enqueued — the file must still only be fetched once:
+    let (cache_request_a, notifier_rx_a) =
+        CacheRequest::create_eventual_mode_cache_request(path.clone(), None);
+    let (cache_request_b, notifier_rx_b) =
+        CacheRequest::create_eventual_mode_cache_request(path.clone(), None);
+    oracle.register(cache_request_a);
+    oracle.register(cache_request_b);
+
+    // wait for a fetch to be blocked inside the object store `get`, then release it (twice, so
+    // an erroneous second fetch cannot hang the test):
+    from_store_notify.notified().await;
+    to_store_notify.notify_one();
+    to_store_notify.notify_one();
+
+    let _ = notifier_rx_a.await;
+    let _ = notifier_rx_b.await;
+
+    // one read request from the oracle's single fetch:
+    assert_eq!(1, counter.total_read_request_count(&path));
+
+    // and the entry is served from the cache:
+    assert_payload_at_equals!(cached_store, payload, path);
+    assert_eq!(1, counter.total_read_request_count(&path));
+}
+
+#[test_log::test(tokio::test)]
+async fn prune_quota_counts_only_prunable_entries() {
+    use futures::FutureExt;
+
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let cache = Cache::new(
+        100,
+        0.5,
+        Arc::clone(&time_provider) as Arc<dyn TimeProvider>,
+        Arc::new(Registry::new()),
+        Duration::from_millis(10),
+    );
+
+    // six in-flight fetches, older than every success entry:
+    let fetching_paths = (0..6)
+        .map(|i| Path::from(format!("f{i}")))
+        .collect::<Vec<_>>();
+    for path in &fetching_paths {
+        let fut = futures::future::pending::<
+            Result<Arc<crate::parquet_cache::CacheValue>, crate::parquet_cache::DynError>,
+        >()
+        .boxed()
+        .shared();
+        cache.set_fetching(path, fut);
+    }
+
+    // four success entries pushing the cache past capacity:
+    let success_paths = (0..4)
+        .map(|i| Path::from(format!("s{i}")))
+        .collect::<Vec<_>>();
+    for (i, path) in success_paths.iter().enumerate() {
+        time_provider.set(Time::from_timestamp_nanos(10 + i as i64));
+        let value = crate::parquet_cache::CacheValue {
+            data: Bytes::from(vec![b'x'; 30]),
+            meta: object_store::ObjectMeta {
+                location: path.clone(),
+                last_modified: time_provider.now().date_time(),
+                size: 30,
+                e_tag: None,
+                version: None,
+            },
+        };
+        cache.set_cache_value_directly(path, Arc::new(value));
+    }
+
+    // the quota is half of the PRUNABLE entries (4 success -> 2 evicted), not half of the
+    // whole map (10 entries -> 5, which would have taken every success entry):
+    cache.prune().unwrap();
+    for path in &fetching_paths {
+        assert!(cache.path_already_fetched(path), "{path} evicted");
+    }
+    assert!(!cache.path_already_fetched(&success_paths[0]));
+    assert!(!cache.path_already_fetched(&success_paths[1]));
+    assert!(cache.path_already_fetched(&success_paths[2]));
+    assert!(cache.path_already_fetched(&success_paths[3]));
+}
+
+#[test_log::test(tokio::test)]
+async fn prune_takes_at_least_one_entry_when_over_capacity() {
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let cache = Cache::new(
+        10,
+        0.1,
+        Arc::clone(&time_provider),
+        Arc::new(Registry::new()),
+        Duration::from_millis(10),
+    );
+
+    // one success entry over capacity on its own; floor(1 * 0.1) = 0 would leave the cache
+    // stuck over capacity forever:
+    let path = Path::from("s0");
+    let value = crate::parquet_cache::CacheValue {
+        data: Bytes::from(vec![b'x'; 30]),
+        meta: object_store::ObjectMeta {
+            location: path.clone(),
+            last_modified: time_provider.now().date_time(),
+            size: 30,
+            e_tag: None,
+            version: None,
+        },
+    };
+    cache.set_cache_value_directly(&path, Arc::new(value));
+
+    assert!(cache.prune().unwrap() > 0);
+    assert!(!cache.path_already_fetched(&path));
+}
+
+#[test_log::test(tokio::test)]
+async fn stale_prune_victims_do_not_remove_new_fetches() {
+    use std::collections::BinaryHeap;
+    use std::sync::atomic::Ordering;
+
+    use futures::FutureExt;
+
+    use crate::parquet_cache::PruneHeapItem;
+
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let cache = Cache::new(
+        100,
+        0.5,
+        Arc::clone(&time_provider) as Arc<dyn TimeProvider>,
+        Arc::new(Registry::new()),
+        Duration::from_millis(10),
+    );
+
+    // a success entry selected as a prune victim:
+    let path = Path::from("s0");
+    let value = crate::parquet_cache::CacheValue {
+        data: Bytes::from(vec![b'x'; 30]),
+        meta: object_store::ObjectMeta {
+            location: path.clone(),
+            last_modified: time_provider.now().date_time(),
+            size: 30,
+            e_tag: None,
+            version: None,
+        },
+    };
+    cache.set_cache_value_directly(&path, Arc::new(value));
+    let stale_victim = PruneHeapItem {
+        hit_time: 0,
+        path_ref: path.as_ref().into(),
+    };
+
+    // before the removal loop runs, the path is evicted and re-registered as a new fetch:
+    cache.remove(&path);
+    let fut = futures::future::pending::<
+        Result<Arc<crate::parquet_cache::CacheValue>, crate::parquet_cache::DynError>,
+    >()
+    .boxed()
+    .shared();
+    cache.set_fetching(&path, fut);
+    let used_before = cache.used.load(Ordering::SeqCst);
+
+    // the stale victim must not remove the new fetch, and its already-subtracted size must
+    // not be subtracted again (which would wrap `used`):
+    let freed = cache.remove_victims(BinaryHeap::from([stale_victim]));
+    assert_eq!(freed, 0);
+    assert!(cache.path_already_fetched(&path));
+    assert_eq!(cache.used.load(Ordering::SeqCst), used_before);
+}

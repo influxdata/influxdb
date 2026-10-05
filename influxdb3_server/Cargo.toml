@@ -7,6 +7,8 @@ license.workspace = true
 
 [features]
 large-strings = ["influxdb-line-protocol/large-strings", "influxdb3_write/large-strings"]
+# Enable the operator socket for AWS operator access without auth tokens
+operator_socket = []
 
 [lints]
 workspace = true

@@ -123,3 +123,27 @@ fn modify_by_id_returns_closure_value() {
         .unwrap();
     assert_eq!(got, 7);
 }
+
+#[test]
+fn insert_with_already_used_name_fails() {
+    let (mut repo, id) = repo_with_one();
+    let name = repo.get_by_id(&id).unwrap().name();
+
+    repo.insert(
+        DbId::new(20),
+        TestResource {
+            id: DbId::new(20),
+            name,
+        },
+    )
+    .unwrap_err();
+
+    repo.insert(
+        id,
+        TestResource {
+            id,
+            name: Arc::from("other_name"),
+        },
+    )
+    .unwrap_err();
+}

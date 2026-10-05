@@ -45,6 +45,7 @@ influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_processing_engine = {path = "../influxdb3_processing_engine"}
 influxdb3_processing_engine_telemetry = { path = "../influxdb3_processing_engine_telemetry" }
 influxdb3_query_executor = { path = "../influxdb3_query_executor" }
+influxdb3_operator_socket = { path = "../influxdb3_operator_socket" }
 influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_startup = { path = "../influxdb3_startup" }
@@ -105,6 +106,11 @@ default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws", "large-strings"]
 
 large-strings = ["influxdb3_server/large-strings", "influxdb3_write/large-strings", "influxdb3_wal/large-strings"]
 
+# Enable the operator socket for AWS operator access without auth tokens.
+# This creates a Unix Domain Socket that serves /metrics and /health without
+# requiring a token - authorization is via socket file permissions.
+operator_socket = ["influxdb3_server/operator_socket"]
+
 azure = ["influxdb3_clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["influxdb3_clap_blocks/gcp"] # Optional GCP object store support
 aws = ["influxdb3_clap_blocks/aws"] # Optional AWS / S3 object store support
@@ -132,8 +138,11 @@ arrow.workspace = true
 arrow-array.workspace = true
 arrow-flight.workspace = true
 assert_cmd.workspace = true
+bytes.workspace = true
 futures.workspace = true
+http-body-util.workspace = true
 hyper.workspace = true
+hyper-util.workspace = true
 insta.workspace = true
 itertools.workspace = true
 pretty_assertions.workspace = true

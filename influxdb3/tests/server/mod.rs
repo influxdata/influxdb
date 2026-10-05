@@ -117,6 +117,7 @@ pub struct TestConfig {
     permission_tokens_file: Option<String>,
     object_store_tls_allow_insecure: bool,
     object_store_tls_ca_path: Option<String>,
+    operator_socket_path: Option<String>,
 }
 
 impl TestConfig {
@@ -145,6 +146,12 @@ impl TestConfig {
     /// Enable the admin token recovery endpoint
     pub fn with_recovery_endpoint(mut self) -> Self {
         self.enable_recovery_endpoint = true;
+        self
+    }
+
+    /// Serve the operator control socket at `path` (requires the `operator_socket` feature)
+    pub fn with_operator_socket_path<S: Into<String>>(mut self, path: S) -> Self {
+        self.operator_socket_path = Some(path.into());
         self
     }
 
@@ -323,6 +330,9 @@ impl ConfigProvider for TestConfig {
                 "--async-trigger-concurrency-limit".to_string(),
                 limit.to_string(),
             ]);
+        }
+        if let Some(socket_path) = &self.operator_socket_path {
+            args.extend(["--operator-socket-path".to_string(), socket_path.to_owned()]);
         }
         args.push("--node-id".to_string());
         if let Some(host) = &self.node_id {

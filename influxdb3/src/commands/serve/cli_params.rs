@@ -129,6 +129,8 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "async-trigger-concurrency-limit",
     // Other parameters
     "tcp-listener-file-path",
+    // Operator control parameters
+    "operator-socket-path",
     // Tokio console parameters
     "tokio-console-enabled",
     "tokio-console-event-buffer-capacity",

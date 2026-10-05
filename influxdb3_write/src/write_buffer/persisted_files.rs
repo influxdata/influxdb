@@ -10,8 +10,8 @@ use crate::{ChunkFilter, DatabaseTables};
 use crate::{ParquetFile, PersistedSnapshot, PersistedSnapshotCheckpoint};
 use hashbrown::{HashMap, HashSet};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_id::TableId;
 use influxdb3_id::{DbId, SerdeVecMap};
+use influxdb3_id::{ParquetFileId, TableId};
 use influxdb3_telemetry::ParquetMetrics;
 use observability_deps::tracing::{debug, trace, warn};
 use parking_lot::RwLock;
@@ -22,6 +22,39 @@ type TableToFiles = HashMap<TableId, Vec<ParquetFile>>;
 /// Put parquet files in the descending min_time order the query path expects.
 pub fn sort_by_min_time_desc(files: &mut [ParquetFile]) {
     files.sort_by_key(|f| std::cmp::Reverse(f.min_time));
+}
+
+/// Totals for the files taken out of a table's file list by [`remove_files_by_id`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RemovedFiles {
+    pub(crate) count: u64,
+    pub(crate) size_bytes: u64,
+    pub(crate) row_count: u64,
+}
+
+/// Remove every file whose id is in `ids` from `files`.
+///
+/// One pass over `files` regardless of how many ids are given. Order does not
+/// matter (readers sort on the way out), so `swap_remove` from the back is
+/// used rather than `retain`: the element swapped into a gap has already been
+/// tested.
+pub(crate) fn remove_files_by_id(
+    files: &mut Vec<ParquetFile>,
+    ids: &HashSet<ParquetFileId>,
+) -> RemovedFiles {
+    let mut removed = RemovedFiles::default();
+    if ids.is_empty() {
+        return removed;
+    }
+    for i in (0..files.len()).rev() {
+        if ids.contains(&files[i].id) {
+            let file = files.swap_remove(i);
+            removed.count += 1;
+            removed.size_bytes += file.size_bytes;
+            removed.row_count += file.row_count;
+        }
+    }
+    removed
 }
 
 #[derive(Debug, Default)]
@@ -563,14 +596,12 @@ fn update_persisted_files_with_snapshot(
                         );
                         return;
                     };
-                    for file in remove_parquet_files {
-                        if let Some(idx) = table_files.iter().position(|f| f.id == file.id) {
-                            let file = table_files.swap_remove(idx);
-                            file_count = file_count.saturating_sub(1);
-                            removed_size += file.size_bytes;
-                            removed_row_count += file.row_count;
-                        }
-                    }
+                    let ids: HashSet<ParquetFileId> =
+                        remove_parquet_files.iter().map(|f| f.id).collect();
+                    let removed = remove_files_by_id(table_files, &ids);
+                    file_count = file_count.saturating_sub(removed.count);
+                    removed_size += removed.size_bytes;
+                    removed_row_count += removed.row_count;
                 });
         });
 

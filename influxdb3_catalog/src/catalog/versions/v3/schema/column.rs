@@ -368,7 +368,7 @@ impl ColumnSet {
         id_in_repo
     }
 
-    /// Check if a [ColumnDefinition] exists in the repository by `id`, `column_id` and `name`
+    /// Check if a [ColumnDefinition] exists in the repository by `id`, `column_id` or `name`
     ///
     /// # Panics
     ///
@@ -378,8 +378,8 @@ impl ColumnSet {
         let name_in_map = self.id_name_map.contains_right(v.name().as_ref());
         let ord_id_in_map = v
             .ord_id()
-            .is_none_or(|ord| self.id_ord_id_map.contains_right(&ord));
-        self.id_exists(&v.id()) && name_in_map && ord_id_in_map
+            .is_some_and(|ord| self.id_ord_id_map.contains_right(&ord));
+        self.id_exists(&v.id()) || name_in_map || ord_id_in_map
     }
 
     /// Insert a new resource to the repository
@@ -483,3 +483,6 @@ impl From<FieldDataType> for InfluxColumnType {
         InfluxColumnType::Field(value.into())
     }
 }
+
+#[cfg(test)]
+mod tests;
