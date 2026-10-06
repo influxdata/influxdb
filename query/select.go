@@ -792,12 +792,19 @@ func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.
 		ctx = tracing.NewContextWithSpan(ctx, span)
 	}
 
+	// A Measurement source may treat Limit/Offset as a true global cap (and
+	// skip opening shards/shard-groups once satisfied) only when it is the
+	// sole source feeding this Limit/Offset trim.
+	singleSource := len(sources) == 1
+
 	inputs := make([]Iterator, 0, len(sources))
 	if err := func() error {
 		for _, source := range sources {
 			switch source := source.(type) {
 			case *influxql.Measurement:
-				input, err := ic.CreateIterator(ctx, source, opt)
+				o := opt
+				o.GlobalLimitEligible = singleSource
+				input, err := ic.CreateIterator(ctx, source, o)
 				if err != nil {
 					return err
 				}

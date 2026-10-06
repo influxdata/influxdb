@@ -37,7 +37,14 @@ func TestLocalShardMapper(t *testing.T) {
 
 	tsdbStore := &internal.TSDBStoreMock{}
 	tsdbStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
-		if !reflect.DeepEqual(ids, []uint64{1, 2, 3, 4}) {
+		// MapShards calls ShardGroup once with the flattened id list across
+		// all shard groups, and once more per individual shard group (to
+		// build LocalShardMapping.Groups for limit pushdown).
+		switch {
+		case reflect.DeepEqual(ids, []uint64{1, 2, 3, 4}):
+		case reflect.DeepEqual(ids, []uint64{1, 2}):
+		case reflect.DeepEqual(ids, []uint64{3, 4}):
+		default:
 			t.Errorf("unexpected shard ids: %#v", ids)
 		}
 
