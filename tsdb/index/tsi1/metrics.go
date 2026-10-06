@@ -160,7 +160,6 @@ func (r *cacheRegistry) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// PrometheusCollectors returns all the prometheus collectors associated with the tsi1 package.
 func PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{globalCacheRegistry}
 }

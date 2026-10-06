@@ -78,7 +78,6 @@ var WithPath = func(path string) IndexOption {
 	}
 }
 
-// WithEngineTags sets the engine tags for the Index metrics.
 var WithEngineTags = func(tags tsdb.EngineTags) IndexOption {
 	return func(i *Index) {
 		i.engineTags = tags
