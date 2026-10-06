@@ -1066,12 +1066,6 @@ func (c *compiledStatement) validateFields() error {
 			otherCalls++
 		}
 	}
-	if len(c.FunctionCalls) > 1 && otherCalls >= 1 {
-		// If there are multiple function calls we want to validate whether they are date_part or not
-		// it is okay to have multiple date_part functions in a single SELECT clause.
-		return errMixedMultipleSelectors
-	}
-
 	if !c.HasAuxiliaryFields {
 		if datePartCalls > 0 && otherCalls == 0 {
 			return errAtLeastOneNonTimeField
@@ -1105,6 +1099,10 @@ func (c *compiledStatement) validateFields() error {
 	if c.HasAuxiliaryFields {
 		if !c.OnlySelectors {
 			return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
+		} else if len(c.FunctionCalls) > 1 && otherCalls > 1 {
+			// If there are multiple function calls we want to validate whether they are date_part or not
+			// it is okay to have multiple date_part functions in a single SELECT clause.
+			return errMixedMultipleSelectors
 		}
 	}
 	return nil
