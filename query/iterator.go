@@ -299,6 +299,86 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
+// NewLazyGroupChainIterator returns an iterator that forwards every point
+// from first unchanged, then — only once first is exhausted — lazily calls
+// next to obtain and forward subsequent iterators the same way. It stops
+// calling next once at least opt.Limit+opt.Offset points have already been
+// forwarded and the current iterator is exhausted; next must return
+// (nil, nil) once nothing further remains. It never drops or reorders a
+// point itself; all Limit/Offset trimming still happens in the caller's own
+// (unchanged) LimitIterator wrap.
+func NewLazyGroupChainIterator(first Iterator, next func() (Iterator, error), opt IteratorOptions) Iterator {
+	switch first := first.(type) {
+	case FloatIterator:
+		return newFloatLazyGroupChainIterator(first, func() (FloatIterator, error) {
+			itr, err := next()
+			if err != nil || itr == nil {
+				return nil, err
+			}
+			fitr, ok := itr.(FloatIterator)
+			if !ok {
+				itr.Close()
+				return nil, fmt.Errorf("lazy group chain iterator: expected FloatIterator, got %T", itr)
+			}
+			return fitr, nil
+		}, opt)
+	case IntegerIterator:
+		return newIntegerLazyGroupChainIterator(first, func() (IntegerIterator, error) {
+			itr, err := next()
+			if err != nil || itr == nil {
+				return nil, err
+			}
+			iitr, ok := itr.(IntegerIterator)
+			if !ok {
+				itr.Close()
+				return nil, fmt.Errorf("lazy group chain iterator: expected IntegerIterator, got %T", itr)
+			}
+			return iitr, nil
+		}, opt)
+	case UnsignedIterator:
+		return newUnsignedLazyGroupChainIterator(first, func() (UnsignedIterator, error) {
+			itr, err := next()
+			if err != nil || itr == nil {
+				return nil, err
+			}
+			uitr, ok := itr.(UnsignedIterator)
+			if !ok {
+				itr.Close()
+				return nil, fmt.Errorf("lazy group chain iterator: expected UnsignedIterator, got %T", itr)
+			}
+			return uitr, nil
+		}, opt)
+	case StringIterator:
+		return newStringLazyGroupChainIterator(first, func() (StringIterator, error) {
+			itr, err := next()
+			if err != nil || itr == nil {
+				return nil, err
+			}
+			sitr, ok := itr.(StringIterator)
+			if !ok {
+				itr.Close()
+				return nil, fmt.Errorf("lazy group chain iterator: expected StringIterator, got %T", itr)
+			}
+			return sitr, nil
+		}, opt)
+	case BooleanIterator:
+		return newBooleanLazyGroupChainIterator(first, func() (BooleanIterator, error) {
+			itr, err := next()
+			if err != nil || itr == nil {
+				return nil, err
+			}
+			bitr, ok := itr.(BooleanIterator)
+			if !ok {
+				itr.Close()
+				return nil, fmt.Errorf("lazy group chain iterator: expected BooleanIterator, got %T", itr)
+			}
+			return bitr, nil
+		}, opt)
+	default:
+		panic(fmt.Sprintf("unsupported lazy group chain iterator type: %T", first))
+	}
+}
+
 // NewFilterIterator returns an iterator that filters the points based on the
 // condition. This iterator is not nearly as efficient as filtering points
 // within the query engine and is only used when filtering subqueries.
@@ -613,6 +693,16 @@ type IteratorOptions struct {
 
 	// Limits the number of series.
 	SLimit, SOffset int
+
+	// GlobalLimitEligible reports whether Limit/Offset may be treated by an
+	// IteratorCreator as a true global cap on total output rows, rather than
+	// a per-(name,tags) cap. It is only safe to be true when this fetch is
+	// the sole top-level data source feeding the enclosing Limit/Offset
+	// trim — set only by buildAuxIterator. Deliberately excluded from
+	// encodeIteratorOptions/decodeIteratorOptions: it defaults to false (the
+	// conservative, current behavior) for any IteratorOptions round-tripped
+	// over RPC.
+	GlobalLimitEligible bool
 
 	// Removes the measurement name. Useful for meta queries.
 	StripName bool
