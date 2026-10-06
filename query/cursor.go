@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 )
 
@@ -144,11 +145,53 @@ type scannerCursorBase struct {
 	columns []influxql.VarRef
 	loc     *time.Location
 
+	// needDatePart caches whether this query actually involves date_part (either
+	// an explicit date_part(...) field or a GROUP BY date_part dimension). When
+	// false, the per-row date_part bookkeeping in Scan is skipped entirely so
+	// ordinary queries don't pay for a feature they don't use.
+	needDatePart bool
+
+	// timeRef is set when a field calls date_part, which reads the row time
+	// from the eval map.
+	timeRef bool
+
+	// groupingKey holds the active GROUP BY date_part dimension of the row last
+	// scanned when datePart, the query's grouper, is non-nil. It sits with the
+	// flags above so the three share one word.
+	groupingKey models.GroupingKey
+	datePart    *DatePartGrouper
+
 	scan   scannerFunc
 	valuer influxql.ValuerEval
 }
 
-func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location) scannerCursorBase {
+// scannerCursorNeedsDatePart reports whether the cursor must perform date_part
+// bookkeeping: true when a GROUP BY date_part dimension is present or when any
+// selected field references the date_part function (top-level or nested).
+func scannerCursorNeedsDatePart(fields []*influxql.Field, opt IteratorOptions) bool {
+	if opt.DatePart != nil {
+		return true
+	}
+	for _, f := range fields {
+		if exprContainsDatePart(f.Expr) {
+			return true
+		}
+	}
+	return false
+}
+
+func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, opt IteratorOptions) scannerCursorBase {
+	loc := opt.Location
+	needDatePart := scannerCursorNeedsDatePart(fields, opt)
+	timeRef := false
+	if needDatePart {
+		for _, f := range fields {
+			if exprContainsDatePart(f.Expr) {
+				timeRef = true
+				break
+			}
+		}
+	}
 	typmap := FunctionTypeMapper{}
 	exprs := make([]influxql.Expr, len(fields))
 	columns := make([]influxql.VarRef, len(fields))
@@ -164,23 +207,47 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 	}
 
 	m := make(map[string]interface{})
+	mapValuer := influxql.MapValuer(m)
+
+	// Only wire DatePartValuer into the evaluation chain when date_part is
+	// actually used; otherwise skip the extra valuer indirection on every Eval.
+	var valuer influxql.Valuer
+	if needDatePart {
+		valuer = influxql.MultiValuer(
+			MathValuer{},
+			DatePartValuer{Valuer: mapValuer, Location: loc, Grouped: opt.DatePart},
+			mapValuer,
+		)
+	} else {
+		valuer = influxql.MultiValuer(
+			MathValuer{},
+			mapValuer,
+		)
+	}
+
 	return scannerCursorBase{
-		fields:  exprs,
-		m:       m,
-		columns: columns,
-		loc:     loc,
-		scan:    scan,
+		fields:       exprs,
+		m:            m,
+		columns:      columns,
+		loc:          loc,
+		needDatePart: needDatePart,
+		timeRef:      timeRef,
+		datePart:     opt.DatePart,
+		scan:         scan,
 		valuer: influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				MathValuer{},
-				influxql.MapValuer(m),
-			),
+			Valuer:               valuer,
 			IntegerFloatDivision: true,
 		},
 	}
 }
 
 func (cur *scannerCursorBase) Scan(row *Row) bool {
+	// A query using date_part takes a separate path so this one stays as it
+	// was for queries without date_part.
+	if cur.needDatePart {
+		return cur.scanDatePart(row)
+	}
+
 	ts, name, tags := cur.scan(cur.m)
 	if ts == ZeroTime {
 		return false
@@ -200,7 +267,63 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 
 	for i, expr := range cur.fields {
 		// A special case if the field is time to reduce memory allocations.
-		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
+		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
+			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
+			continue
+		}
+		v := cur.valuer.Eval(expr)
+		if fv, ok := v.(float64); ok && math.IsNaN(fv) {
+			// If the float value is NaN, convert it to a null float
+			// so this can be serialized correctly, but not mistaken for
+			// a null value that needs to be filled.
+			v = NullFloat
+		}
+		row.Values[i] = v
+	}
+	return true
+}
+
+// scanDatePart is Scan for a query that uses date_part, in a field or as a
+// GROUP BY dimension.
+func (cur *scannerCursorBase) scanDatePart(row *Row) bool {
+	cur.groupingKey = 0
+
+	ts, name, tags := cur.scan(cur.m)
+	if ts == ZeroTime {
+		return false
+	}
+
+	row.Time = ts
+	if name != cur.series.Name || tags.ID() != cur.series.Tags.ID() {
+		cur.series.Name = name
+		cur.series.Tags = tags
+		cur.series.id++
+	}
+	row.Series = cur.series
+
+	if len(cur.columns) > len(row.Values) {
+		row.Values = make([]interface{}, len(cur.columns))
+	}
+
+	// Make the row timestamp available to the eval map for the date_part calls
+	// in the fields, including those nested inside another expression (e.g.
+	// date_part('hour', time) + 1).
+	if cur.timeRef {
+		cur.m[models.TimeString] = row.Time
+	}
+
+	// Each GROUP BY date_part dimension column holds its bucket value in the
+	// row's series and is null elsewhere, so the non-null one is active.
+	for _, d := range cur.datePart.Dimensions() {
+		if cur.m[d.Expr.String()] != nil {
+			cur.groupingKey = d.Expr.groupingKey()
+			break
+		}
+	}
+
+	for i, expr := range cur.fields {
+		// A special case if the field is time to reduce memory allocations.
+		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
 		}
@@ -235,7 +358,7 @@ type scannerCursor struct {
 
 func newScannerCursor(s IteratorScanner, fields []*influxql.Field, opt IteratorOptions) *scannerCursor {
 	cur := &scannerCursor{scanner: s}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt)
 	return cur
 }
 
@@ -278,7 +401,7 @@ func newMultiScannerCursor(scanners []IteratorScanner, fields []*influxql.Field,
 		scanners:  scanners,
 		ascending: opt.Ascending,
 	}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt)
 	return cur
 }
 
@@ -353,11 +476,18 @@ type filterCursor struct {
 	// we need and will exclude the ones we do not.
 	fields map[string]IteratorMap
 	filter influxql.Expr
+	// dpCond is non-nil when the filter uses date_part; it owns the rewritten
+	// filter and publishes per-row part values into m via SetTime.
+	dpCond *DatePartCondition
 	m      map[string]interface{}
 	valuer influxql.ValuerEval
 }
 
-func newFilterCursor(cur Cursor, filter influxql.Expr) *filterCursor {
+// newFilterCursor filters rows against the given expression. needTimeRef
+// reports whether the filter references the row timestamp (i.e. contains a
+// date_part call); it is precomputed by the caller (opt.NeedTimeRef) so the
+// condition AST is not re-walked for every filter cursor.
+func newFilterCursor(cur Cursor, filter influxql.Expr, needTimeRef bool, loc *time.Location) *filterCursor {
 	fields := make(map[string]IteratorMap)
 	for _, name := range influxql.ExprNames(filter) {
 		for i, col := range cur.Columns() {
@@ -378,11 +508,23 @@ func newFilterCursor(cur Cursor, filter influxql.Expr) *filterCursor {
 			fields[name.Val] = TagMap(name.Val)
 		}
 	}
+	// When the filter uses date_part, rewrite it once so no function call is
+	// evaluated per row: date_part calls become reserved variable references
+	// resolved by dpCond.SetTime in Scan. Filters without date_part are
+	// untouched.
+	var dpCond *DatePartCondition
+	if needTimeRef {
+		if dp := NewDatePartCondition(filter, loc); dp != nil {
+			dpCond = dp
+			filter = dp.Expr()
+		}
+	}
 	m := make(map[string]interface{})
 	return &filterCursor{
 		Cursor: cur,
 		fields: fields,
 		filter: filter,
+		dpCond: dpCond,
 		m:      m,
 		valuer: influxql.ValuerEval{Valuer: influxql.MapValuer(m)},
 	}
@@ -393,6 +535,9 @@ func (cur *filterCursor) Scan(row *Row) bool {
 		// Use the field mappings to prepare the map for the valuer.
 		for name, f := range cur.fields {
 			cur.m[name] = f.Value(row)
+		}
+		if cur.dpCond != nil {
+			cur.dpCond.SetTime(row.Time, cur.m)
 		}
 
 		if cur.valuer.EvalBool(cur.filter) {

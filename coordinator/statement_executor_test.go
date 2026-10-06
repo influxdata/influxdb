@@ -710,9 +710,9 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		// Source labels match influxql.QuoteIdent: simple names emit unquoted,
 		// joined by '.'. Update these alongside formatMeasurementSource if the
 		// labeling format changes.
-		quotedDB0     = DefaultDatabase
-		quotedDB0RP0  = DefaultDatabase + "." + DefaultRetentionPolicy
-		quotedDB1RP0  = db1Name + "." + DefaultRetentionPolicy
+		quotedDB0    = DefaultDatabase
+		quotedDB0RP0 = DefaultDatabase + "." + DefaultRetentionPolicy
+		quotedDB1RP0 = db1Name + "." + DefaultRetentionPolicy
 	)
 
 	wildcardDBs := func() []meta.DatabaseInfo {

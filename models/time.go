@@ -31,6 +31,11 @@ const (
 	// less than the possible maximum number of nanoseconds representable by an
 	// int64 so that we don't lose a point at that one time.
 	MaxNanoTime = int64(math.MaxInt64) - 1
+
+	// TimeString is the name of the time column. It is a constant so that
+	// comparisons against it compile to an inline check, as the "time"
+	// literals it replaces did.
+	TimeString = "time"
 )
 
 var (
