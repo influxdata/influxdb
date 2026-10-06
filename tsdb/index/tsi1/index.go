@@ -40,9 +40,16 @@ func init() {
 		DefaultPartitionN = uint64(i)
 	}
 
-	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
+	tsdb.RegisterIndex(IndexName, func(id uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
+		etags := tsdb.EngineTags{
+			Path:          path,
+			Id:            strconv.FormatUint(id, 10),
+			Bucket:        db,
+			EngineVersion: opt.EngineVersion,
+		}
 		idx := NewIndex(sfile, db,
 			WithPath(path),
+			WithEngineTags(etags),
 			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),
 			WithMaximumLogFileAge(time.Duration(opt.Config.CompactFullWriteColdDuration)),
 			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
@@ -68,6 +75,13 @@ type IndexOption func(i *Index)
 var WithPath = func(path string) IndexOption {
 	return func(i *Index) {
 		i.path = path
+	}
+}
+
+// WithEngineTags sets the engine tags for the Index metrics.
+var WithEngineTags = func(tags tsdb.EngineTags) IndexOption {
+	return func(i *Index) {
+		i.engineTags = tags
 	}
 }
 
@@ -171,13 +185,14 @@ type Index struct {
 	tagValueCacheShrinkConservatism float64 // sigmas below the at-target eviction mean for the shrink gate; validated by Config to be >= 0.0
 
 	// The following may be set when initializing an Index.
-	path               string        // Root directory of the index partitions.
-	disableCompactions bool          // Initially disables compactions on the index.
-	maxLogFileSize     int64         // Maximum size of a LogFile before it's compacted.
-	maxLogFileAge      time.Duration // Maximum age of a LogFile before it's compacted.
-	logfileBufferSize  int           // The size of the buffer used by the LogFile.
-	disableFsync       bool          // Disables flushing buffers and fsyning files. Used when working with indexes offline.
-	logger             *zap.Logger   // Index's logger.
+	path               string          // Root directory of the index partitions.
+	disableCompactions bool            // Initially disables compactions on the index.
+	maxLogFileSize     int64           // Maximum size of a LogFile before it's compacted.
+	maxLogFileAge      time.Duration   // Maximum age of a LogFile before it's compacted.
+	logfileBufferSize  int             // The size of the buffer used by the LogFile.
+	disableFsync       bool            // Disables flushing buffers and fsyning files. Used when working with indexes offline.
+	logger             *zap.Logger     // Index's logger.
+	engineTags         tsdb.EngineTags // Engine tags for Prometheus metrics.
 
 	// The following must be set when initializing an Index.
 	sfile    *tsdb.SeriesFile // series lookup file
@@ -232,6 +247,9 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 	} else {
 		idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
 	}
+
+	globalCacheRegistry.register(idx.tagValueCache, idx.engineTags)
+
 	return idx
 }
 
@@ -419,6 +437,9 @@ func (i *Index) close() (rErr error) {
 			}
 		}
 	}
+
+	globalCacheRegistry.deregister(i.tagValueCache)
+
 	// Mark index as closed.
 	i.opened = false
 	return rErr
