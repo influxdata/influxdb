@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/services/precreator"
