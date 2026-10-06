@@ -341,6 +341,26 @@ func ParseName(buf []byte) []byte {
 // NOTE: to minimize heap allocations, the returned Points will refer to subslices of buf.
 // This can have the unintended effect preventing buf from being garbage collected.
 func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
+	return parsePointsWithPrecision(buf, func() time.Time { return defaultTime }, precision, true)
+}
+
+// ParsePointsWithPrecisionFunc is like ParsePointsWithPrecision, except it
+// calls nextDefaultTime once for EACH point in buf that omits an explicit
+// timestamp, instead of reusing one fixed value for all of them, and never
+// truncates the result to precision — nanosecond uniqueness is the whole
+// point of this entry point, and truncating to a coarser wire precision
+// would immediately erase it. Passing a monotonic, concurrency-safe
+// generator (e.g. (*coordinator.PointsWriter).NextUniqueTime) guarantees
+// every such point gets a distinct timestamp, even across other
+// concurrent callers sharing that generator.
+//
+// NOTE: to minimize heap allocations, the returned Points will refer to subslices of buf.
+// This can have the unintended effect preventing buf from being garbage collected.
+func ParsePointsWithPrecisionFunc(buf []byte, nextDefaultTime func() time.Time, precision string) ([]Point, error) {
+	return parsePointsWithPrecision(buf, nextDefaultTime, precision, false)
+}
+
+func parsePointsWithPrecision(buf []byte, nextDefaultTime func() time.Time, precision string, truncateDefaults bool) ([]Point, error) {
 	points := make([]Point, 0, bytes.Count(buf, []byte{'\n'})+1)
 	var (
 		pos    int
@@ -372,7 +392,7 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 			block = block[:len(block)-1]
 		}
 
-		pt, err := parsePoint(block[start:], defaultTime, precision)
+		pt, err := parsePoint(block[start:], nextDefaultTime, precision, truncateDefaults)
 		if err != nil {
 			failed = append(failed, fmt.Sprintf("unable to parse '%s': %v", string(block[start:]), err))
 		} else {
@@ -387,7 +407,7 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 
 }
 
-func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, error) {
+func parsePoint(buf []byte, nextDefaultTime func() time.Time, precision string, truncateDefaults bool) (Point, error) {
 	// scan the first block which is measurement[,tag1=value1,tag2=value2...]
 	pos, key, err := scanKey(buf, 0)
 	if err != nil {
@@ -444,8 +464,10 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 	}
 
 	if len(ts) == 0 {
-		pt.time = defaultTime
-		pt.SetPrecision(precision)
+		pt.time = nextDefaultTime()
+		if truncateDefaults {
+			pt.SetPrecision(precision)
+		}
 	} else {
 		ts, err := parseIntBytes(ts, 10, 64)
 		if err != nil {
