@@ -367,6 +367,13 @@
   # Determines whether detailed write logging is enabled.
   # write-tracing = false
 
+  # Assigns timestamps to points written without an explicit one from a
+  # single monotonic nanosecond clock shared by every write connection,
+  # instead of giving every such point in a request the same
+  # server-assigned time. Prevents silent last-write-wins data loss both
+  # within one batched write and across concurrent write requests.
+  # auto-increment-duplicate-timestamps = false
+
   # Determines whether the pprof endpoint is enabled.  This endpoint is used for
   # troubleshooting and monitoring.
   # pprof-enabled = true
