@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -27,9 +28,12 @@ const (
 
 var errIncompatibleVersion = errors.New("incompatible v4 version")
 
-// Keep idle compressors bounded even when a database has many TSM files.
-// A sync.Pool would discard them under GC pressure during large deletes.
-var tombstoneGzipWriters = make(chan *gzip.Writer, 32)
+// Idle gzip writers kept for reuse across tombstone commits. FileStore.Apply
+// bounds concurrent deletes to GOMAXPROCS per shard, so that many writers can
+// be checked out at once; the pool holds that many so none are discarded and
+// re-allocated between batches. A sync.Pool would discard them under GC
+// pressure during large deletes, which is exactly when they are needed.
+var tombstoneGzipWriters = make(chan *gzip.Writer, runtime.GOMAXPROCS(0))
 
 func getTombstoneGzipWriter(w io.Writer) *gzip.Writer {
 	select {

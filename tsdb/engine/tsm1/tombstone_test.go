@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -408,4 +409,32 @@ func mustReadAll(t *tsm1.Tombstoner) []tsm1.Tombstone {
 		panic(err)
 	}
 	return tombstones
+}
+
+// BenchmarkTombstoner_Flush performs one AddRange+Flush per iteration,
+// rotating across a set of tombstone files. Using more files than the gzip
+// writer pool holds exercises the overflow path.
+func BenchmarkTombstoner_Flush(b *testing.B) {
+	for _, files := range []int{1, 8, 64} {
+		b.Run(fmt.Sprintf("files=%d", files), func(b *testing.B) {
+			dir := b.TempDir()
+			tombstoners := make([]*tsm1.Tombstoner, files)
+			for i := range tombstoners {
+				tombstoners[i] = tsm1.NewTombstoner(filepath.Join(dir, fmt.Sprintf("%05d.tsm", i)), nil)
+			}
+			key := [][]byte{[]byte("cpu,host=server-01,region=us-west#!~#value")}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				ts := tombstoners[i%files]
+				if err := ts.AddRange(key, int64(i), int64(i)); err != nil {
+					b.Fatal(err)
+				}
+				if err := ts.Flush(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }
