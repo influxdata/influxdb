@@ -392,47 +392,60 @@ func (t *Tombstoner) prepareV4() error {
 	return nil
 }
 
-// commit finalizes the pending tombstone file. Every in-memory resource is
-// released whether or not it succeeds: the gzip writer is returned to the
-// pool, the file is always closed, and the fields are set to nil so a later
-// rollback finds nothing left to touch. Later stages are skipped once an
-// earlier one fails, and all errors encountered are reported together.
-func (t *Tombstoner) commit() error {
+// commit finalizes the pending tombstone file. A single deferred release
+// guarantees that, however far it gets, the gzip writer is returned to the
+// pool, the file is closed, every field is set to nil (so a later rollback
+// finds nothing to touch), and a temp file that never reached its final path
+// is removed. Every error encountered is reported via errors.Join.
+func (t *Tombstoner) commit() (err error) {
 	// No pending writes
 	if t.pendingFile == nil {
 		return nil
 	}
 	tmpFilename := t.pendingFile.Name()
+	renamed := false
 
-	err := t.gz.Close()
-	// Safe even if Close failed: Reset clears the writer's sticky error and
-	// the compressor state before the next checkout.
-	putTombstoneGzipWriter(t.gz)
-	t.gz = nil
+	defer func() {
+		if t.gz != nil {
+			// Safe even if Close failed: Reset clears the writer's sticky
+			// error and the compressor state before the next checkout.
+			putTombstoneGzipWriter(t.gz)
+			t.gz = nil
+		}
+		t.bw = nil
+		if t.pendingFile != nil {
+			err = errors.Join(err, t.pendingFile.Close())
+			t.pendingFile = nil
+		}
+		if err != nil && !renamed {
+			err = errors.Join(err, os.Remove(tmpFilename))
+		}
+	}()
 
-	if err == nil {
-		err = t.bw.Flush()
+	if err = t.gz.Close(); err != nil {
+		return err
 	}
-	t.bw = nil
-
-	if err == nil {
-		// fsync the file to flush the write
-		err = t.pendingFile.Sync()
+	if err = t.bw.Flush(); err != nil {
+		return err
 	}
-	err = errors.Join(err, t.pendingFile.Close())
+	// fsync the file to flush the write
+	if err = t.pendingFile.Sync(); err != nil {
+		return err
+	}
+	// Close before rename. Clear the field first so the deferred release
+	// does not close the file a second time.
+	f := t.pendingFile
 	t.pendingFile = nil
-
-	if err == nil {
-		err = t.obs.FileFinishing(tmpFilename)
+	if err = f.Close(); err != nil {
+		return err
 	}
-	if err == nil {
-		err = file.RenameFile(tmpFilename, t.tombstonePath())
+	if err = t.obs.FileFinishing(tmpFilename); err != nil {
+		return err
 	}
-	if err != nil {
-		// Nothing reached the final path; drop the temp file.
-		return errors.Join(err, os.Remove(tmpFilename))
+	if err = file.RenameFile(tmpFilename, t.tombstonePath()); err != nil {
+		return err
 	}
-
+	renamed = true
 	return file.SyncDir(filepath.Dir(t.tombstonePath()))
 }
 
