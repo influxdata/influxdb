@@ -446,6 +446,8 @@ func (t *Tombstoner) rollback() error {
 
 	tmpFilename := t.pendingFile.Name()
 	t.pendingFile.Close()
+	// Safe even if commit's gz.Close failed: Reset clears the writer's sticky
+	// error and the underlying compressor state before the next checkout.
 	putTombstoneGzipWriter(t.gz)
 	t.gz = nil
 	t.bw = nil
