@@ -169,6 +169,26 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 
 }
 
+func TestTombstoner_RollbackAfterCommit(t *testing.T) {
+	f := MustTempFile(t.TempDir())
+	defer f.Close()
+
+	ts := tsm1.NewTombstoner(f.Name(), nil)
+	require.NoError(t, ts.Add([][]byte{[]byte("first")}))
+	require.NoError(t, ts.Flush())
+
+	require.NoError(t, ts.Add([][]byte{[]byte("rolled-back")}))
+	require.NoError(t, ts.Rollback())
+
+	require.NoError(t, ts.Add([][]byte{[]byte("last")}))
+	require.NoError(t, ts.Flush())
+
+	entries := mustReadAll(tsm1.NewTombstoner(f.Name(), nil))
+	require.Len(t, entries, 2)
+	require.Equal(t, "first", string(entries[0].Key))
+	require.Equal(t, "last", string(entries[1].Key))
+}
+
 func TestTombstoner_Add_Empty(t *testing.T) {
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()

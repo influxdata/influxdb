@@ -27,6 +27,29 @@ const (
 
 var errIncompatibleVersion = errors.New("incompatible v4 version")
 
+// Keep idle compressors bounded even when a database has many TSM files.
+// A sync.Pool would discard them under GC pressure during large deletes.
+var tombstoneGzipWriters = make(chan *gzip.Writer, 32)
+
+func getTombstoneGzipWriter(w io.Writer) *gzip.Writer {
+	select {
+	case gz := <-tombstoneGzipWriters:
+		gz.Reset(w)
+		return gz
+	default:
+		return gzip.NewWriter(w)
+	}
+}
+
+func putTombstoneGzipWriter(gz *gzip.Writer) {
+	// Drop references to the previous tombstone's file and buffer.
+	gz.Reset(io.Discard)
+	select {
+	case tombstoneGzipWriters <- gz:
+	default:
+	}
+}
+
 // Tombstoner records tombstones when entries are deleted.
 type Tombstoner struct {
 	mu sync.RWMutex
@@ -284,7 +307,7 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 		return err
 	}
 
-	gz := gzip.NewWriter(bw)
+	gz := getTombstoneGzipWriter(bw)
 	for _, ts := range tombstones {
 		if err := t.writeTombstone(gz, ts); err != nil {
 			return err
@@ -360,7 +383,7 @@ func (t *Tombstoner) prepareV4() error {
 	}
 
 	// Write the tombstones
-	gz := gzip.NewWriter(bw)
+	gz := getTombstoneGzipWriter(bw)
 
 	t.pendingFile = tmp
 	t.gz = gz
@@ -402,6 +425,7 @@ func (t *Tombstoner) commit() error {
 	if err := file.SyncDir(filepath.Dir(t.tombstonePath())); err != nil {
 		return err
 	}
+	putTombstoneGzipWriter(t.gz)
 
 	t.pendingFile = nil
 	t.bw = nil
