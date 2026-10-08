@@ -308,18 +308,23 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 	}
 
 	gz := getTombstoneGzipWriter(bw)
+	t.gz = gz
+	t.bw = bw
+	t.pendingFile = tmp
 	for _, ts := range tombstones {
 		if err := t.writeTombstone(gz, ts); err != nil {
+			_ = t.rollback()
 			return err
 		}
 	}
 
-	t.gz = gz
-	t.bw = bw
-	t.pendingFile = tmp
 	t.tombstones = t.tombstones[:0]
 
-	return t.commit()
+	if err := t.commit(); err != nil {
+		_ = t.rollback()
+		return err
+	}
+	return nil
 }
 
 func (t *Tombstoner) prepareV4() error {
@@ -441,6 +446,7 @@ func (t *Tombstoner) rollback() error {
 
 	tmpFilename := t.pendingFile.Name()
 	t.pendingFile.Close()
+	putTombstoneGzipWriter(t.gz)
 	t.gz = nil
 	t.bw = nil
 	t.pendingFile = nil

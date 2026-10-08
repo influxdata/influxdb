@@ -2,7 +2,10 @@ package tsm1_test
 
 import (
 	"bytes"
+	"compress/gzip"
+	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -187,6 +190,59 @@ func TestTombstoner_RollbackAfterCommit(t *testing.T) {
 	require.Len(t, entries, 2)
 	require.Equal(t, "first", string(entries[0].Key))
 	require.Equal(t, "last", string(entries[1].Key))
+}
+
+func TestTombstoner_FlushFailureRetry(t *testing.T) {
+	f := MustTempFile(t.TempDir())
+	defer f.Close()
+
+	ts := tsm1.NewTombstoner(f.Name(), nil)
+	writeErr := errors.New("observer rejected tombstone")
+	ts.WithObserver(mockObserver{
+		fileFinishing: func(string) error { return writeErr },
+		fileUnlinking: func(string) error { return nil },
+	})
+	require.NoError(t, ts.Add([][]byte{[]byte("failed")}))
+	require.ErrorIs(t, ts.Flush(), writeErr)
+
+	ts.WithObserver(mockObserver{
+		fileFinishing: func(string) error { return nil },
+		fileUnlinking: func(string) error { return nil },
+	})
+	require.NoError(t, ts.Add([][]byte{[]byte("committed")}))
+	require.NoError(t, ts.Flush())
+
+	entries := mustReadAll(tsm1.NewTombstoner(f.Name(), nil))
+	require.Len(t, entries, 1)
+	require.Equal(t, "committed", string(entries[0].Key))
+}
+
+func TestTombstoner_V3CommitFailureRetry(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "0001.tsm")
+	var existing bytes.Buffer
+	existing.Write([]byte{0, 0, 0x15, 0x03})
+	gz := gzip.NewWriter(&existing)
+	require.NoError(t, gz.Close())
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "0001.tombstone"), existing.Bytes(), 0o600))
+
+	ts := tsm1.NewTombstoner(path, nil)
+	writeErr := errors.New("observer rejected v3 tombstone")
+	ts.WithObserver(mockObserver{
+		fileFinishing: func(string) error { return writeErr },
+		fileUnlinking: func(string) error { return nil },
+	})
+	require.ErrorIs(t, ts.Add([][]byte{[]byte("failed")}), writeErr)
+
+	ts.WithObserver(mockObserver{
+		fileFinishing: func(string) error { return nil },
+		fileUnlinking: func(string) error { return nil },
+	})
+	require.NoError(t, ts.Add([][]byte{[]byte("committed")}))
+
+	entries := mustReadAll(tsm1.NewTombstoner(path, nil))
+	require.Len(t, entries, 1)
+	require.Equal(t, "committed", string(entries[0].Key))
 }
 
 func TestTombstoner_Add_Empty(t *testing.T) {
