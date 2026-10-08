@@ -192,9 +192,24 @@ func TestTombstoner_RollbackAfterCommit(t *testing.T) {
 	require.Equal(t, "last", string(entries[1].Key))
 }
 
+// dirNames returns the sorted file names in dir; used to prove a failed commit
+// leaves no temp file behind.
+func dirNames(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
+}
+
 func TestTombstoner_FlushFailureRetry(t *testing.T) {
-	f := MustTempFile(t.TempDir())
+	dir := t.TempDir()
+	f := MustTempFile(dir)
 	defer f.Close()
+	before := dirNames(t, dir)
 
 	ts := tsm1.NewTombstoner(f.Name(), nil)
 	writeErr := errors.New("observer rejected tombstone")
@@ -204,6 +219,7 @@ func TestTombstoner_FlushFailureRetry(t *testing.T) {
 	})
 	require.NoError(t, ts.Add([][]byte{[]byte("failed")}))
 	require.ErrorIs(t, ts.Flush(), writeErr)
+	require.Equal(t, before, dirNames(t, dir), "failed commit must remove its temp file")
 
 	ts.WithObserver(mockObserver{
 		fileFinishing: func(string) error { return nil },
@@ -226,6 +242,7 @@ func TestTombstoner_V3CommitFailureRetry(t *testing.T) {
 	require.NoError(t, gz.Close())
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "0001.tombstone"), existing.Bytes(), 0o600))
 
+	before := dirNames(t, dir)
 	ts := tsm1.NewTombstoner(path, nil)
 	writeErr := errors.New("observer rejected v3 tombstone")
 	ts.WithObserver(mockObserver{
@@ -233,6 +250,7 @@ func TestTombstoner_V3CommitFailureRetry(t *testing.T) {
 		fileUnlinking: func(string) error { return nil },
 	})
 	require.ErrorIs(t, ts.Add([][]byte{[]byte("failed")}), writeErr)
+	require.Equal(t, before, dirNames(t, dir), "failed v3 commit must remove its temp file")
 
 	ts.WithObserver(mockObserver{
 		fileFinishing: func(string) error { return nil },

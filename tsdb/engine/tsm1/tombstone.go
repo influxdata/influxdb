@@ -2,7 +2,6 @@ package tsm1
 
 import (
 	"bufio"
-	"compress/gzip"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/klauspost/compress/gzip"
 )
 
 const TombstoneFileExtension = "tombstone"
@@ -177,8 +177,7 @@ func (t *Tombstoner) Flush() error {
 
 	if err := t.commit(); err != nil {
 		// Reset our temp references and clean up.
-		_ = t.rollback()
-		return err
+		return errors.Join(err, t.rollback())
 	}
 	return nil
 }
@@ -296,33 +295,29 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 	if err != nil {
 		return err
 	}
-	defer tmp.Close()
+
+	// Attach everything to t up front so any failure below is cleaned up by
+	// rollback, including returning the pooled writer.
+	t.pendingFile = tmp
+	t.bw = bufio.NewWriterSize(tmp, 1024*1024)
+	t.gz = getTombstoneGzipWriter(t.bw)
 
 	var b [8]byte
-
-	bw := bufio.NewWriterSize(tmp, 1024*1024)
-
 	binary.BigEndian.PutUint32(b[:4], v3header)
-	if _, err := bw.Write(b[:4]); err != nil {
-		return err
+	if _, err := t.bw.Write(b[:4]); err != nil {
+		return errors.Join(err, t.rollback())
 	}
 
-	gz := getTombstoneGzipWriter(bw)
-	t.gz = gz
-	t.bw = bw
-	t.pendingFile = tmp
 	for _, ts := range tombstones {
-		if err := t.writeTombstone(gz, ts); err != nil {
-			_ = t.rollback()
-			return err
+		if err := t.writeTombstone(t.gz, ts); err != nil {
+			return errors.Join(err, t.rollback())
 		}
 	}
 
 	t.tombstones = t.tombstones[:0]
 
 	if err := t.commit(); err != nil {
-		_ = t.rollback()
-		return err
+		return errors.Join(err, t.rollback())
 	}
 	return nil
 }
@@ -397,62 +392,67 @@ func (t *Tombstoner) prepareV4() error {
 	return nil
 }
 
+// commit finalizes the pending tombstone file. Every in-memory resource is
+// released whether or not it succeeds: the gzip writer is returned to the
+// pool, the file is always closed, and the fields are set to nil so a later
+// rollback finds nothing left to touch. Later stages are skipped once an
+// earlier one fails, and all errors encountered are reported together.
 func (t *Tombstoner) commit() error {
 	// No pending writes
 	if t.pendingFile == nil {
 		return nil
 	}
-
-	if err := t.gz.Close(); err != nil {
-		return err
-	}
-
-	if err := t.bw.Flush(); err != nil {
-		return err
-	}
-
-	// fsync the file to flush the write
-	if err := t.pendingFile.Sync(); err != nil {
-		return err
-	}
-
 	tmpFilename := t.pendingFile.Name()
-	t.pendingFile.Close()
 
-	if err := t.obs.FileFinishing(tmpFilename); err != nil {
-		return err
-	}
-
-	if err := file.RenameFile(tmpFilename, t.tombstonePath()); err != nil {
-		return err
-	}
-
-	if err := file.SyncDir(filepath.Dir(t.tombstonePath())); err != nil {
-		return err
-	}
+	err := t.gz.Close()
+	// Safe even if Close failed: Reset clears the writer's sticky error and
+	// the compressor state before the next checkout.
 	putTombstoneGzipWriter(t.gz)
-
-	t.pendingFile = nil
-	t.bw = nil
 	t.gz = nil
 
-	return nil
+	if err == nil {
+		err = t.bw.Flush()
+	}
+	t.bw = nil
+
+	if err == nil {
+		// fsync the file to flush the write
+		err = t.pendingFile.Sync()
+	}
+	err = errors.Join(err, t.pendingFile.Close())
+	t.pendingFile = nil
+
+	if err == nil {
+		err = t.obs.FileFinishing(tmpFilename)
+	}
+	if err == nil {
+		err = file.RenameFile(tmpFilename, t.tombstonePath())
+	}
+	if err != nil {
+		// Nothing reached the final path; drop the temp file.
+		return errors.Join(err, os.Remove(tmpFilename))
+	}
+
+	return file.SyncDir(filepath.Dir(t.tombstonePath()))
 }
 
+// rollback discards any pending tombstone state. Each field is handled
+// independently so it is safe to call after a partially failed commit, or
+// more than once.
 func (t *Tombstoner) rollback() error {
+	if t.gz != nil {
+		putTombstoneGzipWriter(t.gz)
+		t.gz = nil
+	}
+	t.bw = nil
+
 	if t.pendingFile == nil {
 		return nil
 	}
-
 	tmpFilename := t.pendingFile.Name()
-	t.pendingFile.Close()
-	// Safe even if commit's gz.Close failed: Reset clears the writer's sticky
-	// error and the underlying compressor state before the next checkout.
-	putTombstoneGzipWriter(t.gz)
-	t.gz = nil
-	t.bw = nil
+	err := errors.Join(t.pendingFile.Close(), os.Remove(tmpFilename))
 	t.pendingFile = nil
-	return os.Remove(tmpFilename)
+	return err
 }
 
 // readTombstoneV1 reads the first version of tombstone files that were not

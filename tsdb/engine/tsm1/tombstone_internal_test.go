@@ -1,11 +1,11 @@
 package tsm1
 
 import (
-	"compress/gzip"
 	"fmt"
 	"path/filepath"
 	"testing"
 
+	"github.com/klauspost/compress/gzip"
 	"github.com/stretchr/testify/require"
 )
 
