@@ -43,3 +43,11 @@ func (p *Partition) SetManifestPathForTest(path string) {
 func (p *Partition) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
 	return p.createSeriesListIfNotExists(names, tagsSlice)
 }
+
+// CompactionInterruptForTest returns the current compaction interrupt channel.
+// Only for tests!
+func (p *Partition) CompactionInterruptForTest() <-chan struct{} {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.compactionInterrupt
+}
