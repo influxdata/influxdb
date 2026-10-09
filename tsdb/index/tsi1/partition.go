@@ -66,6 +66,12 @@ type Partition struct {
 
 	currentCompactionN atomic.Int32 // counter of in-progress compactions
 
+	// closeWg tracks deferred closes of files that have been swapped out of
+	// the file set by a completed compaction. Close waits on the reference
+	// count of such files, which readers may hold while blocked in Wait(), so
+	// the actual unmapping/removal is done off the compaction goroutine.
+	closeWg sync.WaitGroup
+
 	// Directory of the Partition's index files.
 	path string
 	id   string // id portion of path.
@@ -382,6 +388,9 @@ func (p *Partition) Close() error {
 		close(p.compactionInterrupt)
 	})
 	p.Wait()
+
+	// Wait for deferred closes of files swapped out by completed compactions.
+	p.closeWg.Wait()
 
 	// Lock index and close remaining
 	p.mu.Lock()
@@ -932,7 +941,11 @@ func (p *Partition) DisableCompactions() {
 	default:
 	}
 
-	if p.compactionsDisabled == 0 {
+	if p.compactionsDisabled == 1 {
+		// First disabler: ask in-flight compactions to abort so that callers
+		// blocked in Wait() (e.g. deletes) are not stuck behind a full
+		// compaction. The interrupt channel is replaced so compactions
+		// started after the next EnableCompactions are unaffected.
 		close(p.compactionInterrupt)
 		p.compactionInterrupt = make(chan struct{})
 	}
@@ -1203,18 +1216,27 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	// Release old files.
 	once.Do(func() { IndexFiles(files).Release() })
 
-	// Close and delete all old index files.
-	for _, f := range files {
-		log.Info("Removing index file", zap.String("path", f.Path()))
+	// Close and delete all old index files. Close waits for the reference
+	// count to drain, and a reader (e.g. a delete holding a series iterator)
+	// may itself be blocked in Wait() on this compaction — closing
+	// synchronously here can deadlock the two, so the files are closed and
+	// removed off the compaction goroutine. They are no longer in the file
+	// set, so no new references can be taken.
+	p.closeWg.Add(1)
+	go func() {
+		defer p.closeWg.Done()
+		for _, f := range files {
+			p.logger.Info("Removing index file", zap.String("path", f.Path()))
 
-		if err := f.Close(); err != nil {
-			log.Error("Cannot close index file", zap.Error(err))
-			return
-		} else if err := os.Remove(f.Path()); err != nil {
-			log.Error("Cannot remove index file", zap.Error(err))
-			return
+			if err := f.Close(); err != nil {
+				p.logger.Error("Cannot close index file", zap.Error(err))
+				return
+			} else if err := os.Remove(f.Path()); err != nil {
+				p.logger.Error("Cannot remove index file", zap.Error(err))
+				return
+			}
 		}
-	}
+	}()
 }
 
 func (p *Partition) Rebuild() {}
@@ -1358,14 +1380,22 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		zap.Int("kb_per_sec", int(float64(n)/elapsed.Seconds())/1024),
 	)
 
-	// Closing the log file will automatically wait until the ref count is zero.
-	if err := logFile.Close(); err != nil {
-		log.Error("Cannot close log file", zap.Error(err))
-		return
-	} else if err := os.Remove(logFile.Path()); err != nil {
-		log.Error("Cannot remove log file", zap.Error(err))
-		return
-	}
+	// Closing the log file waits until its reference count is zero. A reader
+	// (e.g. a delete holding a series iterator) may itself be blocked in
+	// Wait() on this compaction, so closing synchronously here can deadlock
+	// the two. The file is no longer in the file set, so no new references
+	// can be taken; close and remove it off the compaction goroutine.
+	p.closeWg.Add(1)
+	go func() {
+		defer p.closeWg.Done()
+		if err := logFile.Close(); err != nil {
+			p.logger.Error("Cannot close log file", zap.Error(err))
+			return
+		} else if err := os.Remove(logFile.Path()); err != nil {
+			p.logger.Error("Cannot remove log file", zap.Error(err))
+			return
+		}
+	}()
 }
 
 // unionStringSets returns the union of two sets
