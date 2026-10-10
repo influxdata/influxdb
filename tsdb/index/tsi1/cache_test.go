@@ -265,6 +265,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheMiss:           int64(0),
 		statTagValueCacheEviction:       int64(0),
 		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheIdleEviction:   int64(0),
 		statTagValueCacheSize:           int64(0),
 		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
@@ -276,6 +277,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheMiss:           int64(1),
 		statTagValueCacheEviction:       int64(0),
 		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheIdleEviction:   int64(0),
 		statTagValueCacheSize:           int64(0),
 		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
@@ -289,6 +291,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheMiss:           int64(1),
 		statTagValueCacheEviction:       int64(0),
 		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheIdleEviction:   int64(0),
 		statTagValueCacheSize:           int64(1),
 		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
@@ -312,6 +315,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 		statTagValueCacheMiss:           int64(1),
 		statTagValueCacheEviction:       int64(1),
 		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheIdleEviction:   int64(0),
 		statTagValueCacheSize:           int64(2),
 		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
@@ -490,7 +494,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_TriggersOnTurnover(t *testing.T) {
 	// preceded by one miss; every Put past the cache's current size
 	// causes one eviction.
 	logger := zap.NewNop()
-	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.99, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, logger)
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.99, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, 0, logger)
 
 	require.Equal(t, int64(2), cache.capacity.Load())
 
@@ -541,7 +545,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_NoOpAtTarget(t *testing.T) {
 	// evictions while also generating hits, so the windowed hit rate
 	// stays comfortably above target and capacity must not grow.
 	logger := zap.NewNop()
-	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.01, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, logger)
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.01, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, 0, logger)
 
 	insertedSeqs := []int{}
 	insert := func(seq int) {
@@ -676,28 +680,30 @@ func TestNewAdaptiveTagValueSeriesIDCache_RejectsInvalidArguments(t *testing.T) 
 		initial, max     int
 		target, cons     float64
 		minSamples       int
+		idleTimeout      time.Duration
 		wantLogSubstring string
 		wantFallbackSize int64 // size NewTagValueSeriesIDCache was called with
 	}{
-		{"initial zero", 0, 16, 0.95, defaultC, 4, "initial must be > 0", int64(tsdb.DefaultSeriesIDSetCacheSize)},
-		{"initial negative", -1, 16, 0.95, defaultC, 4, "initial must be > 0", int64(tsdb.DefaultSeriesIDSetCacheSize)},
-		{"max equal to initial", 2, 2, 0.95, defaultC, 4, "max must be > initial", 2},
-		{"max less than initial", 2, 1, 0.95, defaultC, 4, "max must be > initial", 2},
-		{"target NaN", 2, 16, math.NaN(), defaultC, 4, "target must be in (0, 1)", 2},
-		{"target zero", 2, 16, 0, defaultC, 4, "target must be in (0, 1)", 2},
-		{"target one", 2, 16, 1, defaultC, 4, "target must be in (0, 1)", 2},
-		{"target negative", 2, 16, -0.1, defaultC, 4, "target must be in (0, 1)", 2},
-		{"target above 1", 2, 16, 1.5, defaultC, 4, "target must be in (0, 1)", 2},
-		{"conservatism NaN", 2, 16, 0.95, math.NaN(), 4, "shrinkConservatism", 2},
-		{"conservatism +Inf", 2, 16, 0.95, math.Inf(1), 4, "shrinkConservatism", 2},
-		{"conservatism -Inf", 2, 16, 0.95, math.Inf(-1), 4, "shrinkConservatism", 2},
-		{"conservatism negative", 2, 16, 0.95, -1, 4, "shrinkConservatism", 2},
-		{"minSamples negative", 2, 16, 0.95, defaultC, -1, "minSamples must be >= 0", 2},
+		{"initial zero", 0, 16, 0.95, defaultC, 4, 0, "initial must be > 0", int64(tsdb.DefaultSeriesIDSetCacheSize)},
+		{"initial negative", -1, 16, 0.95, defaultC, 4, 0, "initial must be > 0", int64(tsdb.DefaultSeriesIDSetCacheSize)},
+		{"max equal to initial", 2, 2, 0.95, defaultC, 4, 0, "max must be > initial", 2},
+		{"max less than initial", 2, 1, 0.95, defaultC, 4, 0, "max must be > initial", 2},
+		{"target NaN", 2, 16, math.NaN(), defaultC, 4, 0, "target must be in (0, 1)", 2},
+		{"target zero", 2, 16, 0, defaultC, 4, 0, "target must be in (0, 1)", 2},
+		{"target one", 2, 16, 1, defaultC, 4, 0, "target must be in (0, 1)", 2},
+		{"target negative", 2, 16, -0.1, defaultC, 4, 0, "target must be in (0, 1)", 2},
+		{"target above 1", 2, 16, 1.5, defaultC, 4, 0, "target must be in (0, 1)", 2},
+		{"conservatism NaN", 2, 16, 0.95, math.NaN(), 4, 0, "shrinkConservatism", 2},
+		{"conservatism +Inf", 2, 16, 0.95, math.Inf(1), 4, 0, "shrinkConservatism", 2},
+		{"conservatism -Inf", 2, 16, 0.95, math.Inf(-1), 4, 0, "shrinkConservatism", 2},
+		{"conservatism negative", 2, 16, 0.95, -1, 4, 0, "shrinkConservatism", 2},
+		{"minSamples negative", 2, 16, 0.95, defaultC, -1, 0, "minSamples must be >= 0", 2},
+		{"idleTimeout negative", 2, 16, 0.95, defaultC, 4, -1, "idleTimeout must be >= 0", 2},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			core, logs := observer.New(zap.ErrorLevel)
-			c := NewAdaptiveTagValueSeriesIDCache(tt.initial, tt.max, tt.target, tt.cons, tt.minSamples, zap.New(core))
+			c := NewAdaptiveTagValueSeriesIDCache(tt.initial, tt.max, tt.target, tt.cons, tt.minSamples, tt.idleTimeout, zap.New(core))
 			require.NotNil(t, c)
 			require.Equal(t, int64(0), c.maxCapacity, "fallback must be non-adaptive (maxCapacity == 0)")
 			require.Equal(t, tt.wantFallbackSize, c.capacity.Load(), "fallback capacity")
@@ -713,26 +719,27 @@ func TestNewAdaptiveTagValueSeriesIDCache_RejectsInvalidArguments(t *testing.T) 
 	// produces its own error log, followed by the fallback summary.
 	t.Run("all invalid arguments reported", func(t *testing.T) {
 		core, logs := observer.New(zap.ErrorLevel)
-		c := NewAdaptiveTagValueSeriesIDCache(-1, -2, math.NaN(), math.Inf(1), -3, zap.New(core))
+		c := NewAdaptiveTagValueSeriesIDCache(-1, -2, math.NaN(), math.Inf(1), -3, -1, zap.New(core))
 		require.NotNil(t, c)
 		require.Equal(t, int64(0), c.maxCapacity, "fallback must be non-adaptive (maxCapacity == 0)")
 		require.Equal(t, int64(tsdb.DefaultSeriesIDSetCacheSize), c.capacity.Load(), "fallback capacity")
 
 		entries := logs.All()
-		require.Len(t, entries, 6, "five argument errors plus the fallback summary")
+		require.Len(t, entries, 7, "six argument errors plus the fallback summary")
 		require.Contains(t, entries[0].Message, "initial must be > 0")
 		require.Contains(t, entries[1].Message, "max must be > initial")
 		require.Contains(t, entries[2].Message, "target must be in (0, 1)")
 		require.Contains(t, entries[3].Message, "shrinkConservatism")
 		require.Contains(t, entries[4].Message, "minSamples must be >= 0")
-		require.Contains(t, entries[5].Message, "falling back to fixed-size cache")
+		require.Contains(t, entries[5].Message, "idleTimeout must be >= 0")
+		require.Contains(t, entries[6].Message, "falling back to fixed-size cache")
 	})
 
 	// Valid conservatism boundary values (0 = median admit; small positive)
 	// must produce an adaptive cache and log nothing.
 	for _, cons := range []float64{0, 0.5, 1, 2.0, 10} {
 		core, logs := observer.New(zap.ErrorLevel)
-		cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.95, cons, 4, zap.New(core))
+		cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.95, cons, 4, 0, zap.New(core))
 		require.NotNil(t, cache)
 		require.Equal(t, int64(16), cache.maxCapacity, "valid args must produce adaptive cache, conservatism=%v", cons)
 		require.Empty(t, logs.All(), "valid args must not log, conservatism=%v", cons)
@@ -810,13 +817,13 @@ func TestDecideShrink_PolicyTable(t *testing.T) {
 			wantNewCap: 50, wantEvict: 50, wantShrink: true,
 		},
 		{
-			// Cold tail of 4900 (and size/2 of 2500) both exceed the per-event
+			// Cold tail of 19900 (and size/2 of 10000) both exceed the per-event
 			// cap, so the absolute bound is the binding one. Decay continues over
 			// later windows (covered by TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped).
 			name:  "cold-tail bounded by maxShrinkEvictPerEvent",
 			hitsW: 1000, missesW: 0, evictionsW: 0,
-			capacity: 5000, size: 5000, warmCount: 100, floor: 10,
-			wantNewCap: 5000 - maxShrinkEvictPerEvent, wantEvict: maxShrinkEvictPerEvent, wantShrink: true,
+			capacity: 20000, size: 20000, warmCount: 100, floor: 10,
+			wantNewCap: 20000 - maxShrinkEvictPerEvent, wantEvict: maxShrinkEvictPerEvent, wantShrink: true,
 		},
 		{
 			name:  "cold-tail sheds exactly the cold tail when under half",
@@ -875,6 +882,42 @@ func decideShrink(hitsW, missesW, evictionsW, capacity, size, warmCount, floor i
 		return decideColdTail(size, warmCount, floor)
 	}
 	return newCap, 0, shrink
+}
+
+// TestDecideIdleShrink_Table exercises the idle-step policy: the slack branch
+// when capacity exceeds occupancy, otherwise one cold-tail step with an empty
+// warm footprint, bounded by floor, size/2 and maxShrinkEvictPerEvent.
+func TestDecideIdleShrink_Table(t *testing.T) {
+	tests := []struct {
+		name                  string
+		capacity, size, floor int64
+		wantNewCap, wantEvict int64
+		wantShrink            bool
+	}{
+		{name: "slack drops headroom to occupancy", capacity: 10, size: 6, floor: 4, wantNewCap: 6, wantEvict: 0, wantShrink: true},
+		{name: "slack floored", capacity: 10, size: 3, floor: 4, wantNewCap: 4, wantEvict: 0, wantShrink: true},
+		{name: "headroom but at floor", capacity: 4, size: 3, floor: 4, wantNewCap: 4, wantEvict: 0, wantShrink: false},
+		{name: "full at floor", capacity: 4, size: 4, floor: 4, wantNewCap: 4, wantEvict: 0, wantShrink: false},
+		{name: "cold tail half-bound", capacity: 10, size: 10, floor: 2, wantNewCap: 5, wantEvict: 5, wantShrink: true},
+		{name: "cold tail floor-bound", capacity: 6, size: 6, floor: 4, wantNewCap: 4, wantEvict: 2, wantShrink: true},
+		{
+			name: "cold tail absolute-bound", capacity: 20000, size: 20000, floor: 2,
+			wantNewCap: 20000 - maxShrinkEvictPerEvent, wantEvict: maxShrinkEvictPerEvent, wantShrink: true,
+		},
+		{
+			// size/2 equals maxShrinkEvictPerEvent: both bounds give the same answer.
+			name: "half-bound equals absolute bound", capacity: 2 * maxShrinkEvictPerEvent, size: 2 * maxShrinkEvictPerEvent, floor: 2,
+			wantNewCap: maxShrinkEvictPerEvent, wantEvict: maxShrinkEvictPerEvent, wantShrink: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newCap, evict, shrink := decideIdleShrink(tt.capacity, tt.size, tt.floor)
+			require.Equal(t, tt.wantShrink, shrink, "shrink")
+			require.Equal(t, tt.wantNewCap, newCap, "newCap")
+			require.Equal(t, tt.wantEvict, evict, "evict")
+		})
+	}
 }
 
 // TestAtTargetEvictionGateLimit_Table exercises the gate-threshold helper across
@@ -969,7 +1012,7 @@ func TestDecideShrink_ConservatismVariation(t *testing.T) {
 // during setup), so the forced capacity stands in for a previously-grown cache.
 func newFullAdaptiveCache(t *testing.T, capacity, minSamples int, target float64) *TagValueSeriesIDCache {
 	t.Helper()
-	c := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, minSamples, zap.NewNop())
+	c := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, minSamples, 0, zap.NewNop())
 	c.capacity.Store(int64(capacity))
 	for i := 0; i < capacity; i++ {
 		c.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
@@ -1017,7 +1060,7 @@ func TestTagValueSeriesIDCache_ShrinkColdTail(t *testing.T) {
 func TestTagValueSeriesIDCache_ShrinkSlack(t *testing.T) {
 	// Capacity 10 but only 4 entries (slack). A quiet, all-hit window trims
 	// capacity down to the occupancy with no eviction.
-	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, 0, zap.NewNop())
 	cache.capacity.Store(10)
 	for i := 0; i < 4; i++ {
 		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
@@ -1054,9 +1097,9 @@ func TestTagValueSeriesIDCache_NoShrinkWhenAllTouched(t *testing.T) {
 // sheds exactly the cap and subsequent windows continue the decay — the claim
 // made by decideColdTail's doc comment.
 //
-// Cache size 3074 with a warm set of 10 and floor 2:
-//   - Window 1: unbounded shed 3064 → size/2 bound 1537 → cap 1024. New cap 2050.
-//   - Window 2: unbounded shed 2040 → size/2 bound 1025 → cap 1024. New cap 1026.
+// Cache size 24578 (3·8192 + 2) with a warm set of 10 and floor 2:
+//   - Window 1: unbounded shed 24568 → size/2 bound 12289 → cap 8192. New cap 16386.
+//   - Window 2: unbounded shed 16376 → size/2 bound 8193 → cap 8192. New cap 8194.
 //
 // The post-shrink cooldown is adaptiveWindowLen(newCap, samples, target), which
 // matches the next window's length, so the cooldown elapses exactly when window 2
@@ -1065,11 +1108,11 @@ func TestTagValueSeriesIDCache_NoShrinkWhenAllTouched(t *testing.T) {
 func TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped(t *testing.T) {
 	const (
 		target  = 0.5
-		size    = 3074
+		size    = 3*maxShrinkEvictPerEvent + 2
 		warm    = 10
 		samples = 8
 	)
-	cache := NewAdaptiveTagValueSeriesIDCache(2, 4096, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, samples, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 32768, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, samples, 0, zap.NewNop())
 	cache.capacity.Store(size)
 
 	// 2-byte values give a unique key per i in [0, 65536); the single-byte
@@ -1097,7 +1140,7 @@ func TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped(t *testing.T) {
 
 	// Window 2: same workload after the cooldown elapses; cap clamps again.
 	// ShrinkEvictions accumulates, so the second shrink is visible as a second
-	// 1024 increment.
+	// maxShrinkEvictPerEvent increment.
 	drive(adaptiveWindowLen(afterFirst, samples, target))
 	require.Equal(t, int64(2*maxShrinkEvictPerEvent), cache.stats.ShrinkEvictions.Load(),
 		"second shrink should add another maxShrinkEvictPerEvent — decay continues")
@@ -1185,7 +1228,7 @@ func TestTagValueSeriesIDCache_ShrinkBoundaryReTouch(t *testing.T) {
 	// Re-touching the deepest warm element must recede the boundary to its
 	// predecessor, keeping warmCount equal to the true distinct-touched count.
 	// A large minSamples keeps the window open so we can inspect mid-window.
-	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 1000, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 1000, 0, zap.NewNop())
 	cache.capacity.Store(5)
 	for i := 0; i < 5; i++ {
 		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
@@ -1209,7 +1252,7 @@ func TestTagValueSeriesIDCache_ShrinkWindowFirstGetCountsInRate(t *testing.T) {
 	// hit rate (the only miss is excluded from the baseline) and the rate gate
 	// fails to block a spurious shrink.
 	const target = 0.95
-	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, 0, zap.NewNop())
 	cache.capacity.Store(10)
 	for i := 0; i < 4; i++ {
 		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
@@ -1238,7 +1281,7 @@ func TestTagValueSeriesIDCache_ShrinkGrowCooldownStamp(t *testing.T) {
 	// A grow stamps the cooldown so a freshly-grown cache is not immediately
 	// shrunk; the cooldown is sized to the new capacity, not the half-full
 	// occupancy. Drive a grow and assert the cooldown matches.
-	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.99, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.99, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, 0, zap.NewNop())
 	insert := func(seq int) {
 		v := []byte{byte(seq)}
 		require.Nil(t, cache.Get([]byte("m"), []byte("k"), v))
@@ -1298,7 +1341,7 @@ func TestTagValueSeriesIDCache_Adaptive_Concurrent(t *testing.T) {
 		t.Skip("Skipping long test")
 	}
 
-	cache := NewAdaptiveTagValueSeriesIDCache(8, 256, 0.9, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 16, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(8, 256, 0.9, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 16, 0, zap.NewNop())
 
 	const (
 		writers = 4
@@ -1359,7 +1402,7 @@ func TestTagValueSeriesIDCache_Adaptive_Concurrent(t *testing.T) {
 // first hit would start a window and set deepestTouched.
 func TestTagValueSeriesIDCache_AtFloor_SkipsShrinkBookkeeping(t *testing.T) {
 	const floor = 8
-	cache := NewAdaptiveTagValueSeriesIDCache(floor, 64, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(floor, 64, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, 0, zap.NewNop())
 	require.Equal(t, int64(floor), cache.capacity.Load())
 	require.Equal(t, int64(floor), cache.minCapacity)
 
@@ -1396,7 +1439,7 @@ func TestTagValueSeriesIDCache_AtFloor_SkipsShrinkBookkeeping(t *testing.T) {
 // bookkeeping so the cache can shrink again.
 func TestTagValueSeriesIDCache_FloorGateReopensAfterGrowth(t *testing.T) {
 	const floor = 4
-	cache := NewAdaptiveTagValueSeriesIDCache(floor, 64, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(floor, 64, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, 0, zap.NewNop())
 	require.Equal(t, int64(floor), cache.capacity.Load())
 
 	// Get-miss then Put each distinct key, driving evictions that grow capacity.
@@ -1434,7 +1477,7 @@ func TestTagValueSeriesIDCache_FloorGateReopensAfterGrowth(t *testing.T) {
 // keeping the two benchmarks an apples-to-apples comparison of the overhead the
 // gate removes.
 func benchmarkGetHit(b *testing.B, capacity, floor int) {
-	cache := NewAdaptiveTagValueSeriesIDCache(floor, 1<<20, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, tsdb.DefaultAdaptiveCacheMinSamples, zap.NewNop())
+	cache := NewAdaptiveTagValueSeriesIDCache(floor, 1<<20, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, tsdb.DefaultAdaptiveCacheMinSamples, 0, zap.NewNop())
 	cache.capacity.Store(int64(capacity))
 	for i := 0; i < capacity; i++ {
 		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
@@ -1458,4 +1501,580 @@ func BenchmarkTagValueSeriesIDCache_GetHit_AtFloor(b *testing.B) {
 // Above the floor (capacity > minCapacity): the shrink bookkeeping runs.
 func BenchmarkTagValueSeriesIDCache_GetHit_AboveFloor(b *testing.B) {
 	benchmarkGetHit(b, 64, 2)
+}
+
+// idleKey returns a 2-byte value so up to 65536 entries are unique.
+func idleKey(i int) []byte { return []byte{byte(i >> 8), byte(i)} }
+
+// newIdleAdaptiveCache returns an adaptive cache with the given floor and idle
+// timeout, forced to capacity and holding entries values 0..entries-1 (front
+// entries-1, back 0). No evictions occur during setup, so the forced capacity
+// stands in for a previously-grown cache.
+func newIdleAdaptiveCache(t *testing.T, floor, capacity, entries int, idle time.Duration) *TagValueSeriesIDCache {
+	t.Helper()
+	require.LessOrEqual(t, entries, capacity, "setup must not evict")
+	c := NewAdaptiveTagValueSeriesIDCache(floor, 1<<20, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, idle, zap.NewNop())
+	require.Equal(t, int64(1<<20), c.maxCapacity, "setup must produce an adaptive cache")
+	c.capacity.Store(int64(capacity))
+	for i := 0; i < entries; i++ {
+		c.Put([]byte("m"), []byte("k"), idleKey(i), tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	require.Equal(t, int64(entries), c.stats.Size.Load(), "setup occupancy")
+	return c
+}
+
+func idleGet(c *TagValueSeriesIDCache, i int) *tsdb.SeriesIDSet {
+	return c.Get([]byte("m"), []byte("k"), idleKey(i))
+}
+
+func idleExists(c *TagValueSeriesIDCache, i int) bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.exists("m", "k", string(idleKey(i)))
+}
+
+// newIdleState returns sweeper state as of t0 with the cache's current Get count.
+func newIdleState(c *TagValueSeriesIDCache, t0 time.Time) *idleSweepState {
+	return &idleSweepState{lastGets: c.stats.Hits.Load() + c.stats.Misses.Load(), idleSince: t0}
+}
+
+// requireIdleSurvivors asserts exactly which keys are present and absent.
+func requireIdleSurvivors(t *testing.T, c *TagValueSeriesIDCache, present, absent []int) {
+	t.Helper()
+	for _, v := range present {
+		require.True(t, idleExists(c, v), "expected value %d to survive", v)
+	}
+	for _, v := range absent {
+		require.False(t, idleExists(c, v), "expected value %d to be evicted", v)
+	}
+}
+
+// requireIdleStep ticks at now and asserts a step from oldCap to newCap
+// shedding evicted entries.
+func requireIdleStep(t *testing.T, c *TagValueSeriesIDCache, st *idleSweepState, now time.Time, oldCap, newCap, evicted int64) {
+	t.Helper()
+	e, ok := c.idleTick(st, now)
+	require.True(t, ok, "expected an idle step at %v", now)
+	require.Equal(t, resizeEvent{oldCap: oldCap, newCap: newCap, evicted: evicted}, e)
+	require.Equal(t, newCap, c.capacity.Load(), "capacity")
+	c.Lock()
+	n := int64(c.evictor.Len())
+	c.Unlock()
+	require.Equal(t, n, c.stats.Size.Load(), "stats.Size must track the list")
+}
+
+// requireNoIdleStep ticks at now and asserts nothing changed.
+func requireNoIdleStep(t *testing.T, c *TagValueSeriesIDCache, st *idleSweepState, now time.Time) {
+	t.Helper()
+	capBefore, sizeBefore := c.capacity.Load(), c.stats.Size.Load()
+	_, ok := c.idleTick(st, now)
+	require.False(t, ok, "expected no idle step at %v", now)
+	require.Equal(t, capBefore, c.capacity.Load(), "capacity")
+	require.Equal(t, sizeBefore, c.stats.Size.Load(), "size")
+}
+
+var idleT0 = time.Unix(1_700_000_000, 0)
+
+func TestTagValueSeriesIDCache_IdleTick_ActiveCacheNeverSteps(t *testing.T) {
+	const D = time.Hour
+	c := newIdleAdaptiveCache(t, 2, 10, 10, D)
+	st := newIdleState(c, idleT0)
+
+	// A Get between every pair of ticks keeps the cache active, however far
+	// apart the ticks are.
+	for k := 1; k <= 5; k++ {
+		require.NotNil(t, idleGet(c, k))
+		now := idleT0.Add(time.Duration(k) * D)
+		requireNoIdleStep(t, c, st, now)
+		require.Equal(t, now, st.idleSince, "an active tick restarts the silent stretch")
+	}
+	require.Equal(t, int64(10), c.capacity.Load())
+	require.Zero(t, c.stats.IdleEvictions.Load())
+
+	// Silence: no step until exactly D has passed.
+	last := st.idleSince
+	requireNoIdleStep(t, c, st, last.Add(D-time.Nanosecond))
+	requireIdleStep(t, c, st, last.Add(D), 10, 5, 5)
+}
+
+func TestTagValueSeriesIDCache_IdleTick_InitialThenQuarterCadence_KeepsMRU(t *testing.T) {
+	const D = time.Hour
+	const Q = D / 4
+	c := newIdleAdaptiveCache(t, 2, 10, 10, D)
+	st := newIdleState(c, idleT0)
+
+	// Touch {0,1,2}: list is front 2,1,0,9,8,7,6,5,4,3 back.
+	for _, v := range []int{0, 1, 2} {
+		require.NotNil(t, idleGet(c, v))
+	}
+	requireNoIdleStep(t, c, st, idleT0) // active
+	for k := 1; k <= 3; k++ {
+		requireNoIdleStep(t, c, st, idleT0.Add(time.Duration(k)*Q))
+	}
+
+	// Step 1 at D: min(10-2, 10/2) = 5 from the tail.
+	requireIdleStep(t, c, st, idleT0.Add(D), 10, 5, 5)
+	requireIdleSurvivors(t, c, []int{0, 1, 2, 8, 9}, []int{3, 4, 5, 6, 7})
+
+	// Step 2 one quarter later: min(5-2, 5/2) = 2.
+	requireIdleStep(t, c, st, idleT0.Add(D+Q), 5, 3, 2)
+	requireIdleSurvivors(t, c, []int{0, 1, 2}, []int{3, 4, 5, 6, 7, 8, 9})
+
+	// Step 3: min(3-2, 3/2) = 1; the LRU of the touched set goes.
+	requireIdleStep(t, c, st, idleT0.Add(D+2*Q), 3, 2, 1)
+	requireIdleSurvivors(t, c, []int{1, 2}, []int{0, 3, 4, 5, 6, 7, 8, 9})
+
+	// At the floor: nothing more to do.
+	requireNoIdleStep(t, c, st, idleT0.Add(D+3*Q))
+
+	require.Equal(t, int64(8), c.stats.IdleEvictions.Load())
+	require.Zero(t, c.stats.Evictions.Load(), "idle steps are not forced evictions")
+	require.Zero(t, c.stats.ShrinkEvictions.Load(), "idle steps are not footprint shrinks")
+	require.Equal(t, int64(2), c.stats.Size.Load())
+}
+
+func TestTagValueSeriesIDCache_IdleTick_SlackStepThenColdTail(t *testing.T) {
+	const D = time.Hour
+	core, logs := observer.New(zap.InfoLevel)
+	c := newIdleAdaptiveCache(t, 4, 10, 6, D)
+	c.SetLogger(zap.New(core))
+	st := newIdleState(c, idleT0)
+
+	// Step 1: slack, capacity 10 → occupancy 6, nothing evicted.
+	requireIdleStep(t, c, st, idleT0.Add(D), 10, 6, 0)
+	requireIdleSurvivors(t, c, []int{0, 1, 2, 3, 4, 5}, nil)
+	require.Equal(t, 1, logs.FilterMessage(logMsgCacheIdleShrink).Len(), "the slack step is logged")
+
+	// Step 2: cold tail, min(6-4, 6/2) = 2 from the tail.
+	requireIdleStep(t, c, st, idleT0.Add(D+D/4), 6, 4, 2)
+	requireIdleSurvivors(t, c, []int{2, 3, 4, 5}, []int{0, 1})
+	require.Equal(t, int64(2), c.stats.IdleEvictions.Load())
+}
+
+func TestTagValueSeriesIDCache_IdleTick_SlackToFloorBelowOccupancy(t *testing.T) {
+	const D = time.Hour
+	c := newIdleAdaptiveCache(t, 4, 10, 3, D)
+	st := newIdleState(c, idleT0)
+
+	// Occupancy 3 is below the floor 4: capacity drops to the floor, and the
+	// entries all stay.
+	requireIdleStep(t, c, st, idleT0.Add(D), 10, 4, 0)
+	requireIdleSurvivors(t, c, []int{0, 1, 2}, nil)
+	requireNoIdleStep(t, c, st, idleT0.Add(D+D/4))
+	require.Zero(t, c.stats.IdleEvictions.Load())
+}
+
+func TestTagValueSeriesIDCache_IdleTick_AbsoluteBound(t *testing.T) {
+	const D = time.Hour
+	const n = 20000
+	c := newIdleAdaptiveCache(t, 2, n, n, D)
+	st := newIdleState(c, idleT0)
+
+	// Step 1: min(19998, 10000, 8192) — the absolute bound binds.
+	requireIdleStep(t, c, st, idleT0.Add(D), n, n-maxShrinkEvictPerEvent, maxShrinkEvictPerEvent)
+	for v := 0; v < n; v++ {
+		require.Equal(t, v >= maxShrinkEvictPerEvent, idleExists(c, v), "value %d", v)
+	}
+
+	// Step 2: min(11806, 5904, 8192) — size/2 binds.
+	const after1 = n - maxShrinkEvictPerEvent
+	requireIdleStep(t, c, st, idleT0.Add(D+D/4), after1, after1-after1/2, after1/2)
+	for v := 0; v < n; v++ {
+		require.Equal(t, v >= maxShrinkEvictPerEvent+after1/2, idleExists(c, v), "value %d", v)
+	}
+	require.Equal(t, int64(maxShrinkEvictPerEvent+after1/2), c.stats.IdleEvictions.Load())
+}
+
+func TestTagValueSeriesIDCache_IdleTick_GetResetsClock(t *testing.T) {
+	const D = time.Hour
+	const Q = D / 4
+	c := newIdleAdaptiveCache(t, 2, 10, 10, D)
+	st := newIdleState(c, idleT0)
+
+	requireIdleStep(t, c, st, idleT0.Add(D), 10, 5, 5)
+	requireIdleSurvivors(t, c, []int{5, 6, 7, 8, 9}, []int{0, 1, 2, 3, 4})
+
+	// A Get (between ticks, at ~D+Q/2) on the LRU survivor 5 promotes it.
+	require.NotNil(t, idleGet(c, 5))
+	requireNoIdleStep(t, c, st, idleT0.Add(D+Q))
+	require.Equal(t, idleT0.Add(D+Q), st.idleSince, "the Get restarts the silent stretch")
+
+	// Less than D of silence since the restart: no steps.
+	for k := 2; k <= 4; k++ {
+		requireNoIdleStep(t, c, st, idleT0.Add(D+time.Duration(k)*Q))
+	}
+
+	// Exactly D of silence: step 2 sheds the tail {6,7}, not the touched 5.
+	requireIdleStep(t, c, st, idleT0.Add(2*D+Q), 5, 3, 2)
+	requireIdleSurvivors(t, c, []int{5, 8, 9}, []int{6, 7})
+
+	// Quarter cadence resumes.
+	requireIdleStep(t, c, st, idleT0.Add(2*D+2*Q), 3, 2, 1)
+	requireIdleSurvivors(t, c, []int{5, 9}, []int{8})
+}
+
+func TestTagValueSeriesIDCache_IdleTick_AddToSetIsNotActivity(t *testing.T) {
+	const D = time.Hour
+	const Q = D / 4
+	c := newIdleAdaptiveCache(t, 2, 10, 10, D)
+	st := newIdleState(c, idleT0)
+
+	// Write-path maintenance of cached sets, including on the LRU entry 0,
+	// neither counts as a read nor promotes the entry.
+	for k := 1; k <= 3; k++ {
+		c.Lock()
+		c.addToSet([]byte("m"), []byte("k"), idleKey(0), uint64(1000+k))
+		c.Unlock()
+		c.Delete([]byte("m"), []byte("k"), idleKey(1), 1)
+		requireNoIdleStep(t, c, st, idleT0.Add(time.Duration(k)*Q))
+	}
+	require.Equal(t, idleT0, st.idleSince, "addToSet/Delete must not restart the silent stretch")
+
+	requireIdleStep(t, c, st, idleT0.Add(D), 10, 5, 5)
+	requireIdleSurvivors(t, c, []int{5, 6, 7, 8, 9}, []int{0, 1, 2, 3, 4})
+}
+
+func TestTagValueSeriesIDCache_IdleTick_ResetsWindows(t *testing.T) {
+	const D = time.Hour
+	c := newIdleAdaptiveCache(t, 2, 10, 10, D)
+
+	// Open a Get-driven shrink window (window length 10 > 3 Gets).
+	for _, v := range []int{7, 8, 9} {
+		require.NotNil(t, idleGet(c, v))
+	}
+	c.Lock()
+	require.Positive(t, c.shrinkWindowGets, "precondition: a shrink window is open")
+	// A stale boundary at the tail, and grow-window state that looks almost
+	// ready to fire against old baselines.
+	c.deepestTouched = c.evictor.Back()
+	c.evictionsSinceCheck = 7
+	c.lastHits, c.lastMisses = 99, 99
+	c.Unlock()
+
+	st := newIdleState(c, idleT0)
+	requireIdleStep(t, c, st, idleT0.Add(D), 10, 5, 5)
+
+	c.Lock()
+	require.Nil(t, c.deepestTouched, "footprint boundary cleared")
+	require.Zero(t, c.shrinkWindowGets, "Get-driven shrink window ended")
+	require.Zero(t, c.evictionsSinceCheck, "grow window restarted")
+	require.Equal(t, c.stats.Hits.Load(), c.lastHits)
+	require.Equal(t, c.stats.Misses.Load(), c.lastMisses)
+	require.Equal(t, adaptiveWindowLen(5, c.minSamples, c.targetHitRate), c.cooldownGets, "cooldown sized to the new capacity")
+	c.Unlock()
+
+	// Gets afterwards run the shrink window machinery cleanly.
+	for i := 0; i < 50; i++ {
+		idleGet(c, 5+i%5)
+	}
+
+	// Get-miss + Put on new keys regrows through the real grow policy.
+	for i := 100; i < 160; i++ {
+		require.Nil(t, idleGet(c, i))
+		c.Put([]byte("m"), []byte("k"), idleKey(i), tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	grown := c.capacity.Load()
+	require.Greater(t, grown, int64(5), "the cache must regrow after an idle step")
+
+	// A later silent stretch steps again. Growth doubles capacity ahead of
+	// occupancy, so this first step is the slack branch.
+	st = newIdleState(c, idleT0.Add(10*D))
+	size := c.stats.Size.Load()
+	require.Less(t, size, grown, "precondition: headroom after growth")
+	requireIdleStep(t, c, st, idleT0.Add(11*D), grown, size, 0)
+}
+
+func TestTagValueSeriesIDCache_IdleTick_LogsOncePerStep(t *testing.T) {
+	const D = time.Hour
+	const Q = D / 4
+	core, logs := observer.New(zap.DebugLevel)
+	c := newIdleAdaptiveCache(t, 2, 10, 10, D)
+	c.SetLogger(zap.New(core))
+	st := newIdleState(c, idleT0)
+
+	require.NotNil(t, idleGet(c, 9))
+	requireNoIdleStep(t, c, st, idleT0) // active: no log
+	requireNoIdleStep(t, c, st, idleT0.Add(Q))
+	require.Zero(t, logs.Len(), "no log for active or quiet ticks")
+
+	type step struct{ oldCap, newCap, evicted int64 }
+	want := []step{{10, 5, 5}, {5, 3, 2}, {3, 2, 1}}
+	for k, w := range want {
+		requireIdleStep(t, c, st, idleT0.Add(D+time.Duration(k)*Q), w.oldCap, w.newCap, w.evicted)
+	}
+	requireNoIdleStep(t, c, st, idleT0.Add(D+3*Q)) // at the floor: no log
+
+	entries := logs.All()
+	require.Len(t, entries, len(want), "one log line per step")
+	for k, w := range want {
+		require.Equal(t, logMsgCacheIdleShrink, entries[k].Message)
+		require.Equal(t, zap.InfoLevel, entries[k].Level)
+		require.Equal(t, map[string]interface{}{
+			"old_capacity": w.oldCap,
+			"new_capacity": w.newCap,
+			"min_capacity": int64(2),
+			"evicted":      w.evicted,
+			"idle_timeout": D,
+		}, entries[k].ContextMap())
+	}
+}
+
+func TestTagValueSeriesIDCache_IdleTick_DisabledIsFree(t *testing.T) {
+	for name, c := range map[string]*TagValueSeriesIDCache{
+		"adaptive with idleTimeout 0": newIdleAdaptiveCache(t, 2, 10, 10, 0),
+		"fixed-size":                  NewTagValueSeriesIDCache(10),
+	} {
+		t.Run(name, func(t *testing.T) {
+			c.capacity.Store(10)
+			c.startIdleSweeper()
+			c.Lock()
+			require.Nil(t, c.sweepClosing, "no sweeper may start when disabled")
+			c.Unlock()
+			c.stopIdleSweeper() // no-op
+
+			st := newIdleState(c, idleT0)
+			requireNoIdleStep(t, c, st, idleT0.Add(time.Hour))
+			require.Zero(t, c.stats.IdleEvictions.Load())
+		})
+	}
+}
+
+func TestTagValueSeriesIDCache_IdleSweeper_StartStop(t *testing.T) {
+	const D = 40 * time.Millisecond // tick every 10ms
+	c := newIdleAdaptiveCache(t, 2, 8, 8, D)
+
+	settled := func() bool { return c.capacity.Load() == 2 && c.stats.Size.Load() == 2 }
+
+	c.startIdleSweeper()
+	c.Lock()
+	first := c.sweepClosing
+	c.Unlock()
+	require.NotNil(t, first, "sweeper must start")
+	c.startIdleSweeper() // second start is a no-op
+	c.Lock()
+	require.True(t, first == c.sweepClosing, "second start must not replace the running sweeper")
+	c.Unlock()
+
+	// Two steps: 8 → 4 → 2.
+	require.Eventually(t, settled, 2*time.Second, 5*time.Millisecond)
+	requireIdleSurvivors(t, c, []int{6, 7}, []int{0, 1, 2, 3, 4, 5})
+
+	c.stopIdleSweeper()
+	c.stopIdleSweeper() // idempotent
+	c.Lock()
+	require.Nil(t, c.sweepClosing)
+	require.Nil(t, c.sweepDone)
+	c.Unlock()
+
+	// Refill while stopped, then restart: the cache decays again.
+	c.Lock()
+	c.capacity.Store(8)
+	c.Unlock()
+	for i := 100; i < 106; i++ {
+		c.Put([]byte("m"), []byte("k"), idleKey(i), tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	require.Equal(t, int64(8), c.stats.Size.Load())
+	c.startIdleSweeper()
+	defer c.stopIdleSweeper()
+	require.Eventually(t, settled, 2*time.Second, 5*time.Millisecond)
+	requireIdleSurvivors(t, c, []int{104, 105}, []int{6, 7, 100, 101, 102, 103})
+	require.Equal(t, int64(12), c.stats.IdleEvictions.Load())
+}
+
+// TestTagValueSeriesIDCache_IdleTick_GetBeforeLockAbandonsStep blocks idleTick
+// on the cache lock, lands a Get while holding it, and checks the tick abandons
+// the step and restarts the silent stretch. If the tick goroutine has not yet
+// reached the lock when the Get lands, the lockless check catches the Get
+// instead; the outcome is the same either way.
+func TestTagValueSeriesIDCache_IdleTick_GetBeforeLockAbandonsStep(t *testing.T) {
+	const D = time.Hour
+	c := newIdleAdaptiveCache(t, 2, 10, 10, D)
+	st := newIdleState(c, idleT0)
+	now := idleT0.Add(D)
+
+	type result struct {
+		e  resizeEvent
+		ok bool
+	}
+	res := make(chan result, 1)
+	c.Lock()
+	go func() {
+		e, ok := c.idleTick(st, now)
+		res <- result{e, ok}
+	}()
+	time.Sleep(20 * time.Millisecond) // let the tick pass its lockless checks and block
+	_, hit := c.get([]byte("m"), []byte("k"), idleKey(9))
+	require.True(t, hit)
+	c.Unlock()
+
+	r := <-res
+	require.False(t, r.ok, "a Get after the decision must abandon the step")
+	require.Equal(t, resizeEvent{}, r.e)
+	require.Equal(t, int64(10), c.capacity.Load(), "capacity")
+	require.Equal(t, int64(10), c.stats.Size.Load(), "size")
+	require.Zero(t, c.stats.IdleEvictions.Load())
+	require.Equal(t, now, st.idleSince, "the silent stretch restarts at the tick")
+	require.Equal(t, c.stats.Hits.Load()+c.stats.Misses.Load(), st.lastGets)
+
+	// Silence from here steps D after the restarted stretch, not before.
+	requireNoIdleStep(t, c, st, now.Add(D-time.Nanosecond))
+	requireIdleStep(t, c, st, now.Add(D), 10, 5, 5)
+}
+
+// TestTagValueSeriesIDCache_IdleSweeper_StopIgnoresLaterStart races a stop
+// against a start. The stop must return once the sweeper it stopped exits, even
+// when the start lands after the stop's swap and its sweeper stays running.
+func TestTagValueSeriesIDCache_IdleSweeper_StopIgnoresLaterStart(t *testing.T) {
+	const rounds = 1000
+	c := newIdleAdaptiveCache(t, 2, 8, 8, time.Hour) // never ticks during the test
+
+	for r := 0; r < rounds; r++ {
+		c.startIdleSweeper()
+
+		var mu sync.RWMutex
+		var wg sync.WaitGroup
+		stopped := make(chan struct{})
+		mu.Lock()
+		wg.Add(2)
+		go func() {
+			mu.RLock()
+			defer mu.RUnlock()
+			defer wg.Done()
+			c.stopIdleSweeper()
+			close(stopped)
+		}()
+		go func() {
+			mu.RLock()
+			defer mu.RUnlock()
+			defer wg.Done()
+			c.startIdleSweeper()
+		}()
+		mu.Unlock() // start both at once
+
+		select {
+		case <-stopped:
+		case <-time.After(5 * time.Second):
+			require.FailNow(t, "stopIdleSweeper waited on a sweeper it did not stop", "round %d", r)
+		}
+		wg.Wait()
+
+		// Whichever order they ran in, one stop leaves nothing running.
+		c.stopIdleSweeper()
+		c.Lock()
+		require.Nil(t, c.sweepClosing, "round %d", r)
+		require.Nil(t, c.sweepDone, "round %d", r)
+		c.Unlock()
+	}
+}
+
+// TestTagValueSeriesIDCache_IdleSweeper_Concurrent interleaves idle shrink
+// steps (direct, and through idleTick's lockless decision) with
+// Get/Put/Delete/addToSet traffic and the lockless Statistics reader under the
+// race detector, then checks the cache's structural invariants.
+func TestTagValueSeriesIDCache_IdleSweeper_Concurrent(t *testing.T) {
+	const (
+		floor   = 4
+		maxCap  = 256
+		keys    = 600 // > maxCap, so Puts keep evicting and growing
+		workers = 4   // each of Get, Put, Delete, addToSet
+		iters   = 20000
+	)
+	c := NewAdaptiveTagValueSeriesIDCache(floor, maxCap, 0.9, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 16, time.Hour, zap.NewNop())
+	require.Equal(t, int64(maxCap), c.maxCapacity)
+	name, key := []byte("m"), []byte("k")
+
+	// Start grown and full so the first idle step sheds entries whatever the
+	// scheduler's interleaving (at -cpu=1 the steppers may run before any Put).
+	c.capacity.Store(maxCap)
+	for i := 0; i < maxCap; i++ {
+		c.Put(name, key, idleKey(i), tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	require.Equal(t, int64(maxCap), c.stats.Size.Load(), "setup occupancy")
+
+	var tickSteps, tickAbandoned atomic.Int64
+	bodies := []func(i int){
+		func(i int) { _ = c.Get(name, key, idleKey(i%keys)) },
+		func(i int) { c.Put(name, key, idleKey((i*7)%keys), tsdb.NewSeriesIDSet(uint64(i))) },
+		func(i int) { c.Delete(name, key, idleKey((i*3)%keys), uint64(i)) },
+		func(i int) {
+			c.Lock()
+			c.addToSet(name, key, idleKey((i*5)%keys), uint64(i))
+			c.Unlock()
+		},
+		// Idle steps, bypassing the idle decision so they interleave with traffic.
+		func(int) {
+			c.Lock()
+			e, ok := c.idleShrinkLocked()
+			c.Unlock()
+			if ok {
+				c.logIdleShrink(e)
+			}
+		},
+		// Idle ticks through the full decision: state that is already idleTimeout
+		// silent as of the current Get count, so the lockless checks pass unless a
+		// Get lands first, and the re-check under the lock races the Get workers.
+		// The state is per call because idleSweepState is single-owner.
+		func(int) {
+			st := newIdleState(c, idleT0)
+			now := idleT0.Add(time.Hour)
+			switch _, ok := c.idleTick(st, now); {
+			case ok:
+				tickSteps.Add(1)
+			case st.idleSince.Equal(now):
+				tickAbandoned.Add(1) // a Get moved the counter before or under the lock
+			}
+		},
+		func(int) { _ = c.Statistics(nil) },
+	}
+	total := len(bodies) * workers
+
+	// Barrier: every goroutine increments concurrency before arriving and
+	// decrements only after its work, so the high-water mark is exactly total.
+	var concurrency, maxConcurrency atomic.Int64
+	var arrived, wg sync.WaitGroup
+	proceed := make(chan struct{})
+	arrived.Add(total)
+	for _, body := range bodies {
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				n := concurrency.Add(1)
+				for {
+					old := maxConcurrency.Load()
+					if n <= old || maxConcurrency.CompareAndSwap(old, n) {
+						break
+					}
+				}
+				arrived.Done()
+				<-proceed
+				for i := 0; i < iters; i++ {
+					body(i)
+				}
+				concurrency.Add(-1)
+			}()
+		}
+	}
+	arrived.Wait()
+	close(proceed)
+	wg.Wait()
+	t.Logf("max concurrency: %d", maxConcurrency.Load())
+	require.Equal(t, int64(total), maxConcurrency.Load(), "all goroutines must overlap")
+	t.Logf("idleTick: %d steps, %d abandoned on a moved Get counter", tickSteps.Load(), tickAbandoned.Load())
+
+	c.Lock()
+	defer c.Unlock()
+	listLen := int64(c.evictor.Len())
+	var mapLen int64
+	for _, mmap := range c.cache {
+		for _, tkmap := range mmap {
+			mapLen += int64(len(tkmap))
+		}
+	}
+	require.Equal(t, listLen, c.stats.Size.Load(), "stats.Size must track the list")
+	require.Equal(t, listLen, mapLen, "map-reachable elements must equal the list length")
+	require.LessOrEqual(t, listLen, c.capacity.Load(), "size <= capacity")
+	require.GreaterOrEqual(t, c.capacity.Load(), int64(floor), "capacity >= floor")
+	require.LessOrEqual(t, c.capacity.Load(), int64(maxCap), "capacity <= max")
+	require.Positive(t, c.stats.IdleEvictions.Load(), "idle steps must have shed entries")
 }
