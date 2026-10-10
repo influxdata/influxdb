@@ -97,6 +97,16 @@ const (
 	// shrinks on skewed workloads.
 	DefaultSeriesIDSetCacheShrinkConservatism = 2.5
 
+	// DefaultSeriesIDSetCacheIdleTimeout is the default time an adaptive TSI
+	// series-id-set cache must serve no reads before it starts returning
+	// borrowed capacity. See SeriesIDSetCacheIdleTimeout.
+	DefaultSeriesIDSetCacheIdleTimeout = 2 * time.Hour
+
+	// MinSeriesIDSetCacheIdleTimeout is the smallest non-zero
+	// SeriesIDSetCacheIdleTimeout that validation accepts. Shorter timeouts
+	// would shrink a cache between ordinary bursts of queries.
+	MinSeriesIDSetCacheIdleTimeout = time.Minute
+
 	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
 	// partition snapshot compactions that can run at one time.
 	// A value of 0 results in runtime.GOMAXPROCS(0).
@@ -120,6 +130,7 @@ var (
 	ErrAdaptiveCacheSizingRequiresCacheSize    = errors.New("series-id-set-cache-size must be > 0 to use adaptive cache sizing")
 	ErrAdaptiveCacheMaxSizeTooSmall            = errors.New("series-id-set-cache-max-size must be > series-id-set-cache-size")
 	ErrSeriesIDSetCacheShrinkConservatismRange = errors.New("series-id-set-cache-shrink-conservatism must be a finite value >= 0.0")
+	ErrSeriesIDSetCacheIdleTimeoutRange        = errors.New("series-id-set-cache-idle-timeout must be 0 (disabled) or at least 1m")
 )
 
 var SingleGenerationReasonText string = SingleGenerationReason()
@@ -239,6 +250,17 @@ type Config struct {
 	// here. Validation rejects NaN, ±Inf, and values < 0.0.
 	SeriesIDSetCacheShrinkConservatism float64 `toml:"series-id-set-cache-shrink-conservatism"`
 
+	// SeriesIDSetCacheIdleTimeout bounds how long an adaptive TSI series-id-set
+	// cache keeps capacity it grew into once reads stop. When a shard's cache
+	// has served no reads for this long, one shrink step runs (unused headroom
+	// dropped, or up to half the cache / 8192 least-recently-used entries
+	// shed), then one more every quarter of this duration while reads stay
+	// absent, until capacity is back at SeriesIDSetCacheSize. The cache re-grows
+	// on demand. A value of 0 disables idle shrinking; otherwise the minimum
+	// is MinSeriesIDSetCacheIdleTimeout (1m). Ignored unless adaptive sizing is
+	// enabled. The default is DefaultSeriesIDSetCacheIdleTimeout (2h).
+	SeriesIDSetCacheIdleTimeout toml.Duration `toml:"series-id-set-cache-idle-timeout"`
+
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
 	// that can be running at one time across all series partitions in a database. Snapshots scheduled
 	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
@@ -285,6 +307,7 @@ func NewConfig() Config {
 		MaxIndexLogFileSize:                toml.Size(DefaultMaxIndexLogFileSize),
 		SeriesIDSetCacheSize:               DefaultSeriesIDSetCacheSize,
 		SeriesIDSetCacheShrinkConservatism: DefaultSeriesIDSetCacheShrinkConservatism,
+		SeriesIDSetCacheIdleTimeout:        toml.Duration(DefaultSeriesIDSetCacheIdleTimeout),
 
 		SeriesFileMaxConcurrentSnapshotCompactions: DefaultSeriesFileMaxConcurrentSnapshotCompactions,
 
@@ -340,6 +363,13 @@ func (c *Config) Validate() error {
 	// false for NaN; +Inf fails the upper bound; -Inf fails the lower bound).
 	if !(c.SeriesIDSetCacheShrinkConservatism >= 0 && c.SeriesIDSetCacheShrinkConservatism < math.Inf(1)) {
 		return ErrSeriesIDSetCacheShrinkConservatismRange
+	}
+	// Validated whether or not adaptive sizing is enabled, but only consulted
+	// when it is: the default is non-zero and adaptive sizing is off by default,
+	// so pairing it with adaptive sizing here would reject the default config.
+	// 0 disables; negative and sub-minimum values are both rejected.
+	if d := time.Duration(c.SeriesIDSetCacheIdleTimeout); d != 0 && d < MinSeriesIDSetCacheIdleTimeout {
+		return ErrSeriesIDSetCacheIdleTimeoutRange
 	}
 
 	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {
