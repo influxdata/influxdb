@@ -467,8 +467,8 @@ github.com/influxdata/athenadriver/v2 v2.0.0 h1:CxGvsKN83RWcmMqm/E6RwNqPQ2yEzEJr
 github.com/influxdata/athenadriver/v2 v2.0.0/go.mod h1:+RDloQJlMhSj1R1mgsfVuJa49uDPzSMwhtQqf0GTeTY=
 github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe h1:7j4SdN/BvQwN6WoUq7mv0kg5U9NhnFBxPGMafYRKym0=
 github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
-github.com/influxdata/flux v0.200.0 h1:r1KAmr0F0eZ3UV6p00HsJYRHbfCyF1ARA9lAwxD2VeM=
-github.com/influxdata/flux v0.200.0/go.mod h1:qlWPtcM9fxWBu/6RoRSr/0i1Clhngjbe4YA/jnHYo5I=
+github.com/influxdata/flux v0.201.0 h1:z8V2t2s5BUKAKKKZ+SHA2hhiIve8+w5HntoaCoxu+Nk=
+github.com/influxdata/flux v0.201.0/go.mod h1:hrhmKCHOu+U0nW3rG4BT8UQbJ15OppTzXhwm1Xn6KSI=
 github.com/influxdata/gosnowflake/v2 v2.0.0 h1:GjccgVdWciwejMqWkZ9ineLXMUbMkdsPzlC/AZ5kilE=
 github.com/influxdata/gosnowflake/v2 v2.0.0/go.mod h1:Xj0uXGLIGHn+ADqVA677mQcmZnpmRhS5Ldj7rv1ncjo=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
@@ -488,8 +488,8 @@ github.com/influxdata/line-protocol/v2 v2.0.0-20210312151457-c52fdecb625a/go.mod
 github.com/influxdata/line-protocol/v2 v2.1.0/go.mod h1:QKw43hdUBg3GTk2iC3iyCxksNj7PX9aUSeYOYE/ceHY=
 github.com/influxdata/line-protocol/v2 v2.2.1 h1:EAPkqJ9Km4uAxtMRgUubJyqAr6zgWM0dznKMLRauQRE=
 github.com/influxdata/line-protocol/v2 v2.2.1/go.mod h1:DmB3Cnh+3oxmG6LOBIxce4oaL4CPj3OmMPgvauXh+tM=
-github.com/influxdata/pkg-config v0.3.0 h1:TY99MJ2w8ArIRmVjXDEBlSBww5RN77W6HKzf4tzUvfg=
-github.com/influxdata/pkg-config v0.3.0/go.mod h1:ntXZ6eZqoTmTTRkIEgMg72MgZf8pZ1/xb01/a5/MOMs=
+github.com/influxdata/pkg-config v0.3.1 h1:CIAtyOIdnXl1Eho3i4NX5ZR/GMpE5odFRDCm7EbrNX8=
+github.com/influxdata/pkg-config v0.3.1/go.mod h1:ntXZ6eZqoTmTTRkIEgMg72MgZf8pZ1/xb01/a5/MOMs=
 github.com/influxdata/tdigest v0.0.2-0.20210216194612-fc98d27c9e8b h1:i44CesU68ZBRvtCjBi3QSosCIKrjmMbYlQMFAwVLds4=
 github.com/influxdata/tdigest v0.0.2-0.20210216194612-fc98d27c9e8b/go.mod h1:Z0kXnxzbTC2qrx4NaIzYkE1k66+6oEDQTvL95hQFh5Y=
 github.com/influxdata/vertica-sql-go v1.3.5 h1:n+Vx3hUIVFWpwlXnrGJET24aDIntTGTSvJ0SZEiiZfc=
