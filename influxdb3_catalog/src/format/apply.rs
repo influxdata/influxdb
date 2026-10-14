@@ -333,7 +333,7 @@ records fail to decode, but that error is not bubbled up out of this function - 
 logged. This is because a failure out of this function would imply that record application
 failed, when a failure out of the removal function doesn't mean the same thing.
 
-[`hard_delete_records_for`]: crate::format::records::hard_delete_records_for
+[`hard_delete_records_for`]: crate::format::record::hard_delete_records_for
 "
 )]
 pub fn apply_records(

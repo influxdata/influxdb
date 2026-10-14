@@ -16,11 +16,12 @@ use crate::catalog::versions::v3::deletes::DeletionScope;
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::column::{
-    ColumnDefinition, FieldColumn, FieldDataType, FieldFamilyDefinition, FieldFamilyMode,
-    FieldFamilyName, TagColumn, TimestampColumn,
+    ColumnDefinition, FieldColumn, FieldDataType, FieldFamilyMode, FieldFamilyName, TagColumn,
+    TimestampColumn,
 };
 use crate::catalog::versions::v3::schema::retention::RetentionPeriod as SchemaRetentionPeriod;
 use crate::catalog::versions::v3::schema::table::TableDefinition;
+use crate::catalog::{FieldFamilyDefinition, insert_new_field_families};
 use crate::format::apply::ApplyError;
 use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
 use influxdb3_id::{ColumnId, DbId, FieldFamilyId, FieldId, FieldIdentifier, TableId, TagId};
@@ -205,23 +206,16 @@ impl CatalogRecord for AddColumns {
             db.tables.modify_by_id(&table_id, |t| {
                 // Insert field family definitions before adding columns — add_columns panics
                 // if a field column references a family that doesn't exist yet.
-                for ff_def in &self.field_families {
-                    let ff_id = FieldFamilyId::new(ff_def.id);
-                    let name = FieldFamilyName::from(&ff_def.name);
-                    // For auto-field families, ensure the auto field family name is set:
-                    if let WireFieldFamilyName::Auto(n) = ff_def.name {
-                        t.set_auto_field_family(ff_id, n).map_err(|e| {
-                            ApplyError(format!(
-                                "{}: set auto field family (db_id={}, table_id={}): {e}",
-                                Self::NAME,
-                                self.database_id,
-                                self.table_id,
-                            ))
-                        })?;
-                    }
-                    let ff = FieldFamilyDefinition::new(ff_id, name);
-                    t.field_families.insert(ff_id, ff)?;
-                }
+                insert_new_field_families(
+                    self.field_families
+                        .iter()
+                        .map(|def| FieldFamilyDefinition::new(def.id.into(), (&def.name).into())),
+                    &mut t.field_families,
+                    &mut t.next_auto_field_family_name,
+                    &mut t.auto_field_family,
+                    table_id,
+                )
+                .map_err(|e| ApplyError(format!("Couldn't create new field families: {e}")))?;
 
                 let new_columns: Vec<ColumnDefinition> =
                     self.columns.iter().map(ColumnDefinition::from).collect();

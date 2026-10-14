@@ -80,14 +80,17 @@ pub enum SystemEvent {
         write_batches_count: u64,
         /// Total bytes written to the persisted WAL file.
         bytes_flushed: u64,
-        /// Wall-clock duration of the flush in milliseconds.
+        /// Wall-clock milliseconds from the flush request until the WAL file
+        /// is written, including any wait for an earlier flush to finish. It
+        /// does not include the query buffer update that follows.
         duration_ms: u64,
     },
     /// A WAL flush attempt failed.
     WalFlushError {
         /// Error category code (never a full message).
         error_code: &'static str,
-        /// Wall-clock duration of the flush in milliseconds.
+        /// Wall-clock milliseconds from the flush request until the flush gives
+        /// up, including any wait for an earlier flush to finish.
         duration_ms: u64,
     },
 

@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::catalog::CatalogSequenceNumber;
 use crate::catalog::versions::v3::schema::storage::StorageMode;
 use crate::format::apply::{serialize_log_file, serialize_snapshot_file};
-use crate::format::records::RegisterNode;
 use crate::format::records::types::NodeMode;
+use crate::format::records::{CreateDatabase, RegisterNode, types::RetentionPeriod};
 use crate::format::{FeatureLevel, MakeRecord, Record, file_flags};
 use crate::object_store::{CatalogFilePath, PersistCatalogResult};
 
@@ -246,5 +246,116 @@ fn catalog_file_path_restore_staging_dir_returns_staging_dir() {
     assert_eq!(
         *CatalogFilePath::restore_staging_dir("cats", "restore-1"),
         ObjPath::from("cats/catalog/restores/restore-1")
+    );
+}
+
+/// A catalog with repeated `Auto(0)` families loads and keeps applying later records.
+#[tokio::test]
+async fn load_catalog_accepts_duplicate_field_family_names() {
+    use crate::format::records::types::{
+        ColumnDefinition, FieldColumn, FieldDataType, FieldFamilyDefinition, FieldFamilyMode,
+        FieldFamilyName, FieldIdentifier, TimestampColumn,
+    };
+    use crate::format::records::{AddColumns, CreateTable};
+    use influxdb3_id::{DbId, FieldFamilyId, TableId};
+
+    fn field(family_id: u16, field_id: u16, column_id: u16, name: &str) -> ColumnDefinition {
+        ColumnDefinition::Field(FieldColumn {
+            id: FieldIdentifier {
+                family_id,
+                field_id,
+            },
+            column_id: Some(column_id),
+            name: name.to_string(),
+            data_type: FieldDataType::Float,
+        })
+    }
+
+    let shared: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+    let store = ObjectStoreCatalog::new("prefix", Arc::clone(&shared), StorageMode::default());
+
+    let snapshot_records = vec![
+        sample_record(0),
+        CreateDatabase {
+            database_id: 0,
+            database_name: "db".to_string(),
+            retention_period: RetentionPeriod::Indefinite,
+        }
+        .make_record(1),
+        CreateTable {
+            database_id: 0,
+            database_name: "db".to_string(),
+            table_name: "cpu".to_string(),
+            table_id: 1,
+            retention_period: RetentionPeriod::Indefinite,
+            field_family_mode: FieldFamilyMode::Aware,
+        }
+        .make_record(2),
+        // The v2 -> v3 migration's shape: one AddColumns carrying every family.
+        AddColumns {
+            database_id: 0,
+            table_id: 1,
+            columns: vec![
+                ColumnDefinition::Timestamp(TimestampColumn {
+                    column_id: Some(0),
+                    name: "time".to_string(),
+                }),
+                field(0, 0, 1, "usage"),
+                field(1, 0, 2, "idle"),
+            ],
+            field_families: vec![
+                FieldFamilyDefinition {
+                    id: 0,
+                    name: FieldFamilyName::Auto(0),
+                },
+                FieldFamilyDefinition {
+                    id: 1,
+                    name: FieldFamilyName::Auto(0),
+                },
+            ],
+        }
+        .make_record(3),
+    ];
+    let snapshot_bytes = add_records_and_serialize_snapshot(3, &snapshot_records);
+    store.initialize_snapshot(snapshot_bytes).await.unwrap();
+
+    // A later write adds a field to the surviving auto family.
+    let log = serialize_log_file(
+        Uuid::nil(),
+        4,
+        &[AddColumns {
+            database_id: 0,
+            table_id: 1,
+            columns: vec![field(0, 1, 3, "steal")],
+            field_families: vec![],
+        }
+        .make_record(4)],
+    );
+    store
+        .persist_log(CatalogSequenceNumber::new(4), log)
+        .await
+        .unwrap();
+
+    let load = store.load_catalog().await.unwrap().expect("load");
+    assert_eq!(load.inner.sequence_number(), CatalogSequenceNumber::new(4));
+
+    let db = load.inner.databases.require_by_id(&DbId::new(0)).unwrap();
+    let table = db.tables.require_by_id(&TableId::new(1)).unwrap();
+    for name in ["usage", "idle", "steal"] {
+        assert!(table.column_exists(name), "column {name} missing");
+    }
+    assert_eq!(table.field_families.len(), 2);
+    assert_eq!(
+        table.fields_by_family(FieldFamilyId::new(0)).unwrap().len(),
+        2
+    );
+    assert_eq!(
+        table.fields_by_family(FieldFamilyId::new(1)).unwrap().len(),
+        1
+    );
+    // The first family keeps the name; the duplicate is reachable by id only.
+    assert_eq!(
+        table.field_families.name_to_id("__0"),
+        Some(FieldFamilyId::new(0))
     );
 }
