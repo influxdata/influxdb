@@ -1,0 +1,32 @@
+[package]
+name = "influxdb3_operator_socket"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# influxdb3_core dependencies
+iox_http_util = { path = "../core/iox_http_util" }
+observability_deps = { path = "../core/observability_deps" }
+trace_http = { path = "../core/trace_http" }
+
+# crates.io dependencies
+hyper = { workspace = true, features = ["server", "http1", "http2"] }
+hyper-util = { workspace = true, features = ["server", "server-auto", "service", "tokio", "http1", "http2"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["net", "rt", "macros"] }
+tokio-util.workspace = true
+tower = { workspace = true, features = ["util"] }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["client"] }
+metric = { path = "../core/metric" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

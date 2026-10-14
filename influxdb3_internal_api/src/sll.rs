@@ -26,6 +26,27 @@ impl SllSink for NoopSllSink {
     fn emit(&self, _event: SystemEvent) {}
 }
 
+/// Outcome of one Parquet compactor cycle. Mirrors the enterprise WAL
+/// observer's enum, which cannot depend on this crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompactionCycleOutcome {
+    Success,
+    /// The cycle returned normally, but some runnable plans failed or were not attempted.
+    PartialFailure,
+    /// A cycle-level error stopped execution, possibly before any plans were built.
+    Aborted,
+}
+
+impl CompactionCycleOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::PartialFailure => "partial_failure",
+            Self::Aborted => "aborted",
+        }
+    }
+}
+
 /// A background subsystem state-change event.
 ///
 /// Each variant carries exactly the fields its emission site exposes — the
@@ -33,6 +54,23 @@ impl SllSink for NoopSllSink {
 /// field, and that fields belonging to a different event cannot leak in.
 #[derive(Debug, Clone)]
 pub enum SystemEvent {
+    /// Node-scoped Parquet cycle summary; counts exclude metadata-only and
+    /// deletion-only plans.
+    CompactionCycleCompleted {
+        outcome: CompactionCycleOutcome,
+        duration_ms: u64,
+        plans_planned: u64,
+        plans_succeeded: u64,
+        plans_failed: u64,
+        plans_unattempted: u64,
+        plans_skipped_memory_exhaustion: u64,
+        files_compacted: u64,
+        files_produced: u64,
+        bytes_written: u64,
+        max_successful_plan_input_files: u64,
+        max_failed_plan_input_files: u64,
+    },
+
     // ── wal_flush ──────────────────────────────────────────────────────
     /// A WAL buffer flush cycle completed successfully.
     WalFlushSuccess {
@@ -42,14 +80,17 @@ pub enum SystemEvent {
         write_batches_count: u64,
         /// Total bytes written to the persisted WAL file.
         bytes_flushed: u64,
-        /// Wall-clock duration of the flush in milliseconds.
+        /// Wall-clock milliseconds from the flush request until the WAL file
+        /// is written, including any wait for an earlier flush to finish. It
+        /// does not include the query buffer update that follows.
         duration_ms: u64,
     },
     /// A WAL flush attempt failed.
     WalFlushError {
         /// Error category code (never a full message).
         error_code: &'static str,
-        /// Wall-clock duration of the flush in milliseconds.
+        /// Wall-clock milliseconds from the flush request until the flush gives
+        /// up, including any wait for an earlier flush to finish.
         duration_ms: u64,
     },
 

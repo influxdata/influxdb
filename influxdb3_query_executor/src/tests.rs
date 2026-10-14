@@ -706,3 +706,75 @@ async fn test_influxql_time_filter_double_group_by() {
         assert_batches_sorted_eq!(expected, &batches);
     }
 }
+
+/// A gen1 window persisted across two snapshots leaves two files with the same chunk time. An
+/// overwrite in the later file must win deduplication over the value in the earlier one.
+#[test_log::test(tokio::test)]
+async fn overwrite_in_a_later_gen1_file_wins() {
+    let (write_buffer, query_executor, _, _) = setup(None, true).await;
+    let db_name = "test_db";
+    // Each write is its own WAL file, and every third file snapshots, so the first three and
+    // last three writes persist as two files in the same 1m gen1 window.
+    for (usage, seconds) in [(1, 5), (1, 10), (1, 15), (2, 10), (1, 20), (1, 25)] {
+        write_buffer
+            .write_lp(
+                DatabaseName::new(db_name).unwrap(),
+                &format!("cpu,host=a usage={usage} {seconds}"),
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Second,
+                false,
+            )
+            .await
+            .unwrap();
+    }
+
+    let files_persisted = || async {
+        let batches: Vec<RecordBatch> = query_executor
+            .query_sql(
+                db_name,
+                "SELECT COUNT(*) AS n FROM system.parquet_files WHERE table_name = 'cpu'",
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap()
+            .try_collect()
+            .await
+            .unwrap();
+        arrow::util::pretty::pretty_format_batches(&batches)
+            .unwrap()
+            .to_string()
+            .contains("| 2 |")
+    };
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !files_persisted().await {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("both snapshots should persist a file");
+
+    let batches: Vec<RecordBatch> = query_executor
+        .query_sql(db_name, "SELECT time, usage FROM cpu", None, None, None)
+        .await
+        .unwrap()
+        .try_collect()
+        .await
+        .unwrap();
+    assert_batches_sorted_eq!(
+        [
+            "+---------------------+-------+",
+            "| time                | usage |",
+            "+---------------------+-------+",
+            "| 1970-01-01T00:00:05 | 1.0   |",
+            "| 1970-01-01T00:00:10 | 2.0   |",
+            "| 1970-01-01T00:00:15 | 1.0   |",
+            "| 1970-01-01T00:00:20 | 1.0   |",
+            "| 1970-01-01T00:00:25 | 1.0   |",
+            "+---------------------+-------+",
+        ],
+        &batches
+    );
+}

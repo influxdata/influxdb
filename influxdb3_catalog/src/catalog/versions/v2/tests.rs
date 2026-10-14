@@ -5135,3 +5135,87 @@ async fn active_triggers_returns_ids() {
     // Only the enabled trigger appears; the disabled one is excluded.
     assert_eq!(catalog.active_triggers(), vec![(db_id, trigger_id)]);
 }
+
+/// Both v2 load paths, snapshot and log, accept repeated `Auto(0)` names.
+#[test]
+fn v2_table_accepts_duplicate_auto_field_family_names() {
+    use super::log::{
+        AddColumnsLog, ColumnDefinitionLog, FieldColumnLog, FieldFamilyDefinitionLog,
+    };
+    use super::{Snapshot, TableUpdate};
+
+    let duplicate_families = vec![
+        (FieldFamilyId::new(0), FieldFamilyName::Auto(0)),
+        (FieldFamilyId::new(1), FieldFamilyName::Auto(0)),
+    ];
+
+    // Snapshot path: `TableDefinition::new` is what `from_snapshot` calls.
+    let table = TableDefinition::new(
+        TableId::new(1),
+        "cpu".into(),
+        vec![
+            ColumnDefinition::timestamp(ColumnId::new(0)),
+            ColumnDefinition::field((0, 0), ColumnId::new(1), "usage", InfluxFieldType::Float),
+            ColumnDefinition::field((1, 0), ColumnId::new(2), "idle", InfluxFieldType::Float),
+        ],
+        duplicate_families.clone(),
+        vec![],
+        None,
+        FieldFamilyMode::Aware,
+    )
+    .unwrap();
+    let table = TableDefinition::from_snapshot(table.snapshot());
+    assert_eq!(table.field_families.len(), 2);
+    assert_eq!(
+        table.fields_by_family(FieldFamilyId::new(0)).unwrap().len(),
+        1
+    );
+    assert_eq!(
+        table.fields_by_family(FieldFamilyId::new(1)).unwrap().len(),
+        1
+    );
+    // we expect that the name will stay with the first id to have that name - any subsequent
+    // insertion/creation with that name will simply not have a name (only an Id)
+    assert_eq!(
+        table.field_families.name_to_id("__0"),
+        Some(FieldFamilyId::new(0))
+    );
+
+    // Log path: an `AddColumnsLog` replayed against an empty table.
+    let log = AddColumnsLog {
+        database_name: "db".into(),
+        database_id: DbId::new(0),
+        table_name: "cpu".into(),
+        table_id: TableId::new(1),
+        column_definitions: vec![
+            ColumnDefinitionLog::Field(FieldColumnLog {
+                id: FieldIdentifier::from((0, 0)),
+                column_id: Some(ColumnId::new(1)),
+                name: "usage".into(),
+                data_type: FieldDataType::Float,
+            }),
+            ColumnDefinitionLog::Field(FieldColumnLog {
+                id: FieldIdentifier::from((1, 0)),
+                column_id: Some(ColumnId::new(2)),
+                name: "idle".into(),
+                data_type: FieldDataType::Float,
+            }),
+        ],
+        field_family_definitions: duplicate_families
+            .into_iter()
+            .map(|(id, name)| FieldFamilyDefinitionLog { id, name })
+            .collect(),
+    };
+    let empty = TableDefinition::new_empty(TableId::new(1), "cpu".into(), FieldFamilyMode::Aware);
+    let table = log
+        .update_table(Cow::Owned(empty))
+        .expect("duplicate family names from a v2 log are accepted")
+        .into_owned();
+    assert_eq!(table.field_families.len(), 2);
+    assert!(table.column_exists("usage"));
+    assert!(table.column_exists("idle"));
+    assert_eq!(
+        table.field_families.name_to_id("__0"),
+        Some(FieldFamilyId::new(0))
+    );
+}

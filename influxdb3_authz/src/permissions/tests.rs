@@ -378,3 +378,20 @@ fn token_db_actions_map_to_role_vocabulary() {
         .to_database_actions();
     assert_eq!(describe, vec![DatabaseAction::Describe]);
 }
+
+#[test]
+fn test_system_resource_display_falls_back_to_identifier() {
+    assert_eq!(
+        SystemResourceIdentifier::from(SystemResourceIdentifier::READY).to_string(),
+        "ready"
+    );
+    assert_eq!(SystemResourceIdentifier::from(42).to_string(), "42");
+    assert_eq!(
+        ResourceIdentifier::System(vec![
+            SystemResourceIdentifier::from(SystemResourceIdentifier::HEALTH),
+            SystemResourceIdentifier::from(42),
+        ])
+        .to_string(),
+        "health,42"
+    );
+}

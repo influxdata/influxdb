@@ -7,6 +7,8 @@ license.workspace = true
 
 [features]
 large-strings = ["influxdb-line-protocol/large-strings", "influxdb3_write/large-strings"]
+# Enable the operator socket for AWS operator access without auth tokens
+operator_socket = []
 
 [lints]
 workspace = true
@@ -15,6 +17,7 @@ workspace = true
 # Core Crates
 authz = { path = "../core/authz" }
 data_types = { path = "../core/data_types" }
+datafusion_util = { path = "../core/datafusion_util" }
 influxdb-line-protocol = { path = "../core/influxdb_line_protocol"}
 influxdb_influxql_parser = { path = "../core/influxdb_influxql_parser" }
 iox_http = { path = "../core/iox_http" }

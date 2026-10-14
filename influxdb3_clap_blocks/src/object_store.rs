@@ -15,6 +15,7 @@ use object_store::{
     throttle::{ThrottleConfig, ThrottledStore},
 };
 use observability_deps::tracing::{error, info, warn};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use std::ffi::OsString;
@@ -25,7 +26,6 @@ use std::{
     sync::Arc, time::Duration,
 };
 use tokio::runtime::Handle;
-use tokio::sync::RwLock;
 use url::Url;
 
 #[derive(Debug, Snafu)]
@@ -1259,12 +1259,12 @@ impl AwsCredentialReloader {
         let credentials = file_credentials.into();
 
         let do_update = {
-            let guard = self.current.read().await;
+            let guard = self.current.read();
             guard.as_ref() != &credentials
         };
 
         if do_update {
-            let mut guard = self.current.write().await;
+            let mut guard = self.current.write();
             *guard = Arc::new(credentials);
         }
         // we assume the creds file is accurate even if we didn't update the creds themselves
@@ -1277,7 +1277,7 @@ impl CredentialProvider for AwsCredentialReloader {
     type Credential = AwsCredential;
 
     async fn get_credential(&self) -> object_store::Result<Arc<Self::Credential>> {
-        let current = self.current.read().await;
+        let current = self.current.read();
         Ok(Arc::clone(&current))
     }
 }

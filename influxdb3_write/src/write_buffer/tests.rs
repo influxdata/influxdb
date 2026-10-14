@@ -2268,9 +2268,9 @@ async fn test_out_of_order_data() {
     let runtime_env = session_context.inner().runtime_env();
     register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
 
-    // at this point all of the data in query buffer will be
-    // for timestamps 20 - 50 and none of recent data will be
-    // in buffer.
+    // at this point 23 - 30 are in the query buffer. The buffered rows come
+    // first, then the parquet files in the order they were persisted: the
+    // 3x guard snapshot persisted 20 - 22 and 100 - 111, by chunk time.
     let actual = write_buffer
         .get_record_batches_unchecked("sample", "cpu", &session_context)
         .await;
@@ -2288,6 +2288,9 @@ async fn test_out_of_order_data() {
             "| a    | us     | 1970-01-01T00:00:28Z | 10.0  |",
             "| a    | us     | 1970-01-01T00:00:29Z | 10.0  |",
             "| a    | us     | 1970-01-01T00:00:30Z | 10.0  |",
+            "| a    | us     | 1970-01-01T00:00:20Z | 10.0  |",
+            "| a    | us     | 1970-01-01T00:00:21Z | 10.0  |",
+            "| a    | us     | 1970-01-01T00:00:22Z | 10.0  |",
             "| a    | us     | 1970-01-01T00:01:40Z | 10.0  |",
             "| a    | us     | 1970-01-01T00:01:41Z | 10.0  |",
             "| a    | us     | 1970-01-01T00:01:42Z | 10.0  |",
@@ -2300,9 +2303,6 @@ async fn test_out_of_order_data() {
             "| a    | us     | 1970-01-01T00:01:49Z | 10.0  |",
             "| a    | us     | 1970-01-01T00:01:50Z | 10.0  |",
             "| a    | us     | 1970-01-01T00:01:51Z | 10.0  |",
-            "| a    | us     | 1970-01-01T00:00:20Z | 10.0  |",
-            "| a    | us     | 1970-01-01T00:00:21Z | 10.0  |",
-            "| a    | us     | 1970-01-01T00:00:22Z | 10.0  |",
             "+------+--------+----------------------+-------+",
         ],
         &actual
@@ -3582,4 +3582,57 @@ fn make_exec() -> Arc<Executor> {
         },
         DedicatedExecutor::new_testing(),
     ))
+}
+
+/// A checkpoint written before `next_file_id` existed carries none. Loading it
+/// with no newer snapshot must still move the file id counter past every loaded
+/// file, or new files reuse ids and lose deduplication to older ones.
+#[test_log::test(tokio::test)]
+async fn file_id_counter_passes_loaded_files_without_next_file_id() {
+    let start = Time::from_timestamp_nanos(TEST_JAN_15_2025_NANOS);
+    let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    // Relative to the process-wide counter, so the test moves it only a little.
+    let loaded_id = ParquetFileId::from(ParquetFileId::next_id().as_u64() + 100);
+
+    let mut checkpoint = crate::PersistedSnapshotCheckpoint::new(
+        "test_host",
+        year_month_from_timestamp_ms(start.timestamp_millis()),
+    );
+    checkpoint.last_snapshot_sequence_number = SnapshotSequenceNumber::new(1);
+    checkpoint.add_file(
+        DbId::from(0),
+        TableId::from(0),
+        ParquetFile {
+            id: loaded_id,
+            path: "test_host/dbs/0/0/2025-01-15/00-00/00000000000000000001.parquet".into(),
+            size_bytes: 1,
+            row_count: 1,
+            chunk_time: 0,
+            min_time: 0,
+            max_time: 0,
+        },
+    );
+    assert!(checkpoint.next_file_id.is_none());
+    Persister::new(
+        Arc::clone(&obj_store),
+        "test_host",
+        Arc::new(MockProvider::new(start)) as _,
+        Some(Duration::from_secs(60)),
+    )
+    .persist_checkpoint(&PersistedSnapshotCheckpointVersion::V1(checkpoint))
+    .await
+    .unwrap();
+
+    let _ = setup_with_checkpointing(
+        start,
+        Arc::clone(&obj_store),
+        WalConfig::test_config(),
+        Duration::from_secs(60),
+    )
+    .await;
+
+    assert!(
+        ParquetFileId::next_id() > loaded_id,
+        "the next file id must follow every loaded file"
+    );
 }

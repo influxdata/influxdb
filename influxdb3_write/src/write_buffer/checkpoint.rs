@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use chrono::{Datelike, TimeZone, Utc};
+use hashbrown::HashSet;
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 
 use crate::{DatabaseTables, PersistedSnapshot, PersistedSnapshotCheckpoint, YearMonth};
@@ -51,14 +52,15 @@ pub fn process_removed_files(
     file_index: &mut FileIndex,
     removed_files: SerdeVecMap<DbId, DatabaseTables>,
 ) {
-    let mut any_removed = false;
+    // Group the ids by the table that holds them, so each table's files are scanned once
+    // rather than once per removed file.
+    let mut found: HashMap<(DbId, TableId), HashSet<ParquetFileId>> = HashMap::new();
 
     for (db_id, db_tables) in removed_files {
         for (table_id, files) in db_tables.tables {
             for file in files {
-                if let Some((existing_db, existing_table)) = file_index.remove(&file.id) {
-                    checkpoint.remove_file(existing_db, existing_table, file.id);
-                    any_removed = true;
+                if let Some(location) = file_index.remove(&file.id) {
+                    found.entry(location).or_default().insert(file.id);
                 } else {
                     checkpoint.add_pending_removed(db_id, table_id, file);
                 }
@@ -66,7 +68,11 @@ pub fn process_removed_files(
         }
     }
 
-    if any_removed {
+    for ((db_id, table_id), file_ids) in &found {
+        checkpoint.remove_files(*db_id, *table_id, file_ids);
+    }
+
+    if !found.is_empty() {
         checkpoint.recalculate_time_range();
     }
 }

@@ -164,6 +164,16 @@ pub trait RetryableObjectStore: ObjectStore {
     /// Returns the object metadata alongside the bytes, because a caller that
     /// needs the ETag or version must read them from the same response the
     /// bytes came from.
+    async fn get_bytes_with_default_retries(
+        &self,
+        path: &Path,
+        context_message: &str,
+    ) -> Result<(ObjectMeta, Bytes)> {
+        self.get_bytes_with_retries(path, context_message, get_default_retry_params())
+            .await
+    }
+
+    /// [`Self::get_bytes_with_default_retries`] with explicit retry parameters.
     async fn get_bytes_with_retries(
         &self,
         path: &Path,

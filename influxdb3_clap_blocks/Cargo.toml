@@ -28,6 +28,7 @@ itertools.workspace = true
 libc.workspace = true
 non-empty-string.workspace = true
 object_store.workspace = true
+parking_lot.workspace = true
 paste.workspace = true
 serde.workspace = true
 serde_json.workspace = true

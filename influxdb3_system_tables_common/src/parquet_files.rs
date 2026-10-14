@@ -78,40 +78,35 @@ impl IoxSystemTable for ParquetFilesTable {
         // extract `table_name` from filters
         let table_name = find_table_name_in_filter(filters);
 
-        let parquet_files = if let Some(table_name) = table_name {
-            // `table_name` is an untrusted value from the query's WHERE clause, and the database can
-            // be dropped between this table's construction and the scan. Either miss resolves to
-            // `None` and must yield zero rows, not a panic.
-            let table_id = self
-                .source
-                .catalog()
-                .db_schema_by_id(&self.db_id)
-                .and_then(|db| db.table_name_to_id(Arc::clone(&table_name)));
-            match table_id {
-                Some(table_id) => self
-                    .source
+        // The database can be dropped between this table's construction and the scan, and
+        // `table_name` is an untrusted value from the query's WHERE clause. Either miss must yield
+        // zero rows, not a panic. Only this table's database is listed: table ids are allocated
+        // per database, so they must not be combined with another database's id.
+        let Some(db) = self.source.catalog().db_schema_by_id(&self.db_id) else {
+            return from_parquet_files(schema, vec![]);
+        };
+        // Lazy, so that `limit` stops the table walk early.
+        let tables: Box<dyn Iterator<Item = (Arc<str>, TableId)> + '_> = match table_name {
+            Some(table_name) => Box::new(
+                db.table_name_to_id(Arc::clone(&table_name))
+                    .map(|table_id| (table_name, table_id))
+                    .into_iter(),
+            ),
+            None => Box::new(
+                db.tables()
+                    .map(|table_def| (Arc::clone(&table_def.table_name), table_def.table_id)),
+            ),
+        };
+
+        let parquet_files = tables
+            .flat_map(|(table_name, table_id)| {
+                self.source
                     .parquet_files(self.db_id, table_id)
                     .into_iter()
-                    .map(|file| (Arc::clone(&table_name), file))
-                    .take(limit)
-                    .collect(),
-                None => vec![],
-            }
-        } else {
-            self.source
-                .catalog()
-                .list_db_schema()
-                .iter()
-                .flat_map(|db| db.tables())
-                .flat_map(|table_def| {
-                    self.source
-                        .parquet_files(self.db_id, table_def.table_id)
-                        .into_iter()
-                        .map(move |file| (Arc::clone(&table_def.table_name), file))
-                })
-                .take(limit)
-                .collect()
-        };
+                    .map(move |file| (Arc::clone(&table_name), file))
+            })
+            .take(limit)
+            .collect();
 
         from_parquet_files(schema, parquet_files)
     }
@@ -164,3 +159,6 @@ fn from_parquet_files(
 
     Ok(RecordBatch::try_new(schema, columns)?)
 }
+
+#[cfg(test)]
+mod tests;
