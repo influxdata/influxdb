@@ -5390,3 +5390,241 @@ mod schema_mode {
         );
     }
 }
+
+/// Writes against a table loaded with repeated `Auto(0)` field families.
+mod duplicate_field_family_names {
+    use super::*;
+    use crate::catalog::versions::v3::NUM_FIELDS_PER_FAMILY_LIMIT;
+    use crate::catalog::versions::v3::schema::table::TableDefinition;
+    use crate::format::apply::serialize_snapshot_file;
+    use crate::format::records::types::{
+        ColumnDefinition, FieldColumn, FieldDataType, FieldFamilyDefinition, FieldFamilyMode,
+        FieldFamilyName, FieldIdentifier, NodeMode, RetentionPeriod, TimestampColumn,
+    };
+    use crate::format::records::{AddColumns, CreateDatabase, CreateTable, RegisterNode};
+    use crate::format::{FeatureLevel, MakeRecord};
+    use crate::object_store::CatalogFilePath;
+    use influxdb3_id::FieldFamilyId;
+    use schema::InfluxFieldType;
+
+    fn field(family_id: u16, field_id: u16, column_id: u16, name: &str) -> ColumnDefinition {
+        ColumnDefinition::Field(FieldColumn {
+            id: FieldIdentifier {
+                family_id,
+                field_id,
+            },
+            column_id: Some(column_id),
+            name: name.to_string(),
+            data_type: FieldDataType::Float,
+        })
+    }
+
+    /// Load a catalog from a snapshot with one table whose two families are both `Auto(0)`.
+    async fn load_affected_catalog(test_catalog: &TestCatalog) -> Arc<Catalog> {
+        let records = vec![
+            RegisterNode {
+                node_catalog_id: 1,
+                node_id: "node-a".to_string(),
+                instance_id: "inst-1".to_string(),
+                registered_time_ns: 1000,
+                core_count: 4,
+                mode: vec![NodeMode::Core],
+                process_uuid: [0u8; 16],
+                conn_info: None,
+                cli_params: None,
+                row_delete_predicate_version: 0,
+                feature_level: FeatureLevel::ZERO,
+            }
+            .make_record(1),
+            CreateDatabase {
+                database_id: 0,
+                database_name: "db".to_string(),
+                retention_period: RetentionPeriod::Indefinite,
+            }
+            .make_record(2),
+            CreateTable {
+                database_id: 0,
+                database_name: "db".to_string(),
+                table_name: "cpu".to_string(),
+                table_id: 1,
+                retention_period: RetentionPeriod::Indefinite,
+                field_family_mode: FieldFamilyMode::Aware,
+            }
+            .make_record(3),
+            AddColumns {
+                database_id: 0,
+                table_id: 1,
+                columns: vec![
+                    ColumnDefinition::Timestamp(TimestampColumn {
+                        column_id: Some(0),
+                        name: "time".to_string(),
+                    }),
+                    field(0, 0, 1, "usage"),
+                    field(1, 0, 2, "idle"),
+                ],
+                field_families: vec![
+                    FieldFamilyDefinition {
+                        id: 0,
+                        name: FieldFamilyName::Auto(0),
+                    },
+                    FieldFamilyDefinition {
+                        id: 1,
+                        name: FieldFamilyName::Auto(0),
+                    },
+                ],
+            }
+            .make_record(4),
+        ];
+        let bytes = serialize_snapshot_file(Uuid::nil(), 4, &records);
+        test_catalog
+            .store()
+            .put(&CatalogFilePath::snapshot("p"), bytes.into())
+            .await
+            .unwrap();
+        test_catalog.reload().await
+    }
+
+    fn cpu(catalog: &Catalog) -> Arc<TableDefinition> {
+        catalog
+            .db_schema("db")
+            .unwrap()
+            .table_definition("cpu")
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn new_fields_land_in_the_first_auto_family() {
+        let test_catalog = TestCatalog::new();
+        let catalog = load_affected_catalog(&test_catalog).await;
+
+        let table = cpu(&catalog);
+        assert_eq!(table.field_families.len(), 2);
+        assert_eq!(table.auto_field_family(), Some(FieldFamilyId::new(0)));
+        assert_eq!(
+            table.field_families.name_to_id("__0"),
+            Some(FieldFamilyId::new(0))
+        );
+
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let tx = txn.table_tx_or_create("cpu").unwrap();
+        let unqualified = tx.field_or_create("steal", InfluxFieldType::Float).unwrap();
+        let qualified = tx
+            .field_or_create("__0::nice", InfluxFieldType::Float)
+            .unwrap();
+        assert_eq!(unqualified.id.0, FieldFamilyId::new(0));
+        assert_eq!(qualified.id.0, FieldFamilyId::new(0));
+        let Prompt::Success(_) = catalog.commit(txn).await.unwrap() else {
+            panic!("expected Success");
+        };
+
+        let table = cpu(&catalog);
+        assert_eq!(table.field_families.len(), 2);
+        assert_eq!(
+            table.field_family_id_by_field_name("steal"),
+            Some(FieldFamilyId::new(0))
+        );
+        assert_eq!(
+            table.field_family_id_by_field_name("__0::nice"),
+            Some(FieldFamilyId::new(0))
+        );
+        assert_eq!(
+            table.fields_by_family(FieldFamilyId::new(0)).unwrap().len(),
+            3
+        );
+        assert_eq!(
+            table.fields_by_family(FieldFamilyId::new(1)).unwrap().len(),
+            1
+        );
+
+        // The state survives a restart.
+        let reloaded = test_catalog.reload().await;
+        let reloaded_table = cpu(&reloaded);
+        assert_eq!(table, reloaded_table);
+    }
+
+    #[tokio::test]
+    async fn auto_family_skips_a_name_a_user_family_holds() {
+        let test_catalog = TestCatalog::new();
+        let catalog = test_catalog.catalog();
+
+        // On a fresh Aware table, `__0::a` creates User("__0") before any auto
+        // family exists; the first unqualified field must not collide with it.
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let tx = txn.table_tx_or_create("cpu").unwrap();
+        let qualified = tx
+            .field_or_create("__0::a", InfluxFieldType::Float)
+            .unwrap();
+        let unqualified = tx.field_or_create("b", InfluxFieldType::Float).unwrap();
+        assert_eq!(qualified.id.0, FieldFamilyId::new(0));
+        assert_eq!(unqualified.id.0, FieldFamilyId::new(1));
+        let Prompt::Success(_) = catalog.commit(txn).await.unwrap() else {
+            panic!("expected Success");
+        };
+
+        let table = cpu(&catalog);
+        assert_eq!(table.field_families.len(), 2);
+        assert_eq!(
+            table.field_families.name_to_id("__0"),
+            Some(FieldFamilyId::new(0))
+        );
+        assert_eq!(
+            table.field_families.name_to_id("__1"),
+            Some(FieldFamilyId::new(1))
+        );
+        assert_eq!(table.auto_field_family(), Some(FieldFamilyId::new(1)));
+
+        let reloaded_table = cpu(&*test_catalog.reload().await);
+        assert_eq!(table, reloaded_table);
+    }
+
+    #[tokio::test]
+    async fn next_auto_family_after_the_first_fills_gets_an_unused_name() {
+        let test_catalog = TestCatalog::new();
+        let catalog = load_affected_catalog(&test_catalog).await;
+
+        // Fill the auto family (it starts with one field).
+        let mut txn = catalog.begin_database_transaction("db").unwrap();
+        let tx = txn.table_tx_or_create("cpu").unwrap();
+        for i in 1..NUM_FIELDS_PER_FAMILY_LIMIT {
+            let f = tx
+                .field_or_create(&format!("f{i}"), InfluxFieldType::Float)
+                .unwrap();
+            assert_eq!(f.id.0, FieldFamilyId::new(0));
+        }
+        let overflow = tx
+            .field_or_create("overflow", InfluxFieldType::Float)
+            .unwrap();
+        // The FieldFamilyId should be `2` because `1` is already taken by one of the fields created
+        // in `load_affected_catalog`
+        assert_eq!(overflow.id.0, FieldFamilyId::new(2));
+        let Prompt::Success(_) = catalog.commit(txn).await.unwrap() else {
+            panic!("expected Success");
+        };
+
+        let table = cpu(&catalog);
+        assert_eq!(table.field_families.len(), 3);
+        assert_eq!(table.auto_field_family(), Some(FieldFamilyId::new(2)));
+        assert_eq!(
+            table.field_families.name_to_id("__1"),
+            Some(FieldFamilyId::new(2))
+        );
+        assert_eq!(
+            table.field_families.name_to_id("__0"),
+            Some(FieldFamilyId::new(0))
+        );
+        assert_eq!(
+            table.fields_by_family(FieldFamilyId::new(0)).unwrap().len(),
+            NUM_FIELDS_PER_FAMILY_LIMIT
+        );
+
+        // And it replays the same way.
+        let reloaded = test_catalog.reload().await;
+        let table = cpu(&reloaded);
+        assert_eq!(table.field_families.len(), 3);
+        assert_eq!(table.auto_field_family(), Some(FieldFamilyId::new(2)));
+        assert_eq!(
+            table.field_families.name_to_id("__1"),
+            Some(FieldFamilyId::new(2))
+        );
+    }
+}

@@ -6,6 +6,8 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
+use hashbrown::HashSet;
+
 use ahash::RandomState as AHashBuilder;
 use influxdb3_id::{CatalogId, SerdeVecMap};
 
@@ -98,6 +100,8 @@ pub struct Repository<I: CatalogId, R: CatalogResource> {
     pub(crate) id_name_map: BiHashMap<I, Arc<str>>,
     /// The next identifier that will be used when a new resource is added to the repository
     pub(crate) next_id: I,
+    /// Ids stored without a name-map entry by [`Self::insert_allowing_duplicate_name`].
+    unnamed: HashSet<I>,
 }
 
 impl<I: CatalogId, R: CatalogResource> Default for Repository<I, R> {
@@ -115,6 +119,7 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
                 AHashBuilder::default(),
             ),
             next_id: I::default(),
+            unnamed: HashSet::new(),
         }
     }
 
@@ -124,6 +129,7 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
     pub(crate) fn clear(&mut self) {
         self.id_name_map.clear();
         self.repo.clear();
+        self.unnamed.clear();
     }
 
     /// Get a resource by id, or return `NotFound` if it does not exist.
@@ -200,6 +206,7 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
             .into());
         }
         self.id_name_map.insert(*id, new_name);
+        self.unnamed.remove(id);
         Ok(output)
     }
 
@@ -270,16 +277,25 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
     ///
     /// # Panics
     ///
-    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
-    /// that would be a bad state for the repository to be in.
+    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, or
+    /// vice versa, as that would be a bad state for the repository to be in. An `id` in `unnamed`
+    /// is the exception: it must be in the repository and not in the map.
     fn id_exists(&self, id: &I) -> bool {
         let id_in_map = self.id_name_map.contains_left(id);
         let id_in_repo = self.repo.contains_key(id);
-        assert_eq!(
-            id_in_map, id_in_repo,
-            "id map and repository are in an inconsistent state, \
-            in map: {id_in_map}, in repo: {id_in_repo}"
-        );
+        if self.unnamed.contains(id) {
+            assert!(
+                id_in_repo && !id_in_map,
+                "unnamed id is in an inconsistent state, \
+                in map: {id_in_map}, in repo: {id_in_repo}"
+            );
+        } else {
+            assert_eq!(
+                id_in_map, id_in_repo,
+                "id map and repository are in an inconsistent state, \
+                in map: {id_in_map}, in repo: {id_in_repo}"
+            );
+        }
         id_in_repo
     }
 
@@ -307,6 +323,45 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
 
         self.id_name_map.insert(id, name);
         self.repo.insert(id, resource);
+        self.advance_next_id(id);
+        Ok(())
+    }
+
+    /// Insert a new resource even if another resource already holds its name.
+    ///
+    /// Exists only to load field families written by releases that repeated auto family names,
+    /// see <https://github.com/influxdata/influxdb_pro/issues/6281>. Names are meant to be
+    /// unique; do not use this for anything else.
+    ///
+    /// The first holder keeps the name. This resource is reachable by id but not by name until
+    /// it is renamed onto a free name, or updated once its own name is free. Returns whether the
+    /// name was taken.
+    pub(crate) fn insert_allowing_duplicate_name(
+        &mut self,
+        id: I,
+        resource: impl Into<Arc<R>>,
+    ) -> Result<bool, RepositoryError<I>> {
+        let resource = resource.into();
+        if self.id_exists(&id) {
+            return Err(RepositoryError::AlreadyExists {
+                resource: R::CATEGORY,
+                id,
+            });
+        }
+
+        let name = resource.name();
+        let name_taken = self.id_name_map.contains_right(&name);
+        if name_taken {
+            self.unnamed.insert(id);
+        } else {
+            self.id_name_map.insert(id, name);
+        }
+        self.repo.insert(id, resource);
+        self.advance_next_id(id);
+        Ok(name_taken)
+    }
+
+    fn advance_next_id(&mut self, id: I) {
         self.next_id = match self.next_id.cmp(&id) {
             // If id is has reached MAX, we can't increment it.
             //
@@ -315,7 +370,6 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
             Ordering::Less | Ordering::Equal if id < I::MAX => id.next(),
             _ => self.next_id,
         };
-        Ok(())
     }
 
     /// Update an existing resource in the repository.
@@ -338,25 +392,37 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         // Guard the id↔name bijection: if the (possibly renamed) resource's name
         // is already held by a different id, `id_name_map.insert` would evict
         // that id's name entry and leave it in `repo` with no name — a desync
-        // that later trips `id_exists`. Reject the rename instead.
+        // that later trips `id_exists`. Reject the rename instead. An unnamed
+        // resource keeping its own name stays unnamed.
         let name = resource.name();
         if self
             .id_name_map
             .get_by_right(name.as_ref())
             .is_some_and(|owner| *owner != id)
         {
+            if self.unnamed.contains(&id)
+                && self
+                    .repo
+                    .get(&id)
+                    .is_some_and(|current| current.name() == name)
+            {
+                self.repo.insert(id, resource);
+                return Ok(());
+            }
             return Err(RepositoryError::AlreadyExistsByName {
                 resource: R::CATEGORY,
                 name: name.to_string(),
             });
         }
         self.id_name_map.insert(id, name);
+        self.unnamed.remove(&id);
         self.repo.insert(id, resource);
         Ok(())
     }
 
     pub(crate) fn remove(&mut self, id: &I) {
         self.id_name_map.remove_by_left(id);
+        self.unnamed.remove(id);
         self.repo.shift_remove(id);
     }
 

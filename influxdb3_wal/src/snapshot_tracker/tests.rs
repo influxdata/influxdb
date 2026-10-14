@@ -182,3 +182,25 @@ fn oldest_period_added_at_tracks_the_oldest_waiting_period() {
     ));
     assert_eq!(tracker.oldest_period_added_at(), None);
 }
+
+/// Data at the top of the timestamp range drains with the end marker saturated at `i64::MAX`
+/// rather than overflowing.
+#[test]
+fn drain_saturates_the_end_marker_at_the_top_of_the_timestamp_range() {
+    let mut tracker = SnapshotTracker::new(2, Gen1Duration::new_1m(), None);
+    tracker.add_wal_period(WalPeriod::new(
+        WalFileSequenceNumber::new(1),
+        Timestamp::new(i64::MAX),
+        Timestamp::new(i64::MAX),
+    ));
+    assert_eq!(
+        tracker.snapshot(true),
+        Some(SnapshotDetails {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(1),
+            end_time_marker: i64::MAX,
+            first_wal_sequence_number: WalFileSequenceNumber::new(1),
+            last_wal_sequence_number: WalFileSequenceNumber::new(1),
+            forced: true,
+        })
+    );
+}

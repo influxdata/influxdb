@@ -7,6 +7,7 @@ use super::{
 };
 use crate::http::{AuthenticationError, Error};
 
+use super::IntoResponse;
 use super::QueryFormat;
 use super::ValidateDbNameError;
 use super::record_batch_stream_to_body;
@@ -16,6 +17,8 @@ use arrow_array::{Int32Array, RecordBatch, record_batch};
 use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use futures::StreamExt;
+use http_body_util::BodyExt;
 use iox_http_util::read_body_bytes_for_tests;
 use pretty_assertions::assert_eq;
 use serde_json::Value;
@@ -376,6 +379,63 @@ fn make_record_stream_with_sizes(batch_sizes: Vec<usize>) -> SendableRecordBatch
     let stream = futures::stream::iter(batches);
     let adapter = RecordBatchStreamAdapter::new(schema, stream);
     Box::pin(adapter)
+}
+
+/// The CSV header comes from the first batch written, even an empty one, so
+/// leading empty batches must still produce it.
+#[tokio::test]
+async fn test_csv_output_leading_empties() {
+    for (sizes, expected) in [(vec![0, 0], "a\n"), (vec![0, 0, 1], "a\n1\n")] {
+        let resp =
+            record_batch_stream_to_body(make_record_stream_with_sizes(sizes), QueryFormat::Csv)
+                .await
+                .unwrap();
+        let bytes = read_body_bytes_for_tests(resp).await;
+        assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), expected);
+    }
+}
+
+/// Stream of `batch_sizes` batches followed by a `ResourcesExhausted` error.
+fn failing_record_stream(batch_sizes: Vec<usize>) -> SendableRecordBatchStream {
+    let stream = make_record_stream_with_sizes(batch_sizes);
+    let schema = stream.schema();
+    let err = DataFusionError::ResourcesExhausted("test".into());
+    Box::pin(RecordBatchStreamAdapter::new(
+        schema,
+        stream.chain(futures::stream::iter([Err(err)])),
+    ))
+}
+
+/// A streaming body commits a 200, so an error that comes before the first rows
+/// must be returned before the body exists, where it can still set the status.
+#[tokio::test]
+async fn test_streaming_error_before_first_rows_sets_status() {
+    for format in [QueryFormat::Csv, QueryFormat::Json, QueryFormat::JsonLines] {
+        for sizes in [vec![], vec![0, 0]] {
+            let Err(err) =
+                record_batch_stream_to_body(failing_record_stream(sizes.clone()), format).await
+            else {
+                panic!("{format:?} {sizes:?}: expected an error before the body");
+            };
+            assert_eq!(
+                err.into_response().status(),
+                StatusCode::INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+}
+
+/// After the first rows the status is committed; the error must still abort
+/// the body rather than end it cleanly.
+#[tokio::test]
+async fn test_streaming_error_after_first_rows_aborts_body() {
+    for format in [QueryFormat::Csv, QueryFormat::Json, QueryFormat::JsonLines] {
+        let Ok(resp) = record_batch_stream_to_body(failing_record_stream(vec![0, 1]), format).await
+        else {
+            panic!("{format:?}: rows came first, so the error belongs in the body");
+        };
+        assert!(resp.collect().await.is_err(), "{format:?}");
+    }
 }
 
 #[test]

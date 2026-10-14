@@ -27,6 +27,7 @@ use datafusion::{
     prelude::Expr,
     scalar::ScalarValue,
 };
+use hashbrown::HashSet;
 use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::{
     Catalog, CatalogSequenceNumber, DatabaseSchema, INTERNAL_DB_NAME, TableDefinition,
@@ -42,6 +43,7 @@ use schema::TIME_COLUMN_NAME;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 use thiserror::Error;
+use write_buffer::persisted_files::remove_files_by_id;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -606,20 +608,26 @@ impl PersistedSnapshotCheckpoint {
             .push(file);
     }
 
-    /// Remove a file from the checkpoint and adjust metrics.
-    /// Returns true if the file was found and removed.
-    pub fn remove_file(&mut self, db_id: DbId, table_id: TableId, file_id: ParquetFileId) -> bool {
-        let Some(db_tables) = self.databases.get_mut(&db_id) else {
-            return false;
-        };
-        let Some(table_files) = db_tables.tables.get_mut(&table_id) else {
-            return false;
-        };
-        let Some(pos) = table_files.iter().position(|f| f.id == file_id) else {
-            return false;
+    /// Remove every file in the given table whose id is in `file_ids`, and adjust metrics.
+    /// Returns the number of files removed; 0 if the database or table is not present.
+    ///
+    /// One pass over the table's files regardless of how many ids are given. The order of the
+    /// remaining files is not kept.
+    pub fn remove_files(
+        &mut self,
+        db_id: DbId,
+        table_id: TableId,
+        file_ids: &HashSet<ParquetFileId>,
+    ) -> u64 {
+        let Some(table_files) = self
+            .databases
+            .get_mut(&db_id)
+            .and_then(|db_tables| db_tables.tables.get_mut(&table_id))
+        else {
+            return 0;
         };
 
-        let removed = table_files.remove(pos);
+        let removed = remove_files_by_id(table_files, file_ids);
         self.parquet_size_bytes = self.parquet_size_bytes.saturating_sub(removed.size_bytes);
         self.row_count = self.row_count.saturating_sub(removed.row_count);
 
@@ -627,7 +635,7 @@ impl PersistedSnapshotCheckpoint {
         // removal without iterating over all remaining files; that iteration is expected to be
         // handled by the calling context using `recalculate_time_range` once all removals have
         // been handled
-        true
+        removed.count
     }
 
     /// Add a file to the pending_removed_files collection.
@@ -688,24 +696,10 @@ impl PersistedSnapshotCheckpoint {
         // These reference files from previous months (i.e., files in self)
         let mut any_removed = false;
         for (db_id, db_tables) in other.pending_removed_files {
-            let Some(self_db_tables) = self.databases.get_mut(&db_id) else {
-                continue;
-            };
-
             for (table_id, files_to_remove) in db_tables.tables {
-                let Some(self_table_files) = self_db_tables.tables.get_mut(&table_id) else {
-                    continue;
-                };
-
-                for file in files_to_remove {
-                    if let Some(idx) = self_table_files.iter().position(|f| f.id == file.id) {
-                        let removed = self_table_files.remove(idx);
-                        self.parquet_size_bytes =
-                            self.parquet_size_bytes.saturating_sub(removed.size_bytes);
-                        self.row_count = self.row_count.saturating_sub(removed.row_count);
-                        any_removed = true;
-                    }
-                }
+                let file_ids: HashSet<ParquetFileId> =
+                    files_to_remove.iter().map(|f| f.id).collect();
+                any_removed |= self.remove_files(db_id, table_id, &file_ids) > 0;
             }
         }
 

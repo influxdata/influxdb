@@ -44,17 +44,41 @@ ignore = [
     # CRLs anywhere in this repo, so the panic is unreachable in practice on that
     # remaining 0.102.x path.
     "RUSTSEC-2026-0104",
+    # rustls 0.22.4 advisories with no fix on the 0.22.x line. It comes in only
+    # through wasmtime-wasi-http via datafusion-udf-wasm, and Wasm UDFs are
+    # disabled by default (udfs_enabled = false). rustls 0.23.x is updated to
+    # 0.23.46, which fixes both. main no longer has rustls 0.22.
+    "RUSTSEC-2026-0346", # Debug impls for client session values expose TLS secrets
+    "RUSTSEC-2026-0349", # unauthenticated ServerHello can downgrade later key exchange
     # Wasmtime advisories published on 2026-09-29. Wasmtime 48.0.3 fixes them, but we stay on 48.0.1.
     # The Enterprise build cannot use 48.0.3 yet (see ent/deny.toml), so we handle these advisories the same way in both workspaces.
     # 0313: The UDF Python guest (datafusion-udf-wasm commit 171fb47) gives Python code only `blocking_write_and_flush` for HTTP bodies, and the host rejects calls over 4096 bytes. UDFs are off by default.
     # 0314: The UDF host's file system rejects time changes.
     # 0315: The UDF host does not turn on fuel.
     # 0316: The UDF host does not use `component::Val`.
+    # Wasmtime advisories published on 2026-10-02. Wasmtime 48.0.4 fixes them, but we stay on 48.0.1.
+    # The Enterprise build cannot use 48.0.4 yet for the same reason (see ent/deny.toml), so we handle these advisories the same way in both workspaces.
+    # 0320: The panic is in `default_send_request`. The UDF host uses its own `send_request` instead, and the Python guest does not import `set-between-bytes-timeout`.
+    # 0321: The UDF host does not link WASI preview 0 and does not turn on fuel.
+    # 0322: The UDF host does not set stdout, so wasmtime uses its sink stream, which has the bug. But the Python guest does not import `write-zeroes` or `blocking-write-zeroes-and-flush`, so it cannot reach it.
+    # 0323: The UDF host does not link WASIp1, which holds `fd_readdir`. The Python guest uses WASIp2.
+    # 0324: The UDF host does not link WASIp3, and its file system rejects time changes.
+    # 0325: This build does not turn on the wasmtime `gc` Cargo feature, so exceptions are off. The Python guest uses no tags.
+    # 0326: Without the `gc` Cargo feature, wasmtime has no GC references and no exceptions. The Python guest uses neither.
+    # 0327: This build does not turn on the wasmtime `component-model-async` Cargo feature, so async-lifted exports are off. The Python guest has none.
     # Remove these entries when ent/deny.toml removes them.
     "RUSTSEC-2026-0313",
     "RUSTSEC-2026-0314",
     "RUSTSEC-2026-0315",
     "RUSTSEC-2026-0316",
+    "RUSTSEC-2026-0320",
+    "RUSTSEC-2026-0321",
+    "RUSTSEC-2026-0322",
+    "RUSTSEC-2026-0323",
+    "RUSTSEC-2026-0324",
+    "RUSTSEC-2026-0325",
+    "RUSTSEC-2026-0326",
+    "RUSTSEC-2026-0327",
 
 ]
 git-fetch-with-cli = true

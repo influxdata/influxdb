@@ -7,11 +7,13 @@ use indexmap::IndexMap;
 use influxdb3_catalog::catalog::{
     Catalog, CatalogSequenceNumber, DatabaseCatalogTransaction, Prompt,
 };
-use influxdb3_types::DatabaseName;
+use influxdb3_types::{DatabaseName, write::WriteTimestampRejection};
 
 use influxdb_line_protocol::{FieldValue, ParsedLine, parse_lines};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{Field, FieldData, Gen1Duration, Row, TableChunks, WriteBatch};
+use influxdb3_wal::{
+    Field, FieldData, Gen1Duration, MAX_WRITE_TIMESTAMP_NS, Row, TableChunks, WriteBatch,
+};
 use iox_time::Time;
 use observability_deps::tracing::trace;
 use rustc_hash::FxHasher;
@@ -212,6 +214,16 @@ fn validate_and_qualify_v1_line(
     let timestamp_ns = precision
         .to_nanos(line.timestamp, ingest_time.timestamp_nanos())
         .map_err(|error| line_error(error.to_string()))?;
+    if timestamp_ns > MAX_WRITE_TIMESTAMP_NS {
+        return Err(WriteLineError {
+            timestamp_rejection: Some(WriteTimestampRejection::TooFuture),
+            ..line_error(format!(
+                "write timestamp {} is later than the latest supported timestamp {}",
+                Time::from_timestamp_nanos(timestamp_ns),
+                Time::from_timestamp_nanos(MAX_WRITE_TIMESTAMP_NS),
+            ))
+        });
+    }
 
     let existing = txn.existing_table_tx(table_name);
     let table_is_new = existing.is_none();

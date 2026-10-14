@@ -406,6 +406,34 @@ async fn writes_with_different_schema_should_fail() {
 }
 
 #[tokio::test]
+async fn write_past_the_latest_supported_timestamp_is_rejected() {
+    let server = TestServer::spawn().await;
+    let error = server
+        .write_lp_to_db(
+            "foo",
+            format!(
+                "cpu,host=a usage=0.5 {}",
+                influxdb3_wal::MAX_WRITE_TIMESTAMP_NS + 1
+            ),
+            Precision::Nanosecond,
+        )
+        .await
+        .expect_err("a timestamp past the latest supported one should be rejected");
+
+    assert!(
+        matches!(
+            &error,
+            influxdb3_client::Error::ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message,
+                ..
+            } if message.contains("later than the latest supported timestamp"),
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+#[tokio::test]
 async fn duplicate_field_names_should_fail() {
     let server = TestServer::spawn().await;
 

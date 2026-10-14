@@ -404,6 +404,11 @@ impl WriteBufferImpl {
 
                 (persisted_files, last_wal_seq, last_snap_seq)
             };
+        // A checkpoint written before `next_file_id` existed carries none, so the loaded files
+        // also bound the counter: a reused id would lose deduplication to an older file.
+        if let Some(next_file_id) = persisted_files.next_file_id() {
+            next_file_id.advance_next_id();
+        }
         let queryable_buffer = Arc::new(QueryableBuffer::new(QueryableBufferArgs {
             executor,
             catalog: Arc::clone(&catalog),

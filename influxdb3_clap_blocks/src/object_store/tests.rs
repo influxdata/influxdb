@@ -288,7 +288,7 @@ async fn validate_aws_credential_reloader() {
         AwsCredentialReloader::new_test(path.clone(), initial_file_credentials, time_provider);
 
     // validate the current reloader credentials are still equal to the initial credentials
-    assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+    assert_eq!(reloader.current.read().as_ref(), &initial_credentials);
 
     reloader.spawn_background_updates();
 
@@ -299,7 +299,7 @@ async fn validate_aws_credential_reloader() {
 
     // validate the current reloader credentials haven't changed -- nothing was written to disk
     // yet so the initial credentials written to disk should be the same
-    assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+    assert_eq!(reloader.current.read().as_ref(), &initial_credentials);
 
     // write to the credentials file
     std::fs::write(&path, next_file_credentials_serialized).expect("must succeed writing");
@@ -314,13 +314,13 @@ async fn validate_aws_credential_reloader() {
     // after a fixed sleep (#5531).
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     loop {
-        if reloader.current.read().await.as_ref() == &next_credentials {
+        if reloader.current.read().as_ref() == &next_credentials {
             break;
         }
         assert!(
             std::time::Instant::now() < deadline,
             "credentials were not reloaded within 10s; current: {:?}",
-            reloader.current.read().await
+            reloader.current.read()
         );
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
@@ -505,7 +505,7 @@ async fn validate_reauthing_object_store() {
                 .replace(reauthable_fn());
 
             // verify the initial credentials are still set
-            assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+            assert_eq!(reloader.current.read().as_ref(), &initial_credentials);
 
             // write to the credentials file so we can verify it gets updated
             std::fs::write(&path, next_file_credentials_serialized.clone()).expect("must succeed writing");
@@ -517,7 +517,7 @@ async fn validate_reauthing_object_store() {
                 .expect("must succeed");
 
             // verify the next credentials have been loaded
-            assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+            assert_eq!(reloader.current.read().as_ref(), &next_credentials);
 
             // ============================================================
             // Test non-re-authable error
@@ -535,7 +535,7 @@ async fn validate_reauthing_object_store() {
                 .replace(not_reauthable_fn());
 
             // verify the credentials are unchanged
-            assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+            assert_eq!(reloader.current.read().as_ref(), &next_credentials);
 
             // validate that we get an error
             $expression
@@ -543,7 +543,7 @@ async fn validate_reauthing_object_store() {
                 .expect_err("must error");
 
             // reset the credentials to the initial state for the next test
-            *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
+            *reloader.current.write() = Arc::new(initial_file_credentials.clone().into());
 
             // ============================================================
             // Test Generic error with ExpiredToken
@@ -556,7 +556,7 @@ async fn validate_reauthing_object_store() {
                 .replace(generic_expired_token_fn());
 
             // Verify initial credentials are set
-            assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+            assert_eq!(reloader.current.read().as_ref(), &initial_credentials);
 
             // Write new credentials to file
             std::fs::write(&path, next_file_credentials_serialized.clone())
@@ -568,7 +568,7 @@ async fn validate_reauthing_object_store() {
                 .expect("must succeed after reauth");
 
             // Verify credentials were reloaded
-            assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+            assert_eq!(reloader.current.read().as_ref(), &next_credentials);
 
             // ============================================================
             // Test Generic error without ExpiredToken (should return Err)
@@ -595,10 +595,10 @@ async fn validate_reauthing_object_store() {
                 .expect_err("must return an error");
 
             // The error gets consumed by the first call, so we might get success or error
-            assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+            assert_eq!(reloader.current.read().as_ref(), &next_credentials);
 
             // reset the credentials to the initial state for the next test
-            *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
+            *reloader.current.write() = Arc::new(initial_file_credentials.clone().into());
         }
     }
 
@@ -641,7 +641,7 @@ async fn validate_reauthing_object_store() {
         .replace(reauthable_fn());
 
     // verify the initial credentials are still set
-    assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+    assert_eq!(reloader.current.read().as_ref(), &initial_credentials);
 
     // write to the credentials file so we can verify it gets updated
     std::fs::write(&path, next_file_credentials_serialized.clone()).expect("must succeed writing");
@@ -659,7 +659,7 @@ async fn validate_reauthing_object_store() {
         .expect("must delete");
 
     // verify the next credentials have been loaded
-    assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+    assert_eq!(reloader.current.read().as_ref(), &next_credentials);
 
     // write to the credentials file so we can verify it doesn't get updated
     std::fs::write(&path, initial_file_credentials_serialized.clone())
@@ -674,7 +674,7 @@ async fn validate_reauthing_object_store() {
         .replace(not_reauthable_fn());
 
     // verify the credentials are unchanged
-    assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+    assert_eq!(reloader.current.read().as_ref(), &next_credentials);
 
     // validate that copy still transparently works
     reloading_object_store
@@ -683,7 +683,7 @@ async fn validate_reauthing_object_store() {
         .expect_err("must error");
 
     // reset the credentials to the initial state for the next test
-    *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
+    *reloader.current.write() = Arc::new(initial_file_credentials.clone().into());
 }
 
 #[test]
