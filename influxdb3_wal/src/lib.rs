@@ -75,6 +75,9 @@ pub trait Wal: Debug + Send + Sync + 'static {
     /// If it is time for a snapshot, it will tell the notifier to start the snapshot and return
     /// a receiver that will be signalled when the snapshot is complete along with the semaphore
     /// permit to release when done. The caller is responsible for cleaning up the wal.
+    ///
+    /// Flushes run one at a time, and WAL files reach the notifier in WAL file order. A call made
+    /// while another flush is in progress, including a forced one, waits for it to finish.
     async fn flush_buffer(
         &self,
     ) -> Option<(
@@ -87,6 +90,8 @@ pub trait Wal: Debug + Send + Sync + 'static {
     /// than waiting for wal periods to stack up in [`snapshot_tracker::SnapshotTracker`].
     /// Because forcing flush buffer can happen with no ops in wal buffer this call will add
     /// a [`WalOp::Noop`] into the wal buffer if it is empty and then carry on with snapshotting.
+    ///
+    /// Like [`Wal::flush_buffer`], it waits for a flush that is already in progress.
     async fn force_flush_buffer(
         &self,
     ) -> Option<(
@@ -184,6 +189,13 @@ impl Default for WalConfig {
         }
     }
 }
+
+/// The latest data timestamp a write may carry: the gen1 window holding it, at the longest
+/// gen1 duration, must end within `i64`.
+pub const MAX_WRITE_TIMESTAMP_NS: i64 = {
+    let longest_gen1_ns = 600 * 1_000_000_000;
+    i64::MAX / longest_gen1_ns * longest_gen1_ns - 1
+};
 
 /// The duration of data timestamps, grouped into files persisted into object storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

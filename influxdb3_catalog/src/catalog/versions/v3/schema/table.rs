@@ -45,9 +45,9 @@ pub struct TableDefinition {
     pub field_families: Repository<FieldFamilyId, FieldFamilyDefinition>,
     field_count: usize,
     /// Fields which must be auto-assigned to a field family will be added to this one.
-    auto_field_family: Option<FieldFamilyId>,
+    pub(crate) auto_field_family: Option<FieldFamilyId>,
     /// The next auto field family name to be used when there is no existing `auto_field_family`.
-    next_auto_field_family_name: u16,
+    pub(crate) next_auto_field_family_name: u16,
     /// List of column identifiers that form the series key for the table
     ///
     /// The series key is used as the sort order, i.e., sort key, for the table during persistence.

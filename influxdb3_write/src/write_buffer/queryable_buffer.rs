@@ -1,7 +1,7 @@
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
-use crate::write_buffer::persisted_files::{PersistedFiles, sort_by_min_time_desc};
+use crate::write_buffer::persisted_files::{PersistedFiles, sort_by_persist_order};
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot, PersistedSnapshotVersion};
 use anyhow::Context;
@@ -138,7 +138,7 @@ impl QueryableBuffer {
             );
             (chunks, parquet_files)
         };
-        sort_by_min_time_desc(&mut parquet_files);
+        sort_by_persist_order(&mut parquet_files);
 
         Ok((chunks, parquet_files))
     }
@@ -275,6 +275,7 @@ impl QueryableBuffer {
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
                         let persist_job = PersistJob {
+                            id: ParquetFileId::new(),
                             database_id: *database_id,
                             table_id: *table_id,
                             table_name: Arc::clone(&table_name),
@@ -389,6 +390,7 @@ impl QueryableBuffer {
                     let path: Arc<str> = persist_job.path.to_string().into();
                     let database_id = persist_job.database_id;
                     let table_id = persist_job.table_id;
+                    let id = persist_job.id;
                     let chunk_time = persist_job.chunk_time;
                     let chunk_ordinal = persist_job.chunk_ordinal;
                     let min_time = persist_job.timestamp_min_max.min;
@@ -416,7 +418,7 @@ impl QueryableBuffer {
                     // https://github.com/influxdata/influxdb/issues/25677
                     .expect("sort, deduplicate, and persist buffer data as parquet");
                     let parquet_file = ParquetFile {
-                        id: ParquetFileId::new(),
+                        id,
                         path,
                         size_bytes: file_size_bytes,
                         row_count: file_meta_data.file_metadata().num_rows() as u64,
@@ -604,6 +606,9 @@ impl BufferState {
 
 #[derive(Debug)]
 struct PersistJob {
+    /// Allocated when the job is created, so file ids follow persist order even though the
+    /// jobs of one snapshot finish in any order.
+    id: ParquetFileId,
     database_id: DbId,
     table_id: TableId,
     table_name: Arc<str>,

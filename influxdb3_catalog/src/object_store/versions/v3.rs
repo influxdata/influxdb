@@ -198,6 +198,12 @@ impl ObjectStoreCatalog {
             .await?;
         log_metas.sort_unstable_by(|a, b| a.location.cmp(&b.location));
 
+        info!(
+            log_files = log_metas.len(),
+            total_bytes = log_metas.iter().map(|m| m.size).sum::<u64>(),
+            "loading catalog log files newer than the snapshot"
+        );
+
         let store = Arc::clone(&self.store);
         let prefix = Arc::clone(&self.prefix);
         let fetched: Vec<CatalogFile> = stream::iter(log_metas)

@@ -13,6 +13,7 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::RecordBatchStream;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_util::first_error::check_for_first_error;
 use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
 use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_LENGTH};
@@ -2447,6 +2448,9 @@ async fn record_batch_stream_to_body(
     mut stream: Pin<Box<dyn RecordBatchStream + Send>>,
     format: QueryFormat,
 ) -> Result<ResponseBody, Error> {
+    // Check for an early error before building the body, so a streaming format
+    // does not commit a 200 first. The materialized formats see the same batches.
+    stream = check_for_first_error(stream).await?;
     match format {
         QueryFormat::Pretty => {
             let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
@@ -3080,6 +3084,11 @@ fn validate_restricted_plugin_trigger_specification(
         )))
     }
 }
+
+#[cfg(all(unix, feature = "operator_socket"))]
+mod operator;
+#[cfg(all(unix, feature = "operator_socket"))]
+pub use operator::route_operator_request;
 
 #[cfg(test)]
 mod tests;

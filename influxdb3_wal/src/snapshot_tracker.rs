@@ -162,13 +162,16 @@ impl SnapshotTracker {
     fn snapshot_all(&mut self) -> Option<SnapshotDetails> {
         let wal_periods: Vec<WalPeriod> = std::mem::take(&mut self.wal_periods);
         let max_time = wal_periods.iter().map(|period| period.max_time).max()?;
-        let t = max_time - (max_time.get() % self.gen1_duration.as_nanos())
-            + self.gen1_duration.as_nanos();
+        // Saturates for WAL data written before writes were capped at `MAX_WRITE_TIMESTAMP_NS`.
+        let end_time_marker = self
+            .gen1_duration
+            .chunk_time_for_timestamp(max_time)
+            .saturating_add(self.gen1_duration.as_nanos());
         let first_wal_sequence_number = wal_periods.first()?.wal_file_number;
         let last_wal_sequence_number = wal_periods.last()?.wal_file_number;
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number: self.increment_snapshot_sequence_number(),
-            end_time_marker: t.get(),
+            end_time_marker,
             first_wal_sequence_number,
             last_wal_sequence_number,
             forced: true,

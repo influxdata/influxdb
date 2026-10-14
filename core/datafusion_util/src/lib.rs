@@ -15,6 +15,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 pub mod config;
+pub mod first_error;
 pub mod sender;
 pub mod watch;
 
@@ -663,6 +664,9 @@ where
         | LogicalPlan::RecursiveQuery(_)) => Ok(Transformed::no(plan)),
     }
 }
+
+#[cfg(test)]
+mod first_error_tests;
 
 #[cfg(test)]
 mod tests {

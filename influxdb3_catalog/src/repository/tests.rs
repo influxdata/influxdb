@@ -237,3 +237,141 @@ fn insert_with_already_used_name_fails() {
     )
     .unwrap_err();
 }
+
+// This is an important property, even though it seems kinda weird an arbitrary.
+//
+// For a while, there was a bug in the `Repository` implementation that allowed duplicate names (see
+// https://github.com/influxdata/influxdb_pro/pull/5750), and that caused the creation of a lot of
+// catalogs with seemingly-inconsistent repository states (see
+// https://github.com/influxdata/influxdb_pro/issues/6281). So now we have to allow this specific
+// case of duplication to ensure that these older catalogs keep loading while also preventing the
+// least amount of future duplication.
+#[test]
+fn insert_allowing_duplicate_name_keeps_first_holder_of_the_name() {
+    let (mut repo, first) = repo_with_one();
+    let name = repo.get_by_id(&first).unwrap().name();
+    let second = DbId::new(20);
+
+    let name_taken = repo
+        .insert_allowing_duplicate_name(
+            second,
+            TestResource {
+                id: second,
+                name: Arc::clone(&name),
+            },
+        )
+        .unwrap();
+    assert!(name_taken);
+
+    assert_eq!(repo.len(), 2);
+    assert_eq!(repo.name_to_id(&name), Some(first));
+    assert_eq!(repo.id_to_name(&second), None);
+    assert!(repo.contains_id(&second));
+    assert_eq!(repo.get_by_id(&second).unwrap().id, second);
+    assert_eq!(repo.next_id(), DbId::new(21));
+
+    // A fresh name goes in like a regular insert.
+    let third = DbId::new(21);
+    let name_taken = repo
+        .insert_allowing_duplicate_name(
+            third,
+            TestResource {
+                id: third,
+                name: Arc::from("other"),
+            },
+        )
+        .unwrap();
+    assert!(!name_taken);
+    assert_eq!(repo.name_to_id("other"), Some(third));
+
+    // Ids are still unique, including the unnamed one.
+    repo.insert_allowing_duplicate_name(
+        second,
+        TestResource {
+            id: second,
+            name: Arc::from("another"),
+        },
+    )
+    .unwrap_err();
+    repo.insert(
+        second,
+        TestResource {
+            id: second,
+            name: Arc::from("another"),
+        },
+    )
+    .unwrap_err();
+}
+
+#[test]
+fn unnamed_resource_takes_the_name_once_it_is_free() {
+    let (mut repo, first) = repo_with_one();
+    let name = repo.get_by_id(&first).unwrap().name();
+    let second = DbId::new(20);
+    repo.insert_allowing_duplicate_name(
+        second,
+        TestResource {
+            id: second,
+            name: Arc::clone(&name),
+        },
+    )
+    .unwrap();
+
+    // Updating the unnamed resource without a rename leaves it unnamed.
+    repo.modify_by_id::<_, RepositoryError<DbId>>(&second, |r| {
+        r.id = second;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(repo.name_to_id(&name), Some(first));
+    assert_eq!(repo.id_to_name(&second), None);
+    repo.modify_by_id_in_place::<_, RepositoryError<DbId>>(&second, |_| Ok(()))
+        .unwrap();
+    assert_eq!(repo.id_to_name(&second), None);
+
+    // Renaming it onto a name another id holds is still refused.
+    let third = DbId::new(30);
+    repo.insert(
+        third,
+        TestResource {
+            id: third,
+            name: Arc::from("third"),
+        },
+    )
+    .unwrap();
+    let err = repo
+        .update(
+            second,
+            TestResource {
+                id: second,
+                name: Arc::from("third"),
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(err, RepositoryError::AlreadyExistsByName { .. }));
+    assert_eq!(repo.id_to_name(&second), None);
+    assert_eq!(repo.name_to_id("third"), Some(third));
+
+    // Once the holder is gone the unnamed resource can claim the name.
+    repo.remove(&first);
+    assert_eq!(repo.name_to_id(&name), None);
+    repo.update(
+        second,
+        TestResource {
+            id: second,
+            name: Arc::clone(&name),
+        },
+    )
+    .unwrap();
+    assert_eq!(repo.name_to_id(&name), Some(second));
+    assert!(repo.id_exists(&second));
+}
+
+#[test]
+#[should_panic(expected = "id map and repository are in an inconsistent state")]
+fn id_exists_still_rejects_an_unrecorded_unnamed_id() {
+    let (mut repo, id) = repo_with_one();
+    // A resource left without a name-map entry by anything else is still corruption.
+    repo.id_name_map.remove_by_left(&id);
+    repo.id_exists(&id);
+}

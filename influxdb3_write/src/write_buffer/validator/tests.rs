@@ -326,3 +326,61 @@ async fn write_validator_rejects_duplicate_tag() -> Result<(), Error> {
 
     Ok(())
 }
+
+/// A timestamp at `MAX_WRITE_TIMESTAMP_NS` is accepted and any later one is rejected, both when
+/// a write accepts partial success and when one bad line fails the whole write.
+#[tokio::test]
+async fn rejects_timestamps_past_the_latest_supported() {
+    let max = influxdb3_wal::MAX_WRITE_TIMESTAMP_NS;
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
+    let database_name = DatabaseName::new("test").unwrap();
+
+    let lp = format!("cpu v=1 {max}\ncpu v=2 {}\ncpu v=3 {}", max + 1, i64::MAX);
+    let result = WriteValidator::initialize(database_name.clone(), Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            &lp,
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Nanosecond,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+    assert_eq!(result.line_count, 1);
+    assert_eq!(
+        result
+            .errors
+            .iter()
+            .map(|e| e.line_number)
+            .collect::<Vec<_>>(),
+        [2, 3]
+    );
+    assert!(
+        result.errors.iter().all(|e| e
+            .error_message
+            .contains("later than the latest supported timestamp")),
+        "unexpected error messages: {:?}",
+        result.errors
+    );
+
+    let err = WriteValidator::initialize(database_name, catalog)
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            &format!("cpu v=2 {}", max + 1),
+            false,
+            Time::from_timestamp_nanos(0),
+            Precision::Nanosecond,
+        )
+        .err();
+    assert!(
+        matches!(
+            &err,
+            Some(Error::ParseError(e)) if e.error_message.contains("later than the latest supported timestamp")
+        ),
+        "unexpected result: {err:?}"
+    );
+}
