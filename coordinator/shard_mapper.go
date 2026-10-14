@@ -33,6 +33,7 @@ type LocalShardMapper struct {
 func (e *LocalShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
 	a := &LocalShardMapping{
 		ShardMap: make(map[Source]tsdb.ShardGroup),
+		Groups:   make(map[Source][]groupedShards),
 	}
 
 	tmin := time.Unix(0, t.MinTimeNano())
@@ -67,12 +68,23 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 				}
 
 				shardIDs := make([]uint64, 0, len(groups[0].Shards)*len(groups))
+				groupedIDs := make([]groupedShards, 0, len(groups))
 				for _, g := range groups {
+					ids := make([]uint64, 0, len(g.Shards))
 					for _, si := range g.Shards {
 						shardIDs = append(shardIDs, si.ID)
+						ids = append(ids, si.ID)
 					}
+					// groups is ordered ascending by time (see
+					// meta.ShardGroupInfos.Less), so groupedIDs is too.
+					groupedIDs = append(groupedIDs, groupedShards{
+						StartTime: g.StartTime,
+						EndTime:   g.EndTime,
+						Shards:    e.TSDBStore.ShardGroup(ids),
+					})
 				}
 				a.ShardMap[source] = e.TSDBStore.ShardGroup(shardIDs)
+				a.Groups[source] = groupedIDs
 			}
 		case *influxql.SubQuery:
 			if err := e.mapShards(a, s.Statement.Sources, tmin, tmax); err != nil {
@@ -87,6 +99,13 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 type LocalShardMapping struct {
 	ShardMap map[Source]tsdb.ShardGroup
 
+	// Groups holds the same shards as ShardMap, but partitioned by their
+	// originating meta shard group and ordered ascending by time. It is
+	// used to let CreateIterator stop opening chronologically later (or,
+	// for descending queries, earlier) shard groups once a global LIMIT is
+	// already satisfied by groups already opened.
+	Groups map[Source][]groupedShards
+
 	// MinTime is the minimum time that this shard mapper will allow.
 	// Any attempt to use a time before this one will automatically result in using
 	// this time instead.
@@ -96,6 +115,14 @@ type LocalShardMapping struct {
 	// Any attempt to use a time after this one will automatically result in using
 	// this time instead.
 	MaxTime time.Time
+}
+
+// groupedShards pairs one meta shard-group's time boundary with a
+// tsdb.ShardGroup handle covering only that group's shard IDs.
+type groupedShards struct {
+	StartTime time.Time
+	EndTime   time.Time
+	Shards    tsdb.ShardGroup
 }
 
 func (a *LocalShardMapping) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
@@ -205,6 +232,10 @@ func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Meas
 
 		return query.Iterators(inputs).Merge(opt)
 	}
+
+	if groups := a.Groups[source]; len(groups) > 1 && isLimitPushdownEligible(m, opt) {
+		return newShardGroupLimitIterator(ctx, m, opt, groups)
+	}
 	return sg.CreateIterator(ctx, m, opt)
 }
 
@@ -245,6 +276,7 @@ func (a *LocalShardMapping) IteratorCost(m *influxql.Measurement, opt query.Iter
 // Close clears out the list of mapped shards.
 func (a *LocalShardMapping) Close() error {
 	a.ShardMap = nil
+	a.Groups = nil
 	return nil
 }
 
