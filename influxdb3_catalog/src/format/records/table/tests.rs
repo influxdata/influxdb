@@ -205,6 +205,119 @@ fn apply_add_columns() {
 }
 
 #[test]
+fn apply_add_columns_accepts_repeated_auto_name_but_not_repeated_user_name() {
+    fn field(family_id: u16, column_id: u16, name: &str) -> ColumnDefinition {
+        ColumnDefinition::Field(FieldColumn {
+            id: FieldIdentifier {
+                family_id,
+                field_id: 0,
+            },
+            column_id: Some(column_id),
+            name: name.to_string(),
+            data_type: FieldDataType::Float,
+        })
+    }
+    fn add_columns(columns: Vec<ColumnDefinition>, names: [FieldFamilyName; 2]) -> AddColumns {
+        let [first, second] = names;
+        AddColumns {
+            database_id: 1,
+            table_id: 10,
+            columns,
+            field_families: vec![
+                FieldFamilyDefinition { id: 0, name: first },
+                FieldFamilyDefinition {
+                    id: 1,
+                    name: second,
+                },
+            ],
+        }
+    }
+    fn catalog_with_table() -> InnerCatalog {
+        let mut catalog = test_catalog();
+        setup_database(&mut catalog, 1, "mydb");
+        CreateTable {
+            database_id: 1,
+            database_name: "mydb".to_string(),
+            table_name: "cpu".to_string(),
+            table_id: 10,
+            retention_period: RetentionPeriod::Indefinite,
+            field_family_mode: FieldFamilyMode::Aware,
+        }
+        .apply(&mut catalog)
+        .unwrap();
+        catalog
+    }
+
+    // Two `Auto(0)` families: accepted, the first id keeps the name.
+    // We do this to work around the bug noticed in
+    // https://github.com/influxdata/influxdb_pro/issues/6281 - ideally, we wouldn't allow
+    // duplicates at all, but since they were already in catalogs, we can't easily get rid of them.
+    let mut catalog = catalog_with_table();
+    add_columns(
+        vec![field(0, 0, "usage"), field(1, 1, "idle")],
+        [FieldFamilyName::Auto(0), FieldFamilyName::Auto(0)],
+    )
+    .apply(&mut catalog)
+    .unwrap();
+    let db = catalog
+        .databases
+        .get_by_id(&influxdb3_id::DbId::new(1))
+        .unwrap();
+    let table = db.table_definition("cpu").unwrap();
+    assert_eq!(table.field_families.len(), 2);
+    assert_eq!(
+        table.field_families.name_to_id("__0"),
+        Some(influxdb3_id::FieldFamilyId::new(0))
+    );
+
+    // `User("__0")` then `Auto(0)`, as written when a `__0::field` write preceded
+    // the first unqualified field: accepted, the user family keeps the name.
+    let mut catalog = catalog_with_table();
+    add_columns(
+        vec![field(0, 0, "usage"), field(1, 1, "idle")],
+        [
+            FieldFamilyName::User("__0".to_string()),
+            FieldFamilyName::Auto(0),
+        ],
+    )
+    .apply(&mut catalog)
+    .unwrap();
+    let db = catalog
+        .databases
+        .get_by_id(&influxdb3_id::DbId::new(1))
+        .unwrap();
+    let table = db.table_definition("cpu").unwrap();
+    assert_eq!(table.field_families.len(), 2);
+    assert_eq!(
+        table.field_families.name_to_id("__0"),
+        Some(influxdb3_id::FieldFamilyId::new(0))
+    );
+    assert_eq!(
+        table.auto_field_family(),
+        Some(influxdb3_id::FieldFamilyId::new(1))
+    );
+
+    // Two user families with the same name: still an error.
+    // We're only allowing duplicate auto families because we have to be compatible with old, buggy
+    // catalogs. We don't *have to* allow duplicate user families, so we don't.
+    let mut catalog = catalog_with_table();
+    let err = add_columns(
+        vec![field(0, 0, "usage"), field(1, 1, "idle")],
+        [
+            FieldFamilyName::User("env".to_string()),
+            FieldFamilyName::User("env".to_string()),
+        ],
+    )
+    .apply(&mut catalog)
+    .unwrap_err();
+    assert!(
+        err.0
+            .contains("field_families with name 'env' already exists"),
+        "got {err:?}"
+    );
+}
+
+#[test]
 fn apply_soft_and_hard_delete_table() {
     let mut catalog = test_catalog();
     setup_database(&mut catalog, 1, "mydb");

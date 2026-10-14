@@ -11,6 +11,7 @@ use object_store_utils::{LostResponseError, LostResponseStore, SelfVerifyingCrea
 use rustc_hash::FxHasher;
 use std::any::Any;
 use std::hash::BuildHasherDefault;
+use tokio::sync::Notify;
 use tokio::sync::oneshot::Receiver;
 
 // Helper function to create IndexMap with FxHasher for tests
@@ -1033,4 +1034,256 @@ async fn outer_retry_loop_is_covered_by_the_per_file_nonce() {
         "outer-loop retry shut the node down"
     );
     assert!(flushed.is_some());
+}
+/// A minimal one-row write batch op for buffer-limit tests; `n` distinguishes
+/// writes and serves as the row time.
+fn small_write_op(n: i64) -> WalOp {
+    WalOp::Write(WriteBatch {
+        catalog_sequence: 0,
+        database_id: DbId::from(0),
+        database_name: "db1".into(),
+        table_chunks: fx_index_map([(
+            TableId::from(0),
+            TableChunks {
+                min_time: n,
+                max_time: n,
+                chunk_time_to_chunk: HashMap::from([(
+                    0,
+                    TableChunk {
+                        rows: vec![Row {
+                            time: n,
+                            fields: vec![
+                                Field {
+                                    id: ColumnId::from(0),
+                                    value: FieldData::Integer(n),
+                                },
+                                Field {
+                                    id: ColumnId::from(1),
+                                    value: FieldData::Timestamp(n),
+                                },
+                            ],
+                        }],
+                    },
+                )]),
+            },
+        )])
+        .into(),
+        min_time_ns: n,
+        max_time_ns: n,
+    })
+}
+
+/// Delegates to `inner`. A `put_opts` to `only_path`, or to any path when
+/// `only_path` is `None`, notifies `started` and then waits for `open` before
+/// it writes.
+#[derive(Debug)]
+struct GatedPut {
+    inner: Arc<dyn ObjectStore>,
+    started: Notify,
+    open: Notify,
+    only_path: Option<Path>,
+}
+
+impl std::fmt::Display for GatedPut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("GatedPut")
+    }
+}
+
+#[async_trait]
+impl ObjectStore for GatedPut {
+    async fn put_opts(
+        &self,
+        location: &::object_store::path::Path,
+        payload: ::object_store::PutPayload,
+        opts: ::object_store::PutOptions,
+    ) -> ::object_store::Result<::object_store::PutResult> {
+        if self.only_path.as_ref().is_none_or(|path| path == location) {
+            self.started.notify_one();
+            self.open.notified().await;
+        }
+        self.inner.put_opts(location, payload, opts).await
+    }
+    async fn put_multipart_opts(
+        &self,
+        location: &::object_store::path::Path,
+        opts: ::object_store::PutMultipartOptions,
+    ) -> ::object_store::Result<Box<dyn ::object_store::MultipartUpload>> {
+        self.inner.put_multipart_opts(location, opts).await
+    }
+    async fn get_opts(
+        &self,
+        location: &::object_store::path::Path,
+        options: ::object_store::GetOptions,
+    ) -> ::object_store::Result<::object_store::GetResult> {
+        self.inner.get_opts(location, options).await
+    }
+    async fn delete(&self, location: &::object_store::path::Path) -> ::object_store::Result<()> {
+        self.inner.delete(location).await
+    }
+    fn list(
+        &self,
+        prefix: Option<&::object_store::path::Path>,
+    ) -> futures_util::stream::BoxStream<'static, ::object_store::Result<::object_store::ObjectMeta>>
+    {
+        self.inner.list(prefix)
+    }
+    async fn list_with_delimiter(
+        &self,
+        prefix: Option<&::object_store::path::Path>,
+    ) -> ::object_store::Result<::object_store::ListResult> {
+        self.inner.list_with_delimiter(prefix).await
+    }
+    async fn copy(
+        &self,
+        from: &::object_store::path::Path,
+        to: &::object_store::path::Path,
+    ) -> ::object_store::Result<()> {
+        self.inner.copy(from, to).await
+    }
+    async fn copy_if_not_exists(
+        &self,
+        from: &::object_store::path::Path,
+        to: &::object_store::path::Path,
+    ) -> ::object_store::Result<()> {
+        self.inner.copy_if_not_exists(from, to).await
+    }
+}
+
+/// A WAL over `object_store` with a snapshot size large enough that only
+/// forced flushes snapshot.
+fn gated_wal(object_store: Arc<dyn ObjectStore>, notifier: Arc<TestNotifier>) -> WalObjectStore {
+    WalObjectStore::new_without_replay(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        object_store,
+        "my_host",
+        notifier,
+        WalConfig {
+            snapshot_size: 100,
+            ..Default::default()
+        },
+        None,
+        None,
+        &[],
+        1,
+        CancellationToken::new(),
+    )
+}
+
+/// A forced flush must not start while an earlier flush is writing its WAL
+/// file. Its snapshot would include the earlier file but not that file's
+/// rows, and a restart would skip the file. The notifier is a test double,
+/// so the snapshot is not persisted.
+#[tokio::test]
+async fn forced_flush_waits_for_an_earlier_flush() {
+    let gate = Arc::new(GatedPut {
+        inner: Arc::new(InMemory::new()),
+        started: Notify::new(),
+        open: Notify::new(),
+        only_path: Some(wal_path("my_host", WalFileSequenceNumber::new(1))),
+    });
+    let notifier = Arc::new(TestNotifier::default());
+    let wal = Arc::new(gated_wal(Arc::clone(&gate) as _, Arc::clone(&notifier)));
+
+    let (tx, rx) = oneshot::channel();
+    wal.flush_buffer
+        .lock()
+        .await
+        .wal_buffer
+        .buffer_ops_with_response(vec![small_write_op(1)], tx)
+        .unwrap();
+    let slow_flush = tokio::spawn({
+        let wal = Arc::clone(&wal);
+        async move { wal.flush_buffer(false).await }
+    });
+    gate.started.notified().await;
+
+    // A forced flush of N+1 starts while N is being written. Poll it once.
+    // The flush-buffer lock and the snapshot permit are free and the PUT
+    // of N+1 is not gated, so only the wait for the earlier flush can
+    // leave it pending.
+    assert_eq!(
+        wal.flush_buffer
+            .lock()
+            .await
+            .snapshot_semaphore
+            .available_permits(),
+        1
+    );
+    let mut forced_flush = std::pin::pin!(wal.flush_buffer(true));
+    assert!(futures_util::poll!(forced_flush.as_mut()).is_pending());
+    // The forced flush has not taken N+1, written it or notified.
+    assert!(notifier.notified_writes.lock().is_empty());
+    assert!(
+        gate.inner
+            .head(&wal_path("my_host", WalFileSequenceNumber::new(2)))
+            .await
+            .is_err()
+    );
+
+    gate.open.notify_one();
+    assert!(slow_flush.await.unwrap().is_none());
+    assert!(matches!(rx.await.unwrap(), WriteResult::Success(())));
+    let (done, details, permit) = tokio::time::timeout(Duration::from_secs(5), forced_flush)
+        .await
+        .unwrap()
+        .unwrap();
+    done.await.unwrap();
+    assert_eq!(details.last_wal_sequence_number.as_u64(), 2);
+    let notified: Vec<_> = notifier
+        .notified_writes
+        .lock()
+        .iter()
+        .map(|write| (write.wal_file_number.as_u64(), write.snapshot.is_some()))
+        .collect();
+    assert_eq!(notified, [(1, false), (2, true)]);
+    drop(permit);
+}
+
+/// A flush whose PUT fails must not stop the next flush.
+#[tokio::test]
+async fn failed_flush_lets_the_next_flush_run() {
+    let first_path = wal_path("my_host", WalFileSequenceNumber::new(1));
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    // WAL 1 already exists, so its PUT fails with AlreadyExists.
+    inner
+        .put(&first_path, PutPayload::from_static(b"existing"))
+        .await
+        .unwrap();
+    let gate = Arc::new(GatedPut {
+        inner,
+        started: Notify::new(),
+        open: Notify::new(),
+        only_path: Some(first_path),
+    });
+    let notifier = Arc::new(TestNotifier::default());
+    let wal = Arc::new(gated_wal(Arc::clone(&gate) as _, Arc::clone(&notifier)));
+
+    let (tx, rx) = oneshot::channel();
+    wal.flush_buffer
+        .lock()
+        .await
+        .wal_buffer
+        .buffer_ops_with_response(vec![small_write_op(1)], tx)
+        .unwrap();
+    let failing_flush = tokio::spawn({
+        let wal = Arc::clone(&wal);
+        async move { wal.flush_buffer(false).await }
+    });
+    gate.started.notified().await;
+
+    // Only the wait for the failing flush can leave the forced flush pending.
+    let mut forced_flush = std::pin::pin!(wal.flush_buffer(true));
+    assert!(futures_util::poll!(forced_flush.as_mut()).is_pending());
+    assert!(notifier.notified_writes.lock().is_empty());
+
+    // The PUT of WAL 1 fails, and its client receives an error.
+    gate.open.notify_one();
+    assert!(failing_flush.await.unwrap().is_none());
+    assert!(matches!(rx.await.unwrap(), WriteResult::Error(_)));
+    // The WAL is now in its error state, so check only that the forced flush
+    // gets the lock and returns, not what it writes.
+    tokio::time::timeout(Duration::from_secs(5), forced_flush)
+        .await
+        .expect("a failed flush must let the next flush run");
 }

@@ -43,7 +43,7 @@ use crate::catalog::{
     CATALOG_WRITE_PERMIT, CatalogSequenceNumber, CatalogWritePermit, DEFAULT_OPERATOR_TOKEN_NAME,
     DeletedSchema, DeletionStatus, INTERNAL_DB_NAME, INTERNAL_DB_RETENTION_PERIOD, IfNotDeleted,
     RESERVED_COLUMN_NAMES, TIME_COLUMN_NAME, TokenRepository, create_token_and_hash,
-    make_new_name_using_deleted_time,
+    insert_new_field_families, make_new_name_using_deleted_time,
 };
 
 pub(crate) mod enterprise;
@@ -3190,22 +3190,17 @@ impl TableDefinition {
         let mut field_families = Repository::new();
         let mut auto_field_family = None;
         let mut next_auto_field_family_name = 0;
-        for (id, name) in field_family_defs {
-            // Track the highest auto field family so subsequent field additions reuse it
-            // rather than creating duplicates. Uses >= because Auto(0) is a valid first value.
-            if let FieldFamilyName::Auto(v) = name
-                && v >= next_auto_field_family_name
-            {
-                // It is not possible for the next auto ID overflow, because there is a
-                // limit of u16::MAX field families per table, and the auto ID starts at 0.
-                next_auto_field_family_name = v.checked_add(1).expect("field family ID overflowed");
-                auto_field_family = Some(id);
-            }
 
-            field_families
-                .insert(id, FieldFamilyDefinition::new(id, name))
-                .expect("field family definition should not exist");
-        }
+        insert_new_field_families(
+            field_family_defs
+                .into_iter()
+                .map(|(id, name)| FieldFamilyDefinition::new(id, name)),
+            &mut field_families,
+            &mut next_auto_field_family_name,
+            &mut auto_field_family,
+            table_id,
+        )
+        .expect("we should be able to add these new field families");
 
         let retention_period = match retention_period {
             Some(duration) => RetentionPeriod::Duration(duration),
@@ -3326,22 +3321,13 @@ impl TableDefinition {
 
         if !new_families.is_empty() {
             let table = table.to_mut();
-            for def in new_families {
-                // When applying field families from a catalog batch (e.g. after commit or
-                // during catalog replay), we must track auto_field_family so that subsequent
-                // writes add new fields to the existing auto family instead of creating
-                // duplicates. Without this, the table loses its auto_field_family reference
-                // after every commit, causing new fields to be placed in separate families
-                // and breaking queries that project only the newer fields (#2582).
-                if let FieldFamilyName::Auto(v) = &def.name
-                    && *v >= table.next_auto_field_family_name
-                {
-                    table.next_auto_field_family_name =
-                        v.checked_add(1).expect("field family ID overflowed");
-                    table.auto_field_family = Some(def.id);
-                }
-                table.field_families.insert(def.id, def)?;
-            }
+            insert_new_field_families(
+                new_families,
+                &mut table.field_families,
+                &mut table.next_auto_field_family_name,
+                &mut table.auto_field_family,
+                table.table_id,
+            )?;
         }
 
         Ok(table)

@@ -50,8 +50,9 @@ use ahash::RandomState as AHashBuilder;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use influxdb3_authz::TokenInfo;
-use influxdb3_id::TokenId;
+use influxdb3_id::{CatalogId, TableId, TokenId};
 use iox_time::Time;
+use observability_deps::tracing::info;
 use rand::RngCore;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -71,7 +72,7 @@ mod tests;
 
 use crate::repository::Repository;
 use crate::resource::CatalogResource;
-use crate::{CatalogError, Result};
+use crate::{CatalogError, RepositoryError, Result};
 
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
@@ -322,4 +323,111 @@ pub fn create_token_and_hash() -> (String, Vec<u8>) {
         token
     };
     (token.clone(), compute_token_hash(&token))
+}
+
+pub(crate) trait FieldFamilyLike: CatalogResource {
+    fn auto_name(&self) -> Option<u16>;
+}
+
+impl FieldFamilyLike for crate::catalog::versions::v2::FieldFamilyDefinition {
+    fn auto_name(&self) -> Option<u16> {
+        match self.name {
+            crate::catalog::versions::v2::FieldFamilyName::Auto(a) => Some(a),
+            _ => None,
+        }
+    }
+}
+
+impl FieldFamilyLike for crate::catalog::versions::v3::schema::column::FieldFamilyDefinition {
+    fn auto_name(&self) -> Option<u16> {
+        match self.name {
+            crate::catalog::versions::v3::schema::column::FieldFamilyName::Auto(a) => Some(a),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum InsertionErr<I: CatalogId> {
+    #[error(
+        "attempted to create too many field families; the maximum number allowed is {max_num_field_families}"
+    )]
+    TooManyFieldFamilies { max_num_field_families: u16 },
+    #[error(transparent)]
+    Repository(RepositoryError<I>),
+}
+
+impl<I: CatalogId> From<InsertionErr<I>> for CatalogError {
+    fn from(value: InsertionErr<I>) -> Self {
+        match value {
+            InsertionErr::TooManyFieldFamilies {
+                max_num_field_families,
+            } => CatalogError::TooManyFieldFamilies(max_num_field_families as usize),
+            InsertionErr::Repository(r) => Self::from(r),
+        }
+    }
+}
+
+pub(crate) fn insert_new_field_families<FF>(
+    definitions: impl IntoIterator<Item = FF>,
+    field_families: &mut Repository<<FF as CatalogResource>::Identifier, FF>,
+    next_auto_field_family_name: &mut u16,
+    auto_field_family: &mut Option<<FF as CatalogResource>::Identifier>,
+    table_id: TableId,
+) -> Result<(), InsertionErr<<FF as CatalogResource>::Identifier>>
+where
+    FF: FieldFamilyLike,
+    <FF as CatalogResource>::Identifier: influxdb3_id::CatalogId,
+{
+    let mut repeated_names = 0;
+
+    for def in definitions {
+        // Track the highest auto field family so subsequent field additions reuse it rather than
+        // creating duplicates. Uses >= because Auto(0) is a valid first value.
+        // Without this, the table loses its auto_field_family reference after every commit, causing
+        // new fields to be placed in separate families and breaking queries that project only the
+        // newer fields (#2582).
+        if let Some(v) = def.auto_name()
+            && v >= *next_auto_field_family_name
+        {
+            // It is not possible for the next auto ID overflow, because there is a
+            // limit of u16::MAX field families per table, and the auto ID starts at 0.
+            *next_auto_field_family_name =
+                v.checked_add(1).ok_or(InsertionErr::TooManyFieldFamilies {
+                    max_num_field_families: v,
+                })?;
+            *auto_field_family = Some(def.id());
+        }
+
+        // Catalogs written before <https://github.com/influxdata/influxdb_pro/pull/2593>
+        // hold several `Auto(0)` families per table. A repeated auto name is accepted and
+        // the first holder keeps it. User names stay unique.
+        // We need to have this special behavior because of
+        // https://github.com/influxdata/influxdb_pro/issues/6281 - duplicate names were falsely
+        // accepted for a while, and rejecting or replacing them would be much more difficult
+        // than just working around them.
+        let is_auto = def.auto_name().is_some();
+        let name_taken = if is_auto {
+            field_families
+                .insert_allowing_duplicate_name(def.id(), def)
+                .map_err(InsertionErr::Repository)?
+        } else {
+            field_families
+                .insert(def.id(), def)
+                .map_err(InsertionErr::Repository)?;
+            false
+        };
+        if name_taken {
+            repeated_names += 1;
+        }
+    }
+    if repeated_names > 0 {
+        info!(
+            %table_id,
+            repeated_names,
+            "table has field families with repeated auto names from an earlier release; \
+             all are kept and the earliest keeps each name"
+        );
+    }
+    Ok(())
 }

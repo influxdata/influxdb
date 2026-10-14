@@ -711,6 +711,49 @@ fn add_columns_preserves_auto_field_family_name() {
 }
 
 #[test]
+fn migrated_table_with_duplicate_auto_field_family_names_loads() {
+    // Pre-fix v2 tables hold several `Auto(0)` families; the migrated records
+    // must still apply.
+    let mut t = table(1, "t");
+    t.field_family_mode = V2FieldFamilyMode::Auto;
+    t.columns.repo.push(time_col(0));
+    t.columns
+        .repo
+        .push(field_col(0, 0, 1, "usage", FieldDataType::Float));
+    t.columns
+        .repo
+        .push(field_col(1, 0, 2, "idle", FieldDataType::Float));
+    t.field_families.repo.insert(
+        FieldFamilyId::new(0),
+        field_family(0, V2FieldFamilyName::Auto(0)),
+    );
+    t.field_families.repo.insert(
+        FieldFamilyId::new(1),
+        field_family(1, V2FieldFamilyName::Auto(0)),
+    );
+
+    let mut db = database(1, "db", None);
+    db.tables.repo.insert(TableId::new(1), t);
+    let mut snap = empty_snapshot(1);
+    snap.databases.repo.insert(DbId::new(1), db);
+
+    let batch = synthesize_records(&snap);
+    let mut catalog = InnerCatalog::new(Arc::from("test"), Uuid::nil());
+    apply_records(
+        batch.as_slice(),
+        &mut catalog,
+        CatalogSequenceNumber::new(1),
+        &mut RestorePreload::empty(),
+    )
+    .expect("apply succeeds");
+
+    let db = catalog.databases.require_by_id(&DbId::new(1)).unwrap();
+    let table = db.tables.require_by_id(&TableId::new(1)).unwrap();
+    assert!(table.column_exists("usage"));
+    assert!(table.column_exists("idle"));
+}
+
+#[test]
 fn table_without_timestamp_column_gets_one_synthesized() {
     // v2 should never produce a table without a timestamp column, but if it
     // did the migrated v3 table would have no way to acquire one (no API to

@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
 use influxdb3_id::{DbId, TokenId};
-use observability_deps::tracing::{debug, error};
+use observability_deps::tracing::debug;
 use thiserror::Error;
 
 use crate::{
@@ -212,18 +212,16 @@ impl SystemResourceIdentifier {
 }
 
 impl Display for SystemResourceIdentifier {
+    /// Writes the resource name, or the raw identifier for one added by a newer release.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let stringified = match self.0 {
+        let name = match self.0 {
             Self::HEALTH => Self::HEALTH_NAME,
             Self::METRICS => Self::METRICS_NAME,
             Self::PING => Self::PING_NAME,
             Self::READY => Self::READY_NAME,
-            _ => {
-                error!(identifier = ?self.0, "cannot map system resource identifier");
-                panic!("unrecognized system resource identifier")
-            }
+            _ => return write!(f, "{}", self.0),
         };
-        write!(f, "{stringified}")
+        write!(f, "{name}")
     }
 }
 

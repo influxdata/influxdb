@@ -809,10 +809,7 @@ impl TableTransaction {
         let ff_id = self.table.field_families.next_id();
         let ff_name = FieldFamilyName::User(Arc::from(family_name));
         let ff = FieldFamilyDefinition::new(ff_id, ff_name);
-        self.table
-            .field_families
-            .insert(ff_id, ff)
-            .expect("named field family insert should not fail");
+        self.table.field_families.insert(ff_id, ff)?;
         self.new_field_families.push(WireFieldFamilyDef {
             id: ff_id.get(),
             name: WireFieldFamilyName::User(family_name.to_string()),
@@ -833,13 +830,20 @@ impl TableTransaction {
 
         self.check_field_family_limit()?;
         let ff_id = self.table.field_families.next_id();
-        let auto_name = self.table.next_auto_field_family_name();
+        // A user family may hold the `__N` form of the next auto name; skip past it.
+        let mut auto_name = self.table.next_auto_field_family_name();
+        while self
+            .table
+            .field_families
+            .contains_name(&format!("__{auto_name}"))
+        {
+            auto_name = auto_name
+                .checked_add(1)
+                .ok_or(CatalogError::TooManyFieldFamilies(auto_name as usize + 1))?;
+        }
         let ff_name = FieldFamilyName::Auto(auto_name);
         let ff = FieldFamilyDefinition::new(ff_id, ff_name);
-        self.table
-            .field_families
-            .insert(ff_id, ff)
-            .expect("auto field family insert should not fail");
+        self.table.field_families.insert(ff_id, ff)?;
         self.table.set_auto_field_family(ff_id, auto_name)?;
         self.new_field_families.push(WireFieldFamilyDef {
             id: ff_id.get(),

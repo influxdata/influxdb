@@ -45,6 +45,12 @@ pub struct WalObjectStore {
     snapshotted_wal_files_to_keep: u64,
     wal_remover: WalFileRemover,
     shutdown_token: CancellationToken,
+    /// Held for the whole of the `flush_buffer` method, so flushes run one at a
+    /// time. WAL files are then sent to the notifiers in WAL file order, and a
+    /// snapshot is planned only after every earlier WAL file has been sent to
+    /// the notifiers. Take this lock before the flush-buffer lock. Do not wait
+    /// for it while holding the flush-buffer lock or a snapshot permit.
+    flush_in_progress: Mutex<()>,
 }
 
 impl WalObjectStore {
@@ -141,6 +147,7 @@ impl WalObjectStore {
                 }),
             },
             shutdown_token,
+            flush_in_progress: Mutex::new(()),
         }
     }
 
@@ -318,6 +325,15 @@ impl WalObjectStore {
         SnapshotDetails,
         OwnedSemaphorePermit,
     )> {
+        // Timed flushes (the flush loop) and forced flushes (the memory and
+        // max-age check) run in different tasks. This lock makes them run one
+        // at a time. Without it, a forced flush could take a snapshot while an
+        // earlier timed flush is still writing its WAL file. The snapshot would
+        // mark that file as covered without its rows, so a restart would skip
+        // the file and lose acknowledged writes.
+        let lock_wait_start = Instant::now();
+        let _flushing = self.flush_in_progress.lock().await;
+        let lock_wait = lock_wait_start.elapsed();
         let (wal_contents, responses, snapshot) = {
             let mut flush_buffer = self.flush_buffer.lock().await;
             if flush_buffer.wal_buffer.is_empty() && !force_snapshot {
@@ -338,6 +354,7 @@ impl WalObjectStore {
             min_timestamp_ns = %wal_contents.min_timestamp_ns,
             max_timestamp_ns = %wal_contents.max_timestamp_ns,
             wal_file_number = %wal_contents.wal_file_number,
+            ?lock_wait,
             "flushing WAL buffer to object store"
         );
 
@@ -375,6 +392,9 @@ impl WalObjectStore {
                         object metadata or a WAL file left by an older build can produce the \
                         same result"
                     );
+                    // This flush's snapshot never runs; release its permit
+                    // before the lock — never lock while owning a permit.
+                    drop(snapshot);
                     // update the state on the wal buffer so that new writes are not
                     // accepted:
                     let error = WalBufferErrorState::WalAlreadyWrittenTo;
@@ -404,6 +424,9 @@ impl WalObjectStore {
                             let _ = response.send(WriteResult::Error(e.to_string()));
                         }
 
+                        // This flush's snapshot never runs; release its permit
+                        // before the lock — never lock while owning a permit.
+                        drop(snapshot);
                         self.flush_buffer
                             .lock()
                             .await
