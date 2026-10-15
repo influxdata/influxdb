@@ -18,7 +18,7 @@ function main () {
     local -r test_packages="$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)"
 
     # Run tests
-    local -r tags=osuergo,netgo,sqlite_foreign_keys,sqlite_json
+    local -r tags=osuergo,netgo,sqlite_foreign_keys,sqlite_json,flux_nosqlite
     gotestsum --junitfile "${out_dir}/report.xml" -- -tags "$tags" -race ${test_packages[@]}
 }
 
