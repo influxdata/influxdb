@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/services/precreator"
@@ -197,6 +197,7 @@ func (e *Engine) WithStartupMetrics(sp ShardLoadingProgressMetrics) {
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
+	metrics = append(metrics, tsi1.PrometheusCollectors()...)
 	metrics = append(metrics, coordinator.PrometheusCollectors()...)
 	metrics = append(metrics, tsdb.ShardCollectors()...)
 	metrics = append(metrics, tsdb.BucketCollectors()...)
