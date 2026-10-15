@@ -2,7 +2,7 @@
 set -exo pipefail
 
 function build_linux () {
-    local tags=osusergo,netgo,sqlite_foreign_keys,sqlite_json,static_build
+    local tags=osusergo,netgo,sqlite_foreign_keys,sqlite_json,flux_nosqlite,static_build
     local extld="-fno-PIC -static -Wl,-z,stack-size=8388608 "
     local cc
     case $(go env GOARCH) in
@@ -27,7 +27,7 @@ function build_linux () {
 
 function build_mac () {
     CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="$(xcc darwin)" go-test-compile \
-        -tags sqlite_foreign_keys,sqlite_json -o "${1}/" -x ./...
+        -tags sqlite_foreign_keys,sqlite_json,flux_nosqlite -o "${1}/" -x ./...
 }
 
 function build_windows () {
@@ -35,7 +35,7 @@ function build_windows () {
   export CGO_LDFLAGS="-lntdll -ladvapi32 -lkernel32 -luserenv -lws2_32"
 
   CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config)  go-test-compile \
-        -tags sqlite_foreign_keys,sqlite_json,timetzdata \
+        -tags sqlite_foreign_keys,sqlite_json,flux_nosqlite,timetzdata \
         -ldext "${CC}" -o "${1}/" ./...
 }
 

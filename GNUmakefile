@@ -24,7 +24,8 @@ else
 endif
 
 # Tags used for builds and tests on all architectures
-COMMON_TAGS := sqlite_foreign_keys,sqlite_json
+# InfluxDB uses SQLite for metadata, but Flux must not expose its SQLite SQL driver.
+COMMON_TAGS := sqlite_foreign_keys,sqlite_json,flux_nosqlite
 
 GO_TEST_ARGS := -tags '$(COMMON_TAGS),$(GO_TEST_TAGS)'
 GO_BUILD_ARGS := -tags '$(COMMON_TAGS),$(GO_BUILD_TAGS)'

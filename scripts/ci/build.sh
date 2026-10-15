@@ -22,7 +22,7 @@ function main () {
         linux_amd64)
             export CC="$(xcc linux x86_64)"
             CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) go build \
-                -tags assets,sqlite_foreign_keys,sqlite_json,static_build,noasm \
+                -tags assets,sqlite_foreign_keys,sqlite_json,flux_nosqlite,static_build,noasm \
                 -buildmode=pie \
                 -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date} -linkmode=external -extld=${CC} -extldflags '${LINUX_EXTLD} -L$(find_rustlib_path x86_64-unknown-linux-musl) -Wl,-lunwind'" \
                 -o "$out_dir/" \
@@ -31,7 +31,7 @@ function main () {
         linux_arm64)
             export CC="$(xcc linux aarch64)"
             CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) go build \
-                -tags assets,sqlite_foreign_keys,sqlite_json,static_build,noasm \
+                -tags assets,sqlite_foreign_keys,sqlite_json,flux_nosqlite,static_build,noasm \
                 -buildmode=pie \
                 -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date} -linkmode=external -extld=${CC} -extldflags '${LINUX_EXTLD} -L$(find_rustlib_path aarch64-unknown-linux-musl) -Wl,-lunwind'" \
                 -o "$out_dir/" \
@@ -40,7 +40,7 @@ function main () {
         darwin_amd64)
             export CC="$(xcc darwin)"
             CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) go build \
-                -tags assets,sqlite_foreign_keys,sqlite_json \
+                -tags assets,sqlite_foreign_keys,sqlite_json,flux_nosqlite \
                 -buildmode pie \
                 -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date}" \
                 -o "$out_dir/" \
@@ -50,7 +50,7 @@ function main () {
             export CGO_LDFLAGS="-lntdll -ladvapi32 -lkernel32 -luserenv -lws2_32 ${CGO_LDFLAGS}"
             export CC="$(xcc windows)"
             CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) go build \
-                -tags assets,sqlite_foreign_keys,sqlite_json,timetzdata \
+                -tags assets,sqlite_foreign_keys,sqlite_json,flux_nosqlite,timetzdata \
                 -buildmode exe \
                 -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date}" \
                 -o "$out_dir/" \
