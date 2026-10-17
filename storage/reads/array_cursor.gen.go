@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
@@ -3068,7 +3069,7 @@ NEXT:
 		}
 
 		c.res.Timestamps[cur] = t
-		c.res.Values[cur] = a.Values[i]
+		c.res.Values[cur] = strings.Clone(a.Values[i])
 
 		c.windowEnd = int64(c.window.GetLatestBounds(values.Time(t)).Stop())
 	}
@@ -3128,7 +3129,7 @@ NEXT:
 		c.windowEnd = int64(c.window.GetLatestBounds(values.Time(t)).Stop())
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
-		c.res.Values = append(c.res.Values, a.Values[i])
+		c.res.Values = append(c.res.Values, strings.Clone(a.Values[i]))
 
 		if c.res.Len() == MaxPointsPerBlock {
 			c.tmp.Timestamps = a.Timestamps[i+1:]
