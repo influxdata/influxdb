@@ -134,8 +134,8 @@ type shardCompactor struct {
 	newTSM    []string
 }
 
-// These methods are not used in production, need to implement in
-// order to satisfy the FileStore interface, see: https://github.com/influxdata/influxdb/pull/26211
+// These methods are not used by influx_tools compaction; they exist to
+// satisfy the FileStore interface, see: https://github.com/influxdata/influxdb/pull/26211
 func (sc *shardCompactor) Stats() []tsm1.ExtFileStat {
 	return nil
 }
@@ -146,8 +146,10 @@ func (sc *shardCompactor) LastModified() time.Time {
 
 func (sc *shardCompactor) BlockCount(path string, idx int) int { return 0 }
 
+// ParseFileName is called by Compactor.compact to derive the output
+// generation/sequence from the input file names.
 func (sc *shardCompactor) ParseFileName(path string) (int, int, error) {
-	return 0, 0, errors.New("not implemented")
+	return tsm1.DefaultParseFileName(path)
 }
 
 func (sc *shardCompactor) SupportsCompactionPlanning() bool {
