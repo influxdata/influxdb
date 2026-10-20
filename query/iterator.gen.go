@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"google.golang.org/protobuf/proto"
 )
@@ -1070,6 +1071,12 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*floatReduceFloatPoint)
 	for {
@@ -1160,6 +1167,194 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *floatReduceFloatIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]FloatPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*floatReduceFloatPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateFloat(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *floatReduceFloatIterator) emitDatePart(m map[string]*floatReduceFloatPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []FloatPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]FloatPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = floatPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // floatStreamFloatIterator streams inputs into the iterator and emits points gradually.
@@ -1358,6 +1553,12 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*floatReduceIntegerPoint)
 	for {
@@ -1448,6 +1649,194 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *floatReduceIntegerIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]IntegerPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*floatReduceIntegerPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateFloat(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *floatReduceIntegerIterator) emitDatePart(m map[string]*floatReduceIntegerPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []IntegerPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]IntegerPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = integerPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // floatStreamIntegerIterator streams inputs into the iterator and emits points gradually.
@@ -1646,6 +2035,12 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*floatReduceUnsignedPoint)
 	for {
@@ -1736,6 +2131,194 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *floatReduceUnsignedIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]UnsignedPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*floatReduceUnsignedPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateFloat(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *floatReduceUnsignedIterator) emitDatePart(m map[string]*floatReduceUnsignedPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []UnsignedPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = unsignedPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // floatStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
@@ -1934,6 +2517,12 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*floatReduceStringPoint)
 	for {
@@ -2024,6 +2613,194 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *floatReduceStringIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]StringPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*floatReduceStringPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateFloat(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *floatReduceStringIterator) emitDatePart(m map[string]*floatReduceStringPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []StringPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]StringPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = stringPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // floatStreamStringIterator streams inputs into the iterator and emits points gradually.
@@ -2222,6 +2999,12 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*floatReduceBooleanPoint)
 	for {
@@ -2312,6 +3095,194 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *floatReduceBooleanIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]BooleanPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*floatReduceBooleanPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateFloat(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *floatReduceBooleanIterator) emitDatePart(m map[string]*floatReduceBooleanPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []BooleanPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]BooleanPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = booleanPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // floatStreamBooleanIterator streams inputs into the iterator and emits points gradually.
@@ -2515,7 +3486,7 @@ func newFloatFilterIterator(input FloatIterator, cond influxql.Expr, opt Iterato
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -3734,6 +4705,12 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*integerReduceFloatPoint)
 	for {
@@ -3824,6 +4801,194 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *integerReduceFloatIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]FloatPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*integerReduceFloatPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateInteger(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *integerReduceFloatIterator) emitDatePart(m map[string]*integerReduceFloatPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []FloatPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]FloatPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = floatPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // integerStreamFloatIterator streams inputs into the iterator and emits points gradually.
@@ -4022,6 +5187,12 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*integerReduceIntegerPoint)
 	for {
@@ -4112,6 +5283,194 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *integerReduceIntegerIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]IntegerPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*integerReduceIntegerPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateInteger(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *integerReduceIntegerIterator) emitDatePart(m map[string]*integerReduceIntegerPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []IntegerPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]IntegerPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = integerPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // integerStreamIntegerIterator streams inputs into the iterator and emits points gradually.
@@ -4310,6 +5669,12 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*integerReduceUnsignedPoint)
 	for {
@@ -4400,6 +5765,194 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *integerReduceUnsignedIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]UnsignedPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*integerReduceUnsignedPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateInteger(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *integerReduceUnsignedIterator) emitDatePart(m map[string]*integerReduceUnsignedPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []UnsignedPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = unsignedPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // integerStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
@@ -4598,6 +6151,12 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*integerReduceStringPoint)
 	for {
@@ -4688,6 +6247,194 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *integerReduceStringIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]StringPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*integerReduceStringPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateInteger(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *integerReduceStringIterator) emitDatePart(m map[string]*integerReduceStringPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []StringPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]StringPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = stringPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // integerStreamStringIterator streams inputs into the iterator and emits points gradually.
@@ -4886,6 +6633,12 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*integerReduceBooleanPoint)
 	for {
@@ -4976,6 +6729,194 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *integerReduceBooleanIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]BooleanPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*integerReduceBooleanPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateInteger(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *integerReduceBooleanIterator) emitDatePart(m map[string]*integerReduceBooleanPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []BooleanPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]BooleanPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = booleanPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // integerStreamBooleanIterator streams inputs into the iterator and emits points gradually.
@@ -5179,7 +7120,7 @@ func newIntegerFilterIterator(input IntegerIterator, cond influxql.Expr, opt Ite
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -6398,6 +8339,12 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*unsignedReduceFloatPoint)
 	for {
@@ -6488,6 +8435,194 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *unsignedReduceFloatIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]FloatPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*unsignedReduceFloatPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *unsignedReduceFloatIterator) emitDatePart(m map[string]*unsignedReduceFloatPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []FloatPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]FloatPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = floatPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // unsignedStreamFloatIterator streams inputs into the iterator and emits points gradually.
@@ -6686,6 +8821,12 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*unsignedReduceIntegerPoint)
 	for {
@@ -6776,6 +8917,194 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *unsignedReduceIntegerIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]IntegerPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*unsignedReduceIntegerPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *unsignedReduceIntegerIterator) emitDatePart(m map[string]*unsignedReduceIntegerPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []IntegerPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]IntegerPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = integerPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // unsignedStreamIntegerIterator streams inputs into the iterator and emits points gradually.
@@ -6974,6 +9303,12 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*unsignedReduceUnsignedPoint)
 	for {
@@ -7064,6 +9399,194 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *unsignedReduceUnsignedIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]UnsignedPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*unsignedReduceUnsignedPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *unsignedReduceUnsignedIterator) emitDatePart(m map[string]*unsignedReduceUnsignedPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []UnsignedPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = unsignedPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // unsignedStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
@@ -7262,6 +9785,12 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*unsignedReduceStringPoint)
 	for {
@@ -7352,6 +9881,194 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *unsignedReduceStringIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]StringPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*unsignedReduceStringPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *unsignedReduceStringIterator) emitDatePart(m map[string]*unsignedReduceStringPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []StringPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]StringPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = stringPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // unsignedStreamStringIterator streams inputs into the iterator and emits points gradually.
@@ -7550,6 +10267,12 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*unsignedReduceBooleanPoint)
 	for {
@@ -7640,6 +10363,194 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *unsignedReduceBooleanIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]BooleanPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*unsignedReduceBooleanPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *unsignedReduceBooleanIterator) emitDatePart(m map[string]*unsignedReduceBooleanPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []BooleanPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]BooleanPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = booleanPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // unsignedStreamBooleanIterator streams inputs into the iterator and emits points gradually.
@@ -7843,7 +10754,7 @@ func newUnsignedFilterIterator(input UnsignedIterator, cond influxql.Expr, opt I
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -9048,6 +11959,12 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*stringReduceFloatPoint)
 	for {
@@ -9138,6 +12055,194 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *stringReduceFloatIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]FloatPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*stringReduceFloatPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateString(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *stringReduceFloatIterator) emitDatePart(m map[string]*stringReduceFloatPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []FloatPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]FloatPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = floatPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // stringStreamFloatIterator streams inputs into the iterator and emits points gradually.
@@ -9336,6 +12441,12 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*stringReduceIntegerPoint)
 	for {
@@ -9426,6 +12537,194 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *stringReduceIntegerIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]IntegerPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*stringReduceIntegerPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateString(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *stringReduceIntegerIterator) emitDatePart(m map[string]*stringReduceIntegerPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []IntegerPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]IntegerPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = integerPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // stringStreamIntegerIterator streams inputs into the iterator and emits points gradually.
@@ -9624,6 +12923,12 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*stringReduceUnsignedPoint)
 	for {
@@ -9714,6 +13019,194 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *stringReduceUnsignedIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]UnsignedPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*stringReduceUnsignedPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateString(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *stringReduceUnsignedIterator) emitDatePart(m map[string]*stringReduceUnsignedPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []UnsignedPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = unsignedPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // stringStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
@@ -9912,6 +13405,12 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*stringReduceStringPoint)
 	for {
@@ -10002,6 +13501,194 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *stringReduceStringIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]StringPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*stringReduceStringPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateString(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *stringReduceStringIterator) emitDatePart(m map[string]*stringReduceStringPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []StringPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]StringPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = stringPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // stringStreamStringIterator streams inputs into the iterator and emits points gradually.
@@ -10200,6 +13887,12 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*stringReduceBooleanPoint)
 	for {
@@ -10290,6 +13983,194 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *stringReduceBooleanIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]BooleanPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*stringReduceBooleanPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateString(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *stringReduceBooleanIterator) emitDatePart(m map[string]*stringReduceBooleanPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []BooleanPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]BooleanPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = booleanPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // stringStreamBooleanIterator streams inputs into the iterator and emits points gradually.
@@ -10493,7 +14374,7 @@ func newStringFilterIterator(input StringIterator, cond influxql.Expr, opt Itera
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -11698,6 +15579,12 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*booleanReduceFloatPoint)
 	for {
@@ -11788,6 +15675,194 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *booleanReduceFloatIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]FloatPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*booleanReduceFloatPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *booleanReduceFloatIterator) emitDatePart(m map[string]*booleanReduceFloatPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []FloatPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]FloatPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = floatPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // booleanStreamFloatIterator streams inputs into the iterator and emits points gradually.
@@ -11986,6 +16061,12 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*booleanReduceIntegerPoint)
 	for {
@@ -12076,6 +16157,194 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *booleanReduceIntegerIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]IntegerPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*booleanReduceIntegerPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *booleanReduceIntegerIterator) emitDatePart(m map[string]*booleanReduceIntegerPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []IntegerPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]IntegerPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = integerPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // booleanStreamIntegerIterator streams inputs into the iterator and emits points gradually.
@@ -12274,6 +16543,12 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*booleanReduceUnsignedPoint)
 	for {
@@ -12364,6 +16639,194 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *booleanReduceUnsignedIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]UnsignedPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*booleanReduceUnsignedPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *booleanReduceUnsignedIterator) emitDatePart(m map[string]*booleanReduceUnsignedPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []UnsignedPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = unsignedPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // booleanStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
@@ -12562,6 +17025,12 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*booleanReduceStringPoint)
 	for {
@@ -12652,6 +17121,194 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *booleanReduceStringIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]StringPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*booleanReduceStringPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *booleanReduceStringIterator) emitDatePart(m map[string]*booleanReduceStringPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []StringPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]StringPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = stringPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // booleanStreamStringIterator streams inputs into the iterator and emits points gradually.
@@ -12850,6 +17507,12 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		break
 	}
 
+	// A query grouped by date_part takes a separate path, chosen once per
+	// window, so this one stays as it was for queries without date_part.
+	if itr.opt.DatePart != nil {
+		return itr.reduceDatePart(startTime, endTime, window.name, window.tags)
+	}
+
 	// Create points by tags.
 	m := make(map[string]*booleanReduceBooleanPoint)
 	for {
@@ -12940,6 +17603,194 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Stable(sorted)
 	}
 	return a, nil
+}
+
+// reduceDatePart is reduce for a query grouped by date_part: it aggregates the
+// window's points into their GROUP BY date_part buckets and emits them.
+func (itr *booleanReduceBooleanIterator) reduceDatePart(startTime, endTime int64, windowName, windowTags string) ([]BooleanPoint, error) {
+	// Create points by bucket, and record the GROUP BY date_part value of each.
+	m := make(map[string]*booleanReduceBooleanPoint)
+	datePartKeys := make(map[string]GroupingEntry)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != windowName {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != windowTags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// A point carrying no aux values has no date_part value; group it by
+		// its tags alone.
+		if len(curr.Aux) == 0 {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+			continue
+		}
+
+		entries, err := itr.opt.DatePart.ResolveKeys(curr.Aux, TagSubset{ID: id, HasTags: len(itr.dims) > 0})
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			rp := m[entry.DimKey]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[entry.DimKey] = rp
+				datePartKeys[entry.DimKey] = entry
+			}
+			rp.Aggregator.AggregateBoolean(curr)
+		}
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
+	return itr.emitDatePart(m, keys, datePartKeys, startTime), nil
+}
+
+// emitDatePart emits the points of a window grouped by date_part, in key order.
+// Every (tag set, active part) is its own output series and the sorted keys
+// keep each series' buckets contiguous, so points are time-sorted within each
+// series: a window-wide time sort would interleave the series and split them
+// into fragments downstream.
+func (itr *booleanReduceBooleanIterator) emitDatePart(m map[string]*booleanReduceBooleanPoint, keys []string, datePartKeys map[string]GroupingEntry, startTime int64) []BooleanPoint {
+	dims := len(itr.opt.DatePart.Dimensions())
+	sortedByTime := true
+	// runStarts holds the index in a where each series after the first begins.
+	var (
+		runStarts []int
+		runTags   string
+		runPart   = Invalid
+	)
+	a := make([]BooleanPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		entry, grouped := datePartKeys[k]
+		part := Invalid
+		var (
+			dpVal  interface{}
+			dpSlot int
+		)
+		if grouped {
+			part = entry.Expr
+			dpSlot = itr.opt.DatePart.index(part)
+			// Box once per bucket; every emitted point shares the value.
+			dpVal = entry.Val
+		}
+		if len(a) > 0 && (part != runPart || rp.Tags.ID() != runTags) {
+			runStarts = append(runStarts, len(a))
+		}
+		runPart, runTags = part, rp.Tags.ID()
+
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+
+			if grouped {
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < dims {
+					width = dims
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series: null
+				// every date_part dimension slot and put the active value in its
+				// own. Each dimension column then reads its own slot like any aux
+				// field, non-active columns are null, and a later reduce level
+				// recovers the bucket from the one non-nil slot.
+				base := len(points[i].Aux) - dims
+				for j := base; j < len(points[i].Aux); j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[base+dpSlot] = dpVal
+			}
+
+			a = append(a, points[i])
+		}
+	}
+	// Points may be out of order. Perform a stable sort by time per series if
+	// requested.
+	if !sortedByTime && itr.opt.Ordered {
+		runStarts = append(runStarts, len(a))
+		lo := 0
+		for _, hi := range runStarts {
+			var sorted sort.Interface = booleanPointsByTime(a[lo:hi])
+			if itr.opt.Ascending {
+				sorted = sort.Reverse(sorted)
+			}
+			sort.Stable(sorted)
+			lo = hi
+		}
+	}
+	return a
 }
 
 // booleanStreamBooleanIterator streams inputs into the iterator and emits points gradually.
@@ -13143,7 +17994,7 @@ func newBooleanFilterIterator(input BooleanIterator, cond influxql.Expr, opt Ite
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
