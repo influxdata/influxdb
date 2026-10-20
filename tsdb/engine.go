@@ -83,6 +83,8 @@ type Engine interface {
 	DiskSize() int64
 	IsIdle() (bool, string)
 	Free() error
+	// TimeRange will return the min/max time range of shard
+	TimeRange() (int64, int64)
 
 	io.WriterTo
 }
