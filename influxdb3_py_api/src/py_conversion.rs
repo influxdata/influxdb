@@ -4,11 +4,11 @@
 //! both parquet-based (`WriteBatch`) WAL
 //! flush data to Python table batches.
 
-use anyhow::Context;
+use anyhow::{Context, ensure};
 use arrow_array::types::Int32Type;
 use arrow_array::{Array, ArrayRef, DictionaryArray, RecordBatch};
 use arrow_schema::DataType;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::{PyDict, PyList, PyString};
 use pyo3::{Bound, IntoPyObject, Py, PyAny, PyResult, Python};
@@ -19,14 +19,43 @@ use pyo3::{Bound, IntoPyObject, Py, PyAny, PyResult, Python};
 /// WAL flush may share column count but differ in column order (e.g. sparse vs
 /// dense chunks); binding by the first batch's names by index would mislabel
 /// values.
+///
+/// All batches must share the same *set* of column names (order may differ).
+/// Mismatched sets are rejected so plugins never see uneven row dict keys.
 pub(crate) fn record_batches_to_py_rows<'py>(
     py: Python<'py>,
     batches: &[RecordBatch],
 ) -> Result<Bound<'py, PyList>, anyhow::Error> {
+    let Some(first) = batches.first() else {
+        return Ok(PyList::empty(py));
+    };
+    let first_schema = first.schema();
+    let expected: HashSet<&str> = first_schema
+        .fields()
+        .iter()
+        .map(|f| f.name().as_str())
+        .collect();
+
     let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
     let mut rows: Vec<Py<PyAny>> = Vec::with_capacity(total_rows);
 
     for batch in batches {
+        ensure!(
+            batch.schema().fields().len() == expected.len()
+                && batch
+                    .schema()
+                    .fields()
+                    .iter()
+                    .all(|f| expected.contains(f.name().as_str())),
+            "batch schema mismatch: expected columns {:?}, got {:?}",
+            expected,
+            batch
+                .schema()
+                .fields()
+                .iter()
+                .map(|f| f.name())
+                .collect::<Vec<_>>()
+        );
         let field_names: Vec<Bound<'_, PyString>> = batch
             .schema()
             .fields()
@@ -145,24 +174,16 @@ mod tests {
     use arrow_array::{Int64Array, StringArray};
     use arrow_schema::{Field, Schema};
     use pyo3::types::PyDict;
-    use std::sync::{Arc, Once};
+    use std::sync::Arc;
 
-    static INIT_PYTHON: Once = Once::new();
-
-    fn init_python() {
-        INIT_PYTHON.call_once(|| {
-            Python::initialize();
-        });
-    }
-
-    /// Two batches, same column *count*, different column *order*.
+    /// Two batches, same column *set*, different column *order*.
     ///
     /// PE WAL flushes can assemble sparse vs dense chunks into one table flush;
     /// each RecordBatch must bind using its own schema names so Int64 slots
     /// never land under Utf8 keys like `expertStatus`.
     #[test]
     fn record_batches_to_py_rows_binds_by_name_when_column_order_differs() {
-        init_python();
+        Python::initialize();
 
         let schema_canonical = Arc::new(Schema::new(vec![
             Field::new("expertStatus", DataType::Utf8, false),
@@ -230,6 +251,50 @@ mod tests {
                     "row {row_idx}: slots must stay Int64"
                 );
             }
+        });
+    }
+
+    /// Same width, different name set must fail (not silently uneven row dicts).
+    #[test]
+    fn record_batches_to_py_rows_rejects_mismatched_column_sets() {
+        Python::initialize();
+
+        let batch0 = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("expertStatus", DataType::Utf8, false),
+                Field::new("expertStatusStartTs", DataType::Utf8, false),
+                Field::new("expertChatSlotsAvailable", DataType::Int64, false),
+            ])),
+            vec![
+                Arc::new(StringArray::from(vec!["Available"])),
+                Arc::new(StringArray::from(vec!["2026-10-14T15:00:00Z"])),
+                Arc::new(Int64Array::from(vec![0_i64])),
+            ],
+        )
+        .unwrap();
+
+        // Same count, but `expertMaxChatSlots` instead of `expertChatSlotsAvailable`.
+        let batch1 = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("expertStatus", DataType::Utf8, false),
+                Field::new("expertStatusStartTs", DataType::Utf8, false),
+                Field::new("expertMaxChatSlots", DataType::Int64, false),
+            ])),
+            vec![
+                Arc::new(StringArray::from(vec!["Available"])),
+                Arc::new(StringArray::from(vec!["2026-10-14T15:00:00Z"])),
+                Arc::new(Int64Array::from(vec![0_i64])),
+            ],
+        )
+        .unwrap();
+
+        Python::attach(|py| {
+            let err = record_batches_to_py_rows(py, &[batch0, batch1]).unwrap_err();
+            let msg = format!("{err:#}");
+            assert!(
+                msg.contains("batch schema mismatch"),
+                "expected schema mismatch error, got: {msg}"
+            );
         });
     }
 }
