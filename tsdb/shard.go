@@ -2074,13 +2074,15 @@ func marshalFieldChanges(changeSet ...FieldChanges) ([]byte, error) {
 				Measurement: f.Measurement,
 				Change:      internal.ChangeType(f.ChangeType),
 			}
+			// Field is nil for a measurement deletion, which must be
+			// replayed from the change log like any other change.
 			if f.Field != nil {
 				mfc.Field = &internal.Field{
 					Name: []byte(f.Field.Name),
 					Type: int32(f.Field.Type),
 				}
-				fcs.Changes = append(fcs.Changes, mfc)
 			}
+			fcs.Changes = append(fcs.Changes, mfc)
 		}
 	}
 	mo := proto.MarshalOptions{}
@@ -2093,7 +2095,11 @@ func marshalFieldChanges(changeSet ...FieldChanges) ([]byte, error) {
 		fields := make([]string, 0, len(fcs.Changes))
 		for _, fc := range changeSet {
 			for _, f := range fc {
-				fields = append(fields, fmt.Sprintf("%q.%q", f.Measurement, f.Field.Name))
+				name := ""
+				if f.Field != nil {
+					name = f.Field.Name
+				}
+				fields = append(fields, fmt.Sprintf("%q.%q", f.Measurement, name))
 			}
 		}
 		return nil, fmt.Errorf("failed marshaling new fields - %s: %w", strings.Join(fields, ", "), err)
@@ -2226,16 +2232,20 @@ func (fscm *measurementFieldSetChangeMgr) loadFieldChangeSet(r io.Reader) (Field
 	fcs := make([]*FieldChange, 0, len(pb.Changes))
 
 	for _, fc := range pb.Changes {
-		fcs = append(fcs, &FieldChange{
+		change := &FieldChange{
 			FieldCreate: FieldCreate{
 				Measurement: fc.Measurement,
-				Field: &Field{
-					Name: string(fc.Field.Name),
-					Type: influxql.DataType(fc.Field.Type),
-				},
 			},
 			ChangeType: ChangeType(fc.Change),
-		})
+		}
+		// Field is not set for a measurement deletion.
+		if fc.Field != nil {
+			change.Field = &Field{
+				Name: string(fc.Field.Name),
+				Type: influxql.DataType(fc.Field.Type),
+			}
+		}
+		fcs = append(fcs, change)
 	}
 	return fcs, nil
 }

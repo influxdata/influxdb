@@ -1935,6 +1935,69 @@ func TestMeasurementFieldSet_CorruptChangeFile(t *testing.T) {
 	}
 }
 
+func TestMeasurementFieldSet_DeleteMeasurementReplay(t *testing.T) {
+	const measurement = "cpu"
+	const fieldName = "value"
+
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+	defer checkMeasurementFieldSetClose(t, mf)
+
+	addField := func(typ influxql.DataType) {
+		t.Helper()
+		fields := mf.CreateFieldsIfNotExists([]byte(measurement))
+		if _, _, err := fields.CreateFieldIfNotExists(fieldName, typ); err != nil {
+			t.Fatalf("create field error: %v", err)
+		}
+		change := &tsdb.FieldChange{
+			FieldCreate: tsdb.FieldCreate{
+				Measurement: []byte(measurement),
+				Field:       &tsdb.Field{Name: fieldName, Type: typ},
+			},
+			ChangeType: tsdb.AddMeasurementField,
+		}
+		if err := mf.Save(tsdb.FieldChanges{change}); err != nil {
+			t.Fatalf("save error: %v", err)
+		}
+	}
+
+	addField(influxql.Integer)
+
+	mf.Delete(measurement)
+	if err := mf.Save(tsdb.MeasurementsToFieldChangeDeletions([]string{measurement})); err != nil {
+		t.Fatalf("save delete error: %v", err)
+	}
+
+	addField(influxql.Float)
+
+	// An unclean stop leaves fields.idxl behind and fields.idx unwritten, so
+	// reopening only sees the change log. The deletion must be replayed there,
+	// otherwise the float field conflicts with the dropped integer field.
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+	defer checkMeasurementFieldSetClose(t, mf2)
+
+	fields := mf2.FieldsByString(measurement)
+	if fields == nil {
+		t.Fatalf("measurement %s not found", measurement)
+	}
+	field := fields.Field(fieldName)
+	if field == nil {
+		t.Fatalf("field is null")
+	}
+	if got, exp := field.Type, influxql.Float; got != exp {
+		t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	const measurement = "cpu"
 	const fieldName = "value"
