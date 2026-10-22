@@ -73,6 +73,19 @@ pub enum PluginEnvironmentError {
     )]
     RequireHashesWithoutConstraints,
 
+    #[error(
+        "--plugin-package-constraints file '{path}' contains hashes (line {line_number}: '{line}'), \
+         but --plugin-package-constraints-mode is 'pin'. pip auto-enables hash checking when any \
+         constraint carries a hash, which then rejects the install. Use \
+         --plugin-package-constraints-mode require-hashes with a fully hashed closure, or remove \
+         the hashes for pin mode."
+    )]
+    PinModeConstraintsHaveHashes {
+        path: String,
+        line_number: usize,
+        line: String,
+    },
+
     #[error("failed to read requirements file '{path}': {source}")]
     RequirementsFileUnreadable {
         path: String,
@@ -251,6 +264,36 @@ pub struct PipPolicy {
     pub require_hashes: bool,
 }
 
+/// Fail fast if a pin-mode constraints file carries pip hashes. pip enables
+/// `--require-hashes` behavior as soon as any constraint has a `--hash=`, so a
+/// hashed file in pin mode would make every install fail with a confusing pip
+/// error; reject it at startup with an actionable message instead.
+fn reject_pin_mode_hashes(path: &Path) -> Result<(), PluginEnvironmentError> {
+    let contents = std::fs::read_to_string(path).map_err(|source| {
+        PluginEnvironmentError::RequirementsFileUnreadable {
+            path: path.display().to_string(),
+            source,
+        }
+    })?;
+    for (index, raw_line) in contents.lines().enumerate() {
+        let line = raw_line.trim();
+        if line.starts_with('#') {
+            continue;
+        }
+        // Match pip's own token: `--hash=` (optionally after a line
+        // continuation). Checking for the flag token avoids false positives on
+        // package names that merely contain the substring "hash".
+        if line.contains("--hash=") || line.contains("--hash ") {
+            return Err(PluginEnvironmentError::PinModeConstraintsHaveHashes {
+                path: path.display().to_string(),
+                line_number: index + 1,
+                line: line.to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
 impl PipPolicy {
     /// A policy that imposes no restrictions: no approved list, no constraints
     /// file, no hash requirement. Matches the historical behavior.
@@ -272,6 +315,15 @@ impl PipPolicy {
     ) -> Result<Self, PluginEnvironmentError> {
         if require_hashes && constraints_file.is_none() {
             return Err(PluginEnvironmentError::RequireHashesWithoutConstraints);
+        }
+        // In pin mode a `-c` file with hashes is a trap: pip silently turns on
+        // hash checking the moment any constraint carries a hash, then rejects
+        // the command-line spec for having none. Catch it at startup with an
+        // actionable message instead of letting the first install fail.
+        if !require_hashes {
+            if let Some(path) = constraints_file {
+                reject_pin_mode_hashes(path)?;
+            }
         }
         let allowlist = match allowlist_file {
             Some(path) => Some(AllowlistedPackages::from_file(path)?),
@@ -397,16 +449,83 @@ impl PipPolicy {
         self.validate_requirements_contents(&contents)
     }
 
-    /// The extra arguments to append to a `pip install` invocation for this
-    /// policy: `-c <constraints_file>` and/or `--require-hashes`.
-    fn pip_extra_args(&self) -> Vec<OsString> {
+    /// Build the argument list that follows `pip install` for a request naming
+    /// `specs` (the packages the user asked for, already allowlist-validated).
+    ///
+    /// The shape depends on `require_hashes`, because pip only reads hashes from
+    /// *requirement* inputs (command-line specs or a `-r` file) and **ignores**
+    /// hashes in a `-c` constraints file:
+    ///
+    /// * **Pin-only** (`require_hashes == false`): the user's specs drive the
+    ///   install and the constraints file, if any, is passed as `-c <file>` to
+    ///   pin versions. Any hashes in that file are not enforced by pip in this
+    ///   mode, which is expected.
+    ///
+    /// * **Require-hashes** (`require_hashes == true`): a `-c` file cannot
+    ///   satisfy `--require-hashes` (pip would report the user's spec as having
+    ///   no hash), so the hashed constraints file — which is the operator's
+    ///   complete pinned-and-hashed dependency closure, e.g. from
+    ///   `pip-compile --generate-hashes` — is passed as `-r <file>` together with
+    ///   `--require-hashes`. The user's bare specs are intentionally **omitted**
+    ///   from the command line: a hashless spec there would fail the hash check,
+    ///   and the closure already contains the approved artifact (the allowlist
+    ///   guarantees the user may only request packages the operator put in that
+    ///   closure). `require_hashes` is only ever set with a constraints file
+    ///   present ([`PipPolicy::from_config`] enforces this), so the `-r` target
+    ///   always exists here.
+    fn pip_install_args(&self, specs: &[String]) -> Vec<OsString> {
         let mut args = Vec::new();
-        if let Some(constraints_file) = &self.constraints_file {
-            args.push(OsString::from("-c"));
-            args.push(constraints_file.clone().into_os_string());
-        }
         if self.require_hashes {
+            // Hashes live in the requirement input, not in `-c`. Install the
+            // operator's hashed closure via `-r` and enforce every hash.
+            if let Some(constraints_file) = &self.constraints_file {
+                args.push(OsString::from("-r"));
+                args.push(constraints_file.clone().into_os_string());
+            }
             args.push(OsString::from("--require-hashes"));
+        } else {
+            // Pin-only: the user's specs drive the install; the constraints file
+            // (if any) just pins versions via `-c`.
+            args.extend(specs.iter().map(OsString::from));
+            if let Some(constraints_file) = &self.constraints_file {
+                args.push(OsString::from("-c"));
+                args.push(constraints_file.clone().into_os_string());
+            }
+        }
+        args
+    }
+
+    /// Build the argument list that follows `pip install` for the requirements
+    /// (`-r`) path, where the user supplies their own requirements file at
+    /// `user_requirements_path` (already allowlist-validated to contain only
+    /// plain pinned `name==version` lines, with no hashes).
+    ///
+    /// Mirrors [`PipPolicy::pip_install_args`]:
+    ///
+    /// * **Pin-only**: install from the user's file (`-r <user>`) and pin with
+    ///   the constraints file (`-c <file>`) if configured.
+    ///
+    /// * **Require-hashes**: the user's file has no hashes and a `-c` file cannot
+    ///   satisfy `--require-hashes`, so the install is driven by the operator's
+    ///   hashed closure (`-r <constraints_file> --require-hashes`) instead. Every
+    ///   line the user requested was validated to be an allowlisted pinned spec,
+    ///   so it is already present in that closure; the user's own file is not
+    ///   passed to pip (its hashless entries would fail the hash check).
+    fn pip_install_requirements_args(&self, user_requirements_path: &str) -> Vec<OsString> {
+        let mut args = Vec::new();
+        if self.require_hashes {
+            if let Some(constraints_file) = &self.constraints_file {
+                args.push(OsString::from("-r"));
+                args.push(constraints_file.clone().into_os_string());
+            }
+            args.push(OsString::from("--require-hashes"));
+        } else {
+            args.push(OsString::from("-r"));
+            args.push(OsString::from(user_requirements_path));
+            if let Some(constraints_file) = &self.constraints_file {
+                args.push(OsString::from("-c"));
+                args.push(constraints_file.clone().into_os_string());
+            }
         }
         args
     }
@@ -488,8 +607,7 @@ impl PythonEnvironmentManager for PipManager {
             .arg("-m")
             .arg("pip")
             .arg("install")
-            .args(&packages)
-            .args(self.policy.pip_extra_args())
+            .args(self.policy.pip_install_args(&packages))
             .output()?;
         if !output.status.success() {
             return Err(PluginEnvironmentError::PackageManagerNotFound(format!(
@@ -511,8 +629,8 @@ impl PythonEnvironmentManager for PipManager {
         let output = Command::new(python_exe)
             .arg("-m")
             .arg("pip")
-            .args(["install", "-r", &requirements_path])
-            .args(self.policy.pip_extra_args())
+            .arg("install")
+            .args(self.policy.pip_install_requirements_args(&requirements_path))
             .output()?;
         if !output.status.success() {
             return Err(PluginEnvironmentError::PackageManagerNotFound(format!(
@@ -980,7 +1098,12 @@ mod tests {
     fn pip_policy_unrestricted_approves_everything() {
         let policy = PipPolicy::unrestricted();
         assert!(policy.validate_packages(&["anything==9.9.9".to_string()]).is_ok());
-        assert!(policy.pip_extra_args().is_empty());
+        // With no constraints and no hash requirement, the only install args are
+        // the user's own specs.
+        assert_eq!(
+            policy.pip_install_args(&["numpy==2.1.3".to_string()]),
+            vec![std::ffi::OsString::from("numpy==2.1.3")]
+        );
     }
 
     #[test]
@@ -1002,11 +1125,21 @@ mod tests {
         assert!(policy.validate_packages(&["numpy==2.1.3".to_string()]).is_ok());
         assert!(policy.validate_packages(&["scipy==1.0.0".to_string()]).is_err());
 
-        // Extra args carry the constraints file and --require-hashes.
-        let args = policy.pip_extra_args();
-        assert_eq!(args[0], std::ffi::OsString::from("-c"));
-        assert_eq!(args[1], constraints_path.clone().into_os_string());
-        assert_eq!(args[2], std::ffi::OsString::from("--require-hashes"));
+        // In require-hashes mode the hashed constraints file is installed via
+        // `-r` (pip ignores hashes supplied through `-c`), `--require-hashes` is
+        // set, and the user's bare spec is NOT placed on the command line (a
+        // hashless spec there would fail the hash check).
+        let args = policy.pip_install_args(&["numpy==2.1.3".to_string()]);
+        assert_eq!(
+            args,
+            vec![
+                std::ffi::OsString::from("-r"),
+                constraints_path.clone().into_os_string(),
+                std::ffi::OsString::from("--require-hashes"),
+            ]
+        );
+        assert!(!args.contains(&std::ffi::OsString::from("-c")));
+        assert!(!args.contains(&std::ffi::OsString::from("numpy==2.1.3")));
     }
 
     #[test]
@@ -1031,14 +1164,112 @@ mod tests {
     }
 
     #[test]
+    fn pip_policy_pin_mode_with_hashed_constraints_fails_fast() {
+        // A hashed constraints file in pin mode is rejected at startup, because
+        // pip would otherwise auto-enable hash checking and fail every install.
+        let tmp = TempDir::new().unwrap();
+        let constraints = tmp.path().join("constraints.txt");
+        std::fs::write(
+            &constraints,
+            "numpy==2.1.3 \\\n    --hash=sha256:abc123\n",
+        )
+        .unwrap();
+        let err = PipPolicy::from_config(None, Some(&constraints), false).unwrap_err();
+        assert!(matches!(
+            err,
+            PluginEnvironmentError::PinModeConstraintsHaveHashes { line_number: 2, .. }
+        ));
+    }
+
+    #[test]
+    fn pip_policy_pin_mode_with_hashfree_constraints_ok() {
+        // The same file without hashes is valid in pin mode.
+        let tmp = TempDir::new().unwrap();
+        let constraints = tmp.path().join("constraints.txt");
+        std::fs::write(&constraints, "# pins only\nnumpy==2.1.3\npandas==2.2.0\n").unwrap();
+        let policy = PipPolicy::from_config(None, Some(&constraints), false)
+            .expect("hash-free pin-mode constraints are valid");
+        assert!(!policy.require_hashes);
+    }
+
+    #[test]
     fn pip_policy_require_hashes_with_constraints_ok() {
         let tmp = TempDir::new().unwrap();
         let constraints = tmp.path().join("constraints.txt");
         std::fs::write(&constraints, "numpy==2.1.3 --hash=sha256:abc\n").unwrap();
         let policy = PipPolicy::from_config(None, Some(&constraints), true)
             .expect("require-hashes with a constraints file is valid");
-        let args = policy.pip_extra_args();
+        let args = policy.pip_install_args(&["numpy==2.1.3".to_string()]);
         assert!(args.contains(&std::ffi::OsString::from("--require-hashes")));
+    }
+
+    #[test]
+    fn pip_install_args_pin_mode_uses_c_and_keeps_specs() {
+        // Pin-only: constraints file is passed as `-c`, user specs stay on the
+        // command line, and `--require-hashes` is absent.
+        let tmp = TempDir::new().unwrap();
+        let constraints = tmp.path().join("constraints.txt");
+        std::fs::write(&constraints, "numpy==2.1.3\n").unwrap();
+        let policy = PipPolicy::from_config(None, Some(&constraints), false)
+            .expect("pin mode with a constraints file is valid");
+
+        let args = policy.pip_install_args(&["numpy==2.1.3".to_string()]);
+        assert_eq!(
+            args,
+            vec![
+                std::ffi::OsString::from("numpy==2.1.3"),
+                std::ffi::OsString::from("-c"),
+                constraints.clone().into_os_string(),
+            ]
+        );
+        assert!(!args.contains(&std::ffi::OsString::from("--require-hashes")));
+        assert!(!args.contains(&std::ffi::OsString::from("-r")));
+    }
+
+    #[test]
+    fn pip_install_requirements_args_require_hashes_uses_closure_not_user_file() {
+        // On the `-r` path under require-hashes, the operator's hashed closure is
+        // installed via `-r <constraints>`; the user's hashless file is not
+        // passed to pip, and `--require-hashes` is set.
+        let tmp = TempDir::new().unwrap();
+        let constraints = tmp.path().join("constraints.txt");
+        std::fs::write(&constraints, "numpy==2.1.3 --hash=sha256:abc\n").unwrap();
+        let policy = PipPolicy::from_config(None, Some(&constraints), true)
+            .expect("require-hashes with a constraints file is valid");
+
+        let args = policy.pip_install_requirements_args("/tmp/user-reqs.txt");
+        assert_eq!(
+            args,
+            vec![
+                std::ffi::OsString::from("-r"),
+                constraints.clone().into_os_string(),
+                std::ffi::OsString::from("--require-hashes"),
+            ]
+        );
+        assert!(!args.contains(&std::ffi::OsString::from("/tmp/user-reqs.txt")));
+    }
+
+    #[test]
+    fn pip_install_requirements_args_pin_mode_uses_user_file_and_c() {
+        // On the `-r` path under pin-only, the user's file drives the install
+        // and the constraints file pins via `-c`.
+        let tmp = TempDir::new().unwrap();
+        let constraints = tmp.path().join("constraints.txt");
+        std::fs::write(&constraints, "numpy==2.1.3\n").unwrap();
+        let policy = PipPolicy::from_config(None, Some(&constraints), false)
+            .expect("pin mode with a constraints file is valid");
+
+        let args = policy.pip_install_requirements_args("/tmp/user-reqs.txt");
+        assert_eq!(
+            args,
+            vec![
+                std::ffi::OsString::from("-r"),
+                std::ffi::OsString::from("/tmp/user-reqs.txt"),
+                std::ffi::OsString::from("-c"),
+                constraints.clone().into_os_string(),
+            ]
+        );
+        assert!(!args.contains(&std::ffi::OsString::from("--require-hashes")));
     }
 
     fn policy_with_allowlist(contents: &str) -> PipPolicy {
