@@ -1676,8 +1676,8 @@ pub(crate) fn setup_processing_engine_env_manager(
         environment::venv_path_for(plugin_dir, config.virtual_env_location.as_ref())
     });
 
-    // Build the pip policy eagerly so a bad allowlist file (or a require-hashes
-    // mode with no constraints file) fails startup rather than the first install
+    // Build the pip policy early so a bad allowlist file or a require-hashes
+    // mode with no constraints file fails startup rather than the first install
     // request.
     let require_hashes = config.plugin_package_constraints_mode
         == influxdb3_clap_blocks::plugins::PipConstraintsMode::RequireHashes;

@@ -20,6 +20,7 @@ InfluxDB 3 Core Server and Command Line Tools
 
 {}
   {}   Install Python packages for the Processing Engine
+  {} Uninstall Python packages from the Processing Engine
   {}      Test that Processing Engine plugins work the way you expect
 
 {}

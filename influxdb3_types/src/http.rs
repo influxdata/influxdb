@@ -243,6 +243,12 @@ pub struct ProcessingEngineInstallPackagesRequest {
     pub packages: Vec<String>,
 }
 
+/// Request definition for the `POST /api/v3/configure/plugin_environment/uninstall_packages` API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ProcessingEngineUninstallPackagesRequest {
+    pub packages: Vec<String>,
+}
+
 /// Request definition for the `POST /api/v3/configure/plugin_environment/install_requirements` API
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineInstallRequirementsRequest {

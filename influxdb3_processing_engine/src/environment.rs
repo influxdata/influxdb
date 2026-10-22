@@ -191,7 +191,7 @@ impl AllowlistedPackages {
         Ok(Self { packages })
     }
 
-    /// The approved versions for a normalized package name, if any.
+    /// The approved versions for a normalized package name.
     fn allowlisted_versions(&self, normalized_name: &str) -> Option<&BTreeSet<String>> {
         self.packages.get(normalized_name)
     }
@@ -259,7 +259,7 @@ impl PipPolicy {
     }
 
     /// Build a policy from operator config. The approved-packages file is read
-    /// and parsed eagerly so a bad file fails fast at startup rather than on the
+    /// and parsed early so a bad file fails fast at startup rather than on the
     /// first install request.
     ///
     /// `require_hashes` requires a `constraints_file`, since the hashes pip
@@ -422,6 +422,8 @@ pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
 
     fn install_requirements(&self, requirements_path: String)
     -> Result<(), PluginEnvironmentError>;
+
+    fn uninstall_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError>;
 }
 
 #[derive(Debug, Clone)]
@@ -520,6 +522,26 @@ impl PythonEnvironmentManager for PipManager {
         }
         Ok(())
     }
+
+    fn uninstall_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+        // Treats an already-absent package as a warning with a zero exit
+        // so uninstall is idempotent.
+        let python_exe = find_python();
+        let output = Command::new(python_exe)
+            .arg("-m")
+            .arg("pip")
+            .arg("uninstall")
+            .arg("-y")
+            .args(&packages)
+            .output()?;
+        if !output.status.success() {
+            return Err(PluginEnvironmentError::PackageManagerNotFound(format!(
+                "pip uninstall failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )));
+        }
+        Ok(())
+    }
 }
 
 fn sorted_unique_package_names(mut package_names: Vec<String>) -> Vec<String> {
@@ -585,6 +607,10 @@ impl PythonEnvironmentManager for DisabledManager {
     ) -> Result<(), PluginEnvironmentError> {
         Err(PluginEnvironmentDisabled)
     }
+
+    fn uninstall_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+        Err(PluginEnvironmentDisabled)
+    }
 }
 
 /// A package manager that disables package installation while allowing
@@ -612,6 +638,10 @@ impl PythonEnvironmentManager for DisabledPackageManager {
         &self,
         _requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
+        Err(PluginEnvironmentError::PackageInstallationDisabled)
+    }
+
+    fn uninstall_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
         Err(PluginEnvironmentError::PackageInstallationDisabled)
     }
 }
@@ -643,6 +673,11 @@ impl PythonEnvironmentManager for TestManager {
         &self,
         _requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
+        // Always succeed for tests
+        Ok(())
+    }
+
+    fn uninstall_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
         // Always succeed for tests
         Ok(())
     }
@@ -1150,5 +1185,29 @@ mod tests {
             !second_path.exists(),
             "no second build should have happened at second_path"
         );
+    }
+
+    #[test]
+    fn disabled_package_manager_rejects_uninstall() {
+        // Disabling package management must also block removal, not just install,
+        // so the install/uninstall API surface is uniformly gated.
+        let err = DisabledPackageManager
+            .uninstall_packages(vec!["numpy".to_string()])
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            PluginEnvironmentError::PackageInstallationDisabled
+        ));
+    }
+
+    #[test]
+    fn disabled_manager_rejects_uninstall() {
+        let err = DisabledManager
+            .uninstall_packages(vec!["numpy".to_string()])
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            PluginEnvironmentError::PluginEnvironmentDisabled
+        ));
     }
 }

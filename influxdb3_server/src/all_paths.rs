@@ -20,6 +20,8 @@ pub(crate) const API_V3_CONFIGURE_PROCESSING_ENGINE_TRIGGER: &str =
     "/api/v3/configure/processing_engine_trigger";
 pub(crate) const API_V3_CONFIGURE_PLUGIN_INSTALL_PACKAGES: &str =
     "/api/v3/configure/plugin_environment/install_packages";
+pub(crate) const API_V3_CONFIGURE_PLUGIN_UNINSTALL_PACKAGES: &str =
+    "/api/v3/configure/plugin_environment/uninstall_packages";
 pub(crate) const API_V3_CONFIGURE_PLUGIN_INSTALL_REQUIREMENTS: &str =
     "/api/v3/configure/plugin_environment/install_requirements";
 pub(crate) const API_V3_CONFIGURE_DATABASE: &str = "/api/v3/configure/database";
