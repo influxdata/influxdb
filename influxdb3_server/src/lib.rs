@@ -97,6 +97,7 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     telemetry_store: Arc<TelemetryStore>,
+    node_id: Arc<str>,
 }
 
 impl CommonServerState {
@@ -106,6 +107,7 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         telemetry_store: Arc<TelemetryStore>,
+        node_id: Arc<str>,
     ) -> Self {
         Self {
             catalog,
@@ -113,7 +115,12 @@ impl CommonServerState {
             trace_exporter,
             trace_header_parser,
             telemetry_store,
+            node_id,
         }
+    }
+
+    pub fn node_id(&self) -> &str {
+        &self.node_id
     }
 
     pub fn trace_exporter(&self) -> Option<Arc<trace_exporters::export::AsyncExporter>> {
