@@ -904,7 +904,7 @@ where
     ///
     /// This scans through the "main" queue and for every entry it either:
     ///
-    /// - **move to to back:** If the entry was used, move it to the back of the "main" queue. Decrease its usage
+    /// - **move to back:** If the entry was used, move it to the back of the "main" queue. Decrease its usage
     ///   counter by one.
     /// - **move to "ghost" set:** If the entry was NOT used, remove it from the cache and add its key to the "ghost" set.
     ///

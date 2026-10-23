@@ -357,7 +357,7 @@ impl std::io::Write for MessageWriter {
                     // Jaeger requires that each thrift Message is encoded in exactly one UDP
                     // packet, as this ensures it either arrives in its entirety or not at all
                     //
-                    // If for whatever reason the packet is truncated, the agent will fail to
+                    // If for whatever reason the packet is truncated, the agent will fail
                     // to decode it, likely due to a missing stop-field, and discard it
                     error!(%written, %message_len, "jaeger agent exporter failed to write message as single UDP packet");
                 }

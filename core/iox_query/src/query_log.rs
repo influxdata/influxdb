@@ -1447,7 +1447,7 @@ fn collect_ingester_metrics(plan: &dyn ExecutionPlan) -> IngesterMetrics {
 /// Collect the number of rows from an [`ExecutionPlan`].
 ///
 /// ## Note
-/// This function returns returns an [`Option`] to distinguish between
+/// This function returns an [`Option`] to distinguish between
 /// no metrics being available and no rows being returned by a query.
 ///
 /// Specifically:

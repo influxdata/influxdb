@@ -911,7 +911,7 @@ mod test {
         assert_eq!(rewrite(expr), "boolean_field != Boolean(true)");
 
         // DataFusion does not support bitwise operations when the operands are
-        // Boolean data types. These must be case to an an Int8 in order to perform
+        // Boolean data types. These must be cast to an Int8 in order to perform
         // the operation and then cast back to Boolean
 
         let expr = binary_expr("boolean_field".as_expr(), Operator::BitwiseOr, lit(true));

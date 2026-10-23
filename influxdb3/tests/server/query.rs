@@ -1733,7 +1733,7 @@ async fn api_v1_query_group_by() {
             })
             .collect::<Vec<Value>>()
             .await;
-        // Use a snapshot to assert on the output structure. This deserializes each emitted line as
+        // Use a snapshot to assert on the output structure. This deserializes each emitted line
         // as JSON first, then combines and collects them into a Vec<Value> to serialize into a JSON
         // array for the snapshot.
         insta::with_settings!({
@@ -1835,7 +1835,7 @@ async fn api_v1_query_group_by_with_nulls() {
             })
             .collect::<Vec<Value>>()
             .await;
-        // Use a snapshot to assert on the output structure. This deserializes each emitted line as
+        // Use a snapshot to assert on the output structure. This deserializes each emitted line
         // as JSON first, then combines and collects them into a Vec<Value> to serialize into a JSON
         // array for the snapshot.
         insta::with_settings!({

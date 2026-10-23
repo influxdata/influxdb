@@ -100,7 +100,7 @@ impl std::fmt::Display for StorageId {
 
 /// Inputs required to build a [`DataSourceExec`] for one or multiple files.
 ///
-/// The files shall be grouped by [`object_store_url`](Self::object_store_url). For each each object store, you shall
+/// The files shall be grouped by [`object_store_url`](Self::object_store_url). For each object store, you shall
 /// create one [`DataSourceExec`] and put each file into its own "file group".
 ///
 /// [`DataSourceExec`]: datafusion::datasource::memory::DataSourceExec

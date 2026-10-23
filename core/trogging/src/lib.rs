@@ -601,7 +601,7 @@ ERROR foo
     }
 
     // This test checks that [`make_writer`] returns a writer that implement line buffering, which means
-    // that written data is not flushed to the underlying IO writer until a a whole line is been written
+    // that written data is not flushed to the underlying IO writer until a whole line has been written
     // to the line buffered writer, possibly by multiple calls to the `write` method.
     // (In fact, the `logfmt` layer does call `write` multiple times for each log line).
     //
