@@ -1787,6 +1787,17 @@ impl HttpApi {
         self.handle_install_result(manager.install_packages(packages))
     }
 
+    async fn uninstall_plugin_environment_packages(&self, req: Request) -> Result<Response> {
+        let ProcessingEngineUninstallPackagesRequest { packages } =
+            if let Some(query) = req.uri().query() {
+                serde_urlencoded::from_str(query)?
+            } else {
+                self.read_body_json(req).await?
+            };
+        let manager = self.processing_engine.get_environment_manager();
+        self.handle_install_result(manager.uninstall_packages(packages))
+    }
+
     async fn install_plugin_environment_requirements(&self, req: Request) -> Result<Response> {
         let ProcessingEngineInstallRequirementsRequest {
             requirements_location,
@@ -2884,6 +2895,9 @@ async fn perform_routing(
         }
         (Method::POST, all_paths::API_V3_CONFIGURE_PLUGIN_INSTALL_PACKAGES) => {
             http_server.install_plugin_environment_packages(req).await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_PLUGIN_UNINSTALL_PACKAGES) => {
+            http_server.uninstall_plugin_environment_packages(req).await
         }
         (Method::POST, all_paths::API_V3_CONFIGURE_PLUGIN_INSTALL_REQUIREMENTS) => {
             http_server

@@ -40,7 +40,16 @@ pub enum ProcessingEngineError {
 impl From<PluginEnvironmentError> for ProcessingEngineError {
     fn from(err: PluginEnvironmentError) -> Self {
         match err {
-            PluginEnvironmentError::PackageInstallationDisabled => {
+            // Both an operator-disabled install and an approval-policy rejection
+            // surface to the client as HTTP 403 with the error message as body
+            // (see http.rs `handle_install_result`). The requirements-file
+            // rejection is an allowlist rejection on the `-r` path, so it routes
+            // the same way.
+            PluginEnvironmentError::PackageInstallationDisabled
+            | PluginEnvironmentError::PackageNotAllowlisted { .. }
+            | PluginEnvironmentError::PackageVersionNotAllowlisted { .. }
+            | PluginEnvironmentError::PackageVersionRequired { .. }
+            | PluginEnvironmentError::RequirementsEntryNotAllowed { .. } => {
                 ProcessingEngineError::PackageInstallationDisabled(err)
             }
             other => ProcessingEngineError::PythonPackageError(other),

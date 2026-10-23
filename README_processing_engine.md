@@ -505,3 +505,107 @@ recommendation to call with `python -m pip` still holds true.
 ### What limitations are there?
 
 See https://github.com/influxdata/influxdb/issues?q=is%3Aissue%20state%3Aopen%20label%3Av3
+
+## Restricting plugin package installs (allowlist + constraints)
+
+The Processing Engine exposes a package-install API so plugins can pull their
+Python dependencies. As an operator you can restrict it with two
+server-controlled files wired in at `serve` time:
+
+- `--plugin-package-allowlist <FILE>`: what you allow to be requested.
+- `--plugin-package-constraints <FILE>`: what the server actually installs
+  (exact versions, and optionally hashes it owns).
+- `--plugin-package-constraints-mode <pin|require-hashes>`: how strictly the
+  constraints file is enforced (default `pin`).
+
+Each also reads from an environment variable
+(`INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST`, `INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS`,
+`INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS_MODE`). With no allowlist set, no
+allowlist check runs; with no constraints file set, none is passed to pip.
+
+### The allowlist file
+
+A plain-text file with one pinned `name==version` per line. Blank lines and
+`#` comment lines are ignored, and you may list multiple versions of the same
+package on separate lines. Anything else (unpinned, ranges, URLs, options) is
+rejected at startup.
+
+```text
+accelerate==1.15.0
+chronos-forecasting==2.3.2
+numpy==2.2.6
+torch==2.6.0+cpu
+transformers==5.20.2
+```
+
+Every install request, including each line of a `-r requirements.txt` you
+submit, is validated against this list and rejected with HTTP 403 if the exact
+`name==version` is not present. A `-r` file may contain only plain
+`name==version` lines; index options, nested includes, editable installs,
+URLs, VCS refs, direct references, local paths, environment markers, and line
+continuations are all rejected so they cannot bypass the allowlist.
+
+### The constraints (hashes) file
+
+This server-owned file is passed to pip for every install. Generate it with
+`pip-compile --generate-hashes` so it carries the fully pinned dependency
+closure plus `--hash=` lines:
+
+```text
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+--only-binary :all:
+
+torch==2.6.0+cpu \
+    --hash=sha256:24c9d3d13b9ea769dd7bd5c11cfa1fc463fd7391397156565484565ca685d908
+numpy==2.2.6 \
+    --hash=sha256:038613e9fb8c72b0a41f025a7e4c3f0b7a1b5d768ece4796b674c8f3fe13efff
+```
+
+#### Using `--index-url`
+
+Index directives belong only in the constraints file header, never on the
+`serve` or `install` command line; pip reads them from the file. The header
+above pins the PyTorch CPU wheel by making the CPU wheel index primary and
+falling back to regular PyPI for everything else:
+
+```text
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+```
+
+Because you only name a package (`torch==2.6.0+cpu`), this header is where you
+decide which index and exact artifact is pulled. The same mechanism points at
+a private or internal index when needed.
+
+### Constraints modes
+
+- `pin` (default): pins versions only. A constraints file that contains
+  `--hash=` lines is rejected at startup in this mode; use `require-hashes` for
+  hashed files.
+- `require-hashes`: additionally passes `--require-hashes`, so pip verifies a
+  hash for every package in the resolved closure. The hashes must be present in
+  the constraints file, and `--plugin-package-constraints` must be set or the
+  server refuses to start.
+
+### Wiring it into `serve`
+
+```bash
+influxdb3 serve \
+  --node-id local01 \
+  --object-store file \
+  --data-dir ./data \
+  --plugin-dir ./plugins \
+  --plugin-package-allowlist        ./allowlist.txt \
+  --plugin-package-constraints      ./constraints.txt \
+  --plugin-package-constraints-mode require-hashes
+```
+
+You then install only by name; the exact version, chosen index, and integrity
+all come from these operator files:
+
+```bash
+# Allowed: name==version is on the allowlist; the hashed closure drives the
+# download from the index declared in the constraints header.
+influxdb3 install package torch==2.6.0+cpu --host http://127.0.0.1:8181
+```

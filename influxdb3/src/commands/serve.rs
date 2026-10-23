@@ -26,7 +26,7 @@ use influxdb3_process::{
     ProcessUuidWrapper,
 };
 use influxdb3_processing_engine::environment::{
-    self, DisabledManager, DisabledPackageManager, PipManager, PythonEnvironmentManager,
+    self, DisabledManager, DisabledPackageManager, PipManager, PipPolicy, PythonEnvironmentManager,
     list_installed_packages,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
@@ -1350,7 +1350,8 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
     .await;
 
     let processing_engine_env =
-        setup_processing_engine_env_manager(&config.processing_engine_config);
+        setup_processing_engine_env_manager(&config.processing_engine_config)
+            .map_err(Error::PythonEnvironmentInitialization)?;
     let python_env_metrics = Some(setup_python_env_metrics(&processing_engine_env));
     let plugin_trigger_invocation_registry = setup_plugin_trigger_invocation_registry();
     let plugin_trigger_invocation_metrics = Some(setup_plugin_trigger_invocation_telemetry(
@@ -1669,11 +1670,22 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
 
 pub(crate) fn setup_processing_engine_env_manager(
     config: &ProcessingEngineConfig,
-) -> ProcessingEngineEnvironmentManager {
+) -> Result<ProcessingEngineEnvironmentManager, environment::PluginEnvironmentError> {
     // The venv PipManager would use, when a plugin dir makes one possible.
     let venv_path = config.plugin_dir.as_deref().map(|plugin_dir| {
         environment::venv_path_for(plugin_dir, config.virtual_env_location.as_ref())
     });
+
+    // Build the pip policy early so a bad allowlist file or a require-hashes
+    // mode with no constraints file fails startup rather than the first install
+    // request.
+    let require_hashes = config.plugin_package_constraints_mode
+        == influxdb3_clap_blocks::plugins::PipConstraintsMode::RequireHashes;
+    let policy = Arc::new(PipPolicy::from_config(
+        config.plugin_package_allowlist.as_deref(),
+        config.plugin_package_constraints.as_deref(),
+        require_hashes,
+    )?);
 
     let package_manager: Arc<dyn PythonEnvironmentManager> = if config.disable_package_management {
         // Never build/probe a venv or shell out to pip, regardless of
@@ -1681,9 +1693,9 @@ pub(crate) fn setup_processing_engine_env_manager(
         Arc::new(DisabledPackageManager)
     } else {
         match config.package_manager {
-            PackageManager::Pip => Arc::new(PipManager),
+            PackageManager::Pip => Arc::new(PipManager::with_policy(Arc::clone(&policy))),
             // Keep accepting the historical config value, but do not use uv.
-            PackageManager::UV => Arc::new(PipManager),
+            PackageManager::UV => Arc::new(PipManager::with_policy(Arc::clone(&policy))),
             PackageManager::Disabled => Arc::new(DisabledPackageManager),
             // Discovery builds the one-per-process venv in the background and probes
             // pip inside it. `ready()` blocks until the build finishes; a venv that
@@ -1691,20 +1703,20 @@ pub(crate) fn setup_processing_engine_env_manager(
             PackageManager::Discover => match venv_path {
                 Some(path) => environment::get_or_init_venv(path)
                     .ready()
-                    .map(|venv| venv.determine_package_manager())
+                    .map(|venv| venv.determine_package_manager(Arc::clone(&policy)))
                     .unwrap_or_else(|_| Arc::new(DisabledManager)),
                 None => Arc::new(DisabledManager),
             },
         }
     };
 
-    ProcessingEngineEnvironmentManager {
+    Ok(ProcessingEngineEnvironmentManager {
         plugin_dir: config.plugin_dir.clone(),
         virtual_env_location: config.virtual_env_location.clone(),
         package_manager,
         plugin_dir_only: false,
         plugin_repo: config.plugin_repo.clone(),
-    }
+    })
 }
 
 #[derive(Debug)]

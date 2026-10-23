@@ -812,6 +812,23 @@ impl Client {
         Ok(())
     }
 
+    /// Make a request to `POST /api/v3/configure/plugin_environment/uninstall_packages`
+    pub async fn api_v3_configure_plugin_environment_uninstall_packages(
+        &self,
+        packages: Vec<String>,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/plugin_environment/uninstall_packages",
+                Some(ProcessingEngineUninstallPackagesRequest { packages }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Make a request to `POST /api/v3/configure/plugin_environment/install_requirements`
     pub async fn api_v3_configure_processing_engine_trigger_install_requirements(
         &self,
