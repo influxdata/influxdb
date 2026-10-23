@@ -1739,7 +1739,7 @@ impl ColumnSummary {
         }
     }
 
-    /// Updates these statistics so that that the total length of this
+    /// Updates these statistics so that the total length of this
     /// column is `len` rows, padding it with trailing NULLs if
     /// necessary
     pub fn update_to_total_count(&mut self, len: u64) {

@@ -54,7 +54,7 @@ pub use crate::regex::REGEX_NOT_MATCH_UDF_NAME;
 pub use crate::regex::clean_non_meta_escapes;
 pub use crate::sleep::SLEEP_UDF_NAME;
 
-/// A list of the numeric types supported by InfluxDB that can be be used
+/// A list of the numeric types supported by InfluxDB that can be used
 /// as input to user-defined functions.
 pub static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
 
