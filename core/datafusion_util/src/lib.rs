@@ -359,7 +359,7 @@ impl ThenWithOpt for Option<Ordering> {
 /// collect the results in memory.
 ///
 /// # Panics
-/// If an an error occurs
+/// If an error occurs
 pub async fn test_collect(plan: Arc<dyn ExecutionPlan>) -> Vec<RecordBatch> {
     let session_ctx = SessionContext::new();
     let task_ctx = Arc::new(TaskContext::from(&session_ctx));
@@ -370,7 +370,7 @@ pub async fn test_collect(plan: Arc<dyn ExecutionPlan>) -> Vec<RecordBatch> {
 /// default [SessionContext] returning the resulting stream.
 ///
 /// # Panics
-/// If an an error occurs
+/// If an error occurs
 pub async fn test_execute_partition(
     plan: Arc<dyn ExecutionPlan>,
     partition: usize,
@@ -384,7 +384,7 @@ pub async fn test_execute_partition(
 /// default [SessionContext] and collect the results in memory.
 ///
 /// # Panics
-/// If an an error occurs
+/// If an error occurs
 pub async fn test_collect_partition(
     plan: Arc<dyn ExecutionPlan>,
     partition: usize,
