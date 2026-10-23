@@ -51,6 +51,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::{self},
     num::NonZeroU64,
+    ops::RangeInclusive,
     sync::Arc,
 };
 use trace::{ctx::SpanContext, span::Span};
@@ -431,6 +432,8 @@ pub struct TestChunk {
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
 
+    row_order_range: Option<RangeInclusive<i64>>,
+
     /// The sort key of this chunk
     sort_key: Option<SortKey>,
 
@@ -498,6 +501,7 @@ impl TestChunk {
             table_data: TestChunkData::RecordBatches(vec![]),
             saved_error: Default::default(),
             order: ChunkOrder::MIN,
+            row_order_range: None,
             sort_key: None,
             partition_id: PartitionHashId::arbitrary_for_testing(),
             quiet: false,
@@ -516,6 +520,13 @@ impl TestChunk {
     pub fn with_order(self, order: i64) -> Self {
         Self {
             order: ChunkOrder::new(order),
+            ..self
+        }
+    }
+
+    pub fn with_row_order_range(self, start: i64, end: i64) -> Self {
+        Self {
+            row_order_range: Some(start..=end),
             ..self
         }
     }
@@ -1232,6 +1243,10 @@ impl QueryChunk for TestChunk {
 
     fn order(&self) -> ChunkOrder {
         self.order
+    }
+
+    fn row_order_range(&self) -> Option<RangeInclusive<i64>> {
+        self.row_order_range.clone()
     }
 
     fn as_any(&self) -> &dyn Any {

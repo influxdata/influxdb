@@ -210,10 +210,19 @@ impl ExecutionPlan for RecordBatchesExec {
                 )));
             }
         };
-        let virtual_columns = HashMap::from([(
-            CHUNK_ORDER_COLUMN_NAME,
-            ScalarValue::from(chunk.order().get()),
-        )]);
+        let row_order_range = chunk.row_order_range();
+        let virtual_columns = if row_order_range.is_none() {
+            HashMap::from([(
+                CHUNK_ORDER_COLUMN_NAME,
+                ScalarValue::from(chunk.order().get()),
+            )])
+        } else {
+            HashMap::new()
+        };
+        let virtual_sequences = row_order_range
+            .into_iter()
+            .map(|range| (CHUNK_ORDER_COLUMN_NAME, range))
+            .collect();
 
         // If these are ingester chunks, we want to decorate with the MetricDecorator
         // so we can accumulate ingester <=> querier metrics in the query log/system tables/etc.
@@ -229,8 +238,14 @@ impl ExecutionPlan for RecordBatchesExec {
         };
 
         let adapter = Box::pin(
-            SchemaAdapterStream::try_new(stream, schema, &virtual_columns, baseline_metrics)
-                .map_err(|e| DataFusionError::External(Box::new(e)))?,
+            SchemaAdapterStream::try_new_with_sequences(
+                stream,
+                schema,
+                &virtual_columns,
+                &virtual_sequences,
+                baseline_metrics,
+            )
+            .map_err(|e| DataFusionError::External(Box::new(e)))?,
         );
 
         trace!(partition, "End RecordBatchesExec::execute");

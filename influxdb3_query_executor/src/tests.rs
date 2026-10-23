@@ -1,6 +1,6 @@
 use super::CreateQueryExecutorArgs;
 use crate::QueryExecutorImpl;
-use arrow::array::RecordBatch;
+use arrow::array::{Int64Array, RecordBatch};
 use datafusion::assert_batches_sorted_eq;
 use futures::TryStreamExt;
 use influxdb3_cache::{
@@ -29,6 +29,7 @@ use object_store::{ObjectStore, local::LocalFileSystem};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
@@ -63,6 +64,30 @@ pub(crate) fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
 pub(crate) async fn setup(
     query_file_limit: Option<usize>,
     started_with_auth: bool,
+) -> (
+    Arc<dyn WriteBuffer>,
+    QueryExecutorImpl,
+    Arc<MockProvider>,
+    Arc<SysEventStore>,
+) {
+    setup_with_wal_config(
+        query_file_limit,
+        started_with_auth,
+        WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        },
+    )
+    .await
+}
+
+async fn setup_with_wal_config(
+    query_file_limit: Option<usize>,
+    started_with_auth: bool,
+    wal_config: WalConfig,
 ) -> (
     Arc<dyn WriteBuffer>,
     QueryExecutorImpl,
@@ -111,13 +136,7 @@ pub(crate) async fn setup(
         .unwrap(),
         time_provider: Arc::<MockProvider>::clone(&time_provider),
         executor: Arc::clone(&exec),
-        wal_config: WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-            ..Default::default()
-        },
+        wal_config,
         parquet_cache: Some(parquet_cache),
         metric_registry: Default::default(),
         snapshotted_wal_files_to_keep: 1,
@@ -170,6 +189,225 @@ pub(crate) async fn setup(
         time_provider,
         sys_events_store,
     )
+}
+
+async fn query_count(query_executor: &QueryExecutorImpl, database: &str, query: &str) -> i64 {
+    let batches: Vec<RecordBatch> = query_executor
+        .query_sql(database, query, None, None, None)
+        .await
+        .unwrap()
+        .try_collect()
+        .await
+        .unwrap();
+    batches[0]
+        .column(0)
+        .as_any()
+        .downcast_ref::<Int64Array>()
+        .unwrap()
+        .value(0)
+}
+
+async fn assert_latest_counts(
+    query_executor: &QueryExecutorImpl,
+    database: &str,
+    component_a: i64,
+    component_b: i64,
+    run_id: &str,
+) {
+    let single_a = format!(
+        "SELECT count(*) FROM repro WHERE plant_id = 'REPRO01' \
+         AND component_id = 'RINV{component_a:02}' AND run_id = '{run_id}'"
+    );
+    let single_b = format!(
+        "SELECT count(*) FROM repro WHERE plant_id = 'REPRO01' \
+         AND component_id = 'RINV{component_b:02}' AND run_id = '{run_id}'"
+    );
+    let in_list = format!(
+        "SELECT count(*) FROM repro WHERE plant_id = 'REPRO01' \
+         AND component_id IN ('RINV{component_a:02}', 'RINV{component_b:02}') \
+         AND run_id = '{run_id}'"
+    );
+    let wide =
+        format!("SELECT count(*) FROM repro WHERE plant_id = 'REPRO01' AND run_id = '{run_id}'");
+    assert_eq!(query_count(query_executor, database, &single_a).await, 6);
+    assert_eq!(query_count(query_executor, database, &single_b).await, 6);
+    assert_eq!(query_count(query_executor, database, &in_list).await, 12);
+    assert_eq!(query_count(query_executor, database, &wide).await, 12);
+}
+
+#[test_log::test(tokio::test)]
+async fn overwrite_returns_latest_values_for_all_query_shapes() {
+    let wal_config = WalConfig {
+        gen1_duration: Gen1Duration::new_1m(),
+        max_write_buffer_size: 100,
+        flush_interval: Duration::from_millis(10),
+        snapshot_size: 6,
+        ..Default::default()
+    };
+    let (write_buffer, query_executor, _, _) = setup_with_wal_config(None, true, wal_config).await;
+    let database = "dedup";
+    let database_name = DatabaseName::new(database).unwrap();
+    let start = 1_677_628_800_i64;
+
+    let mut baseline = String::new();
+    for component in 1..=20 {
+        for point in 0..144 {
+            let timestamp = start + point * 600;
+            writeln!(
+                baseline,
+                "repro,plant_id=REPRO01,component_id=RINV{component:02} \
+                 value={},run_id=\"seed\" {timestamp}",
+                1_000.0 + ((component - 1) * 144 + point) as f64 * 0.001
+            )
+            .unwrap();
+        }
+    }
+
+    for generation in 0..4 {
+        let lines = baseline.replace("run_id=\"seed\"", &format!("run_id=\"seed-{generation}\""));
+        write_buffer
+            .write_lp(
+                database_name.clone(),
+                &lines,
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Second,
+                false,
+            )
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    let mut overwritten = Vec::new();
+    for trial in 0..4 {
+        let component_a = trial + 1;
+        let component_b = trial + 11;
+        let hour_start = start + (1 + 2 * trial) * 3_600;
+        let run_id = format!("overwrite-{trial}");
+        let mut lines = String::new();
+        for component in [component_a, component_b] {
+            for point in 0..6 {
+                let timestamp = hour_start + point * 600;
+                writeln!(
+                    lines,
+                    "repro,plant_id=REPRO01,component_id=RINV{component:02} \
+                     value={},run_id=\"{run_id}\" {timestamp}",
+                    2_000.0 + (component * 144 + point) as f64 * 0.001
+                )
+                .unwrap();
+            }
+        }
+        write_buffer
+            .write_lp(
+                database_name.clone(),
+                &lines,
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Second,
+                false,
+            )
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        overwritten.push((component_a, component_b, run_id));
+    }
+
+    assert_eq!(
+        query_count(
+            &query_executor,
+            database,
+            "SELECT count(*) FROM system.parquet_files WHERE table_name = 'repro'",
+        )
+        .await,
+        0
+    );
+
+    for (component_a, component_b, run_id) in &overwritten {
+        assert_latest_counts(
+            &query_executor,
+            database,
+            *component_a,
+            *component_b,
+            run_id,
+        )
+        .await;
+    }
+
+    for filler in 0..4 {
+        write_buffer
+            .write_lp(
+                database_name.clone(),
+                &format!(
+                    "filler,id={filler} value={filler}i {}",
+                    start + 86_400 + filler
+                ),
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Second,
+                false,
+            )
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    let mut parquet_files = 0;
+    for _ in 0..500 {
+        parquet_files = query_count(
+            &query_executor,
+            database,
+            "SELECT count(*) FROM system.parquet_files WHERE table_name = 'repro'",
+        )
+        .await;
+        if parquet_files == 144 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(
+        parquet_files, 144,
+        "snapshot did not persist all repro data"
+    );
+
+    for (component_a, component_b, run_id) in &overwritten {
+        assert_latest_counts(
+            &query_executor,
+            database,
+            *component_a,
+            *component_b,
+            run_id,
+        )
+        .await;
+    }
+
+    let post_snapshot_run = "post-snapshot-overwrite";
+    let mut post_snapshot_lines = String::new();
+    for component in [1, 11] {
+        for point in 0..6 {
+            writeln!(
+                post_snapshot_lines,
+                "repro,plant_id=REPRO01,component_id=RINV{component:02} \
+                 value={},run_id=\"{post_snapshot_run}\" {}",
+                3_000.0 + (component * 144 + point) as f64 * 0.001,
+                start + 3_600 + point * 600
+            )
+            .unwrap();
+        }
+    }
+    write_buffer
+        .write_lp(
+            database_name,
+            &post_snapshot_lines,
+            Time::from_timestamp_nanos(0),
+            false,
+            influxdb3_write::Precision::Second,
+            false,
+        )
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    assert_latest_counts(&query_executor, database, 1, 11, post_snapshot_run).await;
 }
 
 #[test_log::test(tokio::test)]
