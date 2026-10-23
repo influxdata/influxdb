@@ -26,8 +26,8 @@ use influxdb3_process::{
     ProcessUuidWrapper,
 };
 use influxdb3_processing_engine::environment::{
-    self, DisabledManager, DisabledPackageManager, PipManager, PipPolicy,
-    PythonEnvironmentManager, list_installed_packages,
+    self, DisabledManager, DisabledPackageManager, PipManager, PipPolicy, PythonEnvironmentManager,
+    list_installed_packages,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::{

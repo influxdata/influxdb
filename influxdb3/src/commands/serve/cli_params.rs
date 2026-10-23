@@ -127,6 +127,9 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "plugin-repo",
     "restrict-plugin-triggers-to",
     "async-trigger-concurrency-limit",
+    "plugin-package-allowlist",
+    "plugin-package-constraints",
+    "plugin-package-constraints-mode",
     // Other parameters
     "tcp-listener-file-path",
     // Tokio console parameters

@@ -44,9 +44,7 @@ pub enum PluginEnvironmentError {
         allowlisted: String,
     },
 
-    #[error(
-        "'{name}' must be installed with a pinned version, e.g. '{name}=={example_version}'."
-    )]
+    #[error("'{name}' must be installed with a pinned version, e.g. '{name}=={example_version}'.")]
     PackageVersionRequired {
         name: String,
         example_version: String,
@@ -92,9 +90,7 @@ pub enum PluginEnvironmentError {
         source: std::io::Error,
     },
 
-    #[error(
-        "requirements file entry on line {line_number} is not allowed: {reason} ('{line}')"
-    )]
+    #[error("requirements file entry on line {line_number} is not allowed: {reason} ('{line}')")]
     RequirementsEntryNotAllowed {
         line_number: usize,
         line: String,
@@ -195,9 +191,7 @@ impl AllowlistedPackages {
                     packages.entry(normalized).or_default().insert(version);
                 }
                 _ => {
-                    return Err(invalid(
-                        "entries must be pinned as 'name==version'",
-                    ));
+                    return Err(invalid("entries must be pinned as 'name==version'"));
                 }
             }
         }
@@ -320,10 +314,10 @@ impl PipPolicy {
         // hash checking the moment any constraint carries a hash, then rejects
         // the command-line spec for having none. Catch it at startup with an
         // actionable message instead of letting the first install fail.
-        if !require_hashes {
-            if let Some(path) = constraints_file {
-                reject_pin_mode_hashes(path)?;
-            }
+        if !require_hashes
+            && let Some(path) = constraints_file
+        {
+            reject_pin_mode_hashes(path)?;
         }
         let allowlist = match allowlist_file {
             Some(path) => Some(AllowlistedPackages::from_file(path)?),
@@ -355,10 +349,7 @@ impl PipPolicy {
     /// skipped. Each surviving line is validated with
     /// [`AllowlistedPackages::validate_spec`], so version/pinning rules match the
     /// `install_packages` path exactly.
-    fn validate_requirements_contents(
-        &self,
-        contents: &str,
-    ) -> Result<(), PluginEnvironmentError> {
+    fn validate_requirements_contents(&self, contents: &str) -> Result<(), PluginEnvironmentError> {
         let Some(approved) = &self.allowlist else {
             return Ok(());
         };
@@ -630,7 +621,10 @@ impl PythonEnvironmentManager for PipManager {
             .arg("-m")
             .arg("pip")
             .arg("install")
-            .args(self.policy.pip_install_requirements_args(&requirements_path))
+            .args(
+                self.policy
+                    .pip_install_requirements_args(&requirements_path),
+            )
             .output()?;
         if !output.status.success() {
             return Err(PluginEnvironmentError::PackageManagerNotFound(format!(
@@ -1097,7 +1091,11 @@ mod tests {
     #[test]
     fn pip_policy_unrestricted_approves_everything() {
         let policy = PipPolicy::unrestricted();
-        assert!(policy.validate_packages(&["anything==9.9.9".to_string()]).is_ok());
+        assert!(
+            policy
+                .validate_packages(&["anything==9.9.9".to_string()])
+                .is_ok()
+        );
         // With no constraints and no hash requirement, the only install args are
         // the user's own specs.
         assert_eq!(
@@ -1114,16 +1112,20 @@ mod tests {
         let constraints_path = tmp.path().join("constraints.txt");
         std::fs::write(&constraints_path, "numpy==2.1.3 --hash=sha256:abc\n").unwrap();
 
-        let policy = PipPolicy::from_config(
-            Some(&approved_path),
-            Some(&constraints_path),
-            true,
-        )
-        .expect("policy builds from valid config");
+        let policy = PipPolicy::from_config(Some(&approved_path), Some(&constraints_path), true)
+            .expect("policy builds from valid config");
 
         // Approved list is enforced.
-        assert!(policy.validate_packages(&["numpy==2.1.3".to_string()]).is_ok());
-        assert!(policy.validate_packages(&["scipy==1.0.0".to_string()]).is_err());
+        assert!(
+            policy
+                .validate_packages(&["numpy==2.1.3".to_string()])
+                .is_ok()
+        );
+        assert!(
+            policy
+                .validate_packages(&["scipy==1.0.0".to_string()])
+                .is_err()
+        );
 
         // In require-hashes mode the hashed constraints file is installed via
         // `-r` (pip ignores hashes supplied through `-c`), `--require-hashes` is
@@ -1169,11 +1171,7 @@ mod tests {
         // pip would otherwise auto-enable hash checking and fail every install.
         let tmp = TempDir::new().unwrap();
         let constraints = tmp.path().join("constraints.txt");
-        std::fs::write(
-            &constraints,
-            "numpy==2.1.3 \\\n    --hash=sha256:abc123\n",
-        )
-        .unwrap();
+        std::fs::write(&constraints, "numpy==2.1.3 \\\n    --hash=sha256:abc123\n").unwrap();
         let err = PipPolicy::from_config(None, Some(&constraints), false).unwrap_err();
         assert!(matches!(
             err,
