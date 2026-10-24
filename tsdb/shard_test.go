@@ -1944,17 +1944,14 @@ func TestMeasurementFieldSet_DeleteMeasurementReplay(t *testing.T) {
 
 	path := filepath.Join(dir, "fields.idx")
 	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
-	if err != nil {
-		t.Fatalf("NewMeasurementFieldSet error: %v", err)
-	}
+	require.NoError(t, err, "NewMeasurementFieldSet")
 	defer checkMeasurementFieldSetClose(t, mf)
 
 	addField := func(typ influxql.DataType) {
 		t.Helper()
 		fields := mf.CreateFieldsIfNotExists([]byte(measurement))
-		if _, _, err := fields.CreateFieldIfNotExists(fieldName, typ); err != nil {
-			t.Fatalf("create field error: %v", err)
-		}
+		_, _, err := fields.CreateFieldIfNotExists(fieldName, typ)
+		require.NoError(t, err, "create field")
 		change := &tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(measurement),
@@ -1962,17 +1959,13 @@ func TestMeasurementFieldSet_DeleteMeasurementReplay(t *testing.T) {
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
-		if err := mf.Save(tsdb.FieldChanges{change}); err != nil {
-			t.Fatalf("save error: %v", err)
-		}
+		require.NoError(t, mf.Save(tsdb.FieldChanges{change}), "save field")
 	}
 
 	addField(influxql.Integer)
 
 	mf.Delete(measurement)
-	if err := mf.Save(tsdb.MeasurementsToFieldChangeDeletions([]string{measurement})); err != nil {
-		t.Fatalf("save delete error: %v", err)
-	}
+	require.NoError(t, mf.Save(tsdb.MeasurementsToFieldChangeDeletions([]string{measurement})), "save delete")
 
 	addField(influxql.Float)
 
@@ -1980,22 +1973,14 @@ func TestMeasurementFieldSet_DeleteMeasurementReplay(t *testing.T) {
 	// reopening only sees the change log. The deletion must be replayed there,
 	// otherwise the float field conflicts with the dropped integer field.
 	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
-	if err != nil {
-		t.Fatalf("NewMeasurementFieldSet error: %v", err)
-	}
+	require.NoError(t, err, "NewMeasurementFieldSet")
 	defer checkMeasurementFieldSetClose(t, mf2)
 
 	fields := mf2.FieldsByString(measurement)
-	if fields == nil {
-		t.Fatalf("measurement %s not found", measurement)
-	}
+	require.NotNil(t, fields, "measurement %s", measurement)
 	field := fields.Field(fieldName)
-	if field == nil {
-		t.Fatalf("field is null")
-	}
-	if got, exp := field.Type, influxql.Float; got != exp {
-		t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
-	}
+	require.NotNil(t, field, "field %s", fieldName)
+	require.Equal(t, influxql.Float, field.Type, "field type")
 }
 
 func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
