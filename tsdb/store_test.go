@@ -2588,6 +2588,48 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 	}
 }
 
+// BenchmarkStore_Statistics benchmarks the usage of Store.Statistics.
+// During normal InfluxDB operation we call this method every 10 seconds.
+func BenchmarkStore_Statistics(b *testing.B) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		store := NewStore(b, index)
+		err := store.Open()
+		require.NoError(b, err, "opening store")
+		defer store.CloseStore(b, index)
+		series := genTestSeries(320, 5, 5) // 1,000,000 series
+		points := make([]models.Point, 0, len(series))
+		for _, s := range series {
+			points = append(points, models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
+		}
+
+		// Slice sizes to write to different shards WRT to shardID
+		// For example for 200 cardinality we write [0 - 20 .. 180 - 200]
+		// This registers cardinality of 200, 500,000 and 1,000,000
+		benches := []int{20, 50000, 100000}
+
+		for _, benchN := range benches {
+			for shardID := range 10 {
+				err := store.CreateShard("db", "rp", uint64(shardID), true)
+				require.NoError(b, err, "creating shard")
+				err = store.BatchWrite(shardID, points[shardID*benchN:(shardID+1)*benchN]) // Set series cardinality
+				require.NoError(b, err, "batch writing")
+			}
+
+			cardinality, err := store.Store.SeriesCardinality(context.Background(), "db")
+			require.NoError(b, err, "cardinality estimation")
+			// We have 10 shards to disperse this cardinality to
+			require.Equal(b, int64(benchN*10), cardinality)
+
+			benchName := fmt.Sprintf("%d cardinality statistics %s indices", benchN*10, index)
+			b.Run(benchName, func(b *testing.B) {
+				for b.Loop() {
+					store.Statistics(nil)
+				}
+			})
+		}
+	}
+}
+
 func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		store := NewStore(b, index)
