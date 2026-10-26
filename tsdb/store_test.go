@@ -2595,6 +2595,7 @@ func BenchmarkStore_Statistics(b *testing.B) {
 		store := NewStore(b, index)
 		err := store.Open()
 		require.NoError(b, err, "opening store")
+		defer store.CloseStore(b, index)
 		series := genTestSeries(320, 5, 5) // 1,000,000 series
 		points := make([]models.Point, 0, len(series))
 		for _, s := range series {
@@ -2606,7 +2607,7 @@ func BenchmarkStore_Statistics(b *testing.B) {
 		// This registers cardinality of 200, 500,000 and 1,000,000
 		benches := []int{20, 50000, 100000}
 
-		for benchN := range benches {
+		for _, benchN := range benches {
 			for shardID := range 10 {
 				err := store.CreateShard("db", "rp", uint64(shardID), true)
 				require.NoError(b, err, "creating shard")
