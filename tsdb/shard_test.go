@@ -1935,6 +1935,54 @@ func TestMeasurementFieldSet_CorruptChangeFile(t *testing.T) {
 	}
 }
 
+func TestMeasurementFieldSet_DeleteMeasurementReplay(t *testing.T) {
+	const measurement = "cpu"
+	const fieldName = "value"
+
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err, "NewMeasurementFieldSet")
+	defer checkMeasurementFieldSetClose(t, mf)
+
+	addField := func(typ influxql.DataType) {
+		t.Helper()
+		fields := mf.CreateFieldsIfNotExists([]byte(measurement))
+		_, _, err := fields.CreateFieldIfNotExists(fieldName, typ)
+		require.NoError(t, err, "create field")
+		change := &tsdb.FieldChange{
+			FieldCreate: tsdb.FieldCreate{
+				Measurement: []byte(measurement),
+				Field:       &tsdb.Field{Name: fieldName, Type: typ},
+			},
+			ChangeType: tsdb.AddMeasurementField,
+		}
+		require.NoError(t, mf.Save(tsdb.FieldChanges{change}), "save field")
+	}
+
+	addField(influxql.Integer)
+
+	mf.Delete(measurement)
+	require.NoError(t, mf.Save(tsdb.MeasurementsToFieldChangeDeletions([]string{measurement})), "save delete")
+
+	addField(influxql.Float)
+
+	// An unclean stop leaves fields.idxl behind and fields.idx unwritten, so
+	// reopening only sees the change log. The deletion must be replayed there,
+	// otherwise the float field conflicts with the dropped integer field.
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err, "NewMeasurementFieldSet")
+	defer checkMeasurementFieldSetClose(t, mf2)
+
+	fields := mf2.FieldsByString(measurement)
+	require.NotNil(t, fields, "measurement %s", measurement)
+	field := fields.Field(fieldName)
+	require.NotNil(t, field, "field %s", fieldName)
+	require.Equal(t, influxql.Float, field.Type, "field type")
+}
+
 func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	const measurement = "cpu"
 	const fieldName = "value"
