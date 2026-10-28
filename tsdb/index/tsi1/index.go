@@ -987,6 +987,10 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	return i.sSketch.Clone(), i.sTSketch.Clone(), nil
 }
 
+func (i *Index) CachedSeriesSketches() (estimator.Sketch, estimator.Sketch) {
+	return i.sSketch, i.sTSketch
+}
+
 // Since indexes are not shared across shards, the count returned by SeriesN
 // cannot be combined with other shard's results. If you need to count series
 // across indexes then use either the database-wide series file, or merge the

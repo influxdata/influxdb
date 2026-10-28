@@ -276,6 +276,10 @@ func (s *Shard) RetentionPolicy() string {
 	return s.retentionPolicy
 }
 
+func (s *Shard) CachedCardinality() int64 {
+	return s.stats.CachedCardinality
+}
+
 // ShardStatistics maintains statistics for a shard.
 type ShardStatistics struct {
 	WriteReq           int64
@@ -288,6 +292,7 @@ type ShardStatistics struct {
 	WriteValuesOK      int64
 	BytesWritten       int64
 	DiskBytes          int64
+	CachedCardinality  int64
 }
 
 // Statistics returns statistics for periodic monitoring.
