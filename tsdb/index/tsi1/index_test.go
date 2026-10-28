@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime/debug"
 	"sort"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -523,6 +525,133 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 	})
 }
 
+// Ensure a merged measurement series iterator keeps its index files mapped
+// until it is closed. Series ID sets in index files are roaring bitmaps loaded
+// with FromBuffer, so their containers point into the mmap. Merging sets
+// across partitions shares (does not copy) any container whose key appears in
+// only one input, so if the merge releases its file sets before the caller is
+// done, a compaction or close can unmap memory the result still reads.
+func TestIndex_MeasurementSeriesIDIterator_RetainsFilesUntilClose(t *testing.T) {
+	// Long enough for an unblocked index close to finish unmapping.
+	const closeWait = time.Second
+	// Roaring container keys are the high 16 bits of a series ID.
+	const containerSpan = 1 << 16
+
+	idx := MustOpenIndex(t, 2)
+	indexClosed := false
+	t.Cleanup(func() {
+		if !indexClosed {
+			require.NoError(t, idx.Index.Close())
+		}
+		require.NoError(t, idx.SeriesFile.Close())
+	})
+
+	name := []byte("cpu")
+	var lo []Series
+	for i := range 16 {
+		lo = append(lo, Series{Name: name, Tags: models.NewTags(map[string]string{"host": fmt.Sprintf("lo%d", i)})})
+	}
+	require.NoError(t, idx.CreateSeriesSliceIfNotExists(lo))
+
+	// Push series IDs into the next roaring container with series that only
+	// exist in the series file, then add one more cpu series. Its container
+	// key exists in only one partition, so the merged set shares it with the
+	// index file instead of copying it.
+	fillerN := containerSpan * 9 / 8
+	fillerNames := make([][]byte, 0, fillerN)
+	fillerTags := make([]models.Tags, 0, fillerN)
+	for i := range fillerN {
+		fillerNames = append(fillerNames, []byte("filler"))
+		fillerTags = append(fillerTags, models.NewTags(map[string]string{"id": strconv.Itoa(i)}))
+	}
+	_, err := idx.SeriesFile.CreateSeriesListIfNotExists(fillerNames, fillerTags)
+	require.NoError(t, err)
+
+	hi := Series{Name: name, Tags: models.NewTags(map[string]string{"host": "hi"})}
+	require.NoError(t, idx.CreateSeriesSliceIfNotExists([]Series{hi}))
+
+	var want []uint64
+	for _, s := range append(lo, hi) {
+		id := idx.SeriesFile.SeriesID(s.Name, s.Tags, nil)
+		require.NotZero(t, id, "series %s", models.MakeKey(s.Name, s.Tags))
+		want = append(want, id)
+	}
+	require.GreaterOrEqual(t, want[len(want)-1], uint64(containerSpan), "hi series must be in a second roaring container")
+	for _, id := range want[:len(want)-1] {
+		require.Less(t, id, uint64(containerSpan), "lo series must be in the first roaring container")
+	}
+
+	// Compact the log files so every partition serves cpu from an mmapped
+	// index file.
+	require.NoError(t, idx.Reopen(1))
+	require.Eventually(t, func() bool {
+		for i := range int(idx.PartitionN) {
+			if p := idx.PartitionAt(i); p.NeedsCompaction(false) || p.CurrentCompactionN() != 0 {
+				return false
+			}
+		}
+		return true
+	}, 30*time.Second, 10*time.Millisecond)
+
+	// Both partitions must contribute a set, or the index returns the single
+	// partition iterator unmerged and the test proves nothing.
+	for i := range int(idx.PartitionN) {
+		pitr, err := idx.PartitionAt(i).MeasurementSeriesIDIterator(name)
+		require.NoError(t, err)
+		require.NotNil(t, pitr, "partition %d has no %s series", i, name)
+		_, ok := pitr.(tsdb.SeriesIDSetIterator)
+		require.NoError(t, pitr.Close())
+		require.True(t, ok, "partition %d iterator %T is not a series ID set iterator", i, pitr)
+	}
+
+	itr, err := idx.Index.MeasurementSeriesIDIterator(name)
+	require.NoError(t, err)
+	require.NotNil(t, itr)
+	_, ok := itr.(tsdb.SeriesIDSetIterator)
+	require.True(t, ok, "merged iterator %T is not a series ID set iterator", itr)
+
+	// The open iterator should hold the index files; closing the index must
+	// wait for it rather than unmapping them.
+	closeErr := make(chan error, 1)
+	go func() { closeErr <- idx.Index.Close() }()
+	indexClosed = true
+	select {
+	case err := <-closeErr:
+		t.Errorf("index closed (err=%v) while a merged series iterator was still open", err)
+	case <-time.After(closeWait):
+	}
+
+	got, fault, err := readSeriesIDsOrFault(itr)
+	require.Nil(t, fault, "reading merged series iterator after index close faulted")
+	require.NoError(t, err)
+	require.ElementsMatch(t, want, got)
+
+	require.NoError(t, itr.Close())
+	select {
+	case err := <-closeErr:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "index close did not finish after the merged series iterator was closed")
+	}
+}
+
+// readSeriesIDsOrFault drains itr, converting a memory fault (such as reading
+// an unmapped index file) into a returned value instead of crashing the test
+// binary.
+func readSeriesIDsOrFault(itr tsdb.SeriesIDIterator) (ids []uint64, fault any, err error) {
+	defer debug.SetPanicOnFault(debug.SetPanicOnFault(true))
+	defer func() { fault = recover() }()
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return ids, nil, err
+		} else if e.SeriesID == 0 {
+			return ids, nil, nil
+		}
+		ids = append(ids, e.SeriesID)
+	}
+}
+
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index
@@ -701,6 +830,11 @@ func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 				b.Fatal(err)
 			} else if tsiditr == nil {
 				b.Fatal("got nil iterator")
+			}
+			// The iterator retains index files until closed; leaking it
+			// would block idx.Close.
+			if err = tsiditr.Close(); err != nil {
+				b.Fatal(err)
 			}
 		}
 	}

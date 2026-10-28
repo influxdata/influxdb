@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"sort"
@@ -227,8 +228,9 @@ type SeriesIDSetIterator interface {
 }
 
 type seriesIDSetIterator struct {
-	ss  *SeriesIDSet
-	itr SeriesIDSetIterable
+	ss     *SeriesIDSet
+	itr    SeriesIDSetIterable
+	closer io.Closer
 }
 
 func NewSeriesIDSetIterator(ss *SeriesIDSet) SeriesIDSetIterator {
@@ -238,6 +240,13 @@ func NewSeriesIDSetIterator(ss *SeriesIDSet) SeriesIDSetIterator {
 	return &seriesIDSetIterator{ss: ss, itr: ss.Iterator()}
 }
 
+func NewSeriesIDSetIteratorWithCloser(ss *SeriesIDSet, closer io.Closer) SeriesIDSetIterator {
+	if ss == nil || ss.bitmap == nil {
+		return nil
+	}
+	return &seriesIDSetIterator{ss: ss, itr: ss.Iterator(), closer: closer}
+}
+
 func (itr *seriesIDSetIterator) Next() (SeriesIDElem, error) {
 	if !itr.itr.HasNext() {
 		return SeriesIDElem{}, nil
@@ -245,9 +254,25 @@ func (itr *seriesIDSetIterator) Next() (SeriesIDElem, error) {
 	return SeriesIDElem{SeriesID: uint64(itr.itr.Next())}, nil
 }
 
-func (itr *seriesIDSetIterator) Close() error { return nil }
+func (itr *seriesIDSetIterator) Close() error {
+	if itr.closer != nil {
+		return itr.closer.Close()
+	}
+	return nil
+}
 
 func (itr *seriesIDSetIterator) SeriesIDSet() *SeriesIDSet { return itr.ss }
+
+type SeriesIDSetIterators []SeriesIDSetIterator
+
+func (a SeriesIDSetIterators) Close() (err error) {
+	for i := range a {
+		if e := a[i].Close(); e != nil && err == nil {
+			err = e
+		}
+	}
+	return err
+}
 
 // NewSeriesIDSetIterators returns a slice of SeriesIDSetIterator if all itrs
 // can be type casted. Otherwise returns nil.
@@ -495,8 +520,9 @@ func MergeSeriesIDIterators(itrs ...SeriesIDIterator) SeriesIDIterator {
 
 		ss := NewSeriesIDSet()
 		ss.Merge(sets...)
-		SeriesIDIterators(itrs).Close()
-		return NewSeriesIDSetIterator(ss)
+
+		// Attach underlying iterators as the closer
+		return NewSeriesIDSetIteratorWithCloser(ss, SeriesIDSetIterators(a))
 	}
 
 	return &seriesIDMergeIterator{
@@ -569,11 +595,7 @@ func IntersectSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 
 	// Create series id set, if available.
 	if a := NewSeriesIDSetIterators([]SeriesIDIterator{itr0, itr1}); a != nil {
-		ss := a[0].SeriesIDSet().And(a[1].SeriesIDSet())
-		// `a` holds references to itr0/itr1 so itr0/itr1 should not be closed when `a` is still in use
-		itr0.Close()
-		itr1.Close()
-		return NewSeriesIDSetIterator(ss)
+		return NewSeriesIDSetIteratorWithCloser(a[0].SeriesIDSet().And(a[1].SeriesIDSet()), SeriesIDSetIterators(a))
 	}
 
 	return &seriesIDIntersectIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}
@@ -662,10 +684,7 @@ func UnionSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 	if a := NewSeriesIDSetIterators([]SeriesIDIterator{itr0, itr1}); a != nil {
 		ss := NewSeriesIDSet()
 		ss.Merge(a[0].SeriesIDSet(), a[1].SeriesIDSet())
-		// `a` holds references to itr0/itr1 so itr0/itr1 should not be closed when `a` is still in use
-		itr0.Close()
-		itr1.Close()
-		return NewSeriesIDSetIterator(ss)
+		return NewSeriesIDSetIteratorWithCloser(ss, SeriesIDSetIterators(a))
 	}
 
 	return &seriesIDUnionIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}
@@ -748,11 +767,7 @@ func DifferenceSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 
 	// Create series id set, if available.
 	if a := NewSeriesIDSetIterators([]SeriesIDIterator{itr0, itr1}); a != nil {
-		ss := a[0].SeriesIDSet().AndNot(a[1].SeriesIDSet())
-		// `a` holds references to itr0/itr1 so itr0/itr1 should not be closed when `a` is still in use
-		itr0.Close()
-		itr1.Close()
-		return NewSeriesIDSetIterator(ss)
+		return NewSeriesIDSetIteratorWithCloser(a[0].SeriesIDSet().AndNot(a[1].SeriesIDSet()), SeriesIDSetIterators(a))
 	}
 
 	return &seriesIDDifferenceIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}
