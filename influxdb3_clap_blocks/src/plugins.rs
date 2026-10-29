@@ -48,42 +48,20 @@ pub struct ProcessingEngineConfig {
         default_value_t = NonZeroUsize::MAX
     )]
     pub async_trigger_concurrency_limit: NonZeroUsize,
-    /// Path to a file listing the packages end users are allowed to install via
-    /// the Processing Engine package-install API (the allowlist). Each non-blank,
-    /// non-comment line must be a pinned `name==version` spec (multiple versions
-    /// of the same package are allowed on separate lines). When set,
-    /// `install_packages` requests are validated against the allowlist and
-    /// rejected with HTTP 403 if the exact `name==version` is not allowlisted.
-    /// When unset, no allowlist check is applied.
+    /// Path to a pip requirements file listing the packages end users may
+    /// install through the Processing Engine package-install API, one pinned
+    /// `name==version` per package. Install requests for anything else are
+    /// rejected with HTTP 403, and a bare package name installs the listed
+    /// version. If every entry carries a `--hash` (as written by
+    /// `pip-compile --generate-hashes`), each install installs the whole file
+    /// and pip verifies every hash. `--index-url` / `--extra-index-url` lines at
+    /// the top of the file choose the package index. An invalid file stops the
+    /// server at startup. When unset, installs are not restricted.
     #[clap(
         long = "plugin-package-allowlist",
         env = "INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST"
     )]
     pub plugin_package_allowlist: Option<PathBuf>,
-    /// Path to a server-controlled package constraints file passed to every
-    /// package-install invocation as `-c <file>`. Used to pin exact versions
-    /// and, with `--plugin-package-constraints-mode require-hashes`, to enforce
-    /// integrity via hashes the server owns (generate with
-    /// `pip-compile --generate-hashes`). When unset, no constraints file is
-    /// passed.
-    #[clap(
-        long = "plugin-package-constraints",
-        env = "INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS"
-    )]
-    pub plugin_package_constraints: Option<PathBuf>,
-    /// How the constraints file is enforced. `pin` (the default) uses it only to
-    /// pin versions. `require-hashes` additionally passes `--require-hashes`,
-    /// forcing a hash to be verified for every package in the resolved
-    /// dependency closure; the hashes must be present in the constraints file.
-    /// `require-hashes` requires `--plugin-package-constraints` to be set, or the
-    /// server fails to start.
-    #[clap(
-        long = "plugin-package-constraints-mode",
-        env = "INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS_MODE",
-        value_enum,
-        default_value = "pin"
-    )]
-    pub plugin_package_constraints_mode: PipConstraintsMode,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, clap::ValueEnum)]
@@ -101,17 +79,6 @@ pub enum PackageManager {
     Pip,
     UV,
     Disabled,
-}
-
-/// How a configured pip constraints file is enforced.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
-pub enum PipConstraintsMode {
-    /// Use the constraints file to pin versions only.
-    #[default]
-    Pin,
-    /// Pin versions and pass `--require-hashes`, forcing pip to verify a hash
-    /// for every package in the resolved dependency closure.
-    RequireHashes,
 }
 
 #[cfg(test)]

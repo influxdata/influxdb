@@ -506,106 +506,103 @@ recommendation to call with `python -m pip` still holds true.
 
 See https://github.com/influxdata/influxdb/issues?q=is%3Aissue%20state%3Aopen%20label%3Av3
 
-## Restricting plugin package installs (allowlist + constraints)
+## Restricting plugin package installs (allowlist)
 
 The Processing Engine exposes a package-install API so plugins can pull their
-Python dependencies. As an operator you can restrict it with two
-server-controlled files wired in at `serve` time:
+Python dependencies. As an operator you can restrict it with one
+server-controlled file, set at `serve` time with
+`--plugin-package-allowlist <FILE>` (env `INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST`).
+When it is unset, installs are not restricted.
 
-- `--plugin-package-allowlist <FILE>`: what you allow to be requested.
-- `--plugin-package-constraints <FILE>`: what the server actually installs
-  (exact versions, and optionally hashes it owns).
-- `--plugin-package-constraints-mode <pin|require-hashes>`: how strictly the
-  constraints file is enforced (default `pin`).
+The file is a standard pip requirements file. Its contents decide how installs
+behave, so there is no separate mode setting.
 
-Each also reads from an environment variable
-(`INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST`, `INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS`,
-`INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS_MODE`). With no allowlist set, no
-allowlist check runs; with no constraints file set, none is passed to pip.
+### Allowlist without hashes
 
-### The allowlist file
-
-A plain-text file with one pinned `name==version` per line. Blank lines and
-`#` comment lines are ignored, and you may list multiple versions of the same
-package on separate lines. Anything else (unpinned, ranges, URLs, options) is
-rejected at startup.
+One pinned `name==version` per package. Blank lines and `#` comments are
+ignored.
 
 ```text
-accelerate==1.15.0
-chronos-forecasting==2.3.2
-numpy==2.2.6
-torch==2.6.0+cpu
-transformers==5.20.2
+numpy==1.26.4
+pandas==2.2.2
+requests==2.32.3
 ```
 
-Every install request, including each line of a `-r requirements.txt` you
-submit, is validated against this list and rejected with HTTP 403 if the exact
-`name==version` is not present. A `-r` file may contain only plain
-`name==version` lines; index options, nested includes, editable installs,
-URLs, VCS refs, direct references, local paths, environment markers, and line
-continuations are all rejected so they cannot bypass the allowlist.
+- A request for a listed package installs it. A bare name (`numpy`) installs
+  the listed version.
+- A request for an unlisted package, or a different version, is rejected with
+  HTTP 403 and nothing is installed.
+- The file is also passed to pip as a constraints file (`-c`), so any
+  dependency you list is pinned too. Dependencies you do not list are resolved
+  from the index.
 
-### The constraints (hashes) file
+### Allowlist with hashes
 
-This server-owned file is passed to pip for every install. Generate it with
-`pip-compile --generate-hashes` so it carries the fully pinned dependency
-closure plus `--hash=` lines:
+Generate the file with `pip-compile --generate-hashes`. When every entry has a
+`--hash`, pip verifies every downloaded file against it.
+
+```text
+numpy==1.26.4 \
+    --hash=sha256:...
+pandas==2.2.2 \
+    --hash=sha256:...
+    # via -r requirements.in
+```
+
+Because pip only checks hashes for packages it is asked to install, every
+install request installs the whole file. The request must still name a
+package in the file, and dependencies listed in the file may be requested too.
+
+### Choosing the package index
+
+`--index-url`, `--extra-index-url`, `--only-binary` and `--prefer-binary`
+lines may appear at the top of the file, before any package. For example, to
+pull CPU-only PyTorch wheels and everything else from PyPI:
 
 ```text
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
 --only-binary :all:
 
-torch==2.6.0+cpu \
-    --hash=sha256:24c9d3d13b9ea769dd7bd5c11cfa1fc463fd7391397156565484565ca685d908
-numpy==2.2.6 \
-    --hash=sha256:038613e9fb8c72b0a41f025a7e4c3f0b7a1b5d768ece4796b674c8f3fe13efff
+torch==2.4.1+cpu \
+    --hash=sha256:...
 ```
 
-#### Using `--index-url`
+### What stops the server at startup
 
-Index directives belong only in the constraints file header, never on the
-`serve` or `install` command line; pip reads them from the file. The header
-above pins the PyTorch CPU wheel by making the CPU wheel index primary and
-falling back to regular PyPI for everything else:
+- The file is missing or unreadable.
+- An entry is unpinned or a range (`requests>=2.31`, `pyyaml`).
+- An entry is not from an index: editable installs (`-e`), URLs, VCS
+  references, `name @ url`, local paths, or nested `-r` / `-c` files.
+- An entry has extras (`requests[socks]==2.32.3`). List the packages the extra
+  adds as their own entries; `pip-compile --strip-extras` does this.
+- A package is listed with more than one version.
+- Some entries have hashes and others do not.
+- An index option appears after a package entry.
 
-```text
---index-url https://download.pytorch.org/whl/cpu
---extra-index-url https://pypi.org/simple
-```
+An empty file is allowed but logs a warning: every install is rejected.
+Startup logs one line with the file, the number of entries, and whether hashes
+are enforced.
 
-Because you only name a package (`torch==2.6.0+cpu`), this header is where you
-decide which index and exact artifact is pulled. The same mechanism points at
-a private or internal index when needed.
+### Installing from a requirements file
 
-### Constraints modes
-
-- `pin` (default): pins versions only. A constraints file that contains
-  `--hash=` lines is rejected at startup in this mode; use `require-hashes` for
-  hashed files.
-- `require-hashes`: additionally passes `--require-hashes`, so pip verifies a
-  hash for every package in the resolved closure. The hashes must be present in
-  the constraints file, and `--plugin-package-constraints` must be set or the
-  server refuses to start.
+Each line of a `-r requirements.txt` you submit is checked the same way. It may
+contain only `name==version` or bare `name` lines; index options, nested
+includes, editable installs, URLs, VCS refs, direct references, local paths,
+environment markers, and line continuations are rejected so they cannot bypass
+the allowlist.
 
 ### Wiring it into `serve`
 
 ```bash
+pip-compile --generate-hashes requirements.in -o allowlist.txt
+
 influxdb3 serve \
   --node-id local01 \
   --object-store file \
   --data-dir ./data \
   --plugin-dir ./plugins \
-  --plugin-package-allowlist        ./allowlist.txt \
-  --plugin-package-constraints      ./constraints.txt \
-  --plugin-package-constraints-mode require-hashes
-```
+  --plugin-package-allowlist ./allowlist.txt
 
-You then install only by name; the exact version, chosen index, and integrity
-all come from these operator files:
-
-```bash
-# Allowed: name==version is on the allowlist; the hashed closure drives the
-# download from the index declared in the constraints header.
-influxdb3 install package torch==2.6.0+cpu --host http://127.0.0.1:8181
+influxdb3 install package pandas --host http://127.0.0.1:8181
 ```

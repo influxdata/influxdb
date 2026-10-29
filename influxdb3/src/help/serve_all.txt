@@ -174,19 +174,12 @@ Examples:
                                                at a time. Must be greater than zero. [default: unlimited]
                                                The default will change from unlimited to 8 in a future release.
                                                  [env: INFLUXDB3_ASYNC_TRIGGER_CONCURRENCY_LIMIT=]
-  --plugin-package-allowlist <FILE>            Path to a file listing the packages end users are allowed to install
-                                               via the Processing Engine package-install API (the allowlist). Each
-                                               non-blank, non-comment line must be a pinned 'name==version' spec.
+  --plugin-package-allowlist <FILE>            pip requirements file of the packages users may install, one
+                                               'name==version' per package; other installs get HTTP 403. If every
+                                               entry has a --hash (pip-compile --generate-hashes), installs are
+                                               hash-verified and install the whole file. An invalid file stops
+                                               startup. Unset: installs are not restricted.
                                                  [env: INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST=]
-  --plugin-package-constraints <FILE>          Path to a server-controlled package constraints file passed to every
-                                               package-install invocation. Used to pin exact versions and, with
-                                               require-hashes mode, to enforce integrity via hashes the server owns.
-                                                 [env: INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS=]
-  --plugin-package-constraints-mode <MODE>     How the constraints file is enforced. 'pin' pins versions only;
-                                               'require-hashes' additionally passes --require-hashes and requires
-                                               --plugin-package-constraints to be set. [default: pin]
-                                                 [possible values: pin, require-hashes]
-                                                 [env: INFLUXDB3_PLUGIN_PACKAGE_CONSTRAINTS_MODE=]
 
 {}
   --gen1-duration <DURATION>                   Duration for Parquet file arrangement [default: 10m]

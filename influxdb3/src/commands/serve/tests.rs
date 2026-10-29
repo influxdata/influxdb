@@ -39,9 +39,6 @@ fn disable_package_management_builds_no_venv() {
             restrict_plugin_triggers_to: Vec::new(),
             async_trigger_concurrency_limit: std::num::NonZeroUsize::MAX,
             plugin_package_allowlist: None,
-            plugin_package_constraints: None,
-            plugin_package_constraints_mode:
-                influxdb3_clap_blocks::plugins::PipConstraintsMode::Pin,
         };
 
         let env = super::setup_processing_engine_env_manager(&config).unwrap();
