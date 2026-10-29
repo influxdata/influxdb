@@ -84,6 +84,7 @@ impl RecordApply for RegisterNode {
             n.cli_params = self.cli_params.as_deref().map(Arc::from);
             n.row_delete_predicate_version = self.row_delete_predicate_version;
             n.feature_level = self.feature_level;
+            n.process_uuid = Uuid::from_bytes(self.process_uuid);
             catalog.nodes.update(node_catalog_id, node)?;
         } else {
             let new_node = Arc::new(NodeDefinition {
@@ -99,6 +100,7 @@ impl RecordApply for RegisterNode {
                 cli_params: self.cli_params.as_deref().map(Arc::from),
                 row_delete_predicate_version: self.row_delete_predicate_version,
                 feature_level: self.feature_level,
+                process_uuid: Uuid::from_bytes(self.process_uuid),
             });
             catalog.nodes.insert(node_catalog_id, new_node)?;
         }

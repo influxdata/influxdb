@@ -10,6 +10,7 @@ use crate::http::{AuthenticationError, Error};
 use super::IntoResponse;
 use super::QueryFormat;
 use super::ValidateDbNameError;
+use super::datafusion_error_status_code;
 use super::record_batch_stream_to_body;
 use super::token_part_as_bytes;
 use super::validate_db_name;
@@ -417,10 +418,7 @@ async fn test_streaming_error_before_first_rows_sets_status() {
             else {
                 panic!("{format:?} {sizes:?}: expected an error before the body");
             };
-            assert_eq!(
-                err.into_response().status(),
-                StatusCode::INTERNAL_SERVER_ERROR
-            );
+            assert_eq!(err.into_response().status(), StatusCode::TOO_MANY_REQUESTS);
         }
     }
 }
@@ -754,4 +752,23 @@ async fn test_write_api_error_wal_buffer_full_maps_to_429() {
     let response = super::IntoResponse::into_response(err);
 
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[test]
+fn resources_exhausted_is_too_many_requests() {
+    let exhausted = || DataFusionError::ResourcesExhausted("no budget".into());
+    assert_eq!(
+        datafusion_error_status_code(&exhausted()),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    // Errors raised inside a scan reach the handler wrapped in context.
+    let wrapped = DataFusionError::Context("scan".into(), Box::new(exhausted()));
+    assert_eq!(
+        datafusion_error_status_code(&wrapped),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(
+        Error::Datafusion(exhausted()).into_response().status(),
+        StatusCode::TOO_MANY_REQUESTS
+    );
 }

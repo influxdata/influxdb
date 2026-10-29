@@ -19,11 +19,15 @@ use super::{
 };
 
 fn register_args(node_id: &str, instance_id: &str) -> RegisterNodeArgs {
+    register_args_as(node_id, instance_id, Uuid::nil())
+}
+
+fn register_args_as(node_id: &str, instance_id: &str, process_uuid: Uuid) -> RegisterNodeArgs {
     RegisterNodeArgs {
         node_id: Arc::from(node_id),
         core_count: 4,
         mode: vec![NodeMode::Core],
-        process_uuid: Uuid::nil(),
+        process_uuid,
         instance_id: Arc::from(instance_id),
         conn_info: None,
         cli_params: None,
@@ -33,11 +37,28 @@ fn register_args(node_id: &str, instance_id: &str) -> RegisterNodeArgs {
 }
 
 fn stop_args(node_id: &str) -> StopNodeArgs {
+    stop_args_as(node_id, Uuid::nil())
+}
+
+fn stop_args_as(node_id: &str, process_uuid: Uuid) -> StopNodeArgs {
     StopNodeArgs {
         node_id: Arc::from(node_id),
         stopped_time: Time::from_timestamp_nanos(2000),
-        process_uuid: Uuid::nil(),
+        process_uuid,
     }
+}
+
+fn registered_catalog(registrant: Uuid) -> InnerCatalog {
+    let mut catalog = test_catalog();
+    let mut batch = RecordBatch::new(1);
+    RegisterNodeOp::prepare(
+        &register_args_as("node-a", "inst-1", registrant),
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+    catalog
 }
 
 #[test]
@@ -161,6 +182,90 @@ fn prepare_stop_node_already_stopped() {
         result,
         Err(CatalogError::NodeAlreadyStopped { .. })
     ));
+}
+
+#[test]
+fn prepare_refuses_stop_from_other_process() {
+    let registrant = Uuid::from_bytes([1u8; 16]);
+    let stopping = Uuid::from_bytes([2u8; 16]);
+    let catalog = registered_catalog(registrant);
+
+    let mut batch = RecordBatch::new(1);
+    let result = StopNodeOp::prepare(&stop_args_as("node-a", stopping), &catalog, &mut batch);
+    match result {
+        Err(CatalogError::NodeStopNotFromRegistrant {
+            node_id,
+            registrant: got_registrant,
+            stopping: got_stopping,
+        }) => {
+            assert_eq!(node_id.as_ref(), "node-a");
+            assert_eq!(got_registrant, registrant);
+            assert_eq!(got_stopping, stopping);
+        }
+        Err(other) => panic!("unexpected error: {other:?}"),
+        Ok(_) => panic!("stop from another process was admitted"),
+    }
+    assert!(batch.is_empty());
+}
+
+#[test]
+fn prepare_admits_nil_uuid_stop() {
+    let mut catalog = registered_catalog(Uuid::from_bytes([1u8; 16]));
+
+    let mut batch = RecordBatch::new(1);
+    StopNodeOp::prepare(&stop_args_as("node-a", Uuid::nil()), &catalog, &mut batch).unwrap();
+    assert_eq!(batch.len(), 1);
+    assert_eq!(batch.as_slice()[0].id(), record_ids::STOP_NODE);
+
+    apply_batch(&batch, &mut catalog);
+    assert!(
+        catalog
+            .nodes
+            .get_by_name("node-a")
+            .unwrap()
+            .state()
+            .is_stopped()
+    );
+}
+
+#[test]
+fn prepare_admits_stop_from_registrant() {
+    let registrant = Uuid::from_bytes([1u8; 16]);
+    let mut catalog = registered_catalog(registrant);
+
+    let mut batch = RecordBatch::new(1);
+    StopNodeOp::prepare(&stop_args_as("node-a", registrant), &catalog, &mut batch).unwrap();
+    apply_batch(&batch, &mut catalog);
+    assert!(
+        catalog
+            .nodes
+            .get_by_name("node-a")
+            .unwrap()
+            .state()
+            .is_stopped()
+    );
+}
+
+#[test]
+fn prepare_admits_stop_over_nil_registrant() {
+    let mut catalog = registered_catalog(Uuid::nil());
+
+    let mut batch = RecordBatch::new(1);
+    StopNodeOp::prepare(
+        &stop_args_as("node-a", Uuid::from_bytes([2u8; 16])),
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+    assert!(
+        catalog
+            .nodes
+            .get_by_name("node-a")
+            .unwrap()
+            .state()
+            .is_stopped()
+    );
 }
 
 fn push_register(batch: &mut RecordBatch, id: u32, name: &str, feature_level: FeatureLevel) {

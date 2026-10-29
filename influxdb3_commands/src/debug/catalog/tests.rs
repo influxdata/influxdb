@@ -220,3 +220,39 @@ async fn sequence_missing_log_errors() {
     .await;
     assert!(res.is_err());
 }
+
+#[test]
+fn repair_guard_flags_require_execute() {
+    use clap::Parser;
+    let parse = |extra: &[&str]| {
+        let base = [
+            "repair",
+            "--catalog-prefix",
+            PREFIX,
+            "--object-store",
+            "memory",
+        ];
+        super::repair::Args::try_parse_from(base.iter().chain(extra))
+    };
+    for extra in [
+        &["--quiesce-window", "5s"][..],
+        &["--allow-unstopped-nodes"],
+    ] {
+        let err = parse(extra).unwrap_err();
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument,
+            "{extra:?}"
+        );
+    }
+    parse(&[]).expect("defaults alone do not trip the --execute requirement");
+    let args = parse(&[
+        "--execute",
+        "--quiesce-window",
+        "5s",
+        "--allow-unstopped-nodes",
+    ])
+    .unwrap();
+    assert!(args.execute && args.allow_unstopped_nodes);
+    assert_eq!(args.quiesce_window, std::time::Duration::from_secs(5));
+}

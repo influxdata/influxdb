@@ -856,6 +856,14 @@ impl CatalogFilePath {
         )))
     }
 
+    /// Where catalog repair backs up the snapshot it replaces; outside the
+    /// snapshot path and logs dir, so loads and GC never touch it.
+    pub fn repair_backup(catalog_prefix: &str, sequence_number: u64) -> Self {
+        Self(ObjPath::from(format!(
+            "{catalog_prefix}/{CATALOG_VERSION_PATH}/repair/{sequence_number:020}.snapshot.backup",
+        )))
+    }
+
     pub fn logs_dir(catalog_prefix: &str) -> Self {
         Self(ObjPath::from(format!(
             "{catalog_prefix}/{CATALOG_VERSION_PATH}/logs",

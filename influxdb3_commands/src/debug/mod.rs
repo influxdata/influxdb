@@ -2,7 +2,7 @@ use std::error::Error;
 
 pub mod catalog;
 
-/// `influxdb3 debug` — offline inspection of on-disk InfluxDB 3 files.
+/// `influxdb3 debug` — offline inspection and repair of on-disk InfluxDB 3 files.
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     #[clap(subcommand)]
@@ -11,7 +11,7 @@ pub struct Config {
 
 #[derive(Debug, clap::Subcommand)]
 enum DebugCommand {
-    /// Inspect catalog files
+    /// Inspect and repair catalog files
     Catalog(catalog::Config),
 }
 
