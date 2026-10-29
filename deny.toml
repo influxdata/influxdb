@@ -44,12 +44,26 @@ ignore = [
     # CRLs anywhere in this repo, so the panic is unreachable in practice on that
     # remaining 0.102.x path.
     "RUSTSEC-2026-0104",
+    # rustls-webpki 0.102.8 may accept certificate paths through distrusted
+    # emSign intermediates, and there is no patched 0.102.x release. After the
+    # tokio-rustls 0.26 bump, only the UDF host's wasmtime-wasi-http 41.0.4
+    # pulls 0.102.8, through rustls 0.22. It sends requests only from UDFs.
+    # UDFs are off by default, and the UDF HTTP allow list is empty by default.
+    # Its root store is webpki-roots 0.26.11, which re-exports webpki-roots 1.x,
+    # and 1.0.10 drops the emSign root. Remove this entry when the UDF host
+    # leaves wasmtime 41.
+    "RUSTSEC-2026-0382",
     # rustls 0.22.4 advisories with no fix on the 0.22.x line. It comes in only
     # through wasmtime-wasi-http via datafusion-udf-wasm, and Wasm UDFs are
     # disabled by default (udfs_enabled = false). rustls 0.23.x is updated to
     # 0.23.46, which fixes both. main no longer has rustls 0.22.
     "RUSTSEC-2026-0346", # Debug impls for client session values expose TLS secrets
     "RUSTSEC-2026-0349", # unauthenticated ServerHello can downgrade later key exchange
+    # webpki-roots 0.26.11 is the last 0.26 release: a shim that re-exports
+    # webpki-roots 1.x, which this lockfile holds at the patched 1.0.10, so the
+    # distrusted emSign root is not bundled. sqlx-core 0.8 pins the 0.26 line;
+    # remove this entry when sqlx moves to 0.9 (webpki-roots ^1).
+    "RUSTSEC-2026-0381",
     # RustSec published these Wasmtime advisories on 2026-09-29.
     # Wasmtime 48.0.3 and later fix them, but 3.11 uses 41.0.4, and there is no patched 41.x release.
     # The UDF host (datafusion-udf-wasm 89ab4ae) uses 41.0.4.
@@ -77,6 +91,30 @@ ignore = [
     "RUSTSEC-2026-0322",
     "RUSTSEC-2026-0323",
     "RUSTSEC-2026-0327",
+    # RustSec published these Wasmtime advisories on 2026-10-14.
+    # Wasmtime 48.0.6 and later fix them, but 3.11 uses 41.0.4, and there is no patched 41.x release.
+    # The reasons for staying on 41.0.4 are the same as for the entries above.
+    # The other advisories from RUSTSEC-2026-0350 to RUSTSEC-2026-0364 do not affect versions below 42.0.0, so they are not listed.
+    # UDFs are off by default.
+    # 0350: The UDF host checks only the authority before it sends a request through wasmtime's default sender. This is reachable only if an operator turns on UDFs and allows a forward proxy that honors absolute-form targets. The UDF HTTP allow list is empty by default.
+    # 0352: The UDF host's file system rejects `rename_at` and `symlink_at`.
+    # 0363: Python UDF code cannot define component resources or instantiate sub-components; the component graph is fixed by our guest build.
+    # Remove these entries after the UDF host uses Wasmtime 48.0.6 or later.
+    "RUSTSEC-2026-0350",
+    "RUSTSEC-2026-0352",
+    "RUSTSEC-2026-0363",
+    # RustSec published these Wasmtime advisories on 2026-10-19.
+    # Wasmtime 48.0.7 and later fix them, but 3.11 uses 41.0.4, and there is no patched 41.x release.
+    # The reasons for staying on 41.0.4 are the same as for the entries above.
+    # RUSTSEC-2026-0375, 0377 and 0378 do not affect versions below 46.0.0, so they are not listed.
+    # UDFs are off by default.
+    # 0376: Python UDF code can add a second `content-length` header to a request. This is reachable only if an operator turns on UDFs and adds a host to the UDF HTTP allow list. The allow list is empty by default.
+    # 0379 and 0380: These Cranelift bugs need a crafted or very large Wasm module. The UDF host does not compile Wasm at run time, because its copy of wasmtime does not turn on the `cranelift` Cargo feature.
+    # 0379 and 0380: The UDF host loads the precompiled Python guest from a datafusion-udf-wasm release, and the build checks its SHA-256. Python UDF code runs inside that guest and cannot supply its own Wasm module.
+    # Remove these entries after the UDF host uses Wasmtime 48.0.7 or later.
+    "RUSTSEC-2026-0376",
+    "RUSTSEC-2026-0379",
+    "RUSTSEC-2026-0380",
 
     # wasmtime 41.0.4 advisories (transitive dep via datafusion-udf-wasm)
     #
@@ -143,6 +181,21 @@ ignore = [
     "RUSTSEC-2026-0269",
     #
     # TODO: update wasmtime-wasi via datafusion-udf-wasm to a patched version (>=45.0.3; >=46.0.1 is also fixed)
+    # zstd 0.13 advisories with no fix on the 0.13 line. The fixed zstd 0.14.3
+    # and zstd-safe 8.2.0 are only accepted by arrow-ipc and parquet 60, so
+    # moving to them is an arrow and DataFusion upgrade. Until then:
+    # - RUSTSEC-2026-0391: `with_context` carries an abandoned stream's buffers
+    #   into the next stream. Nothing in the graph calls `with_context`.
+    # - RUSTSEC-2026-0398: `Seekable::decompress` is behind the `seekable`
+    #   feature, which nothing enables, so the code is not compiled.
+    # - RUSTSEC-2026-0403: a corrupt legacy frame leaks stale heap through
+    #   `zstd::stream::write::Decoder`. Nothing uses the write-side decoder:
+    #   our code calls `decode_all`, tonic, arrow-ipc and parquet use the
+    #   read-side and bulk decoders, and compression-codecs (DataFusion's file
+    #   decompression) decodes into a caller-provided slice, not a `Vec`.
+    "RUSTSEC-2026-0391", # https://rustsec.org/advisories/RUSTSEC-2026-0391
+    "RUSTSEC-2026-0398", # https://rustsec.org/advisories/RUSTSEC-2026-0398
+    "RUSTSEC-2026-0403", # https://rustsec.org/advisories/RUSTSEC-2026-0403
 ]
 git-fetch-with-cli = true
 

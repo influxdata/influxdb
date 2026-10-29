@@ -253,6 +253,66 @@ fn apply_stop_node() {
     assert!(node.state().is_stopped());
 }
 
+fn register_record(instance_id: &str, process_uuid: [u8; 16]) -> RegisterNode {
+    RegisterNode {
+        node_catalog_id: 1,
+        node_id: "node-a".to_string(),
+        instance_id: instance_id.to_string(),
+        registered_time_ns: 1000,
+        core_count: 4,
+        mode: vec![NodeMode::Core],
+        process_uuid,
+        conn_info: None,
+        cli_params: None,
+        row_delete_predicate_version: 0,
+        feature_level: FeatureLevel::ZERO,
+    }
+}
+
+#[test]
+fn apply_register_node_sets_process_uuid() {
+    let mut catalog = test_catalog();
+    register_record("inst-1", [1u8; 16])
+        .apply(&mut catalog)
+        .unwrap();
+
+    let node = catalog.nodes.get_by_name("node-a").unwrap();
+    assert_eq!(node.process_uuid(), uuid::Uuid::from_bytes([1u8; 16]));
+}
+
+#[test]
+fn apply_register_node_re_registration_replaces_process_uuid() {
+    let mut catalog = test_catalog();
+    register_record("inst-1", [1u8; 16])
+        .apply(&mut catalog)
+        .unwrap();
+    StopNode {
+        node_catalog_id: 1,
+        node_id: "node-a".to_string(),
+        stopped_time_ns: 2000,
+        process_uuid: [0u8; 16],
+    }
+    .apply(&mut catalog)
+    .unwrap();
+    register_record("inst-2", [2u8; 16])
+        .apply(&mut catalog)
+        .unwrap();
+
+    let node = catalog.nodes.get_by_name("node-a").unwrap();
+    assert_eq!(node.process_uuid(), uuid::Uuid::from_bytes([2u8; 16]));
+}
+
+#[test]
+fn apply_register_node_keeps_nil_process_uuid() {
+    let mut catalog = test_catalog();
+    register_record("inst-1", [0u8; 16])
+        .apply(&mut catalog)
+        .unwrap();
+
+    let node = catalog.nodes.get_by_name("node-a").unwrap();
+    assert!(node.process_uuid().is_nil());
+}
+
 #[test]
 fn request_stop_node_round_trip() {
     assert_roundtrip!(

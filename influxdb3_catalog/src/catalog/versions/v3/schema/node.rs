@@ -3,6 +3,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use influxdb3_id::NodeId;
 use influxdb3_wal::SnapshotSequenceNumber;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{format::FeatureLevel, resource::CatalogResource};
 
@@ -39,6 +40,9 @@ pub struct NodeDefinition {
     /// Feature level of the process that registered the node. `FeatureLevel::ZERO` implies that
     /// the node was registered prior to the availability of this feature.
     pub(crate) feature_level: FeatureLevel,
+    /// Uuid of the process that wrote the current registration. Nil for an
+    /// entry carried over from a v2 catalog, which kept no process uuid.
+    pub(crate) process_uuid: Uuid,
 }
 
 impl CatalogResource for NodeDefinition {
@@ -56,6 +60,10 @@ impl CatalogResource for NodeDefinition {
 }
 
 impl NodeDefinition {
+    pub fn process_uuid(&self) -> Uuid {
+        self.process_uuid
+    }
+
     pub fn instance_id(&self) -> Arc<str> {
         Arc::clone(&self.instance_id)
     }

@@ -9,6 +9,7 @@ use crate::http::{AuthenticationError, Error};
 
 use super::QueryFormat;
 use super::ValidateDbNameError;
+use super::datafusion_error_status_code;
 use super::record_batch_stream_to_body;
 use super::token_part_as_bytes;
 use super::validate_db_name;
@@ -638,4 +639,23 @@ async fn test_v2_write_api_error_resource_auth_unauthorized_maps_to_403() {
     let body = read_body_bytes_for_tests(response.into_body()).await;
     let json: Value = serde_json::from_slice(&body).expect("response body should be valid JSON");
     assert_eq!(json["code"], "forbidden");
+}
+
+#[test]
+fn resources_exhausted_is_too_many_requests() {
+    let exhausted = || DataFusionError::ResourcesExhausted("no budget".into());
+    assert_eq!(
+        datafusion_error_status_code(&exhausted()),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    // Errors raised inside a scan reach the handler wrapped in context.
+    let wrapped = DataFusionError::Context("scan".into(), Box::new(exhausted()));
+    assert_eq!(
+        datafusion_error_status_code(&wrapped),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(
+        super::IntoResponse::into_response(Error::Datafusion(exhausted())).status(),
+        StatusCode::TOO_MANY_REQUESTS
+    );
 }

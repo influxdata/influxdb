@@ -2712,6 +2712,90 @@ mod node_mutations {
     }
 
     #[tokio::test]
+    async fn catch_up_refuses_stale_predecessor_stop() {
+        let tc = TestCatalog::new();
+        let cat_a = tc.catalog();
+        let cat_b = tc.catalog();
+        let uuid_a = Uuid::from_bytes([1u8; 16]);
+        let uuid_b = Uuid::from_bytes([2u8; 16]);
+        let getter_a: Arc<dyn influxdb3_process::ProcessUuidGetter> =
+            Arc::new(ProcessUuidWrapper::new_testing(uuid_a));
+        let getter_b: Arc<dyn influxdb3_process::ProcessUuidGetter> =
+            Arc::new(ProcessUuidWrapper::new_testing(uuid_b));
+
+        cat_a
+            .register_node(
+                "node-a",
+                4,
+                vec![NodeMode::Core],
+                Arc::clone(&getter_a),
+                Arc::from("inst-1"),
+                None,
+                None,
+                0,
+            )
+            .await
+            .unwrap();
+        cat_b
+            .register_node(
+                "node-a",
+                4,
+                vec![NodeMode::Core],
+                getter_b,
+                Arc::from("inst-1"),
+                None,
+                None,
+                0,
+            )
+            .await
+            .unwrap();
+
+        let result = cat_a.update_node_state_stopped("node-a", getter_a).await;
+        match result {
+            Err(CatalogError::NodeStopNotFromRegistrant {
+                registrant,
+                stopping,
+                ..
+            }) => {
+                assert_eq!(registrant, uuid_b);
+                assert_eq!(stopping, uuid_a);
+            }
+            other => panic!("expected NodeStopNotFromRegistrant, got {other:?}"),
+        }
+
+        let node = cat_a.node("node-a").unwrap();
+        assert!(node.is_running());
+        assert_eq!(node.process_uuid(), uuid_b);
+    }
+
+    #[tokio::test]
+    async fn checkpoint_reload_keeps_process_uuid() {
+        let tc = TestCatalog::new();
+        let catalog = tc.catalog();
+        let uuid_a = Uuid::from_bytes([1u8; 16]);
+        let getter: Arc<dyn influxdb3_process::ProcessUuidGetter> =
+            Arc::new(ProcessUuidWrapper::new_testing(uuid_a));
+
+        catalog
+            .register_node(
+                "node-a",
+                4,
+                vec![NodeMode::Core],
+                getter,
+                Arc::from("inst-1"),
+                None,
+                None,
+                0,
+            )
+            .await
+            .unwrap();
+        catalog.force_checkpoint().await.unwrap();
+
+        let reloaded = tc.reload().await;
+        assert_eq!(reloaded.node("node-a").unwrap().process_uuid(), uuid_a);
+    }
+
+    #[tokio::test]
     async fn register_then_stop_round_trip() {
         let catalog = TestCatalog::new().catalog();
 
@@ -3036,6 +3120,68 @@ mod db_lookups {
 
         let allocated_ids = [alpha_id, beta_id, gamma_id];
         assert!(allocated_ids.iter().all(|id| *id < catalog.next_db_id()));
+    }
+
+    /// A table and its database keep separate hard-delete deadlines when the
+    /// table was deleted first; the earlier deadline decides the status.
+    #[tokio::test]
+    async fn table_deletion_status_is_hard_once_either_deadline_passes() {
+        let Seeded {
+            catalog,
+            mock,
+            alpha_id,
+            ..
+        } = seeded_catalog().await;
+        let mut table_ids = Vec::new();
+        for (name, hard_delete_time) in [("cpu", 2000), ("mem", 9000)] {
+            let table = catalog
+                .create_table("alpha", name, &["host"], &[("usage", FieldDataType::Float)])
+                .await
+                .unwrap();
+            table_ids.push(table.id());
+            catalog
+                .soft_delete_table(
+                    "alpha",
+                    name,
+                    HardDeletionTime::Timestamp(Time::from_timestamp_nanos(hard_delete_time)),
+                    DeletionScope::DataAndCatalog,
+                )
+                .await
+                .unwrap();
+        }
+        let [cpu_id, mem_id] = table_ids[..] else {
+            unreachable!()
+        };
+        catalog
+            .soft_delete_database(
+                "alpha",
+                HardDeletionTime::Timestamp(Time::from_timestamp_nanos(5000)),
+                DeletionScope::DataAndCatalog,
+            )
+            .await
+            .unwrap();
+
+        // Past cpu's deadline only: cpu is hard while its database is soft.
+        mock.set(Time::from_timestamp_nanos(3000));
+        assert_eq!(
+            catalog.database_deletion_status(alpha_id),
+            Some(DeletionStatus::Soft)
+        );
+        assert!(matches!(
+            catalog.table_deletion_status(alpha_id, cpu_id),
+            Some(DeletionStatus::Hard(_))
+        ));
+        assert_eq!(
+            catalog.table_deletion_status(alpha_id, mem_id),
+            Some(DeletionStatus::Soft)
+        );
+
+        // Past the database's deadline but not mem's: the database wins.
+        mock.set(Time::from_timestamp_nanos(6000));
+        assert!(matches!(
+            catalog.table_deletion_status(alpha_id, mem_id),
+            Some(DeletionStatus::Hard(_))
+        ));
     }
 
     #[tokio::test]
@@ -3368,6 +3514,50 @@ mod table_mutations {
         catalog.hard_delete_table(&db_id, &tbl_id).await.unwrap();
         let metrics = catalog.db_schema_by_id(&db_id).unwrap();
         assert!(metrics.table_definition_by_id(&tbl_id).is_none());
+    }
+
+    /// parking_lot blocks new readers while a writer is queued, so a reader
+    /// that re-enters the catalog lock deadlocks against any concurrent write.
+    #[tokio::test]
+    async fn table_deletion_status_does_not_deadlock_with_concurrent_writer() {
+        let catalog = Arc::new(TestCatalog::new().catalog());
+        let (tags, fields) = columns();
+        let tbl = catalog
+            .create_table("metrics", "cpu", tags, &fields)
+            .await
+            .unwrap();
+        let tbl_id = tbl.id();
+        let db_id = catalog.db_name_to_id("metrics").unwrap();
+
+        const ITERATIONS: usize = 200_000;
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let writer = {
+            let catalog = Arc::clone(&catalog);
+            let done_tx = done_tx.clone();
+            std::thread::spawn(move || {
+                for _ in 0..ITERATIONS {
+                    drop(catalog.inner.write());
+                }
+                done_tx.send(()).unwrap();
+            })
+        };
+        let reader = {
+            let catalog = Arc::clone(&catalog);
+            std::thread::spawn(move || {
+                for _ in 0..ITERATIONS {
+                    assert_eq!(catalog.table_deletion_status(db_id, tbl_id), None);
+                }
+                done_tx.send(()).unwrap();
+            })
+        };
+
+        for _ in 0..2 {
+            if let Err(err) = done_rx.recv_timeout(Duration::from_secs(10)) {
+                panic!("reader or writer thread did not finish: {err:?}");
+            }
+        }
+        writer.join().unwrap();
+        reader.join().unwrap();
     }
 
     #[tokio::test]

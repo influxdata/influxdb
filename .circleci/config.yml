@@ -145,10 +145,10 @@ parameters:
   # Consistent environment setup for Python Build Standalone
   PBS_DATE:
     type: string
-    default: "20260901"
+    default: "20261026"
   PBS_VERSION:
     type: string
-    default: "3.13.15"
+    default: "3.13.18"
 
 # Consistent Cargo environment configuration
 cargo_env: &cargo_env
@@ -267,7 +267,7 @@ jobs:
       - rust_components
       - run:
           name: Install cargo-deny
-          command: cargo install cargo-deny --locked
+          command: .circleci/scripts/install-cargo-deny.bash
       - run:
           name: cargo-deny Checks
           # `--warn unsound` downgrades RustSec `informational = "unsound"`
@@ -703,7 +703,7 @@ jobs:
       - run:
           name: "Set Cargo profile based on branch"
           command: |
-            if [ "$CIRCLE_BRANCH" = "main" ] || [ -z "${CIRCLE_TAG+x}" ]; then
+            if [ "$CIRCLE_BRANCH" = "main" ] || [ -n "${CIRCLE_TAG:-}" ]; then
               echo "export DOCKER_PROFILE=release" >> "$BASH_ENV"
             else
               echo "export DOCKER_PROFILE=quick-release" >> "$BASH_ENV"

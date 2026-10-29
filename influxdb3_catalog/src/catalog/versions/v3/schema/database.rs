@@ -55,6 +55,21 @@ impl CatalogResource for DatabaseSchema {
     }
 }
 
+/// Hard once the hard-delete time has passed, otherwise soft.
+fn deleted_status(
+    hard_delete_time: Option<Time>,
+    time_provider: &dyn TimeProvider,
+) -> DeletionStatus {
+    hard_delete_time
+        .and_then(|time| {
+            time_provider
+                .now()
+                .checked_duration_since(time)
+                .map(DeletionStatus::Hard)
+        })
+        .unwrap_or(DeletionStatus::Soft)
+}
+
 impl DatabaseSchema {
     pub fn new(id: DbId, name: Arc<str>) -> Self {
         Self {
@@ -228,26 +243,26 @@ impl DatabaseSchema {
             .map(|cutoff| (cutoff, retention_period))
     }
 
+    /// Returns the deletion status of this database
+    ///
+    /// If the database is not deleted, returns `None`.
+    pub fn deletion_status(&self, time_provider: &dyn TimeProvider) -> Option<DeletionStatus> {
+        self.deleted
+            .then(|| deleted_status(self.hard_delete_time, time_provider))
+    }
+
     /// Returns the deletion status of a table by its table ID
     ///
     /// If the table exists and is not deleted, returns `None`.
     pub fn table_deletion_status(
         &self,
         table_id: TableId,
-        time_provider: Arc<dyn TimeProvider>,
+        time_provider: &dyn TimeProvider,
     ) -> Option<DeletionStatus> {
         match self.tables.get_by_id(&table_id) {
-            Some(table_def) if table_def.deleted => Some(
-                table_def
-                    .hard_delete_time
-                    .and_then(|time| {
-                        time_provider
-                            .now()
-                            .checked_duration_since(time)
-                            .map(DeletionStatus::Hard)
-                    })
-                    .unwrap_or(DeletionStatus::Soft),
-            ),
+            Some(table_def) if table_def.deleted => {
+                Some(deleted_status(table_def.hard_delete_time, time_provider))
+            }
             Some(_) => None,
             None => Some(DeletionStatus::NotFound),
         }
