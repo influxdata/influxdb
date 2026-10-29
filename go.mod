@@ -28,6 +28,7 @@ require (
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
+	github.com/klauspost/compress v1.18.0
 	github.com/klauspost/pgzip v1.0.2-0.20170402124221-0bf5dcad4ada
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
@@ -165,7 +166,6 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.2.7 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
 	github.com/klauspost/crc32 v0.0.0-20161016154125-cb6bfca970f6 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
