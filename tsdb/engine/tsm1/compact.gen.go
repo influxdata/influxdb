@@ -13,6 +13,37 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// normalizeBlockBounds replaces each unchecked block's minTime and maxTime with
+// its first and last encoded timestamps. A corrupt index entry can disagree with
+// the block data, and sorting, overlap detection, and read tracking all rely on
+// these bounds. Correcting them before sorting keeps the stable sort's reader
+// order, so the newer reader still wins duplicate timestamps.
+func (k *tsmBatchKeyIterator) normalizeBlockBounds() {
+	for _, b := range k.blocks {
+		if b.boundsChecked {
+			continue
+		}
+		b.boundsChecked = true
+
+		if len(b.b) <= encodedBlockHeaderSize {
+			k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: short block for key '%s': got %d bytes", k.key, len(b.b))})
+			continue
+		}
+		tb, _, err := unpackBlock(b.b[1:])
+		if err == nil {
+			k.timestamps, err = TimeArrayDecodeAll(tb, k.timestamps[:0])
+		}
+		if err != nil {
+			k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress timestamps for key '%s': %w", k.key, err)})
+			continue
+		}
+		if len(k.timestamps) == 0 {
+			continue
+		}
+		b.minTime, b.maxTime = k.timestamps[0], k.timestamps[len(k.timestamps)-1]
+	}
+}
+
 // merge combines the next set of blocks into merged blocks.
 func (k *tsmBatchKeyIterator) mergeFloat() {
 	// No blocks left, or pending merged values, we're done
@@ -20,6 +51,7 @@ func (k *tsmBatchKeyIterator) mergeFloat() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedFloatValues.Len() != 0
@@ -69,9 +101,9 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 				}
 			}
 
-			// Each pass must mark at least one block as (partially) read or fix up
-			// its time range; otherwise the next pass sees identical state and the
-			// loop never terminates.
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
 			progress := false
 
 			// We have some overlapping blocks so decode all, append in order and then dedup
@@ -85,27 +117,6 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 				if err = DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.handleDecodeError(err, "float")
 					return nil
-				}
-
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-					progress = true
-				}
-
-				// Invariant: v.MinTime() == k.blocks[i].minTime
-				// A corrupt index entry can disagree with the block data. read() compares
-				// readMin against minTime, so trust the data or the block is never read.
-				// Widen the window when the data starts earlier so no points are dropped.
-				if k.blocks[i].minTime != v.MinTime() {
-					if v.MinTime() < minTime {
-						minTime = v.MinTime()
-					}
-					k.blocks[i].minTime = v.MinTime()
-					progress = true
 				}
 
 				// Remove values we already read
@@ -198,11 +209,6 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 			return nil
 		}
 
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
-		}
-
 		// Apply each tombstone to the block
 		for _, ts := range k.blocks[i].tombstones {
 			v.Exclude(ts.Min, ts.Max)
@@ -271,6 +277,7 @@ func (k *tsmBatchKeyIterator) mergeInteger() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedIntegerValues.Len() != 0
@@ -320,9 +327,9 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 				}
 			}
 
-			// Each pass must mark at least one block as (partially) read or fix up
-			// its time range; otherwise the next pass sees identical state and the
-			// loop never terminates.
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
 			progress := false
 
 			// We have some overlapping blocks so decode all, append in order and then dedup
@@ -336,27 +343,6 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 				if err = DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.handleDecodeError(err, "integer")
 					return nil
-				}
-
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-					progress = true
-				}
-
-				// Invariant: v.MinTime() == k.blocks[i].minTime
-				// A corrupt index entry can disagree with the block data. read() compares
-				// readMin against minTime, so trust the data or the block is never read.
-				// Widen the window when the data starts earlier so no points are dropped.
-				if k.blocks[i].minTime != v.MinTime() {
-					if v.MinTime() < minTime {
-						minTime = v.MinTime()
-					}
-					k.blocks[i].minTime = v.MinTime()
-					progress = true
 				}
 
 				// Remove values we already read
@@ -449,11 +435,6 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 			return nil
 		}
 
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
-		}
-
 		// Apply each tombstone to the block
 		for _, ts := range k.blocks[i].tombstones {
 			v.Exclude(ts.Min, ts.Max)
@@ -522,6 +503,7 @@ func (k *tsmBatchKeyIterator) mergeUnsigned() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedUnsignedValues.Len() != 0
@@ -571,9 +553,9 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 				}
 			}
 
-			// Each pass must mark at least one block as (partially) read or fix up
-			// its time range; otherwise the next pass sees identical state and the
-			// loop never terminates.
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
 			progress := false
 
 			// We have some overlapping blocks so decode all, append in order and then dedup
@@ -587,27 +569,6 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 				if err = DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.handleDecodeError(err, "unsigned")
 					return nil
-				}
-
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-					progress = true
-				}
-
-				// Invariant: v.MinTime() == k.blocks[i].minTime
-				// A corrupt index entry can disagree with the block data. read() compares
-				// readMin against minTime, so trust the data or the block is never read.
-				// Widen the window when the data starts earlier so no points are dropped.
-				if k.blocks[i].minTime != v.MinTime() {
-					if v.MinTime() < minTime {
-						minTime = v.MinTime()
-					}
-					k.blocks[i].minTime = v.MinTime()
-					progress = true
 				}
 
 				// Remove values we already read
@@ -700,11 +661,6 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 			return nil
 		}
 
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
-		}
-
 		// Apply each tombstone to the block
 		for _, ts := range k.blocks[i].tombstones {
 			v.Exclude(ts.Min, ts.Max)
@@ -773,6 +729,7 @@ func (k *tsmBatchKeyIterator) mergeString() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedStringValues.Len() != 0
@@ -822,9 +779,9 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 				}
 			}
 
-			// Each pass must mark at least one block as (partially) read or fix up
-			// its time range; otherwise the next pass sees identical state and the
-			// loop never terminates.
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
 			progress := false
 
 			// We have some overlapping blocks so decode all, append in order and then dedup
@@ -838,27 +795,6 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 				if err = DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.handleDecodeError(err, "string")
 					return nil
-				}
-
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-					progress = true
-				}
-
-				// Invariant: v.MinTime() == k.blocks[i].minTime
-				// A corrupt index entry can disagree with the block data. read() compares
-				// readMin against minTime, so trust the data or the block is never read.
-				// Widen the window when the data starts earlier so no points are dropped.
-				if k.blocks[i].minTime != v.MinTime() {
-					if v.MinTime() < minTime {
-						minTime = v.MinTime()
-					}
-					k.blocks[i].minTime = v.MinTime()
-					progress = true
 				}
 
 				// Remove values we already read
@@ -951,11 +887,6 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 			return nil
 		}
 
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
-		}
-
 		// Apply each tombstone to the block
 		for _, ts := range k.blocks[i].tombstones {
 			v.Exclude(ts.Min, ts.Max)
@@ -1024,6 +955,7 @@ func (k *tsmBatchKeyIterator) mergeBoolean() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedBooleanValues.Len() != 0
@@ -1073,9 +1005,9 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 				}
 			}
 
-			// Each pass must mark at least one block as (partially) read or fix up
-			// its time range; otherwise the next pass sees identical state and the
-			// loop never terminates.
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
 			progress := false
 
 			// We have some overlapping blocks so decode all, append in order and then dedup
@@ -1089,27 +1021,6 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 				if err = DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.handleDecodeError(err, "boolean")
 					return nil
-				}
-
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-					progress = true
-				}
-
-				// Invariant: v.MinTime() == k.blocks[i].minTime
-				// A corrupt index entry can disagree with the block data. read() compares
-				// readMin against minTime, so trust the data or the block is never read.
-				// Widen the window when the data starts earlier so no points are dropped.
-				if k.blocks[i].minTime != v.MinTime() {
-					if v.MinTime() < minTime {
-						minTime = v.MinTime()
-					}
-					k.blocks[i].minTime = v.MinTime()
-					progress = true
 				}
 
 				// Remove values we already read
@@ -1200,11 +1111,6 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 		if err := DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.handleDecodeError(err, "boolean")
 			return nil
-		}
-
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block

@@ -1375,6 +1375,10 @@ type block struct {
 	// readMin, readMax are the timestamps range of values have been
 	// read and encoded from this block.
 	readMin, readMax int64
+
+	// boundsChecked is set once minTime and maxTime have been replaced with the
+	// block's encoded first and last timestamps.
+	boundsChecked bool
 }
 
 func (b *block) overlapsTimeRange(min, max int64) bool {
@@ -1470,6 +1474,10 @@ type tsmBatchKeyIterator struct {
 	mergedUnsignedValues *tsdb.UnsignedArray
 	mergedBooleanValues  *tsdb.BooleanArray
 	mergedStringValues   *tsdb.StringArray
+
+	// timestamps is scratch space for decoding block timestamps when
+	// normalizing block bounds.
+	timestamps []int64
 
 	// merged are encoded blocks that have been combined or used as is
 	// without decode
@@ -1608,6 +1616,7 @@ RETRY:
 			blk.tombstones = tombstones
 			blk.readMin = math.MaxInt64
 			blk.readMax = math.MinInt64
+			blk.boundsChecked = false
 
 			blockKey := key
 			for bytes.Equal(iter.PeekNext(), blockKey) {
@@ -1640,6 +1649,7 @@ RETRY:
 				blk.tombstones = tombstones
 				blk.readMin = math.MaxInt64
 				blk.readMax = math.MinInt64
+				blk.boundsChecked = false
 			}
 		}
 
