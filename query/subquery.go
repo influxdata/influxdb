@@ -14,7 +14,7 @@ type subqueryBuilder struct {
 // buildAuxIterator constructs an auxiliary Iterator from a subquery.
 func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOptions) (Iterator, error) {
 	// Map the desired auxiliary fields from the substatement.
-	indexes := b.mapAuxFields(opt.Aux)
+	indexes := b.mapAuxFields(opt.Aux, opt)
 
 	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
@@ -28,7 +28,7 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 
 	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		cur = newFilterCursor(cur, opt.Condition)
+		cur = newFilterCursor(cur, opt.Condition, opt.NeedTimeRef, opt.Location)
 	}
 
 	// Construct the iterators for the subquery.
@@ -39,10 +39,10 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 	return itr, nil
 }
 
-func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef) []IteratorMap {
+func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef, opt IteratorOptions) []IteratorMap {
 	indexes := make([]IteratorMap, len(auxFields))
 	for i, name := range auxFields {
-		m := b.mapAuxField(&name)
+		m := b.mapAuxField(&name, opt)
 		if m == nil {
 			// If this field doesn't map to anything, use the NullMap so it
 			// shows up as null.
@@ -53,7 +53,25 @@ func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef) []IteratorMa
 	return indexes
 }
 
-func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef) IteratorMap {
+func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef, opt IteratorOptions) IteratorMap {
+	// A GROUP BY date_part dimension is not a real field of the subquery; its
+	// value is computed from the row timestamp via datePartMap. This is checked
+	// before the field/tag lookups so a stored field coincidentally named after a
+	// date part (e.g. "hour") does not shadow the grouping driver — matching the
+	// measurement-source path, where date_part dimensions are always derived from
+	// time. Gated on DatePart so non-date_part subqueries are unaffected.
+	for _, d := range opt.DatePart.Dimensions() {
+		if d.Expr.String() == name.Val {
+			// A subquery grouped by the same part carries the bucket value in
+			// its injected column; its row timestamps are only representative
+			// (the window start for an aggregate) and would collapse the buckets.
+			if idx, ok := b.datePartColumn(name.Val); ok {
+				return FieldMap{Index: idx, Type: influxql.Integer}
+			}
+			return datePartMap{expr: d.Expr, loc: opt.Location}
+		}
+	}
+
 	offset := 0
 	for i, f := range b.stmt.Fields {
 		if f.Name() == name.Val {
@@ -79,6 +97,11 @@ func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef) IteratorMap {
 		}
 	}
 
+	// A column the subquery injects for its own GROUP BY date_part.
+	if idx, ok := b.datePartColumn(name.Val); ok {
+		return FieldMap{Index: idx, Type: name.Type}
+	}
+
 	// Unable to find this in the list of fields.
 	// Look within the dimensions and create a field if we find it.
 	for _, d := range b.stmt.Dimensions {
@@ -91,9 +114,34 @@ func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef) IteratorMap {
 	return nil
 }
 
+// datePartColumn returns the index of the output column the subquery injects
+// for its own GROUP BY date_part dimension named name. buildCursor appends
+// those columns, in datePartDimensions order, after the fields and the extra
+// top()/bottom() tag columns.
+func (b *subqueryBuilder) datePartColumn(name string) (int, bool) {
+	dims, err := datePartDimensions(b.stmt)
+	if err != nil || len(dims) == 0 {
+		return 0, false
+	}
+	for k, d := range dims {
+		if d.Expr.String() != name {
+			continue
+		}
+		idx := k
+		for _, f := range b.stmt.Fields {
+			idx++
+			if call, ok := f.Expr.(*influxql.Call); ok && (call.Name == "top" || call.Name == "bottom") && len(call.Args) > 2 {
+				idx += len(call.Args) - 2
+			}
+		}
+		return idx, true
+	}
+	return 0, false
+}
+
 func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxql.VarRef, opt IteratorOptions) (Iterator, error) {
 	// Look for the field or tag that is driving this query.
-	driver := b.mapAuxField(expr)
+	driver := b.mapAuxField(expr, opt)
 	if driver == nil {
 		// Exit immediately if there is no driver. If there is no driver, there
 		// are no results. Period.
@@ -101,7 +149,7 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 	}
 
 	// Map the auxiliary fields to their index in the subquery.
-	indexes := b.mapAuxFields(opt.Aux)
+	indexes := b.mapAuxFields(opt.Aux, opt)
 	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
 		return nil, err
@@ -114,7 +162,7 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 
 	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		cur = newFilterCursor(cur, opt.Condition)
+		cur = newFilterCursor(cur, opt.Condition, opt.NeedTimeRef, opt.Location)
 	}
 
 	// Construct the iterators for the subquery.

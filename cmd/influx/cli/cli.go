@@ -953,6 +953,9 @@ func headersEqual(prev, current models.Row) bool {
 	if prev.Name != current.Name {
 		return false
 	}
+	if prev.GroupingKey != current.GroupingKey {
+		return false
+	}
 	return tagsEqual(prev.Tags, current.Tags) && columnsEqual(prev.Columns, current.Columns)
 }
 
@@ -963,9 +966,10 @@ func (c *CommandLine) writeCSV(response *client.Response, w io.Writer) {
 		suppressHeaders := len(result.Series) > 0 && headersEqual(previousHeaders, result.Series[0])
 		if !suppressHeaders && len(result.Series) > 0 {
 			previousHeaders = models.Row{
-				Name:    result.Series[0].Name,
-				Tags:    result.Series[0].Tags,
-				Columns: result.Series[0].Columns,
+				Name:        result.Series[0].Name,
+				Tags:        result.Series[0].Tags,
+				GroupingKey: result.Series[0].GroupingKey,
+				Columns:     result.Series[0].Columns,
 			}
 		}
 
@@ -993,9 +997,10 @@ func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 		suppressHeaders := len(result.Series) > 0 && headersEqual(previousHeaders, result.Series[0])
 		if !suppressHeaders && len(result.Series) > 0 {
 			previousHeaders = models.Row{
-				Name:    result.Series[0].Name,
-				Tags:    result.Series[0].Tags,
-				Columns: result.Series[0].Columns,
+				Name:        result.Series[0].Name,
+				Tags:        result.Series[0].Tags,
+				GroupingKey: result.Series[0].GroupingKey,
+				Columns:     result.Series[0].Columns,
 			}
 		}
 
@@ -1056,6 +1061,9 @@ func (c *CommandLine) formatResults(result client.Result, separator string, supp
 			if len(tags) > 0 {
 				t := fmt.Sprintf("tags: %s", (strings.Join(tags, ", ")))
 				rows = append(rows, t)
+			}
+			if row.GroupingKey != 0 {
+				rows = append(rows, fmt.Sprintf("group: %s", row.GroupingKey))
 			}
 		}
 
