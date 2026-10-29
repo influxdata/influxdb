@@ -8,28 +8,32 @@ use anyhow::{Context, ensure};
 use arrow_array::types::Int32Type;
 use arrow_array::{Array, ArrayRef, DictionaryArray, RecordBatch};
 use arrow_schema::DataType;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::{PyDict, PyList, PyString};
 use pyo3::{Bound, IntoPyObject, Py, PyAny, PyResult, Python};
 
 /// Convert Arrow arrays from [`RecordBatch`]es to Python list of dicts.
 ///
-/// The record batches are required to have the same schema.
+/// Each batch is converted using **its own** schema field names. Batches in one
+/// WAL flush may share column count but differ in column order (e.g. sparse vs
+/// dense chunks); binding by the first batch's names by index would mislabel
+/// values.
+///
+/// All batches must share the same *set* of column names (order may differ).
+/// Mismatched sets are rejected so plugins never see uneven row dict keys.
 pub(crate) fn record_batches_to_py_rows<'py>(
     py: Python<'py>,
     batches: &[RecordBatch],
 ) -> Result<Bound<'py, PyList>, anyhow::Error> {
-    // Pre-create Python strings for field/tag names once for all batches;
-    // schema must be the same across batches.
-    let Some(first_batch) = batches.first() else {
+    let Some(first) = batches.first() else {
         return Ok(PyList::empty(py));
     };
-    let field_names: Vec<Bound<'_, PyString>> = first_batch
-        .schema()
+    let first_schema = first.schema();
+    let expected: HashSet<&str> = first_schema
         .fields()
         .iter()
-        .map(|f| PyString::new(py, f.name().as_str()))
+        .map(|f| f.name().as_str())
         .collect();
 
     let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
@@ -37,11 +41,27 @@ pub(crate) fn record_batches_to_py_rows<'py>(
 
     for batch in batches {
         ensure!(
-            batch.num_columns() == field_names.len(),
-            "unexpected batch schema mismatch: expected {} columns, got {}",
-            field_names.len(),
-            batch.num_columns()
+            batch.schema().fields().len() == expected.len()
+                && batch
+                    .schema()
+                    .fields()
+                    .iter()
+                    .all(|f| expected.contains(f.name().as_str())),
+            "batch schema mismatch: expected columns {:?}, got {:?}",
+            expected,
+            batch
+                .schema()
+                .fields()
+                .iter()
+                .map(|f| f.name())
+                .collect::<Vec<_>>()
         );
+        let field_names: Vec<Bound<'_, PyString>> = batch
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| PyString::new(py, f.name().as_str()))
+            .collect();
         let num_rows = batch.num_rows();
         for row_idx in 0..num_rows {
             let row = PyDict::new(py);
@@ -147,3 +167,6 @@ pub(crate) fn map_to_py_object<'py>(
     }
     Ok(dict)
 }
+
+#[cfg(test)]
+mod tests;

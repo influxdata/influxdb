@@ -12,6 +12,7 @@ fn mk(state: NodeState, instance: &str) -> NodeDefinition {
         cli_params: None,
         row_delete_predicate_version: 0,
         feature_level: FeatureLevel::ZERO,
+        process_uuid: Uuid::nil(),
     }
 }
 

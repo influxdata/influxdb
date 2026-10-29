@@ -496,13 +496,22 @@ impl Catalog {
             limits,
         )
         .await?;
-        let catalog_for_shutdown = Arc::clone(&catalog);
+        Self::spawn_shutdown_wait_task(shutdown_token, Arc::clone(&catalog), process_uuid_getter);
+        Ok(catalog)
+    }
+
+    fn spawn_shutdown_wait_task(
+        shutdown_token: ShutdownToken,
+        catalog: Arc<Catalog>,
+        process_uuid_getter: Arc<dyn ProcessUuidGetter>,
+    ) {
         tokio::spawn(async move {
             shutdown_token.wait_for_shutdown().await;
-            if catalog_for_shutdown.state.lock().is_shutdown() {
+            let node_id = catalog.current_node_id();
+            if catalog.state.lock().is_shutdown() {
                 return;
             }
-            match catalog_for_shutdown
+            match catalog
                 .update_node_state_stopped(node_id.as_ref(), process_uuid_getter)
                 .await
             {
@@ -519,6 +528,13 @@ impl Catalog {
                         "node is already stopped for this process, do not need to update catalog"
                     );
                 }
+                error @ Err(CatalogError::NodeStopNotFromRegistrant { .. }) => {
+                    info!(
+                        ?error,
+                        node_id = node_id.as_ref(),
+                        "this node entry names another process; leaving it alone"
+                    );
+                }
                 Err(error) => {
                     error!(
                         ?error,
@@ -528,7 +544,6 @@ impl Catalog {
                 }
             }
         });
-        Ok(catalog)
     }
 
     /// Create a [`CatalogBuilder`] for assembling a `Catalog`.
@@ -918,39 +933,7 @@ impl Catalog {
             catalog_snapshot_observer,
         )
         .await?;
-        let catalog_for_shutdown = Arc::clone(&catalog);
-        tokio::spawn(async move {
-            shutdown_token.wait_for_shutdown().await;
-            let node_id = catalog_for_shutdown.current_node_id();
-            if catalog_for_shutdown.state.lock().is_shutdown() {
-                return;
-            }
-            match catalog_for_shutdown
-                .update_node_state_stopped(node_id.as_ref(), process_uuid_getter)
-                .await
-            {
-                Ok(_) => {
-                    info!(
-                        node_id = node_id.as_ref(),
-                        "successfully updated node to stopped in catalog"
-                    );
-                }
-                error @ Err(CatalogError::NodeAlreadyStopped { .. }) => {
-                    info!(
-                        ?error,
-                        node_id = node_id.as_ref(),
-                        "node is already stopped for this process, do not need to update catalog"
-                    );
-                }
-                Err(error) => {
-                    error!(
-                        ?error,
-                        node_id = node_id.as_ref(),
-                        "encountered error while updating node to stopped state in catalog"
-                    );
-                }
-            }
-        });
+        Self::spawn_shutdown_wait_task(shutdown_token, Arc::clone(&catalog), process_uuid_getter);
         Ok(catalog)
     }
     pub(crate) fn from_parts(
@@ -1773,34 +1756,31 @@ impl Catalog {
     pub fn database_deletion_status(&self, db_id: DbId) -> Option<DeletionStatus> {
         let inner = self.inner.read();
         match inner.databases.get_by_id(&db_id) {
-            Some(db_schema) if db_schema.deleted => db_schema
-                .deleted
-                .then(|| {
-                    db_schema
-                        .hard_delete_time
-                        .and_then(|time| {
-                            self.time_provider
-                                .now()
-                                .checked_duration_since(time)
-                                .map(DeletionStatus::Hard)
-                        })
-                        .or(Some(DeletionStatus::Soft))
-                })
-                .flatten(),
-            Some(_) => None,
+            Some(db_schema) => db_schema.deletion_status(self.time_provider.as_ref()),
             None => Some(DeletionStatus::NotFound),
         }
     }
 
     /// Deletion status of a table by ID within a database, or `None` if it
-    /// exists and is not deleted.
+    /// exists and is not deleted. The table's own status wins unless the
+    /// database is already hard-deleted.
     pub fn table_deletion_status(&self, db_id: DbId, table_id: TableId) -> Option<DeletionStatus> {
         let inner = self.inner.read();
-        match inner.databases.get_by_id(&db_id) {
-            Some(db_schema) => db_schema
-                .table_deletion_status(table_id, Arc::clone(&self.time_provider))
-                .or_else(|| self.database_deletion_status(db_id)),
-            None => Some(DeletionStatus::NotFound),
+        let Some(db_schema) = inner.databases.get_by_id(&db_id) else {
+            return Some(DeletionStatus::NotFound);
+        };
+        // Resolve the database status from the guard already held: parking_lot
+        // blocks a re-entrant read while a writer is queued, which deadlocks.
+        let time_provider = self.time_provider.as_ref();
+        let table = db_schema.table_deletion_status(table_id, time_provider);
+        match db_schema.deletion_status(time_provider) {
+            // Whichever deadline passes first wins: a database or table leaves
+            // the catalog on its own deadline, so its data must be released by then.
+            Some(DeletionStatus::Hard(since)) => Some(DeletionStatus::Hard(match table {
+                Some(DeletionStatus::Hard(table_since)) => since.max(table_since),
+                _ => since,
+            })),
+            db => table.or(db),
         }
     }
 
@@ -1885,7 +1865,8 @@ impl Catalog {
     }
 
     /// Mark a node as stopped, recording the stopping process UUID. Used
-    /// by a node's own graceful-shutdown path.
+    /// by a node's own graceful-shutdown path. Refused with
+    /// `NodeStopNotFromRegistrant` when another process holds the registration.
     pub async fn update_node_state_stopped(
         self: &Arc<Self>,
         node_id: &str,
@@ -1907,7 +1888,7 @@ impl Catalog {
 
     /// Administratively stop a node. Records `Uuid::nil()` as the
     /// stopping process UUID to distinguish operator-driven stops from
-    /// graceful-shutdown stops.
+    /// graceful-shutdown stops. The nil uuid skips the registrant check.
     pub async fn stop_node(self: &Arc<Self>, node_id: &str) -> Result<Arc<NodeDefinition>> {
         info!(node_id, "administratively stopping node in catalog");
         self.update::<StopNodeOp>(StopNodeArgs {
@@ -3828,6 +3809,24 @@ impl Catalog {
     }
 }
 
+#[cfg(any(test, feature = "test_helpers"))]
+impl Catalog {
+    /// Mark a node stopped as if process `process_uuid` had written the record on
+    /// a binary without the registrant guard. Test-only.
+    pub async fn test_only_stop_node_as_process(
+        self: &Arc<Self>,
+        node_id: &str,
+        process_uuid: Uuid,
+    ) -> Result<Arc<NodeDefinition>> {
+        self.update::<crate::catalog::versions::v3::ops::node::UnguardedStopNodeOp>(StopNodeArgs {
+            node_id: Arc::from(node_id),
+            stopped_time: self.time_provider.now(),
+            process_uuid,
+        })
+        .await
+    }
+}
+
 #[cfg(feature = "test_helpers")]
 impl Catalog {
     /// Insert a fully-formed `NodeDefinition` directly into the catalog,
@@ -3865,6 +3864,7 @@ impl Catalog {
                     cli_params: None,
                     feature_level: crate::format::derive_feature_level(),
                     row_delete_predicate_version: row_delete_predicate_version as u64,
+                    process_uuid: Uuid::nil(),
                 },
             )
             .unwrap();
@@ -3878,7 +3878,6 @@ impl Catalog {
     /// produce.
     ///
     /// Panics if `node_id` is not registered.
-    #[cfg(any(test, feature = "test_helpers"))]
     pub fn test_only_set_conn_info(&self, node_id: &str, conn_info: Option<Arc<str>>) {
         let mut inner = self.inner.write();
         let node = inner
@@ -3975,12 +3974,13 @@ impl influxdb3_authz::IdProvider for Catalog {
 
 impl influxdb3_authz::CatalogProvider for Catalog {}
 
-/// If neither a v3 nor a v2 catalog exists at `cluster_id` but a v2 catalog
-/// exists at `current_node_id` (i.e. this binary previously ran as a core
-/// node), copy the v2 core catalog to the cluster prefix with its
-/// `catalog_id` rewritten so the v2 → v3 migration runner can pick it up.
+/// If neither a v3 nor a v2 catalog exists at `cluster_id`, check whether a core
+/// catalog exists at `current_node_id` to promote to the cluster prefix.
 ///
-/// Mirrors the equivalent step in v2's `Catalog::new_enterprise`.
+/// Prefer a v3 core catalog if present (e.g.  when upgrading from a 3.10+ core
+/// node, which leaves an obsolete v2 catalog behind after format migration).
+/// If no v3 core catalog exists, fall back to promoting a v2 core catalog with
+/// its `catalog_id` rewritten so the v2 -> v3 migration runner can pick it up.
 async fn promote_core_catalog_to_cluster_prefix(
     current_node_id: Arc<str>,
     cluster_id: Arc<str>,
@@ -4011,6 +4011,36 @@ async fn promote_core_catalog_to_cluster_prefix(
         return Ok(());
     }
 
+    // Prefer a v3 core catalog over a v2 one: if a node ran on Core 3.9
+    // and then upgraded to 3.10+, check_and_migrate_v2_to_v3 created a
+    // v3 catalog at `current_node_id` but left the stale v2 catalog in
+    // place.  Always promote the live v3 catalog when present.
+    let v3_core = V3Store::new(
+        Arc::clone(&current_node_id),
+        Arc::clone(&store),
+        storage_mode,
+    );
+    if let Some(load) = v3_core
+        .load_catalog()
+        .await
+        .map_err(|e| CatalogError::Internal {
+            details: format!("loading v3 core catalog from {current_node_id}: {e}"),
+        })?
+    {
+        let mut inner = load.inner;
+        inner.catalog_id = Arc::clone(&cluster_id);
+        let _ = v3_cluster
+            .initialize_snapshot(inner.create_snapshot())
+            .await
+            .map_err(|e| CatalogError::Internal {
+                details: format!("persisting v3 catalog at cluster prefix {cluster_id}: {e}"),
+            })?;
+        return Ok(());
+    }
+
+    // No v3 core catalog exists: the node may have run an older (pre-3.10)
+    // Core build that only wrote a v2 catalog.  Copy it to the v2 cluster prefix
+    // so downstream startup can run `check_and_migrate_v2_to_v3`.
     let v2_core = V2Store::new(
         Arc::clone(&current_node_id),
         u64::MAX,
@@ -4040,29 +4070,6 @@ async fn promote_core_catalog_to_cluster_prefix(
         return Ok(());
     }
 
-    // No v2 core checkpoint: the node may have run the v3 Core build, which
-    // writes a v3 catalog. Copy it directly to the v3 cluster prefix.
-    let v3_core = V3Store::new(
-        Arc::clone(&current_node_id),
-        Arc::clone(&store),
-        storage_mode,
-    );
-    if let Some(load) = v3_core
-        .load_catalog()
-        .await
-        .map_err(|e| CatalogError::Internal {
-            details: format!("loading v3 core catalog from {current_node_id}: {e}"),
-        })?
-    {
-        let mut inner = load.inner;
-        inner.catalog_id = Arc::clone(&cluster_id);
-        let _ = v3_cluster
-            .initialize_snapshot(inner.create_snapshot())
-            .await
-            .map_err(|e| CatalogError::Internal {
-                details: format!("persisting v3 catalog at cluster prefix {cluster_id}: {e}"),
-            })?;
-    }
     Ok(())
 }
 

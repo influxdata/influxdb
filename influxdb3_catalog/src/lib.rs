@@ -191,6 +191,7 @@ pub mod format;
 pub mod id;
 pub mod log;
 pub mod object_store;
+pub mod repair;
 pub mod repository;
 pub mod resource;
 pub mod serialize;

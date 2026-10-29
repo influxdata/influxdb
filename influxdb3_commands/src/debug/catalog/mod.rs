@@ -10,12 +10,13 @@ use object_store::{ObjectStore, path::Path as ObjPath};
 
 pub mod list;
 pub mod render;
+pub mod repair;
 pub mod sequence;
 pub mod snapshot;
 #[cfg(test)]
 mod tests;
 
-/// `influxdb3 debug catalog` — inspect catalog files.
+/// `influxdb3 debug catalog` — inspect and repair catalog files.
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     #[clap(subcommand)]
@@ -31,6 +32,8 @@ enum CatalogCommand {
     Snapshot(snapshot::Args),
     /// Inspect a single catalog log file by sequence number
     Sequence(sequence::Args),
+    /// Repair duplicate-name and duplicate-id catalog records
+    Repair(repair::Args),
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -38,6 +41,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         CatalogCommand::List(args) => list::run(args).await,
         CatalogCommand::Snapshot(args) => snapshot::run(args).await,
         CatalogCommand::Sequence(args) => sequence::run(args).await,
+        CatalogCommand::Repair(args) => repair::run(args).await,
     }
 }
 
