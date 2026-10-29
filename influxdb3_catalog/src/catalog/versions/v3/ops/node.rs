@@ -125,12 +125,68 @@ impl CatalogOp for StopNodeOp {
             });
         }
 
-        records.push(&StopNode {
-            node_catalog_id: node.node_catalog_id().get(),
-            node_id: args.node_id.to_string(),
-            stopped_time_ns: args.stopped_time.timestamp_nanos(),
-            process_uuid: args.process_uuid.into_bytes(),
-        });
+        let registrant = node.process_uuid();
+        if !args.process_uuid.is_nil() && !registrant.is_nil() && args.process_uuid != registrant {
+            return Err(CatalogError::NodeStopNotFromRegistrant {
+                node_id: Arc::clone(&args.node_id),
+                registrant,
+                stopping: args.process_uuid,
+            });
+        }
+
+        push_stop_node(&node, args, records);
+
+        Ok(Self {
+            node_id: Arc::clone(&args.node_id),
+        })
+    }
+
+    fn output(&self, catalog: &InnerCatalog) -> Self::Output {
+        catalog
+            .nodes
+            .get_by_name(&self.node_id)
+            .expect("node should exist after stop")
+    }
+}
+
+fn push_stop_node(node: &NodeDefinition, args: &StopNodeArgs, records: &mut RecordBatch) {
+    records.push(&StopNode {
+        node_catalog_id: node.node_catalog_id().get(),
+        node_id: args.node_id.to_string(),
+        stopped_time_ns: args.stopped_time.timestamp_nanos(),
+        process_uuid: args.process_uuid.into_bytes(),
+    });
+}
+
+/// Writes `StopNode` with any process uuid and no registrant check, the way a
+/// binary without the guard does. Tests use it to produce a foreign stop.
+#[cfg(any(test, feature = "test_helpers"))]
+pub(crate) struct UnguardedStopNodeOp {
+    node_id: Arc<str>,
+}
+
+#[cfg(any(test, feature = "test_helpers"))]
+impl CatalogOp for UnguardedStopNodeOp {
+    type Input = StopNodeArgs;
+    type Output = Arc<NodeDefinition>;
+
+    fn prepare(
+        args: &Self::Input,
+        catalog: &InnerCatalog,
+        records: &mut RecordBatch,
+    ) -> Result<Self, CatalogError> {
+        let node = catalog
+            .nodes
+            .get_by_name(&args.node_id)
+            .ok_or_else(|| CatalogError::NotFound(format!("node '{}'", args.node_id)))?;
+
+        if !node.state().is_running() {
+            return Err(CatalogError::NodeAlreadyStopped {
+                node_id: Arc::clone(&args.node_id),
+            });
+        }
+
+        push_stop_node(&node, args, records);
 
         Ok(Self {
             node_id: Arc::clone(&args.node_id),

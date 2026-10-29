@@ -638,6 +638,10 @@ fn datafusion_error_status_code(err: &DataFusionError) -> StatusCode {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         }
+        // A request exceeding a resource budget (e.g. memory, io, files) is
+        // the server operating properly, not a server failure. Some
+        // over-budget requests might succeed on retry.
+        DataFusionError::ResourcesExhausted(_) => StatusCode::TOO_MANY_REQUESTS,
         DataFusionError::ArrowError(_, _)
         | DataFusionError::ParquetError(_)
         | DataFusionError::ObjectStore(_)
@@ -647,7 +651,6 @@ fn datafusion_error_status_code(err: &DataFusionError) -> StatusCode {
         | DataFusionError::SchemaError(_, _)
         | DataFusionError::Execution(_)
         | DataFusionError::ExecutionJoin(_)
-        | DataFusionError::ResourcesExhausted(_)
         | DataFusionError::External(_)
         | DataFusionError::Substrait(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }

@@ -92,17 +92,6 @@ async fn wait_for_snapshot_count(
     }
 }
 
-async fn kill_and_wait(server: &mut TestServer) {
-    server.kill();
-    let start = Instant::now();
-    while !server.is_stopped() {
-        if start.elapsed() > Duration::from_secs(5) {
-            panic!("timed out waiting for server process to exit after kill");
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
-}
-
 const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(30);
 const TOTAL_WRITES: i64 = 10;
 const WAL_FILES_TO_KEEP: &str = "1";
@@ -166,7 +155,7 @@ async fn test_lookback_lt_gen1_data_loss_on_restart() {
 
     let files_before_restart = get_file_mtimes(&obj_store_path, node_id);
 
-    kill_and_wait(&mut server).await;
+    server.kill_and_wait().await;
 
     let mut server = TestServer::configure()
         .with_node_id(node_id)
@@ -190,5 +179,5 @@ async fn test_lookback_lt_gen1_data_loss_on_restart() {
         }
     }
 
-    kill_and_wait(&mut server).await;
+    server.kill_and_wait().await;
 }

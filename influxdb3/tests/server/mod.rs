@@ -3,7 +3,7 @@ use std::{
     future::Future,
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex, Once},
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use arrow::record_batch::RecordBatch;
@@ -792,6 +792,29 @@ impl TestServer {
             .inspect_err(|error| println!("error when checking for stopped: {error:?}"))
             .expect("check process status")
             .is_some()
+    }
+
+    /// Wait for the server process to exit. Panics with the last log lines if
+    /// it is still running after 30 seconds.
+    pub async fn wait_until_stopped(&mut self) {
+        const TIMEOUT: Duration = Duration::from_secs(30);
+        let deadline = Instant::now() + TIMEOUT;
+        while !self.is_stopped() {
+            assert!(
+                Instant::now() < deadline,
+                "server did not stop within {TIMEOUT:?}; last log lines:\n{}",
+                self.get_logs(Some(80)).unwrap_or_default()
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// Kill the server process (`SIGKILL`) and wait for it to exit, so a test
+    /// can start another server on the same store or node id without racing
+    /// the old one.
+    pub async fn kill_and_wait(&mut self) {
+        self.kill();
+        self.wait_until_stopped().await;
     }
 
     /// Get captured stdout as a string, if log capture was enabled

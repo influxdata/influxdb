@@ -5,6 +5,7 @@ use enterprise::EnterpriseCatalogError;
 use humantime::Duration;
 use influxdb3_id::QueryGroupId;
 use schema::InfluxColumnType;
+use uuid::Uuid;
 
 pub(crate) mod enterprise;
 
@@ -275,6 +276,15 @@ pub enum CatalogError {
 
     #[error("tried to stop a node ({node_id}) that is already stopped")]
     NodeAlreadyStopped { node_id: Arc<str> },
+
+    #[error(
+        "node '{node_id}' is registered by process {registrant}; process {stopping} may not mark it stopped"
+    )]
+    NodeStopNotFromRegistrant {
+        node_id: Arc<str>,
+        registrant: Uuid,
+        stopping: Uuid,
+    },
 
     #[error(
         "node '{node_id}' is not fully stopped (current state: {current_state}); run \"stop node\" first"
