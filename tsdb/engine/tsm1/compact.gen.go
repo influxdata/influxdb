@@ -7,10 +7,42 @@
 package tsm1
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/influxdata/influxdb/tsdb"
 )
+
+// normalizeBlockBounds replaces each unchecked block's minTime and maxTime with
+// its first and last encoded timestamps. A corrupt index entry can disagree with
+// the block data, and sorting, overlap detection, and read tracking all rely on
+// these bounds. Correcting them before sorting keeps the stable sort's reader
+// order, so the newer reader still wins duplicate timestamps.
+func (k *tsmBatchKeyIterator) normalizeBlockBounds() {
+	for _, b := range k.blocks {
+		if b.boundsChecked {
+			continue
+		}
+		b.boundsChecked = true
+
+		if len(b.b) <= encodedBlockHeaderSize {
+			k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: short block for key '%s': got %d bytes", k.key, len(b.b))})
+			continue
+		}
+		tb, _, err := unpackBlock(b.b[1:])
+		if err == nil {
+			k.timestamps, err = TimeArrayDecodeAll(tb, k.timestamps[:0])
+		}
+		if err != nil {
+			k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress timestamps for key '%s': %w", k.key, err)})
+			continue
+		}
+		if len(k.timestamps) == 0 {
+			continue
+		}
+		b.minTime, b.maxTime = k.timestamps[0], k.timestamps[len(k.timestamps)-1]
+	}
+}
 
 // merge combines the next set of blocks into merged blocks.
 func (k *tsmBatchKeyIterator) mergeFloat() {
@@ -19,6 +51,7 @@ func (k *tsmBatchKeyIterator) mergeFloat() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedFloatValues.Len() != 0
@@ -68,6 +101,11 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 				}
 			}
 
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
+			progress := false
+
 			// We have some overlapping blocks so decode all, append in order and then dedup
 			for i := 0; i < len(k.blocks); i++ {
 				if !k.blocks[i].overlapsTimeRange(minTime, maxTime) || k.blocks[i].read() {
@@ -81,14 +119,6 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 					return nil
 				}
 
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-				}
-
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -97,6 +127,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 				if v.Len() > 0 {
 					// Record that we read a subset of the block
 					k.blocks[i].markRead(v.MinTime(), v.MaxTime())
+					progress = true
 				}
 
 				// Apply each tombstone to the block
@@ -105,6 +136,14 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 				}
 
 				k.mergedFloatValues.Merge(&v)
+			}
+
+			if !progress {
+				k.AppendError(fmt.Errorf("compaction stalled merging float blocks for key '%s': block time range does not match block data", k.key))
+				// Drop this key's state so iteration can finish and surface the error.
+				k.blocks = k.blocks[:0]
+				k.mergedFloatValues = &tsdb.FloatArray{}
+				return nil
 			}
 		}
 
@@ -168,11 +207,6 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 		if err := DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.handleDecodeError(err, "float")
 			return nil
-		}
-
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -243,6 +277,7 @@ func (k *tsmBatchKeyIterator) mergeInteger() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedIntegerValues.Len() != 0
@@ -292,6 +327,11 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 				}
 			}
 
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
+			progress := false
+
 			// We have some overlapping blocks so decode all, append in order and then dedup
 			for i := 0; i < len(k.blocks); i++ {
 				if !k.blocks[i].overlapsTimeRange(minTime, maxTime) || k.blocks[i].read() {
@@ -305,14 +345,6 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 					return nil
 				}
 
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-				}
-
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -321,6 +353,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 				if v.Len() > 0 {
 					// Record that we read a subset of the block
 					k.blocks[i].markRead(v.MinTime(), v.MaxTime())
+					progress = true
 				}
 
 				// Apply each tombstone to the block
@@ -329,6 +362,14 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 				}
 
 				k.mergedIntegerValues.Merge(&v)
+			}
+
+			if !progress {
+				k.AppendError(fmt.Errorf("compaction stalled merging integer blocks for key '%s': block time range does not match block data", k.key))
+				// Drop this key's state so iteration can finish and surface the error.
+				k.blocks = k.blocks[:0]
+				k.mergedIntegerValues = &tsdb.IntegerArray{}
+				return nil
 			}
 		}
 
@@ -392,11 +433,6 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 		if err := DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.handleDecodeError(err, "integer")
 			return nil
-		}
-
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -467,6 +503,7 @@ func (k *tsmBatchKeyIterator) mergeUnsigned() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedUnsignedValues.Len() != 0
@@ -516,6 +553,11 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 				}
 			}
 
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
+			progress := false
+
 			// We have some overlapping blocks so decode all, append in order and then dedup
 			for i := 0; i < len(k.blocks); i++ {
 				if !k.blocks[i].overlapsTimeRange(minTime, maxTime) || k.blocks[i].read() {
@@ -529,14 +571,6 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 					return nil
 				}
 
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-				}
-
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -545,6 +579,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 				if v.Len() > 0 {
 					// Record that we read a subset of the block
 					k.blocks[i].markRead(v.MinTime(), v.MaxTime())
+					progress = true
 				}
 
 				// Apply each tombstone to the block
@@ -553,6 +588,14 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 				}
 
 				k.mergedUnsignedValues.Merge(&v)
+			}
+
+			if !progress {
+				k.AppendError(fmt.Errorf("compaction stalled merging unsigned blocks for key '%s': block time range does not match block data", k.key))
+				// Drop this key's state so iteration can finish and surface the error.
+				k.blocks = k.blocks[:0]
+				k.mergedUnsignedValues = &tsdb.UnsignedArray{}
+				return nil
 			}
 		}
 
@@ -616,11 +659,6 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 		if err := DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.handleDecodeError(err, "unsigned")
 			return nil
-		}
-
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -691,6 +729,7 @@ func (k *tsmBatchKeyIterator) mergeString() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedStringValues.Len() != 0
@@ -740,6 +779,11 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 				}
 			}
 
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
+			progress := false
+
 			// We have some overlapping blocks so decode all, append in order and then dedup
 			for i := 0; i < len(k.blocks); i++ {
 				if !k.blocks[i].overlapsTimeRange(minTime, maxTime) || k.blocks[i].read() {
@@ -753,14 +797,6 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 					return nil
 				}
 
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-				}
-
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -769,6 +805,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 				if v.Len() > 0 {
 					// Record that we read a subset of the block
 					k.blocks[i].markRead(v.MinTime(), v.MaxTime())
+					progress = true
 				}
 
 				// Apply each tombstone to the block
@@ -777,6 +814,14 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 				}
 
 				k.mergedStringValues.Merge(&v)
+			}
+
+			if !progress {
+				k.AppendError(fmt.Errorf("compaction stalled merging string blocks for key '%s': block time range does not match block data", k.key))
+				// Drop this key's state so iteration can finish and surface the error.
+				k.blocks = k.blocks[:0]
+				k.mergedStringValues = &tsdb.StringArray{}
+				return nil
 			}
 		}
 
@@ -840,11 +885,6 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 		if err := DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.handleDecodeError(err, "string")
 			return nil
-		}
-
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -915,6 +955,7 @@ func (k *tsmBatchKeyIterator) mergeBoolean() {
 		return
 	}
 
+	k.normalizeBlockBounds()
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedBooleanValues.Len() != 0
@@ -964,6 +1005,11 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 				}
 			}
 
+			// Each pass must mark at least one block as (partially) read; otherwise
+			// the next pass sees identical state and the loop never terminates. This
+			// can only happen if a block's bounds could not be normalized.
+			progress := false
+
 			// We have some overlapping blocks so decode all, append in order and then dedup
 			for i := 0; i < len(k.blocks); i++ {
 				if !k.blocks[i].overlapsTimeRange(minTime, maxTime) || k.blocks[i].read() {
@@ -977,14 +1023,6 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 					return nil
 				}
 
-				// Invariant: v.MaxTime() == k.blocks[i].maxTime
-				if k.blocks[i].maxTime != v.MaxTime() {
-					if maxTime == k.blocks[i].maxTime {
-						maxTime = v.MaxTime()
-					}
-					k.blocks[i].maxTime = v.MaxTime()
-				}
-
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -993,6 +1031,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 				if v.Len() > 0 {
 					// Record that we read a subset of the block
 					k.blocks[i].markRead(v.MinTime(), v.MaxTime())
+					progress = true
 				}
 
 				// Apply each tombstone to the block
@@ -1001,6 +1040,14 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 				}
 
 				k.mergedBooleanValues.Merge(&v)
+			}
+
+			if !progress {
+				k.AppendError(fmt.Errorf("compaction stalled merging boolean blocks for key '%s': block time range does not match block data", k.key))
+				// Drop this key's state so iteration can finish and surface the error.
+				k.blocks = k.blocks[:0]
+				k.mergedBooleanValues = &tsdb.BooleanArray{}
+				return nil
 			}
 		}
 
@@ -1064,11 +1111,6 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 		if err := DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.handleDecodeError(err, "boolean")
 			return nil
-		}
-
-		// Invariant: v.MaxTime() == k.blocks[i].maxTime
-		if k.blocks[i].maxTime != v.MaxTime() {
-			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block

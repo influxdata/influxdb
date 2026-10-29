@@ -259,6 +259,130 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 }
 
+// Ensures a full compaction terminates and keeps every point when a block's
+// index entry MinTime disagrees with the block's first timestamp. Previously
+// the dedup path spun forever because the block could never be marked read.
+func TestCompactor_CompactFull_IndexMinTimeMismatch(t *testing.T) {
+	const key = "cpu,host=A#!~#value"
+
+	for _, tc := range []struct {
+		name   string
+		idxMin int64
+	}{
+		{name: "index min before data", idxMin: 5},
+		{name: "index min after data", idxMin: 12},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			// Block holds points at 10 and 20 but its index entry claims tc.idxMin.
+			block, err := tsm1.Values{tsm1.NewValue(10, 1.0), tsm1.NewValue(20, 2.0)}.Encode(nil)
+			require.NoError(t, err)
+			w, f1 := MustTSMWriter(dir, 1)
+			require.NoError(t, w.WriteBlock([]byte(key), tc.idxMin, 20, block))
+			require.NoError(t, w.WriteIndex())
+			require.NoError(t, w.Close())
+
+			// An overlapping point in a newer file forces the dedup path.
+			f2 := MustWriteTSM(dir, 2, map[string][]tsm1.Value{key: {tsm1.NewValue(15, 1.5)}})
+
+			ffs := &fakeFileStore{}
+			compactor := tsm1.NewCompactor()
+			compactor.Dir = dir
+			compactor.FileStore = ffs
+			compactor.Open()
+
+			type result struct {
+				files []string
+				err   error
+			}
+			done := make(chan result, 1)
+			go func() {
+				files, err := compactor.CompactFull([]string{f1, f2}, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+				done <- result{files, err}
+			}()
+
+			var res result
+			select {
+			case res = <-done:
+			case <-time.After(10 * time.Second):
+				// Readers are still referenced by the stuck compaction; closing them would block.
+				t.Fatal("CompactFull did not return")
+			}
+			defer ffs.Close()
+			require.NoError(t, res.err)
+			require.Len(t, res.files, 1)
+
+			r := MustOpenTSMReader(res.files[0])
+			defer r.Close()
+			values, err := r.ReadAll([]byte(key))
+			require.NoError(t, err)
+			exp := []tsm1.Value{tsm1.NewValue(10, 1.0), tsm1.NewValue(15, 1.5), tsm1.NewValue(20, 2.0)}
+			require.Len(t, values, len(exp))
+			for i := range exp {
+				assertValueEqual(t, values[i], exp[i])
+			}
+		})
+	}
+}
+
+// Ensures a newer file's value wins a duplicate timestamp when an older block's
+// index entry claims a later MinTime than its data. With index bounds, the older
+// block [12,20] sorts after the newer block at 10, so widening the merge window
+// back to 10 merged the older value on top of the newer one.
+func TestCompactor_IndexMinTimeMismatch_NewerValueWins(t *testing.T) {
+	const key = "cpu,host=A#!~#value"
+
+	for _, tc := range []struct {
+		name    string
+		compact func(*tsm1.Compactor, []string) ([]string, error)
+	}{
+		{name: "full", compact: func(c *tsm1.Compactor, files []string) ([]string, error) {
+			return c.CompactFull(files, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+		}},
+		{name: "fast", compact: func(c *tsm1.Compactor, files []string) ([]string, error) {
+			return c.CompactFast(files, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			// Oldest file: points at 10 and 20, but the index entry claims [12,20].
+			block, err := tsm1.Values{tsm1.NewValue(10, 1.0), tsm1.NewValue(20, 2.0)}.Encode(nil)
+			require.NoError(t, err)
+			w, f1 := MustTSMWriter(dir, 1)
+			require.NoError(t, w.WriteBlock([]byte(key), 12, 20, block))
+			require.NoError(t, w.WriteIndex())
+			require.NoError(t, w.Close())
+
+			// Newer file overwrites timestamp 10; a third file at 15 forces dedup.
+			f2 := MustWriteTSM(dir, 2, map[string][]tsm1.Value{key: {tsm1.NewValue(10, 100.0)}})
+			f3 := MustWriteTSM(dir, 3, map[string][]tsm1.Value{key: {tsm1.NewValue(15, 1.5)}})
+
+			ffs := &fakeFileStore{}
+			defer ffs.Close()
+			compactor := tsm1.NewCompactor()
+			compactor.Dir = dir
+			compactor.FileStore = ffs
+			compactor.Open()
+
+			files, err := tc.compact(compactor, []string{f1, f2, f3})
+			require.NoError(t, err)
+			require.Len(t, files, 1)
+
+			r := MustOpenTSMReader(files[0])
+			defer r.Close()
+			values, err := r.ReadAll([]byte(key))
+			require.NoError(t, err)
+			exp := []tsm1.Value{tsm1.NewValue(10, 100.0), tsm1.NewValue(15, 1.5), tsm1.NewValue(20, 2.0)}
+			require.Len(t, values, len(exp))
+			for i := range exp {
+				assertValueEqual(t, values[i], exp[i])
+			}
+		})
+	}
+}
+
 // mustWriteTSMWithSeq creates a TSM file with the given generation and sequence number.
 func mustWriteTSMWithSeq(t *testing.T, dir string, gen, seq int, values map[string][]tsm1.Value) string {
 	t.Helper()
