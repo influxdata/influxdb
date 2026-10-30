@@ -31,6 +31,107 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestStore_CloseShard_WaitsForDeletes checks that every path that closes
+// shards waits for deletes running on them. A delete holds index file sets
+// while it takes shard and index locks that closing holds, and closing waits
+// for compactions blocked on those file sets, so closing under a running
+// delete deadlocks.
+func TestStore_CloseShard_WaitsForDeletes(t *testing.T) {
+	t.Parallel()
+
+	ops := map[string]func(s *Store) error{
+		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
+		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
+		"DeleteShard":           func(s *Store) error { return s.DeleteShard(1) },
+		"Close":                 func(s *Store) error { return s.Store.Close() },
+	}
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range ops {
+			t.Run(index+"/"+name, func(t *testing.T) {
+				s := MustOpenStore(t, index)
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+				sh := s.Shard(1)
+				require.NotNil(t, sh, "expected shard")
+
+				done := s.HoldDeleteForTest(1)
+				require.NotNil(t, done, "shard has no epoch tracker")
+				release := sync.OnceFunc(done)
+				// Runs before CloseStore above, which would wait on this delete.
+				t.Cleanup(release)
+
+				result := make(chan error, 1)
+				go func() { result <- op(s) }()
+				select {
+				case err := <-result:
+					require.FailNow(t, name+" returned while a delete was running", "err: %v", err)
+				case <-time.After(100 * time.Millisecond):
+				}
+				_, err := sh.Index()
+				require.NoError(t, err, "%s closed the shard while a delete was running", name)
+
+				release()
+				select {
+				case err := <-result:
+					require.NoError(t, err, name)
+				case <-time.After(10 * time.Second):
+					require.FailNow(t, name+" did not return after the delete finished")
+				}
+				_, err = sh.Index()
+				require.ErrorIs(t, err, tsdb.ErrEngineClosed, "%s did not close the shard", name)
+			})
+		}
+	}
+}
+
+// TestStore_Close_WaitsForDeleteShard checks that Close waits for a DeleteShard
+// already in progress, whose shard has left s.shards, before it closes the
+// series files that DeleteShard still uses, and that a DeleteShard started
+// after Close is rejected.
+func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+			require.NoError(t, s.CreateShard("db0", "rp0", 2, true), "creating shard")
+
+			// DeleteShard blocks on this delete after removing shard 1 from the store.
+			done := s.HoldDeleteForTest(1)
+			require.NotNil(t, done, "shard has no epoch tracker")
+			release := sync.OnceFunc(done)
+			// Runs before CloseStore above, which would wait on this delete.
+			t.Cleanup(release)
+
+			deleted := make(chan error, 1)
+			go func() { deleted <- s.DeleteShard(1) }()
+			require.Eventually(t, func() bool { return s.Shard(1) == nil },
+				10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
+
+			closed := make(chan error, 1)
+			go func() { closed <- s.Store.Close() }()
+			select {
+			case err := <-closed:
+				require.FailNow(t, "Close returned while DeleteShard was running", "err: %v", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after Close started")
+
+			release()
+			for name, ch := range map[string]chan error{"DeleteShard": deleted, "Close": closed} {
+				select {
+				case err := <-ch:
+					require.NoError(t, err, name)
+				case <-time.After(10 * time.Second):
+					require.FailNow(t, name+" did not return after the delete finished")
+				}
+			}
+		})
+	}
+}
+
 // Ensure the store can delete a retention policy and all shards under
 // it.
 func TestStore_DeleteRetentionPolicy(t *testing.T) {
