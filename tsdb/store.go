@@ -73,9 +73,9 @@ func (d *databaseState) addIndexType(indexType string) {
 	d.indexTypes[indexType]++
 }
 
-// addIndexType records that the database no longer has a shard with the given index type.
+// removeIndexType records that the database no longer has a shard with the given index type.
 func (d *databaseState) removeIndexType(indexType string) {
-	if d.indexTypes != nil {
+	if d != nil && d.indexTypes != nil {
 		d.indexTypes[indexType]--
 		if d.indexTypes[indexType] <= 0 {
 			delete(d.indexTypes, indexType)
@@ -1186,8 +1186,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	} else if err = os.RemoveAll(sh.walPath); err != nil {
 		return err
 	} else {
-		// Remove index type from the database on success
+		// Remove index type from the database on success. Readers check it under
+		// s.mu, and DeleteDatabase may have removed the database state meanwhile.
+		s.mu.Lock()
 		s.databases[db].removeIndexType(sh.IndexType())
+		s.mu.Unlock()
 		return nil
 	}
 }

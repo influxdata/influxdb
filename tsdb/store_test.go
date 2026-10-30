@@ -5,18 +5,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/davecgh/go-spew/spew"
@@ -132,6 +137,208 @@ func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
 			// ErrShardNotFound.
 			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after Close returned")
 		})
+	}
+}
+
+// TestStore_DeleteCompactClose_Stress runs real DROP MEASUREMENT, DROP SERIES
+// and DELETE calls against shards that are written to with a tiny index log
+// file size, so TSI compactions keep finishing while deletes hold index file
+// sets. With deletes still in flight, it then closes the shards through each
+// store path. It fails if any operation hangs, or returns an error other than
+// the ones a closed or removed shard produces. Run it with -race.
+func TestStore_DeleteCompactClose_Stress(t *testing.T) {
+	t.Parallel()
+
+	const (
+		shardN        = 4
+		measurementN  = 4
+		writersPer    = 2
+		deleterN      = 4
+		seriesPerBat  = 64
+		overlapsWant  = 5
+		opTimeout     = time.Minute
+		afterCloseRun = 50 * time.Millisecond
+	)
+	ops := map[string]func(s *Store) error{
+		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
+		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
+		"DeleteShard":           func(s *Store) error { return s.DeleteShard(1) },
+		"Close":                 func(s *Store) error { return s.Store.Close() },
+	}
+	// What writes and deletes may return once their shard is closed or gone.
+	expected := []error{tsdb.ErrStoreClosed, tsdb.ErrShardNotFound, tsdb.ErrEngineClosed, tsdb.ErrShardDeletion}
+	isExpected := func(err error) bool {
+		for _, e := range expected {
+			// walkShards wraps per-shard errors with %s, so errors.Is
+			// cannot see through it; match the message as well.
+			if errors.Is(err, e) || strings.Contains(err.Error(), e.Error()) {
+				return true
+			}
+		}
+		return false
+	}
+
+	dumpGoroutines := func(t *testing.T) {
+		var buf bytes.Buffer
+		require.NoError(t, pprof.Lookup("goroutine").WriteTo(&buf, 2), "dumping goroutines")
+		t.Log(buf.String())
+	}
+	waitOrDump := func(t *testing.T, ch <-chan error, what string) error {
+		select {
+		case err := <-ch:
+			return err
+		case <-time.After(opTimeout):
+			dumpGoroutines(t)
+			require.FailNow(t, what+" hung")
+			return nil
+		}
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range ops {
+			t.Run(index+"/"+name, func(t *testing.T) {
+				var deletesInFlight, compactions, compactionsUnderDelete atomic.Int64
+				countCompactions := func(e zapcore.Entry) error {
+					if strings.HasSuffix(e.Message, "compaction (end)") && strings.HasPrefix(e.Message, "TSI ") {
+						compactions.Add(1)
+						if deletesInFlight.Load() > 0 {
+							compactionsUnderDelete.Add(1)
+						}
+					}
+					return nil
+				}
+				// Hooks fire only for enabled entries, so count on a discarding
+				// core at Info, where compactions log.
+				hooked := zapcore.RegisterHooks(zapcore.NewCore(
+					zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+					zapcore.AddSync(io.Discard), zap.InfoLevel), countCompactions)
+
+				s := NewStore(t, index)
+				s.EngineOptions.Config.MaxIndexLogFileSize = 1024
+				s.WithLogger(zap.New(zapcore.NewTee(
+					zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)).Core(), hooked)))
+				require.NoError(t, s.Open(), "opening store")
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				for id := uint64(1); id <= shardN; id++ {
+					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+				}
+
+				var errMu sync.Mutex
+				var unexpected []error
+				record := func(err error, what string) {
+					if err == nil || isExpected(err) {
+						return
+					}
+					errMu.Lock()
+					defer errMu.Unlock()
+					unexpected = append(unexpected, fmt.Errorf("%s: %w", what, err))
+				}
+
+				var closeStarted atomic.Bool
+				var deletes, deletesAcrossClose atomic.Int64
+				deleteFns := []func(m string) (string, error){
+					func(m string) (string, error) {
+						return "DeleteMeasurement " + m, s.DeleteMeasurement("db0", m)
+					},
+					func(m string) (string, error) {
+						cond, err := influxql.ParseExpr("w = '0'")
+						if err != nil {
+							return "parsing DROP SERIES condition", err
+						}
+						return "DeleteSeries tag " + m, s.DeleteSeries("db0", []influxql.Source{&influxql.Measurement{Name: m}}, cond)
+					},
+					func(m string) (string, error) {
+						// DELETE with a time range: removes data, then drops series left empty.
+						cond, err := influxql.ParseExpr("time < 50s")
+						if err != nil {
+							return "parsing DELETE condition", err
+						}
+						return "DeleteSeries time " + m, s.DeleteSeries("db0", []influxql.Source{&influxql.Measurement{Name: m}}, cond)
+					},
+				}
+
+				stop := make(chan struct{})
+				stopWorkers := sync.OnceFunc(func() { close(stop) })
+				t.Cleanup(stopWorkers)
+				var start sync.RWMutex
+				var workers sync.WaitGroup
+				start.Lock()
+				for id := 1; id <= shardN; id++ {
+					for w := range writersPer {
+						workers.Add(1)
+						go func() {
+							start.RLock()
+							defer start.RUnlock()
+							defer workers.Done()
+							for i := 0; ; i++ {
+								select {
+								case <-stop:
+									return
+								default:
+								}
+								points := make([]models.Point, 0, seriesPerBat)
+								for j := range seriesPerBat {
+									p, err := models.NewPoint(fmt.Sprintf("m%d", (i+j)%measurementN),
+										models.NewTags(map[string]string{"w": fmt.Sprint(j % 2), "k": fmt.Sprintf("%d-%d-%d-%d", id, w, i, j)}),
+										models.Fields{"v": float64(j)}, time.Unix(int64(j), 0))
+									require.NoError(t, err, "building point")
+									points = append(points, p)
+								}
+								record(s.WriteToShard(tsdb.WriteContext{}, uint64(id), points), fmt.Sprintf("WriteToShard %d", id))
+							}
+						}()
+					}
+				}
+				for d := range deleterN {
+					workers.Add(1)
+					go func() {
+						start.RLock()
+						defer start.RUnlock()
+						defer workers.Done()
+						for i := 0; ; i++ {
+							select {
+							case <-stop:
+								return
+							default:
+							}
+							before := !closeStarted.Load()
+							deletesInFlight.Add(1)
+							what, err := deleteFns[(d+i)%len(deleteFns)](fmt.Sprintf("m%d", (d+i)%measurementN))
+							deletesInFlight.Add(-1)
+							deletes.Add(1)
+							if before && closeStarted.Load() {
+								deletesAcrossClose.Add(1)
+							}
+							record(err, what)
+						}
+					}()
+				}
+				start.Unlock()
+
+				if index == "tsi1" {
+					require.Eventually(t, func() bool { return compactionsUnderDelete.Load() >= overlapsWant },
+						opTimeout, time.Millisecond, "TSI compactions never finished during a delete")
+				}
+				// Barrier: close only while a delete is running.
+				require.Eventually(t, func() bool { return deletesInFlight.Load() > 0 },
+					opTimeout, 100*time.Microsecond, "no delete in flight")
+				closeStarted.Store(true)
+				closed := make(chan error, 1)
+				go func() { closed <- op(s) }()
+				require.NoError(t, waitOrDump(t, closed, name), name)
+
+				time.Sleep(afterCloseRun)
+				stopWorkers()
+				done := make(chan error, 1)
+				go func() { workers.Wait(); done <- nil }()
+				require.NoError(t, waitOrDump(t, done, "writers and deleters"))
+
+				t.Logf("deletes: %d, across close: %d, TSI compactions: %d, during a delete: %d",
+					deletes.Load(), deletesAcrossClose.Load(), compactions.Load(), compactionsUnderDelete.Load())
+				require.Empty(t, unexpected, "unexpected errors")
+				require.Positive(t, deletesAcrossClose.Load(), "no delete was running when %s started", name)
+			})
+		}
 	}
 }
 
