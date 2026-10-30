@@ -87,7 +87,7 @@ func TestStore_CloseShard_WaitsForDeletes(t *testing.T) {
 // TestStore_Close_WaitsForDeleteShard checks that Close waits for a DeleteShard
 // already in progress, whose shard has left s.shards, before it closes the
 // series files that DeleteShard still uses, and that a DeleteShard started
-// after Close is rejected.
+// after Close, whether Close is still running or has returned, is rejected.
 func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
 	t.Parallel()
 
@@ -128,6 +128,9 @@ func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
 					require.FailNow(t, name+" did not return after the delete finished")
 				}
 			}
+			// Close has emptied s.shards, so this must not fall through to
+			// ErrShardNotFound.
+			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after Close returned")
 		})
 	}
 }

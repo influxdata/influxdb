@@ -1018,21 +1018,22 @@ func (s *Store) ShardInUse(shardID uint64) (bool, error) {
 
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
-	sh := s.Shard(shardID)
-	if sh == nil {
-		return ErrShardNotFound
-	}
-
 	// Remove the shard from Store, so it's not returned to callers requesting
 	// shards. Also mark that this shard is currently being deleted in a separate
 	// map so that we do not have to retain the global store lock while deleting
-	// files.
+	// files. Check for closing first: Close empties s.shards, so a lookup after
+	// it would report ErrShardNotFound instead.
 	s.mu.Lock()
 	select {
 	case <-s.closing:
 		s.mu.Unlock()
 		return fmt.Errorf("deleting shard %d: %w", shardID, ErrStoreClosed)
 	default:
+	}
+	sh := s.shards[shardID]
+	if sh == nil {
+		s.mu.Unlock()
+		return ErrShardNotFound
 	}
 	if _, ok := s.pendingShardDeletes[shardID]; ok {
 		// We are already being deleted? This is possible if delete shard
