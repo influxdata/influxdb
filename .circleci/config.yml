@@ -609,12 +609,12 @@ jobs:
           .circleci/scripts/validate aarch64 rpm /tmp/workspace/artifacts
 
   sign-packages:
-    circleci_ip_ranges: true
     docker:
       - image: quay.io/influxdb/rsign:latest
         auth:
           username: $QUAY_RSIGN_USERNAME
           password: $QUAY_RSIGN_PASSWORD
+    resource_class: runner-ns/docker
     steps:
       - add_ssh_keys:
           fingerprints:
