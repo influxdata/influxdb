@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -188,6 +191,283 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		require.Equal(t, fileN, p.FileN(),
 			"failed manifest write must not change the file count")
 	})
+}
+
+// openPartitionWithRetainedLog opens a partition holding one series in its
+// active log file, retains the file set the way a series deletion iterator does,
+// and compacts the log file. It returns once the compaction has swapped the log
+// file out of the file set, along with a func releasing the retained set and
+// the replaced path. Cleanup releases the set and closes the partition even if
+// the test fails first; release may be called more than once.
+func openPartitionWithRetainedLog(t *testing.T) (*Partition, func(), string) {
+	t.Helper()
+	sfile := MustOpenSeriesFile()
+	t.Cleanup(func() { require.NoError(t, sfile.Close(), "closing series file") })
+
+	p := MustOpenPartition(sfile.SeriesFile)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(p.Path()), "removing partition dir") })
+	// Runs before the removal above. Close is a no-op if the test closed it.
+	t.Cleanup(func() { require.NoError(t, p.Partition.Close(), "closing partition") })
+
+	// Long age so writing a series does not auto-roll the active log file.
+	p.Partition.SetMaxLogFileAge(time.Hour)
+	_, err := p.CreateSeriesListIfNotExists(
+		[][]byte{[]byte("cpu")},
+		[]models.Tags{models.NewTags(map[string]string{"region": "east"})},
+		notrack)
+	require.NoError(t, err, "creating series")
+
+	// Stand-in for the series iterator built by DeleteMeasurement/DeleteSeries.
+	fs, err := p.RetainFileSet()
+	require.NoError(t, err, "retaining file set")
+	release := sync.OnceFunc(fs.Release)
+	// Runs before the partition Close above, which would wait on this reader.
+	t.Cleanup(release)
+	files := fs.Files()
+	require.Len(t, files, 1, "expected only the active log file")
+	logPath := files[0].Path()
+	require.Equal(t, tsi1.LogFileExt, filepath.Ext(logPath))
+
+	p.Partition.SetMaxLogFileSize(1)
+	p.Compact()
+	// FileN changes when the active log rolls, before the compaction swap, so
+	// wait for the old log to leave the file set instead.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		cur, err := p.RetainFileSet()
+		if !assert.NoError(c, err, "retaining current file set") {
+			return
+		}
+		defer cur.Release()
+		for _, f := range cur.Files() {
+			assert.NotEqual(c, logPath, f.Path(), "replaced log file still in the file set")
+		}
+	}, 10*time.Second, time.Millisecond, "log compaction never swapped in its index file")
+	return p, release, logPath
+}
+
+// TestPartition_Wait_NotBlockedByReader is the regression test for a deadlock
+// between series deletion and compaction: deletion holds a file set reference
+// and then calls Wait(), while the compaction it waits on blocks closing the
+// file that reference pins.
+func TestPartition_Wait_NotBlockedByReader(t *testing.T) {
+	p, release, logPath := openPartitionWithRetainedLog(t)
+
+	p.DisableCompactions()
+	waited := make(chan struct{})
+	go func() {
+		defer close(waited)
+		p.Wait()
+	}()
+	select {
+	case <-waited:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "Partition.Wait() blocked on a file set held by a reader")
+	}
+
+	_, err := os.Stat(logPath)
+	require.NoError(t, err, "replaced log file removed while a reader still holds it")
+
+	release()
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(logPath)
+		return errors.Is(err, os.ErrNotExist)
+	}, 10*time.Second, time.Millisecond, "replaced log file not removed after the reader released it")
+
+	p.EnableCompactions()
+	require.NoError(t, p.Partition.Close(), "closing partition")
+}
+
+// TestPartition_Close_WaitsForReclaim checks that Close still waits for
+// compaction goroutines to close and remove the files they replaced.
+func TestPartition_Close_WaitsForReclaim(t *testing.T) {
+	p, release, logPath := openPartitionWithRetainedLog(t)
+
+	closed := make(chan error, 1)
+	go func() { closed <- p.Partition.Close() }()
+
+	select {
+	case err := <-closed:
+		require.FailNow(t, "Partition.Close() returned while a replaced file was still referenced", "err: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	_, err := os.Stat(logPath)
+	require.NoError(t, err, "replaced log file removed while a reader still holds it")
+
+	release()
+	select {
+	case err := <-closed:
+		require.NoError(t, err, "closing partition")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "Partition.Close() did not return after the reader released its file set")
+	}
+	_, err = os.Stat(logPath)
+	require.ErrorIs(t, err, os.ErrNotExist, "replaced log file still on disk after Close")
+}
+
+// TestPartition_Wait_ReadersAndDeleters_Stress runs writers that force a log
+// compaction on every series, readers that hold file sets, and deleters that
+// hold a file set and then Wait(), which is the deletion shape that deadlocked.
+func TestPartition_Wait_ReadersAndDeleters_Stress(t *testing.T) {
+	const (
+		writerN       = 2
+		readerN       = 4
+		deleterN      = 2
+		seriesPerWrtr = 200
+		total         = writerN + readerN + deleterN
+	)
+
+	sfile := MustOpenSeriesFile()
+	t.Cleanup(func() { require.NoError(t, sfile.Close(), "closing series file") })
+	p := MustOpenPartition(sfile.SeriesFile)
+	stop := make(chan struct{})
+	stopWorkers := sync.OnceFunc(func() { close(stop) })
+	// Close is a no-op if the test closed it. It is bounded so a deadlocked
+	// partition fails cleanup instead of hanging the package, and the directory
+	// is only removed once nothing can still be writing to it.
+	t.Cleanup(func() {
+		stopWorkers()
+		closed := make(chan error, 1)
+		go func() { closed <- p.Partition.Close() }()
+		select {
+		case err := <-closed:
+			require.NoError(t, err, "closing partition")
+			require.NoError(t, os.RemoveAll(p.Path()), "removing partition dir")
+		case <-time.After(10 * time.Second):
+			require.FailNow(t, "partition Close did not return; leaving "+p.Path()+" in place")
+		}
+	})
+	p.Partition.SetMaxLogFileAge(time.Hour)
+	p.Partition.SetMaxLogFileSize(1)
+
+	// Create test data upfront.
+	names := make([][][]byte, writerN)
+	tags := make([][]models.Tags, writerN)
+	for w := range writerN {
+		for i := range seriesPerWrtr {
+			names[w] = append(names[w], []byte("cpu"))
+			tags[w] = append(tags[w], models.NewTags(map[string]string{
+				"host": fmt.Sprintf("w%d-h%d", w, i),
+			}))
+		}
+	}
+
+	var concurrency, maxConcurrency atomic.Int64
+	var arrived sync.WaitGroup
+	proceed := make(chan struct{})
+	arrived.Add(total)
+	go func() {
+		arrived.Wait()
+		close(proceed)
+	}()
+	enter := func() {
+		c := concurrency.Add(1)
+		for old := maxConcurrency.Load(); c > old && !maxConcurrency.CompareAndSwap(old, c); old = maxConcurrency.Load() {
+		}
+		arrived.Done()
+		<-proceed
+	}
+
+	errs := make(chan error, total)
+	var writers, others sync.WaitGroup
+	for w := range writerN {
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+			enter()
+			defer concurrency.Add(-1)
+			for i := range seriesPerWrtr {
+				if _, err := p.CreateSeriesListIfNotExists(names[w][i:i+1], tags[w][i:i+1], notrack); err != nil {
+					errs <- fmt.Errorf("writer %d series %d: %w", w, i, err)
+					return
+				}
+			}
+		}()
+	}
+	for r := range readerN {
+		others.Add(1)
+		go func() {
+			defer others.Done()
+			enter()
+			defer concurrency.Add(-1)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				fs, err := p.RetainFileSet()
+				if err != nil {
+					errs <- fmt.Errorf("reader %d: %w", r, err)
+					return
+				}
+				time.Sleep(50 * time.Microsecond)
+				fs.Release()
+			}
+		}()
+	}
+	for d := range deleterN {
+		others.Add(1)
+		go func() {
+			defer others.Done()
+			enter()
+			defer concurrency.Add(-1)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				fs, err := p.RetainFileSet()
+				if err != nil {
+					errs <- fmt.Errorf("deleter %d: %w", d, err)
+					return
+				}
+				p.DisableCompactions()
+				p.Wait()
+				fs.Release()
+				p.EnableCompactions()
+			}
+		}()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		writers.Wait()
+		stopWorkers()
+		others.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Minute):
+		require.FailNow(t, "deadlock: writers, readers and deleters did not finish")
+	}
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	t.Logf("max concurrency: %d", maxConcurrency.Load())
+	require.Equal(t, int64(total), maxConcurrency.Load(), "goroutines did not all overlap")
+
+	// Quiesce before Close: a compaction interrupted by Close leaves its partial
+	// output on disk until the next Open sweeps it, which is not what this
+	// checks. Close itself must still wait for replaced files to be removed.
+	p.DisableCompactions()
+	p.Wait()
+	require.NoError(t, p.Partition.Close(), "closing partition")
+
+	// Every file left on disk must be named by the manifest.
+	m, _, err := tsi1.ReadManifestFile(filepath.Join(p.Path(), tsi1.ManifestFileName))
+	require.NoError(t, err, "reading manifest")
+	entries, err := os.ReadDir(p.Path())
+	require.NoError(t, err, "reading partition dir")
+	var onDisk []string
+	for _, e := range entries {
+		if e.Name() != tsi1.ManifestFileName {
+			onDisk = append(onDisk, e.Name())
+		}
+	}
+	require.ElementsMatch(t, m.Files, onDisk, "files on disk do not match the manifest")
 }
 
 // Partition is a test wrapper for tsi1.Partition.

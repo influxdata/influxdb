@@ -395,7 +395,10 @@ func (i *Index) DisableCompactions() {
 	}
 }
 
-// Wait blocks until all outstanding compactions have completed.
+// Wait blocks until every outstanding compaction has installed its output in
+// its partition's file set or failed. Files replaced by those compactions may
+// still be open and on disk, waiting for readers to release them; Close waits
+// for that cleanup.
 func (i *Index) Wait() {
 	for _, p := range i.partitions {
 		p.Wait()
