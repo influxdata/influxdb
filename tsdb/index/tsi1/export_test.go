@@ -44,3 +44,19 @@ func (p *Partition) SetManifestPathForTest(path string) {
 func (p *Partition) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, tracker tsdb.StatsTracker) ([]uint64, error) {
 	return p.createSeriesListIfNotExists(names, tagsSlice, tracker)
 }
+
+// TagValueCacheIdleTimeout returns the series ID set cache's idle timeout; 0
+// for a fixed-size cache, which ignores the setting.
+// Only for tests!
+func (i *Index) TagValueCacheIdleTimeout() time.Duration {
+	return i.tagValueCache.idleTimeout
+}
+
+// TagValueCacheIdleSweeperRunning reports whether the series ID set cache's
+// idle sweeper is running.
+// Only for tests!
+func (i *Index) TagValueCacheIdleSweeperRunning() bool {
+	i.tagValueCache.Lock()
+	defer i.tagValueCache.Unlock()
+	return i.tagValueCache.sweepClosing != nil
+}
