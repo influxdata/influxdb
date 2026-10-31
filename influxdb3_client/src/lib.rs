@@ -132,6 +132,8 @@ pub struct Client {
     auth_token: Option<Secret<String>>,
     /// A [`reqwest::Client`] for handling HTTP requests
     http_client: reqwest::Client,
+    /// The total timeout for each request, including reading the response body
+    timeout: Option<Duration>,
 }
 
 impl Client {
@@ -173,7 +175,29 @@ impl Client {
             base_url: base_url.into_url().map_err(Error::BaseUrl)?,
             auth_token: None,
             http_client,
+            timeout: None,
         })
+    }
+
+    /// Set the total timeout for each HTTP request.
+    ///
+    /// The timeout applies from when the request starts connecting until the response
+    /// body has finished. By default, requests have no timeout, allowing long-running
+    /// queries to complete.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use influxdb3_client::Client;
+    /// use std::time::Duration;
+    ///
+    /// let client = Client::new("http://localhost:8181", None, false)
+    ///     .expect("create client")
+    ///     .with_timeout(Duration::from_secs(30));
+    /// ```
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
     }
 
     /// Set the `Bearer` token that will be sent with each request to the server
@@ -956,10 +980,7 @@ impl Client {
     /// status and gather `version` and `revision` information
     pub async fn ping(&self) -> Result<PingResponse> {
         let url = self.base_url.join("/ping")?;
-        let mut req = self.http_client.get(url);
-        if let Some(t) = &self.auth_token {
-            req = req.bearer_auth(t.expose_secret());
-        }
+        let req = self.request(Method::GET, url);
         let resp = req
             .send()
             .await
@@ -1047,6 +1068,18 @@ impl Client {
         Ok(())
     }
 
+    /// Apply client-wide settings to every request, including `/ping`.
+    fn request(&self, method: Method, url: Url) -> reqwest::RequestBuilder {
+        let mut req = self.http_client.request(method, url);
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        if let Some(timeout) = self.timeout {
+            req = req.timeout(timeout);
+        }
+        req
+    }
+
     /// Serialize the given `B` to json then send the request and return the resulting bytes.
     async fn send_json_get_bytes<B, Q>(
         &self,
@@ -1106,10 +1139,7 @@ impl Client {
         Q: Serialize + Send + Sync,
     {
         let url = self.base_url.join(url_path)?;
-        let mut req = self.http_client.request(method.clone(), url.clone());
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
+        let mut req = self.request(method.clone(), url.clone());
         if let Some(body) = body {
             req = req.body(body);
         }
@@ -1155,10 +1185,7 @@ impl Client {
         O: DeserializeOwned + Send + Sync,
     {
         let url = self.base_url.join(url_path)?;
-        let mut req = self.http_client.request(method.clone(), url.clone());
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
+        let mut req = self.request(method.clone(), url.clone());
         if let Some(body) = body {
             req = req.json(&body);
         }
@@ -1202,10 +1229,7 @@ impl Client {
         O: DeserializeOwned + Send + Sync,
     {
         let url = self.base_url.join(url_path)?;
-        let mut req = self.http_client.request(method.clone(), url.clone());
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
+        let mut req = self.request(method.clone(), url.clone());
         if let Some(body) = body {
             req = req.json(&body);
         }
