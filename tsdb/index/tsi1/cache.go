@@ -5,6 +5,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -29,6 +30,7 @@ const (
 	statTagValueCacheMiss           = "miss"
 	statTagValueCacheEviction       = "eviction"
 	statTagValueCacheShrinkEviction = "shrink_eviction"
+	statTagValueCacheIdleEviction   = "idle_eviction"
 	statTagValueCacheSize           = "size"
 	statTagValueCacheCapacity       = "capacity"
 )
@@ -36,24 +38,45 @@ const (
 // maxShrinkEvictPerEvent caps the number of LRU-tail entries shed in a single
 // shrink event. The per-event bound limits how long the write lock is held
 // during a shrink trim; further decay continues over subsequent windows. The
-// other per-event bound is size/2 (applied in decideColdTail).
-const maxShrinkEvictPerEvent = 1024
+// other per-event bound is size/2 (applied in decideColdTail). Measured at ~0.3 µs
+// per eviction under the lock, flat in cache size, so a capped event holds the
+// lock for ~2.5 ms; see the 2026-09-16 measurement.
+const maxShrinkEvictPerEvent = 8192
+
+// logMsgCacheIdleShrink is the message logged when an idle step shrinks the
+// cache. Shared with tests so the assertion tracks the source.
+const logMsgCacheIdleShrink = "tsi cache idle, capacity decreased"
+
+// idleSweepIntervalDivisor sets the idle sweeper's tick cadence to
+// idleTimeout/idleSweepIntervalDivisor: the first step lands no sooner than
+// idleTimeout after the last Get, nominally within 1.25·idleTimeout, then one step
+// per tick. The silent stretch is timed from the tick that saw the Get, so if that
+// tick was received later than the tick idleTimeout on, the step slips one more
+// tick: up to 1.5·idleTimeout plus scheduling delay.
+const idleSweepIntervalDivisor = 4
+
+// minIdleSweepInterval floors the idle sweeper's tick so a tiny timeout cannot spin.
+const minIdleSweepInterval = time.Millisecond
 
 // TagValueSeriesIDCacheStatistics holds counters describing the behavior of a
 // TagValueSeriesIDCache. Fields are atomic.Int64 so that Statistics can be
 // sampled without acquiring the cache lock.
 //
-// Evictions counts entries forced out under write pressure (a Put on a full
-// cache); ShrinkEvictions counts entries shed by the adaptive shrink policy.
+// There are three eviction counters. Evictions counts entries forced out under
+// write pressure (a Put on a full cache); ShrinkEvictions counts entries shed by
+// the Get-driven (footprint) shrink policy; IdleEvictions counts entries shed by
+// idle shrink steps after the cache has served no reads for the idle timeout.
 // They are tracked separately because only Evictions is the binomial signal
 // the shrink eviction-gate is derived against (Bernoulli "miss on full cache
 // → forced eviction"), and operators often want to distinguish "the cache is
-// under pressure" from "the cache is voluntarily releasing memory."
+// under pressure" from "the cache is voluntarily releasing memory" and from
+// "the cache has gone quiet."
 type TagValueSeriesIDCacheStatistics struct {
 	Hits            atomic.Int64
 	Misses          atomic.Int64
 	Evictions       atomic.Int64
 	ShrinkEvictions atomic.Int64
+	IdleEvictions   atomic.Int64
 	Size            atomic.Int64
 }
 
@@ -126,6 +149,16 @@ type TagValueSeriesIDCache struct {
 	shrinkBaseEvictions  int64
 	cooldownGets         int64
 	deepestTouched       *list.Element
+
+	// Idle sweeper. idleTimeout is set only by the adaptive constructor and never
+	// mutated (0 = disabled). sweepClosing and sweepDone are the running sweeper
+	// goroutine's lifecycle, one pair per sweeper: both are non-nil while a sweeper
+	// runs, and are read and swapped under the cache write lock, which is never
+	// held while blocking on the sweeper. sweepDone is closed when that sweeper
+	// exits, so a stop waits only for the sweeper it stopped.
+	idleTimeout  time.Duration
+	sweepClosing chan struct{}
+	sweepDone    chan struct{}
 }
 
 // NewTagValueSeriesIDCache returns a TagValueSeriesIDCache with fixed
@@ -159,6 +192,11 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // deviations below the at-target eviction mean at which the shrink eviction gate
 // sits; see the doc on SeriesIDSetCacheShrinkConservatism in tsdb.Config.
 //
+// idleTimeout (>= 0; 0 disables) bounds how long a quiet cache keeps borrowed
+// capacity: once it has served no Gets for idleTimeout, the idle sweeper (started
+// by startIdleSweeper) applies one shrink step, then one more every
+// idleTimeout/4 while the silence lasts, until capacity is back at initial.
+//
 // Every argument is validated; each invalid one is logged separately (so a
 // misconfiguration with several bad values surfaces all of them at once rather
 // than one error per restart), and a fixed-size (non-adaptive) cache from
@@ -169,8 +207,9 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // initial (an adaptive cache that cannot grow is a misconfiguration — use
 // NewTagValueSeriesIDCache directly for a fixed cache); target not in (0, 1)
 // (1.0 is unachievable and is rejected by config validation; NaN is rejected);
-// shrinkConservatism not in [0, +Inf) (NaN/±Inf rejected); minSamples < 0.
-func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservatism float64, minSamples int, logger *zap.Logger) *TagValueSeriesIDCache {
+// shrinkConservatism not in [0, +Inf) (NaN/±Inf rejected); minSamples < 0;
+// idleTimeout < 0.
+func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservatism float64, minSamples int, idleTimeout time.Duration, logger *zap.Logger) *TagValueSeriesIDCache {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -204,6 +243,10 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservati
 		logger.Error(logPrefix+"minSamples must be >= 0", zap.Int("min_samples", minSamples))
 		useFallback = true
 	}
+	if idleTimeout < 0 {
+		logger.Error(logPrefix+"idleTimeout must be >= 0", zap.Duration("idle_timeout", idleTimeout))
+		useFallback = true
+	}
 
 	if useFallback {
 		// Build the non-adaptive replacement: a fixed-size cache sized to initial
@@ -229,6 +272,7 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservati
 		targetHitRate:      target,
 		shrinkConservatism: shrinkConservatism,
 		minSamples:         int64(minSamples),
+		idleTimeout:        idleTimeout,
 		logger:             logger,
 	}
 	cache.capacity.Store(int64(initial))
@@ -256,6 +300,7 @@ func (c *TagValueSeriesIDCache) Statistics(tags map[string]string) []models.Stat
 			statTagValueCacheMiss:           c.stats.Misses.Load(),
 			statTagValueCacheEviction:       c.stats.Evictions.Load(),
 			statTagValueCacheShrinkEviction: c.stats.ShrinkEvictions.Load(),
+			statTagValueCacheIdleEviction:   c.stats.IdleEvictions.Load(),
 			statTagValueCacheSize:           c.stats.Size.Load(),
 			statTagValueCacheCapacity:       c.capacity.Load(),
 		},
@@ -502,6 +547,9 @@ func (c *TagValueSeriesIDCache) evictLRULocked() bool {
 	// Prev() (rather than nil-ing) preserves the touched-front-prefix
 	// invariant the warm-count walk relies on. Prev() is nil only when the
 	// cache held exactly one element; nil-ing is then correct (empty cache).
+	// It can also fire from an idle shrink step, which sheds the tail under a
+	// boundary left stale by a partial window; idleShrinkLocked nils the
+	// boundary immediately afterward, so the recede is harmless there.
 	if e == c.deepestTouched {
 		c.deepestTouched = e.Prev()
 	}
@@ -751,11 +799,7 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 		if !shrink {
 			return resizeEvent{}, false
 		}
-		for evicted < evict && c.evictLRULocked() {
-			evicted++
-		}
-		c.stats.Size.Store(int64(c.evictor.Len()))
-		c.stats.ShrinkEvictions.Add(evicted)
+		evicted = c.evictTailLocked(evict, &c.stats.ShrinkEvictions)
 		// Derive the new capacity from what was actually evicted so the
 		// invariant size <= capacity holds even if the list emptied early.
 		newCap = size - evicted
@@ -764,15 +808,7 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 	}
 
 	c.capacity.Store(newCap)
-
-	// Capacity shrank: reset the grow policy's per-window state so the next
-	// forced eviction measures a fresh post-shrink turnover. Without this,
-	// the stale evictionsSinceCheck (potentially near or above the new
-	// smaller capacity) could immediately fire maybeResizeLocked against
-	// pre-shrink hit/miss baselines, mixing pre- and post-shrink samples.
-	c.evictionsSinceCheck = 0
-	c.lastHits = c.stats.Hits.Load()
-	c.lastMisses = c.stats.Misses.Load()
+	c.resetGrowWindowLocked()
 
 	gets := hitsW + missesW
 	var rate float64
@@ -780,6 +816,187 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 		rate = float64(hitsW) / float64(gets)
 	}
 	return resizeEvent{oldCap: curCap, newCap: newCap, gets: gets, evicted: evicted, rate: rate}, true
+}
+
+// evictTailLocked evicts up to n LRU-tail entries, charging them to counter
+// (ShrinkEvictions for a footprint shrink, IdleEvictions for an idle step), and
+// refreshes stats.Size. Returns the number actually evicted (fewer than n only
+// if the list emptied). Must be called under the write lock.
+func (c *TagValueSeriesIDCache) evictTailLocked(n int64, counter *atomic.Int64) (evicted int64) {
+	for evicted < n && c.evictLRULocked() {
+		evicted++
+	}
+	c.stats.Size.Store(int64(c.evictor.Len()))
+	counter.Add(evicted)
+	return evicted
+}
+
+// resetGrowWindowLocked restarts the grow policy's per-window state after a
+// shrink, so the next forced eviction measures a fresh post-shrink turnover.
+// Without this, the stale evictionsSinceCheck (potentially near or above the new
+// smaller capacity) could immediately fire maybeResizeLocked against pre-shrink
+// hit/miss baselines, mixing pre- and post-shrink samples. Must be called under
+// the write lock.
+func (c *TagValueSeriesIDCache) resetGrowWindowLocked() {
+	c.evictionsSinceCheck = 0
+	c.lastHits = c.stats.Hits.Load()
+	c.lastMisses = c.stats.Misses.Load()
+}
+
+// idleShrinkLocked applies one idle shrink step: decideIdleShrink, evict the
+// LRU tail charged to IdleEvictions, lower capacity, then reset the grow window,
+// end the Get-driven shrink window and set the post-resize cooldown exactly as
+// a footprint shrink does (checkShrink/maybeShrinkLocked). Returns the event to
+// log after unlocking. Must be called under the write lock.
+func (c *TagValueSeriesIDCache) idleShrinkLocked() (resizeEvent, bool) {
+	curCap := c.capacity.Load()
+	size := int64(c.evictor.Len())
+
+	newCap, evict, shrink := decideIdleShrink(curCap, size, c.minCapacity)
+	if !shrink {
+		return resizeEvent{}, false
+	}
+	var evicted int64
+	if evict > 0 {
+		evicted = c.evictTailLocked(evict, &c.stats.IdleEvictions)
+		// As in maybeShrinkLocked: derive the new capacity from what was actually
+		// evicted so size <= capacity holds even if the list emptied early. Not
+		// applied on the slack branch, where newCap may legitimately exceed size
+		// (occupancy below the floor).
+		newCap = size - evicted
+	}
+
+	c.capacity.Store(newCap)
+	c.resetGrowWindowLocked()
+	// End any partial Get-driven shrink window (checkShrink's at-floor early
+	// return assumes clean state) and cool down as after a footprint shrink.
+	c.shrinkWindowGets = 0
+	c.deepestTouched = nil
+	c.cooldownGets = adaptiveWindowLen(newCap, c.minSamples, c.targetHitRate)
+	return resizeEvent{oldCap: curCap, newCap: newCap, evicted: evicted}, true
+}
+
+// idleSweepState is the sweeper's private view of cache activity: the Get counter
+// (hits+misses) as of the last tick, and when the current silent stretch began —
+// the last tick that saw the counter move, or sweeper start. Owned by the
+// goroutine that ticks (or the test that drives idleTick); never shared.
+type idleSweepState struct {
+	lastGets  int64
+	idleSince time.Time
+}
+
+// idleTick is one sweeper tick at time now. If the Get counter moved since the
+// last tick the cache is active: restart the silent stretch and return.
+// Otherwise, once the cache has been silent for idleTimeout and still holds
+// borrowed capacity (capacity > minCapacity), apply one idle shrink step. The
+// silent stretch is not restarted by a step, so while silence continues every
+// further tick (cadence idleTimeout/4) takes another step. A quiet tick — and
+// every tick after the cache is back at the floor — costs three atomic loads and
+// takes no lock. No-op when idleTimeout == 0 (defensive; the sweeper is never
+// started then). Logs the step after unlocking; returns it for tests.
+//
+// A Get landing between the lockless decision and the lock would invalidate the
+// decision (it may have grown the cache or opened a shrink window), so the Get
+// counter is read again under the write lock. get() bumps it under that same
+// lock, so the re-check is exact: if it moved, the step is abandoned and the
+// silent stretch restarts at now.
+func (c *TagValueSeriesIDCache) idleTick(st *idleSweepState, now time.Time) (resizeEvent, bool) {
+	if c.idleTimeout == 0 {
+		return resizeEvent{}, false
+	}
+	// Both counters only increase, so the sum moves iff a Get completed.
+	gets := c.stats.Hits.Load() + c.stats.Misses.Load()
+	if gets != st.lastGets {
+		st.lastGets, st.idleSince = gets, now
+		return resizeEvent{}, false
+	}
+	// Monotonic clock reading: immune to wall-clock steps (NTP, DST).
+	if now.Sub(st.idleSince) < c.idleTimeout {
+		return resizeEvent{}, false
+	}
+	// size <= capacity is an invariant, so capacity at the floor means there is
+	// nothing to shed.
+	if c.capacity.Load() <= c.minCapacity {
+		return resizeEvent{}, false
+	}
+
+	c.Lock()
+	if g := c.stats.Hits.Load() + c.stats.Misses.Load(); g != gets {
+		c.Unlock()
+		st.lastGets, st.idleSince = g, now
+		return resizeEvent{}, false
+	}
+	e, ok := c.idleShrinkLocked()
+	c.Unlock()
+	if ok {
+		c.logIdleShrink(e)
+	}
+	return e, ok
+}
+
+// startIdleSweeper starts the idle sweeper goroutine. No-op if idleTimeout == 0
+// (including every fixed-size cache) or a sweeper is already running.
+func (c *TagValueSeriesIDCache) startIdleSweeper() {
+	c.Lock()
+	defer c.Unlock()
+	if c.idleTimeout == 0 || c.sweepClosing != nil {
+		return
+	}
+	interval := max(c.idleTimeout/idleSweepIntervalDivisor, minIdleSweepInterval)
+	c.sweepClosing = make(chan struct{})
+	c.sweepDone = make(chan struct{})
+	go c.idleSweepLoop(c.sweepClosing, c.sweepDone, interval)
+}
+
+// stopIdleSweeper stops the running idle sweeper and waits for it to exit,
+// including any in-flight step. Idempotent, and a no-op if no sweeper is running.
+// The sweeper never holds the cache lock while blocking, and the lock is released
+// here before waiting, so this cannot deadlock. It waits only for the sweeper it
+// stopped: a sweeper started by a concurrent startIdleSweeper after the swap is
+// not waited on. A stopped sweeper can be started again.
+func (c *TagValueSeriesIDCache) stopIdleSweeper() {
+	c.Lock()
+	closing, done := c.sweepClosing, c.sweepDone
+	c.sweepClosing, c.sweepDone = nil, nil
+	c.Unlock()
+	if closing != nil {
+		close(closing)
+		<-done
+	}
+}
+
+// idleSweepLoop ticks every interval until closing is closed, then closes done.
+// The silent stretch starts at loop start, so a reopened cache with borrowed
+// capacity is first stepped idleTimeout after start, not immediately.
+func (c *TagValueSeriesIDCache) idleSweepLoop(closing <-chan struct{}, done chan<- struct{}, interval time.Duration) {
+	defer close(done)
+	st := idleSweepState{
+		lastGets:  c.stats.Hits.Load() + c.stats.Misses.Load(),
+		idleSince: time.Now(),
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-closing:
+			return
+		case <-t.C:
+			c.idleTick(&st, time.Now())
+		}
+	}
+}
+
+// logIdleShrink emits one INFO log line for an idle shrink step. Separate from
+// logResize because hit_rate and gets_window are meaningless with zero Gets.
+// Called after releasing the cache write lock.
+func (c *TagValueSeriesIDCache) logIdleShrink(e resizeEvent) {
+	c.logger.Info(logMsgCacheIdleShrink,
+		zap.Int64("old_capacity", e.oldCap),
+		zap.Int64("new_capacity", e.newCap),
+		zap.Int64("min_capacity", c.minCapacity),
+		zap.Int64("evicted", e.evicted),
+		zap.Duration("idle_timeout", c.idleTimeout),
+	)
 }
 
 // warmCountLocked returns the number of entries in the warm front-prefix
@@ -929,28 +1146,50 @@ func decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor int64, ta
 		return capacity, false, false
 	}
 
-	// Slack branch: capacity above occupancy. Drop the unused headroom; no
-	// eviction is needed because occupancy already fits the smaller capacity.
+	// Slack branch: capacity above occupancy.
 	if capacity > size {
-		newCap = size
-		if newCap < floor {
-			newCap = floor
-		}
-		if newCap >= capacity {
-			return capacity, false, false
-		}
-		return newCap, true, false
+		newCap, shrink = decideSlack(capacity, size, floor)
+		return newCap, shrink, false
 	}
 
 	// Cache is full (capacity == size): the decision needs the footprint.
 	return capacity, false, true
 }
 
+// decideSlack is the slack branch shared by the Get-driven and idle shrink
+// paths: capacity above occupancy → drop the headroom to occupancy, floored at
+// floor, with no eviction (occupancy already fits the smaller capacity). shrink
+// is false when there is no headroom to drop.
+func decideSlack(capacity, size, floor int64) (newCap int64, shrink bool) {
+	newCap = size
+	if newCap < floor {
+		newCap = floor
+	}
+	if newCap >= capacity {
+		return capacity, false
+	}
+	return newCap, true
+}
+
+// decideIdleShrink decides one idle shrink step. An idle window has no Gets, so
+// there are no gates to evaluate and the warm footprint is empty by definition:
+// the slack branch when capacity exceeds occupancy, otherwise decideColdTail
+// with warmCount 0 — one bounded step toward floor (at most size/2 and
+// maxShrinkEvictPerEvent entries). Returns the new capacity, the number of
+// LRU-tail entries to evict, and whether a shrink should occur.
+func decideIdleShrink(capacity, size, floor int64) (newCap, evict int64, shrink bool) {
+	if capacity > size {
+		newCap, shrink = decideSlack(capacity, size, floor)
+		return newCap, 0, shrink
+	}
+	return decideColdTail(size, 0, floor)
+}
+
 // decideColdTail trims a full cache to the warm footprint, clamped at floor
 // and bounded per event so the write lock is not held long: both to half the
 // cache (proportional) and to maxShrinkEvictPerEvent (absolute, so a single
 // shrink on a multi-million-entry cache cannot park readers for an unbounded
-// time). Decay continues over later windows. Returns the new capacity, the
+// time). Decay continues over later windows or idle steps. Returns the new capacity, the
 // number of LRU-tail entries to evict to reach it, and whether a shrink
 // should occur.
 func decideColdTail(size, warmCount, floor int64) (newCap, evict int64, shrink bool) {

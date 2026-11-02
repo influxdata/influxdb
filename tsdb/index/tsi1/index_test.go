@@ -986,3 +986,104 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		})
 	}
 }
+
+// TestIndex_SeriesIDCacheIdleShrink grows an index's adaptive series ID set
+// cache through the real policy, stops reading, and checks that the idle
+// sweeper started by Open returns the borrowed capacity and that Close stops it.
+func TestIndex_SeriesIDCacheIdleShrink(t *testing.T) {
+	// Tick every 50ms. Long enough that setup (continuous reads) cannot look
+	// idle, short enough that the test finishes quickly.
+	const idle = 200 * time.Millisecond
+
+	idx := &Index{SeriesFile: NewSeriesFile()}
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0",
+		tsi1.WithPath(MustTempDir()),
+		tsi1.WithSeriesIDCacheSize(2),
+		tsi1.WithSeriesIDCacheMaxSize(16),
+		tsi1.WithSeriesIDCacheTargetHitRate(0.9),
+		tsi1.WithSeriesIDCacheIdleTimeout(idle),
+	)
+	require.NoError(t, idx.Open())
+	closed := false
+	t.Cleanup(func() {
+		if !closed {
+			require.NoError(t, idx.Close())
+		}
+	})
+	require.True(t, idx.TagValueCacheIdleSweeperRunning(), "Open must start the idle sweeper")
+
+	values := []string{"v0", "v1", "v2", "v3"}
+	series := make([]Series, 0, len(values))
+	for _, v := range values {
+		series = append(series, Series{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"host": v})})
+	}
+	require.NoError(t, idx.CreateSeriesSliceIfNotExists(series))
+
+	iterate := func(v string) {
+		itr, err := idx.TagValueSeriesIDIterator([]byte("cpu"), []byte("host"), []byte(v))
+		require.NoError(t, err)
+		if itr != nil {
+			require.NoError(t, itr.Close())
+		}
+	}
+	stat := func(k string) int64 {
+		stats := idx.Statistics(nil)
+		require.Len(t, stats, 1)
+		return stats[0].Values[k].(int64)
+	}
+
+	// Fill the cache (capacity 2), then two more distinct values force two
+	// evictions, firing the grow policy: capacity 2 → 4. Every miss through the
+	// index is followed by a Put (even an absent value caches an empty set), so
+	// the window is 4 misses; the sample floor is clamped to capacity, so that
+	// is enough evidence to grow at a 0% hit rate.
+	iterate("v0")
+	iterate("v1")
+	require.Equal(t, int64(2), stat("size"), "precondition: cache full")
+	iterate("v2")
+	iterate("v3")
+	require.Equal(t, int64(4), stat("capacity"), "precondition: cache grew")
+	for _, v := range values {
+		iterate(v)
+	}
+	require.Equal(t, int64(4), stat("size"), "precondition: occupancy 4")
+
+	// Stop reading. One step reaches the floor: min(4-2, 4/2) = 2 evicted.
+	require.Eventually(t, func() bool {
+		return stat("size") == 2 && stat("capacity") == 2 && stat("idle_eviction") == 2
+	}, 5*time.Second, 10*time.Millisecond)
+
+	start := time.Now()
+	require.NoError(t, idx.Index.Close())
+	require.Less(t, time.Since(start), time.Second, "Close must not wait on the sweeper's tick")
+	require.False(t, idx.TagValueCacheIdleSweeperRunning(), "Close must stop the idle sweeper")
+
+	// Reopen builds a new index (with a default, fixed-size cache); assert only
+	// that a second Open/Close cycle succeeds. Restarting a sweeper on the same
+	// cache is covered by TestTagValueSeriesIDCache_IdleSweeper_StartStop.
+	require.NoError(t, idx.Reopen(tsdb.DefaultMaxIndexLogFileSize))
+	closed = true
+	require.NoError(t, idx.Close())
+}
+
+// TestIndex_CloseWithoutTagValueCache checks that closing an Index built
+// without NewIndex (so with no series ID set cache) does not panic stopping the
+// cache's idle sweeper.
+func TestIndex_CloseWithoutTagValueCache(t *testing.T) {
+	require.NoError(t, (&tsi1.Index{}).Close())
+}
+
+// TestIndex_SeriesIDCacheIdleTimeout_Default checks that an adaptive cache gets
+// tsdb.DefaultSeriesIDSetCacheIdleTimeout when no timeout is given, and that a
+// fixed-size cache ignores the setting.
+func TestIndex_SeriesIDCacheIdleTimeout_Default(t *testing.T) {
+	adaptive := tsi1.NewIndex(nil, "db0",
+		tsi1.WithSeriesIDCacheSize(2),
+		tsi1.WithSeriesIDCacheMaxSize(16),
+		tsi1.WithSeriesIDCacheTargetHitRate(0.9),
+	)
+	require.Equal(t, tsdb.DefaultSeriesIDSetCacheIdleTimeout, adaptive.TagValueCacheIdleTimeout())
+
+	fixed := tsi1.NewIndex(nil, "db0", tsi1.WithSeriesIDCacheIdleTimeout(time.Minute))
+	require.Zero(t, fixed.TagValueCacheIdleTimeout(), "a fixed-size cache ignores the idle timeout")
+}
