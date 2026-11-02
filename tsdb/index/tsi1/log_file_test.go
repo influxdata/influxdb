@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime/pprof"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -463,6 +464,76 @@ func TestLogFile_TagValueIterator_ConcurrentWrite(t *testing.T) {
 	close(done)
 
 	require.NoError(t, <-errCh)
+}
+
+// Ensure tag keys from TagKeyIterator can iterate their values while
+// AddSeriesList writes new values for the same key. The keys share their
+// tagValues map with the log file, so ranging over it after TagKeyIterator
+// released f.mu raced with writes ("concurrent map iteration and map write").
+// Partition.DropMeasurement does this while writes continue.
+func TestLogFile_TagKeyIterator_TagValueIterator_ConcurrentWrite(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer th.CheckedClose(t, sfile)()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
+	defer th.CheckedClose(t, f)()
+	seriesSet := tsdb.NewSeriesIDSet()
+
+	_, err := f.AddSeriesList(seriesSet,
+		slices.StringsToBytes("cpu"),
+		[]models.Tags{models.NewTags(map[string]string{"host": "server-0"})},
+		notrack,
+	)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	started := make(chan struct{})
+	errCh := make(chan error, 1)
+	var writes atomic.Int64
+
+	// Writer: add new values for tag key "host", writing its tagValues map.
+	go func() {
+		defer close(errCh)
+		for i := 1; ; i++ {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			tags := models.NewTags(map[string]string{"host": fmt.Sprintf("server-%d", i)})
+			if _, err := f.AddSeriesList(seriesSet, slices.StringsToBytes("cpu"), []models.Tags{tags}, notrack); err != nil {
+				errCh <- err
+				return
+			}
+			if writes.Add(1) == 1 {
+				close(started)
+			}
+		}
+	}()
+
+	// Barrier: read only once the writer is running.
+	<-started
+	writesBefore := writes.Load()
+	var values int
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		kitr := f.TagKeyIterator([]byte("cpu"))
+		require.NotNil(t, kitr, "measurement cpu has no tag keys")
+		for k := kitr.Next(); k != nil; k = kitr.Next() {
+			vitr := k.TagValueIterator()
+			require.NotNil(t, vitr, "tag key %s has a nil value iterator", k.Key())
+			for v := vitr.Next(); v != nil; v = vitr.Next() {
+				values++
+			}
+		}
+	}
+	writesDuring := writes.Load() - writesBefore
+	close(done)
+
+	require.NoError(t, <-errCh)
+	require.Positive(t, writesDuring, "writer made no progress while values were read")
+	require.Positive(t, values, "no tag values were read")
+	t.Logf("tag values read: %d, writes during reads: %d", values, writesDuring)
 }
 
 func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesValueN int) {

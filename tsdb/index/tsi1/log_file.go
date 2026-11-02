@@ -370,9 +370,9 @@ func (f *LogFile) TagKeyIterator(name []byte) TagKeyIterator {
 		return nil
 	}
 
-	a := make([]logTagKey, 0, len(mm.tagSet))
+	a := make([]logTagKeyElem, 0, len(mm.tagSet))
 	for _, k := range mm.tagSet {
-		a = append(a, k)
+		a = append(a, logTagKeyElem{logTagKey: k, f: f, measurement: mm.name})
 	}
 	return newLogTagKeyIterator(a)
 }
@@ -1418,7 +1418,7 @@ func (tk *logTagKey) createTagValueIfNotExists(value []byte) logTagValue {
 }
 
 // logTagKey is a sortable list of log tag keys.
-type logTagKeySlice []logTagKey
+type logTagKeySlice []logTagKeyElem
 
 func (a logTagKeySlice) Len() int           { return len(a) }
 func (a logTagKeySlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -1497,13 +1497,32 @@ func (a logTagValueSlice) Len() int           { return len(a) }
 func (a logTagValueSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a logTagValueSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
+// logTagKeyElem is a tag key handed out of LogFile.TagKeyIterator. Its
+// tagValues map is shared with the log file, which keeps writing it under f.mu
+// after the iterator is returned, so it reads tag values back through the log
+// file under that lock instead of ranging over the map.
+type logTagKeyElem struct {
+	logTagKey
+	f           *LogFile
+	measurement []byte
+}
+
+// TagValueIterator returns an iterator over the key's current tag values. It
+// never returns nil, since merge iterators call Next on every element's iterator.
+func (e *logTagKeyElem) TagValueIterator() TagValueIterator {
+	if itr := e.f.TagValueIterator(e.measurement, e.name); itr != nil {
+		return itr
+	}
+	return newLogTagValueIterator(nil)
+}
+
 // logTagKeyIterator represents an iterator over a slice of tag keys.
 type logTagKeyIterator struct {
-	a []logTagKey
+	a []logTagKeyElem
 }
 
 // newLogTagKeyIterator returns a new instance of logTagKeyIterator.
-func newLogTagKeyIterator(a []logTagKey) *logTagKeyIterator {
+func newLogTagKeyIterator(a []logTagKeyElem) *logTagKeyIterator {
 	sort.Sort(logTagKeySlice(a))
 	return &logTagKeyIterator{a: a}
 }

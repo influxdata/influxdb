@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 // Test comparing SeriesIDs for equality.
@@ -145,6 +147,78 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	if got, exp := len(m.SeriesIDs()), 1; got != exp {
 		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+// Ensure a slice returned by SeriesIDs is never rewritten while callers
+// iterate it without the measurement lock. DropSeries truncated the slice in
+// place, so the next SeriesIDs or AddSeries refilled and resorted the array
+// under existing readers, and Rebuild sorted it in place.
+func TestMeasurement_SeriesIDs_ConcurrentDropAdd(t *testing.T) {
+	const (
+		seriesN = 64
+		readerN = 4
+	)
+	m := newMeasurement("foo", "cpu")
+	all := make([]*series, seriesN)
+	for i := range all {
+		key := fmt.Sprintf("cpu,host=h%d", i)
+		all[i] = newSeries(uint64(i+1), m, key, models.Tags{models.NewTag([]byte("host"), []byte(fmt.Sprintf("h%d", i)))})
+		require.True(t, m.AddSeries(all[i]), "adding series %d", i+1)
+	}
+
+	done := make(chan struct{})
+	var reads atomic.Int64
+	var ready, wg sync.WaitGroup
+	errs := make(chan error, readerN)
+
+	// Readers: each snapshot must stay strictly increasing for as long as it
+	// is iterated; an in-place rebuild breaks that (and is a data race).
+	for range readerN {
+		ready.Add(1)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ready.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				ids := m.SeriesIDs()
+				for i := 1; i < len(ids); i++ {
+					if ids[i] <= ids[i-1] {
+						errs <- fmt.Errorf("SeriesIDs snapshot changed under reader: ids[%d]=%d, ids[%d]=%d", i-1, ids[i-1], i, ids[i])
+						return
+					}
+				}
+				reads.Add(1)
+			}
+		}()
+	}
+
+	// Barrier: write only once every reader is running.
+	ready.Wait()
+	readsBefore := reads.Load()
+	rnd := rand.New(rand.NewSource(1))
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		s := all[rnd.Intn(seriesN)]
+		m.DropSeries(s)
+		m.SeriesIDs()
+		m.AddSeries(s)
+		m.Rebuild()
+	}
+	readsDuring := reads.Load() - readsBefore
+	close(done)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	require.Positive(t, readsDuring, "readers made no progress while series were dropped and added")
+	t.Logf("snapshots read during writes: %d", readsDuring)
 }
 
 // Ensures the tagKeyValue API contains no deadlocks or sync issues.

@@ -33,7 +33,7 @@ type measurement struct {
 	seriesByTagKeyValue map[string]*tagKeyValue // map from tag key to value to sorted set of series ids
 
 	// lazyily created sorted series IDs
-	sortedSeriesIDs seriesIDs // sorted list of series IDs in this measurement
+	sortedSeriesIDs seriesIDs // sorted list of series IDs in this measurement; see SeriesIDs
 
 	// Indicates whether the seriesByTagKeyValueMap needs to be rebuilt as it contains deleted series
 	// that waste memory.
@@ -192,6 +192,9 @@ func (m *measurement) SeriesKeys() [][]byte {
 	return keys
 }
 
+// SeriesIDs returns the sorted IDs of the measurement's series. Callers iterate
+// the result without holding m.mu, so it must never be written in place again:
+// rebuilding it allocates a new slice, and only appends past its length are allowed.
 func (m *measurement) SeriesIDs() seriesIDs {
 	m.mu.RLock()
 	if len(m.sortedSeriesIDs) == len(m.seriesByID) {
@@ -208,19 +211,15 @@ func (m *measurement) SeriesIDs() seriesIDs {
 		return s
 	}
 
-	m.sortedSeriesIDs = m.sortedSeriesIDs[:0]
-	if cap(m.sortedSeriesIDs) < len(m.seriesByID) {
-		m.sortedSeriesIDs = make(seriesIDs, 0, len(m.seriesByID))
-	}
-
+	s := make(seriesIDs, 0, len(m.seriesByID))
 	for k, v := range m.seriesByID {
 		if v.Deleted() {
 			continue
 		}
-		m.sortedSeriesIDs = append(m.sortedSeriesIDs, k)
+		s = append(s, k)
 	}
-	sort.Sort(m.sortedSeriesIDs)
-	s := m.sortedSeriesIDs
+	sort.Sort(s)
+	m.sortedSeriesIDs = s
 	m.mu.Unlock()
 	return s
 }
@@ -305,8 +304,9 @@ func (m *measurement) DropSeries(series *series) {
 	}
 	delete(m.seriesByID, seriesID)
 
-	// clear our lazily sorted set of ids
-	m.sortedSeriesIDs = m.sortedSeriesIDs[:0]
+	// Clear our lazily sorted set of ids. Drop the backing array rather than
+	// truncate it, since SeriesIDs callers may still be iterating it.
+	m.sortedSeriesIDs = nil
 
 	// Mark that this measurements tagValue map has stale entries that need to be rebuilt.
 	m.dirty = true
@@ -334,15 +334,17 @@ func (m *measurement) Rebuild() *measurement {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Sort into a new slice: m.sortedSeriesIDs may be held by SeriesIDs callers.
+	ids := make(seriesIDs, 0, len(m.seriesByID))
 	for k, v := range m.seriesByID {
 		if v.Deleted() {
 			continue
 		}
-		m.sortedSeriesIDs = append(m.sortedSeriesIDs, k)
+		ids = append(ids, k)
 	}
-	sort.Sort(m.sortedSeriesIDs)
+	sort.Sort(ids)
 
-	for _, id := range m.sortedSeriesIDs {
+	for _, id := range ids {
 		if s := m.seriesByID[id]; s != nil {
 			// Explicitly set the new measurement on the series.
 			s.Measurement = nm
