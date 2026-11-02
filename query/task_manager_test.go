@@ -87,7 +87,7 @@ func TestTaskManager_SlowQueryLog_Host(t *testing.T) {
 	defer detach()
 
 	require.Eventually(t, func() bool {
-		return logs.FilterMessageSnippet("Detected slow query from " + clientHost).Len() > 0
+		return logs.FilterMessageSnippet("Detected slow query from "+clientHost).Len() > 0
 	}, time.Second, 5*time.Millisecond, "expected a slow-query warning naming the client host")
 }
 

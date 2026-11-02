@@ -77,6 +77,33 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			// Descending sibling of "Min": the shared reduce sort keeps the
+			// original len(keys) > 1 && Ordered branch for non-date_part
+			// aggregates. This locks in that a multi-series aggregate in
+			// descending mode still emits each series' buckets newest-first.
+			// Input points are supplied newest-first, as a descending scan yields.
+			name: "Min_Desc",
+			q:    `SELECT min(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none) ORDER BY time DESC`,
+			typ:  influxql.Float,
+			expr: `min(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 5},
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 9},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=B"), Time: 20 * Second, Value: 7},
+					{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 3},
+				}},
+			},
+			rows: []query.Row{
+				{Time: 20 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=B")}, Values: []interface{}{float64(7)}},
+				{Time: 0 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=B")}, Values: []interface{}{float64(3)}},
+				{Time: 20 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=A")}, Values: []interface{}{float64(5)}},
+				{Time: 0 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=A")}, Values: []interface{}{float64(9)}},
+			},
+		},
+		{
 			name: "count_hll",
 			q:    `SELECT count_hll(sum_hll(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
 			typ:  influxql.Float,

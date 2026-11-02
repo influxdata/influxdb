@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
@@ -1680,6 +1681,42 @@ func TestIteratorOptions_MarshalBinary(t *testing.T) {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(&other, opt) {
 		t.Fatalf("unexpected options: %s", spew.Sdump(other))
+	}
+}
+
+// Ensure date_part GROUP BY options survive a marshal round-trip, including
+// reconstruction of the grouper from the serialized dimensions.
+func TestIteratorOptions_MarshalBinary_DatePart(t *testing.T) {
+	opt := &query.IteratorOptions{
+		DatePart: query.NewDatePartGrouper([]query.DatePartDimension{
+			{Expr: query.Year},
+			{Expr: query.Month},
+		}),
+		NeedTimeRef: true,
+	}
+
+	buf, err := opt.MarshalBinary()
+	require.NoError(t, err)
+
+	var other query.IteratorOptions
+	require.NoError(t, other.UnmarshalBinary(buf))
+
+	require.True(t, other.NeedTimeRef)
+	require.Equal(t, opt.DatePart, other.DatePart)
+}
+
+// A date_part dimension this node does not know (corruption or a newer peer)
+// must fail the decode instead of grouping under a meaningless part.
+func TestIteratorOptions_UnmarshalBinary_InvalidDatePart(t *testing.T) {
+	for _, expr := range []query.DatePartExpr{query.Invalid, query.Invalid + 1, -1} {
+		opt := &query.IteratorOptions{
+			DatePart: query.NewDatePartGrouper([]query.DatePartDimension{{Expr: query.Year}, {Expr: expr}}),
+		}
+		buf, err := opt.MarshalBinary()
+		require.NoError(t, err)
+
+		var other query.IteratorOptions
+		require.EqualError(t, other.UnmarshalBinary(buf), fmt.Sprintf("invalid date_part dimension: %d", expr))
 	}
 }
 

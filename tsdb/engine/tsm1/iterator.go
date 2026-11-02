@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/pkg/tracing"
@@ -126,6 +127,87 @@ var (
 	nilStringLiteralValueCursor   cursorAt = &literalValueCursor{value: (*string)(nil)}
 	nilBooleanLiteralValueCursor  cursorAt = &literalValueCursor{value: (*bool)(nil)}
 )
+
+// datePartCondCursor publishes one date_part referenced by a condition. The
+// iterator reads it like a condition field cursor, so a date_part condition
+// needs no per-point code or iterator state of its own. It has no time value
+// so it can only be used with nextAt().
+type datePartCondCursor struct {
+	cond *query.DatePartCondition
+	part int
+}
+
+func (c *datePartCondCursor) close() error                   { return nil }
+func (c *datePartCondCursor) peek() (t int64, v interface{}) { return tsdb.EOF, nil }
+func (c *datePartCondCursor) nextAt(seek int64) interface{}  { return c.cond.PartValue(c.part, seek) }
+
+// datePartAuxCursor supplies a GROUP BY date_part dimension value from each
+// point's timestamp. The iterator reads it like any aux cursor, so a date_part
+// dimension needs no per-point code of its own. It has no time value so it can
+// only be used with nextAt().
+type datePartAuxCursor struct {
+	expr query.DatePartExpr
+	loc  *time.Location
+
+	// Boxing cache: the value is converted to interface{} only when it
+	// changes, so consecutive points in the same bucket do not allocate.
+	lastVal   int64
+	lastBoxed interface{}
+}
+
+func (c *datePartAuxCursor) close() error                   { return nil }
+func (c *datePartAuxCursor) peek() (t int64, v interface{}) { return tsdb.EOF, nil }
+func (c *datePartAuxCursor) nextAt(seek int64) interface{} {
+	v, ok := query.ExtractDatePartExpr(time.Unix(0, seek).In(c.loc), c.expr)
+	if !ok {
+		return nil
+	}
+	if c.lastBoxed == nil || v != c.lastVal {
+		c.lastVal, c.lastBoxed = v, v
+	}
+	return c.lastBoxed
+}
+
+// withDatePart prepares an iterator for date_part, once per iterator, so that
+// Next needs no date_part code:
+//
+//   - a condition using date_part has its calls rewritten into reserved
+//     variables, each published by a condition cursor appended to conds;
+//   - the trailing aux slots of the GROUP BY date_part dimensions (appended to
+//     opt.Aux by buildCursor) are read from date_part aux cursors.
+//
+// opt is the iterator's own copy, so the caller's condition is untouched. The
+// cursor slices are copied rather than modified, since the caller may share
+// them.
+func withDatePart(opt *query.IteratorOptions, aux, conds []cursorAt, condNames []string) ([]cursorAt, []cursorAt, []string) {
+	if opt.NeedTimeRef {
+		if dp := query.NewDatePartCondition(opt.Condition, opt.Location); dp != nil {
+			opt.Condition = dp.Expr()
+			n := dp.NumParts()
+			conds = append(make([]cursorAt, 0, len(conds)+n), conds...)
+			condNames = append(make([]string, 0, len(condNames)+n), condNames...)
+			for i := range n {
+				conds = append(conds, &datePartCondCursor{cond: dp, part: i})
+				condNames = append(condNames, dp.PartName(i))
+			}
+		}
+	}
+
+	if dims := opt.DatePart.Dimensions(); len(dims) > 0 && len(dims) <= len(aux) {
+		aux = append([]cursorAt(nil), aux...)
+		loc := query.LocationOrUTC(opt.Location)
+		base := len(aux) - len(dims)
+		for i, d := range dims {
+			// The engine built this slot's cursor from the dimension's name,
+			// which can match a stored field; that cursor is replaced unread.
+			if c := aux[base+i]; c != nil {
+				c.close()
+			}
+			aux[base+i] = &datePartAuxCursor{expr: d.Expr, loc: loc}
+		}
+	}
+	return aux, conds, condNames
+}
 
 // stringSliceCursor is a cursor that outputs a slice of string values.
 type stringSliceCursor struct {
