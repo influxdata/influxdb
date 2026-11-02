@@ -474,6 +474,16 @@ func (s *Shard) LastModifiedWithErr() (time.Time, error) {
 	return engine.LastModified(), nil
 }
 
+func (s *Shard) TimeRange() (int64, int64, error) {
+	engine, err := s.Engine()
+	if err != nil {
+		return int64(0), int64(0), fmt.Errorf("failed getting shard %d time range: %w", s.id, err)
+	}
+
+	minT, maxT := engine.TimeRange()
+	return minT, maxT, nil
+}
+
 // Index returns a reference to the underlying index. It returns an error if
 // the index is nil.
 func (s *Shard) Index() (Index, error) {
