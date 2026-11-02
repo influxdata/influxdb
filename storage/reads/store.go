@@ -15,7 +15,7 @@ type ResultSet interface {
 	Next() bool
 
 	// Cursor returns the most recent cursor after a call to Next.
-	Cursor() cursors.Cursor
+	Cursor() (cursors.Cursor, error)
 
 	// Tags returns the tags for the most recent cursor after a call to Next.
 	Tags() models.Tags
@@ -47,7 +47,7 @@ type GroupCursor interface {
 	Next() bool
 
 	// Cursor returns the most recent cursor after a call to Next.
-	Cursor() cursors.Cursor
+	Cursor() (cursors.Cursor, error)
 
 	// Tags returns the tags for the most recent cursor after a call to Next.
 	Tags() models.Tags
