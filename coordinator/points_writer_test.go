@@ -662,6 +662,43 @@ func TestBufferedPointsWriter(t *testing.T) {
 	}
 }
 
+// Ensure NextUniqueTime never returns the same value twice, even when
+// called concurrently by many goroutines sharing one PointsWriter — this is
+// the property the auto-increment-duplicate-timestamps feature depends on
+// to stay correct across concurrent write connections, not just within one
+// request.
+func TestPointsWriter_NextUniqueTime_Concurrent(t *testing.T) {
+	w := coordinator.NewPointsWriter()
+
+	const goroutines = 100
+	const perGoroutine = 1000
+
+	results := make(chan int64, goroutines*perGoroutine)
+	var wg sync.WaitGroup
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perGoroutine; j++ {
+				results <- w.NextUniqueTime().UnixNano()
+			}
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	seen := make(map[int64]struct{}, goroutines*perGoroutine)
+	for ts := range results {
+		if _, ok := seen[ts]; ok {
+			t.Fatalf("NextUniqueTime returned duplicate timestamp %d under concurrent use", ts)
+		}
+		seen[ts] = struct{}{}
+	}
+	if exp := goroutines * perGoroutine; len(seen) != exp {
+		t.Fatalf("expected %d unique timestamps, got %d", exp, len(seen))
+	}
+}
+
 var shardID uint64
 
 type fakeStore struct {

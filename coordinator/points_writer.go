@@ -67,6 +67,30 @@ type PointsWriter struct {
 	subPoints chan<- *WritePointsRequest
 
 	stats *WriteStatistics
+
+	// lastAssignedTimestamp stores, as UnixNano, the most recent timestamp
+	// handed out by NextUniqueTime. Accessed via atomic ops by every
+	// concurrent write request sharing this PointsWriter.
+	lastAssignedTimestamp int64
+}
+
+// NextUniqueTime returns a monotonically increasing UTC time, safe for
+// concurrent use by every write request sharing this PointsWriter instance
+// — i.e. every write connection in this server process. It never returns a
+// value less than or equal to one it has already returned, even under
+// heavy concurrent use.
+func (w *PointsWriter) NextUniqueTime() time.Time {
+	for {
+		now := time.Now().UnixNano()
+		last := atomic.LoadInt64(&w.lastAssignedTimestamp)
+		next := now
+		if next <= last {
+			next = last + 1
+		}
+		if atomic.CompareAndSwapInt64(&w.lastAssignedTimestamp, last, next) {
+			return time.Unix(0, next).UTC()
+		}
+	}
 }
 
 // WritePointsRequest represents a request to write point data to the cluster.

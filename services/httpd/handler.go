@@ -136,6 +136,7 @@ type Handler struct {
 
 	PointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+		NextUniqueTime() time.Time
 	}
 
 	Store Store
@@ -1782,7 +1783,13 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		h.Logger.Info("Write body received by handler", zap.ByteString("body", buf.Bytes()))
 	}
 
-	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), precision)
+	var points []models.Point
+	var parseError error
+	if h.Config.AutoIncrementDuplicateTimestamps {
+		points, parseError = models.ParsePointsWithPrecisionFunc(buf.Bytes(), h.PointsWriter.NextUniqueTime, precision)
+	} else {
+		points, parseError = models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), precision)
+	}
 	// Not points parsed correctly so return the error now
 	if parseError != nil && len(points) == 0 {
 		if parseError.Error() == "EOF" {

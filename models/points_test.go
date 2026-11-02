@@ -1844,6 +1844,83 @@ func TestParsePointsWithPrecision(t *testing.T) {
 	}
 }
 
+// Ensure ParsePointsWithPrecisionFunc calls nextDefaultTime once for each
+// point that omits an explicit timestamp, never for points that have one,
+// and never truncates the returned timestamp to the requested precision.
+func TestParsePointsWithPrecisionFunc(t *testing.T) {
+	buf := []byte("cpu,host=serverA value=1.0\ncpu,host=serverB value=2.0\n")
+
+	var calls int
+	base := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	next := func() time.Time {
+		calls++
+		return base.Add(time.Duration(calls) * time.Nanosecond)
+	}
+
+	// precision "s" would truncate a defaulted timestamp down to whole
+	// seconds if truncation weren't skipped for this entry point — proves
+	// the nanosecond-sized increments from next() survive intact.
+	pts, err := models.ParsePointsWithPrecisionFunc(buf, next, "s")
+	if err != nil {
+		t.Fatalf("ParsePointsWithPrecisionFunc() failed: %s", err)
+	}
+	if exp := 2; len(pts) != exp {
+		t.Fatalf("len mismatch: got %v, exp %v", len(pts), exp)
+	}
+	if calls != 2 {
+		t.Fatalf("expected next to be called exactly twice (once per undated point), got %d", calls)
+	}
+
+	if got, exp := pts[0].Time(), base.Add(1*time.Nanosecond); !got.Equal(exp) {
+		t.Errorf("point 0 time mismatch: got %v, exp %v (precision truncation should be skipped)", got, exp)
+	}
+	if got, exp := pts[1].Time(), base.Add(2*time.Nanosecond); !got.Equal(exp) {
+		t.Errorf("point 1 time mismatch: got %v, exp %v (precision truncation should be skipped)", got, exp)
+	}
+
+	// A point with an explicit timestamp must be parsed normally and must
+	// never call next().
+	explicitBuf := []byte("cpu,host=serverC value=3.0 946730096789012345\n")
+	calls = 0
+	pts, err = models.ParsePointsWithPrecisionFunc(explicitBuf, next, "n")
+	if err != nil {
+		t.Fatalf("ParsePointsWithPrecisionFunc() failed: %s", err)
+	}
+	if exp := 1; len(pts) != exp {
+		t.Fatalf("len mismatch: got %v, exp %v", len(pts), exp)
+	}
+	if calls != 0 {
+		t.Fatalf("expected next to never be called for a point with an explicit timestamp, got %d calls", calls)
+	}
+	if got, exp := pts[0].UnixNano(), int64(946730096789012345); got != exp {
+		t.Errorf("explicit timestamp mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// Ensure ParsePointsWithPrecision (the pre-existing entry point) is
+// completely unaffected by the ParsePointsWithPrecisionFunc refactor: every
+// undated point in a batch still gets the identical fixed defaultTime, and
+// precision truncation still applies.
+func TestParsePointsWithPrecision_UnaffectedByFuncVariant(t *testing.T) {
+	buf := []byte("cpu,host=serverA value=1.0\ncpu,host=serverB value=2.0\n")
+	defaultTime := time.Date(2020, 1, 1, 0, 0, 0, 123, time.UTC)
+
+	pts, err := models.ParsePointsWithPrecision(buf, defaultTime, "s")
+	if err != nil {
+		t.Fatalf("ParsePointsWithPrecision() failed: %s", err)
+	}
+	if exp := 2; len(pts) != exp {
+		t.Fatalf("len mismatch: got %v, exp %v", len(pts), exp)
+	}
+
+	want := defaultTime.Truncate(time.Second)
+	for i, pt := range pts {
+		if got := pt.Time(); !got.Equal(want) {
+			t.Errorf("point %d time mismatch: got %v, exp %v (identical, truncated defaultTime)", i, got, want)
+		}
+	}
+}
+
 func TestScanLine(t *testing.T) {
 	input := "cpu value=\"first\nsecond\" 1\nmem value=2i 2"
 	scanner := bufio.NewScanner(strings.NewReader(input))
