@@ -173,6 +173,77 @@ func TimeArrayDecodeAll(b []byte, dst []int64) ([]int64, error) {
 	return timeBatchDecoderFunc[encoding&3](b, dst)
 }
 
+// timeArrayDecodeBounds returns the first and last timestamps encoded in b and
+// their count without materializing the timestamps. RLE bounds are computed
+// from the header; other encodings sum their deltas. scratch receives one
+// simple8b word at a time.
+func timeArrayDecodeBounds(b []byte, scratch *[240]uint64) (first, last int64, n int, err error) {
+	if len(b) == 0 {
+		return 0, 0, 0, nil
+	}
+
+	switch b[0] >> 4 {
+	case timeUncompressed:
+		b = b[1:]
+		if len(b)&0x7 != 0 {
+			return 0, 0, 0, fmt.Errorf("timeArrayDecodeBounds: expected multiple of 8 bytes")
+		}
+		if len(b) == 0 {
+			return 0, 0, 0, nil
+		}
+		var acc uint64
+		for i := 0; i < len(b); i += 8 {
+			acc += binary.BigEndian.Uint64(b[i:])
+		}
+		return int64(binary.BigEndian.Uint64(b)), int64(acc), len(b) / 8, nil
+
+	case timeCompressedPackedSimple:
+		if len(b) < 9 {
+			return 0, 0, 0, fmt.Errorf("timeArrayDecodeBounds: not enough data to decode packed timestamps")
+		}
+		div := uint64(math.Pow10(int(b[0] & 0xF)))
+		start := binary.BigEndian.Uint64(b[1:9])
+		src := b[9:]
+		if len(src)&0x7 != 0 {
+			return 0, 0, 0, fmt.Errorf("timeArrayDecodeBounds: packed timestamps not a multiple of 8 bytes")
+		}
+		acc, n := start, 1
+		for i := 0; i < len(src); i += 8 {
+			c, err := simple8b.Decode(scratch, binary.BigEndian.Uint64(src[i:]))
+			if err != nil {
+				return 0, 0, 0, err
+			}
+			for _, d := range scratch[:c] {
+				acc += d * div
+			}
+			n += c
+		}
+		return int64(start), int64(acc), n, nil
+
+	case timeCompressedRLE:
+		if len(b) < 9 {
+			return 0, 0, 0, fmt.Errorf("timeArrayDecodeBounds: not enough data to decode RLE starting value")
+		}
+		mod := uint64(math.Pow10(int(b[0] & 0xF)))
+		start := binary.BigEndian.Uint64(b[1:9])
+		delta, k := binary.Uvarint(b[9:])
+		if k <= 0 {
+			return 0, 0, 0, fmt.Errorf("timeArrayDecodeBounds: invalid run length in decodeRLE")
+		}
+		count, j := binary.Uvarint(b[9+k:])
+		if j <= 0 || count > math.MaxInt {
+			return 0, 0, 0, fmt.Errorf("timeArrayDecodeBounds: invalid repeat value in decodeRLE")
+		}
+		if count == 0 {
+			return 0, 0, 0, nil
+		}
+		return int64(start), int64(start + delta*mod*(count-1)), int(count), nil
+
+	default:
+		return 0, 0, 0, fmt.Errorf("unknown encoding %v", b[0]>>4)
+	}
+}
+
 func timeBatchDecodeAllUncompressed(b []byte, dst []int64) ([]int64, error) {
 	b = b[1:]
 	if len(b)&0x7 != 0 {
@@ -272,7 +343,7 @@ func timeBatchDecodeAllRLE(b []byte, dst []int64) ([]int64, error) {
 
 	// Last 1-10 bytes is how many times the value repeats
 	count, n := binary.Uvarint(b[k:])
-	if n <= 0 {
+	if n <= 0 || count > math.MaxInt {
 		return []int64{}, fmt.Errorf("TimeDecoder: invalid repeat value in decodeRLE")
 	}
 
