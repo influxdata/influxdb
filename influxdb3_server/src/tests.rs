@@ -1616,16 +1616,14 @@ async fn request_body_over_content_length_limit_rejected_before_body_read() {
     shutdown.cancel();
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn request_body_chunked_over_limit_rejected() {
-    let (server, shutdown, _) = setup_server_with_max_request_bytes(0, 1 << 20).await;
-    let host = server.trim_start_matches("http://").to_string();
-
-    let mut stream = TcpStream::connect(&host).await.unwrap();
+/// Send a chunked request whose body exceeds the 1 MiB limit configured by
+/// [`setup_server_with_max_request_bytes`] and return the raw response.
+async fn send_chunked_over_limit(host: &str, path: &str, content_type: &str) -> String {
+    let mut stream = TcpStream::connect(host).await.unwrap();
     stream
         .write_all(
             format!(
-                "POST /api/v3/write_lp?db=foo HTTP/1.1\r\nHost: {host}\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n"
+                "POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Type: {content_type}\r\nTransfer-Encoding: chunked\r\n\r\n"
             )
             .as_bytes(),
         )
@@ -1648,7 +1646,32 @@ async fn request_body_chunked_over_limit_rejected() {
         .await
         .expect("timed out waiting for 413 response")
         .expect("failed to read 413 response");
-    let response = String::from_utf8_lossy(&buf[..n]);
+    String::from_utf8_lossy(&buf[..n]).to_string()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn request_body_chunked_over_limit_rejected() {
+    let (server, shutdown, _) = setup_server_with_max_request_bytes(0, 1 << 20).await;
+    let host = server.trim_start_matches("http://").to_string();
+
+    let response = send_chunked_over_limit(&host, "/api/v3/write_lp?db=foo", "text/plain").await;
+    assert!(
+        response.starts_with("HTTP/1.1 413"),
+        "expected 413, got: {response}"
+    );
+
+    shutdown.cancel();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn v1_query_body_chunked_over_limit_rejected() {
+    let (server, shutdown, _) = setup_server_with_max_request_bytes(0, 1 << 20).await;
+    let host = server.trim_start_matches("http://").to_string();
+
+    // The v1 query handler reads the body directly rather than going through
+    // HttpApi::read_body, so make sure the service-level stream limit still
+    // applies and maps to a 413.
+    let response = send_chunked_over_limit(&host, "/query", "application/vnd.influxql").await;
     assert!(
         response.starts_with("HTTP/1.1 413"),
         "expected 413, got: {response}"

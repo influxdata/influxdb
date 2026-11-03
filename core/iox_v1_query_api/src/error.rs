@@ -92,6 +92,7 @@ pub enum HttpError {
     NotFound(String),
     Unauthorized(String),
     Invalid(String),
+    PayloadTooLarge(String),
     InternalError(String),
 }
 

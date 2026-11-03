@@ -16,7 +16,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
 use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_LENGTH};
-use http_body_util::BodyExt;
+use http_body_util::{BodyExt, LengthLimitError, Limited};
 use hyper::HeaderMap;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
@@ -606,6 +606,7 @@ impl IntoResponse for iox_v1_query_api::HttpError {
                 (StatusCode::UNAUTHORIZED, "unauthorized access".to_string())
             }
             Self::Invalid(s) => (StatusCode::BAD_REQUEST, s),
+            Self::PayloadTooLarge(s) => (StatusCode::PAYLOAD_TOO_LARGE, s),
             Self::InternalError(s) => (StatusCode::INTERNAL_SERVER_ERROR, s),
         };
         let response = V1ErrorResponse { error };
@@ -1106,8 +1107,8 @@ impl HttpApi {
 impl HttpApi {
     /// The configured maximum request body size in bytes.
     ///
-    /// Exposed so the connection layer can enforce the limit before the body is
-    /// buffered in memory.
+    /// The unified service uses this to cap streamed request bodies; handlers
+    /// enforce the same limit in `read_body`.
     pub(crate) fn max_request_bytes(&self) -> usize {
         self.max_request_bytes
     }
@@ -1304,12 +1305,24 @@ impl HttpApi {
             .get(&CONTENT_ENCODING)
             .map(|v| v.to_str().map_err(Error::NonUtf8ContentEncodingHeader))
             .transpose()?;
-        let content_length = req.headers().get(&CONTENT_LENGTH).cloned();
+        let content_length = req
+            .headers()
+            .get(&CONTENT_LENGTH)
+            .and_then(|len| len.to_str().ok())
+            .and_then(|len_str| len_str.parse::<usize>().ok());
         let ungzip = match encoding {
             None | Some("identity") => false,
             Some("gzip") => true,
             Some(v) => return Err(Error::InvalidContentEncoding(v.to_string())),
         };
+
+        // Reject a body that declares itself larger than the configured limit
+        // before reading any body bytes. Requests without a usable
+        // Content-Length (e.g. chunked transfer encoding) are still capped by
+        // the incremental check below.
+        if content_length.is_some_and(|len| len > self.max_request_bytes) {
+            return Err(Error::RequestSizeExceeded(self.max_request_bytes));
+        }
 
         let mut payload = req.into_body();
 
@@ -1318,19 +1331,19 @@ impl HttpApi {
         // This may allocate unnecessarily if actual content is smaller, if the first frame
         // is bigger than the max or if the client has already hung up. All the more reason to
         // allocate less than the max.
-        // todo(pjb): We could also reject the request right now if the content-length is bigger than the max, but
-        //  the tradeoffs aren't as clear to me.
         let quarter_of_max: usize = self.max_request_bytes / 4;
-        let mut body = match content_length
-            .as_ref()
-            .and_then(|len| len.to_str().ok())
-            .and_then(|len_str| len_str.parse().ok())
-        {
+        let mut body = match content_length {
             Some(len) if len < quarter_of_max => BytesMut::with_capacity(len),
             _ => BytesMut::new(),
         };
         while let Some(frame) = payload.frame().await {
-            let frame = frame.map_err(Error::ClientHangup)?;
+            let frame = frame.map_err(|e| {
+                if e.is::<LengthLimitError>() {
+                    Error::RequestSizeExceeded(self.max_request_bytes)
+                } else {
+                    Error::ClientHangup(e)
+                }
+            })?;
             if let Some(chunk) = frame.data_ref() {
                 // limit max size of in-memory payload
                 if (body.len() + chunk.len()) > self.max_request_bytes {
@@ -2988,22 +3001,11 @@ pub(crate) async fn route_admin_token_recovery_request(
     trace!(request = ?req,"Processing request");
     let content_length = req.headers().get("content-length").cloned();
 
-    // Convert incoming request to iox_http_util request
+    // Convert incoming request to iox_http_util request, leaving the body
+    // streaming so it is not buffered before the size limit is enforced.
+    let max_request_bytes = recovery_api.http_api.max_request_bytes();
     let (parts, body) = req.into_parts();
-    let collected = match http_body_util::BodyExt::collect(body).await {
-        Ok(collected) => collected,
-        Err(e) => {
-            error!("Failed to collect request body: {}", e);
-            return Ok(ResponseBuilder::new()
-                .status(StatusCode::BAD_REQUEST)
-                .body(bytes_to_response_body(Bytes::from(
-                    "Failed to read request body",
-                )))
-                .unwrap());
-        }
-    };
-    let bytes = collected.to_bytes();
-    let iox_body = iox_http_util::bytes_to_request_body(bytes);
+    let iox_body = Limited::new(body, max_request_bytes).boxed();
     let req = iox_http_util::Request::from_parts(parts, iox_body);
 
     let response = match (method.clone(), uri.path()) {
