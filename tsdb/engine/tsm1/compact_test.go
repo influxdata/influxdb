@@ -327,8 +327,9 @@ func TestCompactor_CompactFull_IndexMinTimeMismatch(t *testing.T) {
 }
 
 // Ensures the dedup loop returns an error instead of spinning when a pass makes
-// no progress. A block with no encoded timestamps keeps its index bounds, so it
-// overlaps every merge window but never yields a value to mark it read.
+// no progress, and that the error quarantines the corrupt file so the next
+// compaction does not stall on it again. A block with no encoded timestamps keeps
+// its index bounds, so it overlaps every merge window but never yields a value.
 func TestCompactor_CompactFull_StallReturnsError(t *testing.T) {
 	const key = "cpu,host=A#!~#value"
 	dir := t.TempDir()
@@ -363,6 +364,13 @@ func TestCompactor_CompactFull_StallReturnsError(t *testing.T) {
 	}
 	defer ffs.Close()
 	require.ErrorContains(t, err, "compaction stalled merging float blocks for key 'cpu,host=A#!~#value'")
+
+	var moved []string
+	tsm1.MoveTsmOnReadErr(err, zap.NewNop(), func(oldFiles []string, _ []string) error {
+		moved = oldFiles
+		return nil
+	})
+	require.Equal(t, []string{f1}, moved)
 }
 
 // Ensures a newer file's value wins a duplicate timestamp when an older block's

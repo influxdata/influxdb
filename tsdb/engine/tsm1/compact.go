@@ -1722,7 +1722,11 @@ func (k *tsmBatchKeyIterator) merge() {
 	case BlockString:
 		k.mergeString()
 	default:
-		k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("unknown block type: %v", k.typ)})
+		file := k.currentTsm
+		if len(k.blocks) > 0 {
+			file = k.blocks[0].tsmFile
+		}
+		k.AppendError(errBlockRead{file, fmt.Errorf("unknown block type: %v", k.typ)})
 	}
 }
 

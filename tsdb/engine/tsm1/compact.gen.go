@@ -142,7 +142,8 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 			}
 
 			if !progress {
-				k.AppendError(fmt.Errorf("compaction stalled merging float blocks for key '%s': block time range does not match block data", k.key))
+				// first anchors the merge window and yielded no values, so its file is corrupt.
+				k.AppendError(errBlockRead{first.tsmFile, fmt.Errorf("compaction stalled merging float blocks for key '%s': block time range does not match block data", k.key)})
 				// Drop this key's state so iteration can finish and surface the error.
 				k.blocks = k.blocks[:0]
 				k.mergedFloatValues = &tsdb.FloatArray{}
@@ -166,7 +167,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 		// if this block is already full, just add it as is
 		count, err := BlockCount(k.blocks[i].b)
 		if err != nil {
-			k.AppendError(err)
+			k.AppendError(errBlockRead{k.blocks[i].tsmFile, err})
 			continue
 		}
 
@@ -368,7 +369,8 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 			}
 
 			if !progress {
-				k.AppendError(fmt.Errorf("compaction stalled merging integer blocks for key '%s': block time range does not match block data", k.key))
+				// first anchors the merge window and yielded no values, so its file is corrupt.
+				k.AppendError(errBlockRead{first.tsmFile, fmt.Errorf("compaction stalled merging integer blocks for key '%s': block time range does not match block data", k.key)})
 				// Drop this key's state so iteration can finish and surface the error.
 				k.blocks = k.blocks[:0]
 				k.mergedIntegerValues = &tsdb.IntegerArray{}
@@ -392,7 +394,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 		// if this block is already full, just add it as is
 		count, err := BlockCount(k.blocks[i].b)
 		if err != nil {
-			k.AppendError(err)
+			k.AppendError(errBlockRead{k.blocks[i].tsmFile, err})
 			continue
 		}
 
@@ -594,7 +596,8 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 			}
 
 			if !progress {
-				k.AppendError(fmt.Errorf("compaction stalled merging unsigned blocks for key '%s': block time range does not match block data", k.key))
+				// first anchors the merge window and yielded no values, so its file is corrupt.
+				k.AppendError(errBlockRead{first.tsmFile, fmt.Errorf("compaction stalled merging unsigned blocks for key '%s': block time range does not match block data", k.key)})
 				// Drop this key's state so iteration can finish and surface the error.
 				k.blocks = k.blocks[:0]
 				k.mergedUnsignedValues = &tsdb.UnsignedArray{}
@@ -618,7 +621,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 		// if this block is already full, just add it as is
 		count, err := BlockCount(k.blocks[i].b)
 		if err != nil {
-			k.AppendError(err)
+			k.AppendError(errBlockRead{k.blocks[i].tsmFile, err})
 			continue
 		}
 
@@ -820,7 +823,8 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 			}
 
 			if !progress {
-				k.AppendError(fmt.Errorf("compaction stalled merging string blocks for key '%s': block time range does not match block data", k.key))
+				// first anchors the merge window and yielded no values, so its file is corrupt.
+				k.AppendError(errBlockRead{first.tsmFile, fmt.Errorf("compaction stalled merging string blocks for key '%s': block time range does not match block data", k.key)})
 				// Drop this key's state so iteration can finish and surface the error.
 				k.blocks = k.blocks[:0]
 				k.mergedStringValues = &tsdb.StringArray{}
@@ -844,7 +848,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 		// if this block is already full, just add it as is
 		count, err := BlockCount(k.blocks[i].b)
 		if err != nil {
-			k.AppendError(err)
+			k.AppendError(errBlockRead{k.blocks[i].tsmFile, err})
 			continue
 		}
 
@@ -1046,7 +1050,8 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 			}
 
 			if !progress {
-				k.AppendError(fmt.Errorf("compaction stalled merging boolean blocks for key '%s': block time range does not match block data", k.key))
+				// first anchors the merge window and yielded no values, so its file is corrupt.
+				k.AppendError(errBlockRead{first.tsmFile, fmt.Errorf("compaction stalled merging boolean blocks for key '%s': block time range does not match block data", k.key)})
 				// Drop this key's state so iteration can finish and surface the error.
 				k.blocks = k.blocks[:0]
 				k.mergedBooleanValues = &tsdb.BooleanArray{}
@@ -1070,7 +1075,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 		// if this block is already full, just add it as is
 		count, err := BlockCount(k.blocks[i].b)
 		if err != nil {
-			k.AppendError(err)
+			k.AppendError(errBlockRead{k.blocks[i].tsmFile, err})
 			continue
 		}
 
