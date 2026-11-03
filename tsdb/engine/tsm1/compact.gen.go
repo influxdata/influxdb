@@ -19,7 +19,11 @@ import (
 // these bounds. Correcting them before sorting keeps the stable sort's reader
 // order, so the newer reader still wins duplicate timestamps. Only the bounds
 // are decoded, so blocks that are copied through unchanged are not expanded.
-func (k *tsmBatchKeyIterator) normalizeBlockBounds() {
+//
+// It returns false if a block has no timestamps. Such a block keeps its index
+// bounds and would overlap merge windows without ever being read, so the key
+// cannot be merged and the error is attributed to the block's own file.
+func (k *tsmBatchKeyIterator) normalizeBlockBounds() bool {
 	for _, b := range k.blocks {
 		if b.boundsChecked {
 			continue
@@ -41,10 +45,12 @@ func (k *tsmBatchKeyIterator) normalizeBlockBounds() {
 			continue
 		}
 		if n == 0 {
-			continue
+			k.AppendError(errBlockRead{b.tsmFile, fmt.Errorf("decode error: no timestamps in block for key '%s'", k.key)})
+			return false
 		}
 		b.minTime, b.maxTime = minTime, maxTime
 	}
+	return true
 }
 
 // merge combines the next set of blocks into merged blocks.
@@ -54,7 +60,12 @@ func (k *tsmBatchKeyIterator) mergeFloat() {
 		return
 	}
 
-	k.normalizeBlockBounds()
+	if !k.normalizeBlockBounds() {
+		// Drop this key's state so iteration can finish and surface the error.
+		k.blocks = k.blocks[:0]
+		k.mergedFloatValues = &tsdb.FloatArray{}
+		return
+	}
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedFloatValues.Len() != 0
@@ -281,7 +292,12 @@ func (k *tsmBatchKeyIterator) mergeInteger() {
 		return
 	}
 
-	k.normalizeBlockBounds()
+	if !k.normalizeBlockBounds() {
+		// Drop this key's state so iteration can finish and surface the error.
+		k.blocks = k.blocks[:0]
+		k.mergedIntegerValues = &tsdb.IntegerArray{}
+		return
+	}
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedIntegerValues.Len() != 0
@@ -508,7 +524,12 @@ func (k *tsmBatchKeyIterator) mergeUnsigned() {
 		return
 	}
 
-	k.normalizeBlockBounds()
+	if !k.normalizeBlockBounds() {
+		// Drop this key's state so iteration can finish and surface the error.
+		k.blocks = k.blocks[:0]
+		k.mergedUnsignedValues = &tsdb.UnsignedArray{}
+		return
+	}
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedUnsignedValues.Len() != 0
@@ -735,7 +756,12 @@ func (k *tsmBatchKeyIterator) mergeString() {
 		return
 	}
 
-	k.normalizeBlockBounds()
+	if !k.normalizeBlockBounds() {
+		// Drop this key's state so iteration can finish and surface the error.
+		k.blocks = k.blocks[:0]
+		k.mergedStringValues = &tsdb.StringArray{}
+		return
+	}
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedStringValues.Len() != 0
@@ -962,7 +988,12 @@ func (k *tsmBatchKeyIterator) mergeBoolean() {
 		return
 	}
 
-	k.normalizeBlockBounds()
+	if !k.normalizeBlockBounds() {
+		// Drop this key's state so iteration can finish and surface the error.
+		k.blocks = k.blocks[:0]
+		k.mergedBooleanValues = &tsdb.BooleanArray{}
+		return
+	}
 	sort.Stable(k.blocks)
 
 	dedup := k.mergedBooleanValues.Len() != 0

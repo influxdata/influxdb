@@ -13,7 +13,11 @@ import (
 // these bounds. Correcting them before sorting keeps the stable sort's reader
 // order, so the newer reader still wins duplicate timestamps. Only the bounds
 // are decoded, so blocks that are copied through unchanged are not expanded.
-func (k *tsmBatchKeyIterator) normalizeBlockBounds() {
+//
+// It returns false if a block has no timestamps. Such a block keeps its index
+// bounds and would overlap merge windows without ever being read, so the key
+// cannot be merged and the error is attributed to the block's own file.
+func (k *tsmBatchKeyIterator) normalizeBlockBounds() bool {
 	for _, b := range k.blocks {
 		if b.boundsChecked {
 			continue
@@ -35,10 +39,12 @@ func (k *tsmBatchKeyIterator) normalizeBlockBounds() {
 			continue
 		}
 		if n == 0 {
-			continue
+			k.AppendError(errBlockRead{b.tsmFile, fmt.Errorf("decode error: no timestamps in block for key '%s'", k.key)})
+			return false
 		}
 		b.minTime, b.maxTime = minTime, maxTime
 	}
+	return true
 }
 
 {{range .}}
@@ -49,7 +55,12 @@ func (k *tsmBatchKeyIterator) merge{{.Name}}() {
 		return
 	}
 
-	k.normalizeBlockBounds()
+	if !k.normalizeBlockBounds() {
+		// Drop this key's state so iteration can finish and surface the error.
+		k.blocks = k.blocks[:0]
+		k.merged{{.Name}}Values = &tsdb.{{.Name}}Array{}
+		return
+	}
 	sort.Stable(k.blocks)
 
 	dedup := k.merged{{.Name}}Values.Len() != 0

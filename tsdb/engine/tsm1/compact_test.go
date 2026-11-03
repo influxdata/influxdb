@@ -326,51 +326,64 @@ func TestCompactor_CompactFull_IndexMinTimeMismatch(t *testing.T) {
 	}
 }
 
-// Ensures the dedup loop returns an error instead of spinning when a pass makes
-// no progress, and that the error quarantines the corrupt file so the next
-// compaction does not stall on it again. A block with no encoded timestamps keeps
-// its index bounds, so it overlaps every merge window but never yields a value.
-func TestCompactor_CompactFull_StallReturnsError(t *testing.T) {
+// Ensures a block with no timestamps fails compaction without hanging and
+// quarantines the file holding it. Such a block keeps its index bounds, so it
+// overlaps merge windows but never yields a value to mark it read. When it
+// follows a healthy, partially read block, the dedup loop used to stall on the
+// healthy block and quarantine the healthy file instead.
+func TestCompactor_CompactFull_EmptyBlock(t *testing.T) {
 	const key = "cpu,host=A#!~#value"
-	dir := t.TempDir()
 
-	// Float block with empty timestamp and value sections; the index claims [5,30].
-	w, f1 := MustTSMWriter(dir, 1)
-	require.NoError(t, w.WriteBlock([]byte(key), 5, 30, []byte{tsm1.BlockFloat64, 0}))
-	require.NoError(t, w.WriteIndex())
-	require.NoError(t, w.Close())
+	for _, tc := range []struct {
+		name           string
+		idxMin, idxMax int64
+		healthy        []tsm1.Value
+	}{
+		{name: "empty block first", idxMin: 5, idxMax: 30, healthy: []tsm1.Value{tsm1.NewValue(15, 1.5)}},
+		{name: "empty block after partially read block", idxMin: 20, idxMax: 30, healthy: []tsm1.Value{tsm1.NewValue(10, 1.0), tsm1.NewValue(100, 10.0)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
 
-	// An overlapping point in a newer file forces the dedup path.
-	f2 := MustWriteTSM(dir, 2, map[string][]tsm1.Value{key: {tsm1.NewValue(15, 1.5)}})
+			// Float block with empty timestamp and value sections.
+			w, empty := MustTSMWriter(dir, 1)
+			require.NoError(t, w.WriteBlock([]byte(key), tc.idxMin, tc.idxMax, []byte{tsm1.BlockFloat64, 0}))
+			require.NoError(t, w.WriteIndex())
+			require.NoError(t, w.Close())
 
-	ffs := &fakeFileStore{}
-	compactor := tsm1.NewCompactor()
-	compactor.Dir = dir
-	compactor.FileStore = ffs
-	compactor.Open()
+			// The healthy file overlaps the empty block's index range, forcing dedup.
+			healthy := MustWriteTSM(dir, 2, map[string][]tsm1.Value{key: tc.healthy})
 
-	done := make(chan error, 1)
-	go func() {
-		_, err := compactor.CompactFull([]string{f1, f2}, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
-		done <- err
-	}()
+			ffs := &fakeFileStore{}
+			compactor := tsm1.NewCompactor()
+			compactor.Dir = dir
+			compactor.FileStore = ffs
+			compactor.Open()
 
-	var err error
-	select {
-	case err = <-done:
-	case <-time.After(10 * time.Second):
-		// Readers are still referenced by the stuck compaction; closing them would block.
-		t.Fatal("CompactFull did not return")
+			done := make(chan error, 1)
+			go func() {
+				_, err := compactor.CompactFull([]string{empty, healthy}, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+				done <- err
+			}()
+
+			var err error
+			select {
+			case err = <-done:
+			case <-time.After(10 * time.Second):
+				// Readers are still referenced by the stuck compaction; closing them would block.
+				t.Fatal("CompactFull did not return")
+			}
+			defer ffs.Close()
+			require.ErrorContains(t, err, "no timestamps in block for key 'cpu,host=A#!~#value'")
+
+			var moved []string
+			tsm1.MoveTsmOnReadErr(err, zap.NewNop(), func(oldFiles []string, _ []string) error {
+				moved = oldFiles
+				return nil
+			})
+			require.Equal(t, []string{empty}, moved)
+		})
 	}
-	defer ffs.Close()
-	require.ErrorContains(t, err, "compaction stalled merging float blocks for key 'cpu,host=A#!~#value'")
-
-	var moved []string
-	tsm1.MoveTsmOnReadErr(err, zap.NewNop(), func(oldFiles []string, _ []string) error {
-		moved = oldFiles
-		return nil
-	})
-	require.Equal(t, []string{f1}, moved)
 }
 
 // Ensures a newer file's value wins a duplicate timestamp when an older block's
