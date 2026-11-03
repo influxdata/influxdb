@@ -2159,6 +2159,358 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 	}
 }
 
+func TestMeasurementFieldSet_SaveAfterClose(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	mf, err := tsdb.NewMeasurementFieldSet(filepath.Join(dir, "fields.idx"), nil)
+	require.NoError(t, err)
+	checkMeasurementFieldSetClose(t, mf)
+
+	err = mf.Save(tsdb.MeasurementsToFieldChangeDeletions([]string{"cpu"}))
+	require.ErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed)
+}
+
+func TestMeasurementFieldSet_CloseIdempotent(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	mf, err := tsdb.NewMeasurementFieldSet(filepath.Join(dir, "fields.idx"), nil)
+	require.NoError(t, err)
+	checkMeasurementFieldSetClose(t, mf)
+	checkMeasurementFieldSetClose(t, mf)
+}
+
+// TestMeasurementFieldSet_CloseConcurrent closes a set with saved changes from
+// many goroutines at once. Every Close must succeed, and the changes must be
+// in fields.idx after.
+func TestMeasurementFieldSet_CloseConcurrent(t *testing.T) {
+	const closers = 64
+
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	_, _, err = mf.CreateFieldsIfNotExists([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
+	require.NoError(t, err)
+	require.NoError(t, mf.Save(tsdb.FieldChanges{{
+		FieldCreate: tsdb.FieldCreate{Measurement: []byte("cpu"), Field: &tsdb.Field{Name: "value", Type: influxql.Float}},
+		ChangeType:  tsdb.AddMeasurementField,
+	}}))
+
+	var mu sync.RWMutex
+	var concurrency, maxConcurrency atomic.Int64
+	// arrived holds every closer until all have started, so their Closes
+	// overlap however the goroutines are scheduled.
+	var arrived sync.WaitGroup
+	arrived.Add(closers)
+	errs := make([]error, closers)
+	var wg sync.WaitGroup
+	mu.Lock()
+	for i := range closers {
+		wg.Add(1)
+		go func(idx int) {
+			mu.RLock()
+			defer mu.RUnlock()
+			defer wg.Done()
+			c := concurrency.Add(1)
+			for {
+				old := maxConcurrency.Load()
+				if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+					break
+				}
+			}
+			arrived.Done()
+			arrived.Wait()
+			errs[idx] = mf.Close()
+			concurrency.Add(-1)
+		}(i)
+	}
+	mu.Unlock()
+	wg.Wait()
+	t.Logf("max concurrency: %d", maxConcurrency.Load())
+	require.Equal(t, int64(closers), maxConcurrency.Load(), "closers did not all overlap")
+	require.NoError(t, errors.Join(errs...), "concurrent Close")
+
+	_, err = os.Stat(mf.ChangesPath())
+	require.ErrorIs(t, err, os.ErrNotExist, "changes file left after Close")
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	defer checkMeasurementFieldSetClose(t, mf2)
+	fields := mf2.FieldsByString("cpu")
+	require.NotNil(t, fields, "cpu missing from fields.idx")
+	require.NotNil(t, fields.Field("value"), "cpu.value missing from fields.idx")
+}
+
+// TestMeasurementFieldSet_CloseAfterChangesFileFailure saves a change while
+// the changes file cannot be written. The save must fail, and Close must
+// still write the change, already in memory, to fields.idx.
+func TestMeasurementFieldSet_CloseAfterChangesFileFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks may need privileges on Windows")
+	}
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	// A symlink into a missing directory makes creating the changes file
+	// fail, and Stat report it missing, as when it could not be created.
+	require.NoError(t, os.Symlink(filepath.Join(dir, "missing", tsdb.FieldsChangeFile), mf.ChangesPath()))
+
+	err = mf.SaveAfter(func() (tsdb.FieldChanges, error) {
+		_, _, err := mf.CreateFieldsIfNotExists([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
+		return tsdb.FieldChanges{{
+			FieldCreate: tsdb.FieldCreate{Measurement: []byte("cpu"), Field: &tsdb.Field{Name: "value", Type: influxql.Float}},
+			ChangeType:  tsdb.AddMeasurementField,
+		}}, err
+	})
+	require.Error(t, err, "saving with the changes file unwritable")
+	require.NotErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed)
+
+	checkMeasurementFieldSetClose(t, mf)
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	defer checkMeasurementFieldSetClose(t, mf2)
+	fields := mf2.FieldsByString("cpu")
+	require.NotNil(t, fields, "cpu missing from fields.idx")
+	require.NotNil(t, fields.Field("value"), "cpu.value missing from fields.idx")
+}
+
+// TestMeasurementFieldSet_SaveDuringClose orders saves around Close. Saves
+// queued before Close, and still unwritten while it runs, must be written and
+// persisted. Saves begun while Close runs must be rejected without changing
+// the set.
+func TestMeasurementFieldSet_SaveDuringClose(t *testing.T) {
+	// queued fits in the request queue NewMeasurementFieldSet makes, so
+	// queuing never blocks while SaveWriter is held off the changes file.
+	const queued = 100
+	const late = 100
+
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	// On any failure, release SaveWriter and finish closing mf, so neither
+	// outlives the test and its directory.
+	var unlock func()
+	var closeErr chan error
+	closeReturned := false
+	defer func() {
+		if unlock != nil {
+			unlock()
+		}
+		if closeErr == nil {
+			assert2.NoError(t, mf.Close())
+		} else if !closeReturned {
+			select {
+			case err := <-closeErr:
+				assert2.NoError(t, err)
+			case <-time.After(time.Minute):
+				assert2.Fail(t, "Close did not return; deadlock")
+			}
+		}
+	}()
+
+	names := make([]string, queued+late)
+	for i := range names {
+		names[i] = fmt.Sprintf("m%d", i)
+		_, _, err := mf.CreateFieldsIfNotExists([]byte(names[i])).CreateFieldIfNotExists("f", influxql.Float)
+		require.NoError(t, err, "creating field for %s", names[i])
+	}
+	require.NoError(t, mf.WriteToFile())
+
+	// Hold SaveWriter off the changes file, so every queued save is still
+	// unwritten while Close runs.
+	unlock = mf.LockChangesFile()
+	dones := make([]<-chan error, queued)
+	for i := range queued {
+		mf.Delete(names[i])
+		dones[i], err = mf.SaveAsync(tsdb.MeasurementsToFieldChangeDeletions(names[i : i+1]))
+		require.NoError(t, err, "queuing deletion of %s", names[i])
+	}
+
+	closeErr = make(chan error, 1)
+	go func() { closeErr <- mf.Close() }()
+	require.Eventually(t, mf.ClosedForSaves, time.Minute, time.Millisecond, "Close did not stop accepting saves")
+
+	// Close now overlaps every queued save, none of which has been written.
+	for i, done := range dones {
+		select {
+		case err := <-done:
+			require.FailNow(t, "queued save returned before the changes file was unlocked", "deletion of %s: %v", names[i], err)
+		default:
+		}
+	}
+	select {
+	case err := <-closeErr:
+		closeReturned = true
+		require.FailNow(t, "Close returned with saves unwritten", "%v", err)
+	default:
+	}
+
+	// Saves begun during Close are rejected, and never change the set.
+	for _, name := range names[queued:] {
+		ran := false
+		err := mf.SaveAfter(func() (tsdb.FieldChanges, error) {
+			ran = true
+			mf.Delete(name)
+			return tsdb.MeasurementsToFieldChangeDeletions([]string{name}), nil
+		})
+		require.ErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed, "deletion of %s during Close", name)
+		require.False(t, ran, "deletion of %s ran during Close", name)
+	}
+
+	unlock()
+	unlock = nil
+	for i, done := range dones {
+		select {
+		case err := <-done:
+			require.NoError(t, err, "queued deletion of %s", names[i])
+		case <-time.After(time.Minute):
+			require.FailNow(t, "queued save did not return; deadlock", "deletion of %s", names[i])
+		}
+	}
+	select {
+	case err := <-closeErr:
+		closeReturned = true
+		require.NoError(t, err)
+	case <-time.After(time.Minute):
+		require.FailNow(t, "Close did not return; deadlock")
+	}
+
+	_, err = os.Stat(mf.ChangesPath())
+	require.True(t, os.IsNotExist(err), "change file %s should not exist after Close: %v", mf.ChangesPath(), err)
+
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	defer checkMeasurementFieldSetClose(t, mf2)
+	for _, name := range names[:queued] {
+		require.Nil(t, mf2.FieldsByString(name), "%s was deleted by a save queued before Close", name)
+	}
+	for _, name := range names[queued:] {
+		require.NotNil(t, mf2.FieldsByString(name), "deletion of %s was rejected during Close", name)
+	}
+}
+
+// TestMeasurementFieldSet_SaveAndCloseStress races many SaveAfter and Save
+// callers, far more than the request queue holds, against Close, to contend
+// its locks under -race. Each SaveAfter deletes its own measurement in
+// memory, so the reopened set must match its result: deleted if it
+// succeeded, kept if it was rejected.
+func TestMeasurementFieldSet_SaveAndCloseStress(t *testing.T) {
+	const savers = 1000 // even ones call SaveAfter, odd ones Save
+
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	closed := false
+	defer func() {
+		if !closed {
+			assert2.NoError(t, mf.Close())
+		}
+	}()
+
+	names := make([]string, savers)
+	for i := range names {
+		names[i] = fmt.Sprintf("m%d", i)
+		_, _, err := mf.CreateFieldsIfNotExists([]byte(names[i])).CreateFieldIfNotExists("f", influxql.Float)
+		require.NoError(t, err, "creating field for %s", names[i])
+	}
+	require.NoError(t, mf.WriteToFile())
+
+	saveErrs := make([]error, savers)
+	ran := make([]bool, savers)
+	var closeErr error
+
+	var mu sync.RWMutex
+	var concurrency, maxConcurrency atomic.Int64
+	var wg sync.WaitGroup
+	run := func(work func()) {
+		mu.RLock()
+		defer mu.RUnlock()
+		defer wg.Done()
+		c := concurrency.Add(1)
+		for {
+			old := maxConcurrency.Load()
+			if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+				break
+			}
+		}
+		work()
+		concurrency.Add(-1)
+	}
+	mu.Lock()
+	wg.Add(savers + 1)
+	for i := range savers {
+		if i%2 == 0 {
+			go run(func() {
+				saveErrs[i] = mf.SaveAfter(func() (tsdb.FieldChanges, error) {
+					ran[i] = true
+					mf.Delete(names[i])
+					return tsdb.MeasurementsToFieldChangeDeletions(names[i : i+1]), nil
+				})
+			})
+		} else {
+			go run(func() { saveErrs[i] = mf.Save(tsdb.MeasurementsToFieldChangeDeletions(names[i : i+1])) })
+		}
+	}
+	go run(func() { closeErr = mf.Close() })
+	mu.Unlock() // Release to start all goroutines simultaneously
+
+	finished := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(time.Minute):
+		// Skip the deferred Close, which would block behind the stuck
+		// goroutines and hang the test instead of reporting the deadlock.
+		closed = true
+		require.FailNow(t, "Save, SaveAfter, or Close did not return; deadlock")
+	}
+	closed = true
+	require.NoError(t, closeErr)
+
+	var saved, rejected int
+	for i, err := range saveErrs {
+		if err == nil {
+			saved++
+		} else {
+			require.ErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed, "save of %s", names[i])
+			rejected++
+		}
+		if i%2 == 0 {
+			require.Equal(t, err == nil, ran[i], "SaveAfter of %s ran its change: %v, returned: %v", names[i], ran[i], err)
+		}
+	}
+	t.Logf("max concurrency: %d, saved: %d, rejected: %d", maxConcurrency.Load(), saved, rejected)
+
+	_, err = os.Stat(mf.ChangesPath())
+	require.True(t, os.IsNotExist(err), "change file %s should not exist after Close: %v", mf.ChangesPath(), err)
+
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	defer checkMeasurementFieldSetClose(t, mf2)
+	for i := 0; i < savers; i += 2 {
+		if saveErrs[i] == nil {
+			require.Nil(t, mf2.FieldsByString(names[i]), "%s was deleted by a successful SaveAfter", names[i])
+		} else {
+			require.NotNil(t, mf2.FieldsByString(names[i]), "deletion of %s was rejected", names[i])
+		}
+	}
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }

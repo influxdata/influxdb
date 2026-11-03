@@ -1843,26 +1843,44 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			// Add the id to the set of delete ids.
 			ids.Add(sid)
 		}
-		// Remove the series from the local index.
-		if err := e.index.DropSeriesList(deleteIDList, deleteKeyList, false); err != nil {
-			return err
-		}
-
-		actuallyDeleted := make([]string, 0, len(measurements))
-		for k := range measurements {
-			if dropped, err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
-				return err
-			} else if dropped {
-				if deleted, err := e.cleanupMeasurement([]byte(k)); err != nil {
-					return err
-				} else if deleted {
-					actuallyDeleted = append(actuallyDeleted, k)
+		// Remove the series from the local index, then drop the measurements
+		// left without series from the index and the field set, and save
+		// their deletion, all with the field set's Close held off. If it is
+		// already closed, nothing changes: the series stay in the index and
+		// the series file, so a retried delete still finds them and their
+		// measurements. Once the series are gone from the index, a failure
+		// to drop one measurement does not stop the others from being
+		// tried, and the series are still removed from the series file
+		// below rather than orphaned there, with measurementErr returned
+		// after.
+		var measurementErr error
+		if len(deleteIDList) > 0 {
+			seriesDropped := false
+			if err := e.fieldset.SaveAfter(func() (tsdb.FieldChanges, error) {
+				if err := e.index.DropSeriesList(deleteIDList, deleteKeyList, false); err != nil {
+					return nil, fmt.Errorf("dropping %d series from the index: %w", len(deleteIDList), err)
 				}
-			}
-		}
-		if len(actuallyDeleted) > 0 {
-			if err := e.fieldset.Save(tsdb.MeasurementsToFieldChangeDeletions(actuallyDeleted)); err != nil {
-				return err
+				seriesDropped = true
+				var errs []error
+				actuallyDeleted := make([]string, 0, len(measurements))
+				for k := range measurements {
+					if dropped, err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
+						errs = append(errs, fmt.Errorf("dropping measurement %q from the index: %w", k, err))
+					} else if dropped {
+						if deleted, err := e.cleanupMeasurement([]byte(k)); err != nil {
+							errs = append(errs, fmt.Errorf("deleting fields of measurement %q: %w", k, err))
+						} else if deleted {
+							actuallyDeleted = append(actuallyDeleted, k)
+						}
+					}
+				}
+				return tsdb.MeasurementsToFieldChangeDeletions(actuallyDeleted), errors.Join(errs...)
+			}); err != nil {
+				err = fmt.Errorf("deleting %d series in shard %s: %w", len(deleteIDList), e.path, err)
+				if !seriesDropped {
+					return err
+				}
+				measurementErr = err
 			}
 		}
 
@@ -1871,7 +1889,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		if err := e.seriesIDSets.ForEach(func(s *tsdb.SeriesIDSet) {
 			ids = ids.AndNot(s)
 		}); err != nil {
-			return err
+			return errors.Join(measurementErr, err)
 		}
 
 		// Remove the remaining ids from the series file as they no longer exist
@@ -1897,7 +1915,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			}
 		})
 		if err != nil {
-			return err
+			return errors.Join(measurementErr, err)
 		}
 
 		if err := e.sfile.FlushSegments(partitionIDs); err != nil {
@@ -1905,6 +1923,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				"error while flushing a series file segment",
 				zap.String("series_file_path", e.sfile.Path()),
 				zap.Error(err))
+		}
+		if measurementErr != nil {
+			return measurementErr
 		}
 	}
 

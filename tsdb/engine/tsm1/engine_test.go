@@ -1373,6 +1373,73 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 	}
 }
 
+// TestEngine_DeleteSeriesRange_FieldSetClosed deletes a series after the field
+// set has closed, as when a delete loses its race with Engine.Close. The delete
+// must report the closed field set and leave the index, the series file, and
+// the field set unchanged, so no measurement is left in the index without
+// series, and a retried delete still finds the series.
+func TestEngine_DeleteSeriesRange_FieldSetClosed(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		for _, tc := range []struct {
+			name string
+			key  string
+		}{
+			{name: "measurement kept", key: "cpu,host=A"},
+			{name: "measurement emptied", key: "mem,host=A"},
+		} {
+			t.Run(index+"/"+tc.name, func(t *testing.T) {
+				e, err := NewEngine(index)
+				require.NoError(t, err)
+				// mock the planner so compactions don't run during the test
+				e.CompactionPlan = &mockPlanner{}
+				require.NoError(t, e.Open())
+				defer func() { tassert.NoError(t, e.Close()) }()
+
+				require.NoError(t, e.WritePointsString(
+					"cpu,host=A value=1.1 1000000000",
+					"cpu,host=B value=1.2 1000000000",
+					"mem,host=A value=1.3 1000000000",
+				))
+				require.NoError(t, e.WriteSnapshot())
+				// The engine leaves creating fields to the shard.
+				for _, m := range []string{"cpu", "mem"} {
+					_, _, err := e.MeasurementFieldSet().CreateFieldsIfNotExists([]byte(m)).CreateFieldIfNotExists("value", influxql.Float)
+					require.NoError(t, err, "creating field for %s", m)
+				}
+
+				name, tags := models.ParseKeyBytes([]byte(tc.key))
+				sid := e.sfile.SeriesID(name, tags, nil)
+				require.NotZero(t, sid, "series %s not in the series file", tc.key)
+				require.NotNil(t, e.MeasurementFieldSet().FieldsByString(string(name)), "no fields for %s", name)
+
+				// Close wins the race with the delete.
+				require.NoError(t, e.MeasurementFieldSet().Close())
+
+				err = e.DeleteSeriesRange(&seriesIterator{keys: [][]byte{[]byte(tc.key)}}, math.MinInt64, math.MaxInt64)
+				require.ErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed, "deleting %s", tc.key)
+
+				require.False(t, e.sfile.IsDeleted(sid), "series %s deleted from the series file after the field set closed", tc.key)
+				indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+				itr, err := indexSet.MeasurementSeriesIDIterator(name)
+				require.NoError(t, err)
+				require.NotNil(t, itr, "measurement %s dropped from the index after the field set closed", name)
+				defer func() { tassert.NoError(t, itr.Close()) }()
+				found := false
+				for {
+					elem, err := itr.Next()
+					require.NoError(t, err)
+					if elem.SeriesID == 0 {
+						break
+					}
+					found = found || elem.SeriesID == sid
+				}
+				require.True(t, found, "series %s dropped from the index after the field set closed", tc.key)
+				require.NotNil(t, e.MeasurementFieldSet().FieldsByString(string(name)), "fields of %s changed after the field set closed", name)
+			})
+		}
+	}
+}
+
 // TestEngine_DeleteSeriesRange_MultiTSMLocking checks for locking issues when deleting series
 // ranges from a large number of TSM files. This test is derived from TestEngine_DeleteSeriesRange.
 func TestEngine_DeleteSeriesRange_MultiTSMLocking(t *testing.T) {
