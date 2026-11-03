@@ -326,6 +326,45 @@ func TestCompactor_CompactFull_IndexMinTimeMismatch(t *testing.T) {
 	}
 }
 
+// Ensures the dedup loop returns an error instead of spinning when a pass makes
+// no progress. A block with no encoded timestamps keeps its index bounds, so it
+// overlaps every merge window but never yields a value to mark it read.
+func TestCompactor_CompactFull_StallReturnsError(t *testing.T) {
+	const key = "cpu,host=A#!~#value"
+	dir := t.TempDir()
+
+	// Float block with empty timestamp and value sections; the index claims [5,30].
+	w, f1 := MustTSMWriter(dir, 1)
+	require.NoError(t, w.WriteBlock([]byte(key), 5, 30, []byte{tsm1.BlockFloat64, 0}))
+	require.NoError(t, w.WriteIndex())
+	require.NoError(t, w.Close())
+
+	// An overlapping point in a newer file forces the dedup path.
+	f2 := MustWriteTSM(dir, 2, map[string][]tsm1.Value{key: {tsm1.NewValue(15, 1.5)}})
+
+	ffs := &fakeFileStore{}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = ffs
+	compactor.Open()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := compactor.CompactFull([]string{f1, f2}, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+		done <- err
+	}()
+
+	var err error
+	select {
+	case err = <-done:
+	case <-time.After(10 * time.Second):
+		// Readers are still referenced by the stuck compaction; closing them would block.
+		t.Fatal("CompactFull did not return")
+	}
+	defer ffs.Close()
+	require.ErrorContains(t, err, "compaction stalled merging float blocks for key 'cpu,host=A#!~#value'")
+}
+
 // Ensures a newer file's value wins a duplicate timestamp when an older block's
 // index entry claims a later MinTime than its data. With index bounds, the older
 // block [12,20] sorts after the newer block at 10, so widening the merge window
