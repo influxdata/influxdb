@@ -12,7 +12,7 @@ use http::{
     header::{ACCEPT, CONTENT_TYPE},
     status::StatusCode,
 };
-use http_body_util::BodyExt;
+use http_body_util::{BodyExt, LengthLimitError};
 use iox_http_util::{
     Request, Response, ResponseBuilder, empty_response_body, stream_bytes_to_response_body,
 };
@@ -691,6 +691,10 @@ impl SupportedContentType {
     }
 }
 
+fn request_body_too_large() -> HttpError {
+    HttpError::PayloadTooLarge("request body exceeds maximum size".to_owned())
+}
+
 async fn influxql_body(req: Request) -> Result<QueryParams, HttpError> {
     let mut params = QueryParams::from_request_query_string(&req)?;
     // We support a "q" query string for POST too.
@@ -700,8 +704,12 @@ async fn influxql_body(req: Request) -> Result<QueryParams, HttpError> {
             .into_body()
             .collect()
             .await
-            .map_err(|_| {
-                HttpError::Invalid("Error retrieving bytes from response body".to_owned())
+            .map_err(|e| {
+                if e.is::<LengthLimitError>() {
+                    request_body_too_large()
+                } else {
+                    HttpError::Invalid("Error retrieving bytes from request body".to_owned())
+                }
             })?
             .to_bytes();
         params.query = Some(String::from_utf8(bytes.to_vec()).map_err(|_| {
@@ -731,9 +739,15 @@ async fn form_urlencoded_inner(req: Request) -> Result<(QueryParams, Bytes), Htt
         .into_body()
         .collect()
         .await
-        .map_err(|e| Error::FieldRead {
-            name: "body",
-            error: e.to_string(),
+        .map_err(|e| {
+            if e.is::<LengthLimitError>() {
+                request_body_too_large()
+            } else {
+                HttpError::from(Error::FieldRead {
+                    name: "body",
+                    error: e.to_string(),
+                })
+            }
         })?
         .to_bytes();
     let mut body_params = QueryParams::from_bytes_form_urlencoded(&bytes)?;

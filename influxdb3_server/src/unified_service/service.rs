@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use http::{Request, Response};
-use http_body_util::BodyExt;
+use http_body_util::{BodyExt, Limited};
 use hyper::body::Incoming;
 use iox_http_util::BoxError;
 use observability_deps::tracing::error;
@@ -96,26 +96,17 @@ where
             let paths_without_authz = self.paths_without_authz;
 
             Box::pin(async move {
-                // Convert hyper::Request<Incoming> to iox_http_util::Request
+                // Convert hyper::Request<Incoming> to iox_http_util::Request.
+                //
+                // Keep the body streaming instead of collecting it here: this
+                // runs before authentication, and buffering an arbitrary body
+                // at this point would let unauthenticated clients consume
+                // memory. Cap the stream so handlers that read the body
+                // directly (e.g. the v1 query API) are still bounded; handlers
+                // using HttpApi::read_body additionally enforce the limit
+                // after the request has been authenticated.
                 let (parts, body) = req.into_parts();
-
-                // Collect the body
-                let collected = match body.collect().await {
-                    Ok(collected) => collected,
-                    Err(e) => {
-                        // Convert body collection error to HTTP response
-                        return Ok(http::Response::builder()
-                            .status(http::StatusCode::BAD_REQUEST)
-                            .body(iox_http_util::bytes_to_response_body(format!(
-                                "Failed to read request body: {e}"
-                            )))
-                            .unwrap());
-                    }
-                };
-                let bytes = collected.to_bytes();
-
-                // Create iox_http_util request body
-                let iox_body = iox_http_util::bytes_to_request_body(bytes);
+                let iox_body = Limited::new(body, http_api.max_request_bytes()).boxed();
                 let iox_request = iox_http_util::Request::from_parts(parts, iox_body);
 
                 // NB: We haven't created another tower service to wrap the HTTP 1 handler function
