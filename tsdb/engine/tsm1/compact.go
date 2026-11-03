@@ -1372,6 +1372,10 @@ type block struct {
 	b                []byte
 	tombstones       []TimeRange
 
+	// tsmFile is the input file this block was read from, used to attribute
+	// read errors to the right file.
+	tsmFile string
+
 	// readMin, readMax are the timestamps range of values have been
 	// read and encoded from this block.
 	readMin, readMax int64
@@ -1475,9 +1479,9 @@ type tsmBatchKeyIterator struct {
 	mergedBooleanValues  *tsdb.BooleanArray
 	mergedStringValues   *tsdb.StringArray
 
-	// timestamps is scratch space for decoding block timestamps when
+	// timeScratch is scratch space for decoding simple8b timestamp words when
 	// normalizing block bounds.
-	timestamps []int64
+	timeScratch [240]uint64
 
 	// merged are encoded blocks that have been combined or used as is
 	// without decode
@@ -1614,6 +1618,7 @@ RETRY:
 			blk.typ = typ
 			blk.b = b
 			blk.tombstones = tombstones
+			blk.tsmFile = k.currentTsm
 			blk.readMin = math.MaxInt64
 			blk.readMax = math.MinInt64
 			blk.boundsChecked = false
@@ -1647,6 +1652,7 @@ RETRY:
 				blk.typ = typ
 				blk.b = b
 				blk.tombstones = tombstones
+				blk.tsmFile = k.currentTsm
 				blk.readMin = math.MaxInt64
 				blk.readMax = math.MinInt64
 				blk.boundsChecked = false
@@ -1724,8 +1730,8 @@ func (k *tsmBatchKeyIterator) handleEncodeError(err error, typ string) {
 	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
-func (k *tsmBatchKeyIterator) handleDecodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %w", typ, k.key, err)})
+func (k *tsmBatchKeyIterator) handleDecodeError(b *block, err error, typ string) {
+	k.AppendError(errBlockRead{b.tsmFile, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {

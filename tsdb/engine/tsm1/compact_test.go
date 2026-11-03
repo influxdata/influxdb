@@ -529,6 +529,47 @@ func TestCompactor_DecodeError(t *testing.T) {
 	})
 }
 
+// Ensures a decode error quarantines the file the corrupt block came from, not
+// the last file the iterator read from.
+func TestCompactor_DecodeError_AttributesSourceFile(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	f1 := MustWriteTSM(dir, 1, map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {tsm1.NewValue(1, 1.1)},
+	})
+	f2 := MustWriteTSM(dir, 2, map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {tsm1.NewValue(2, 1.2)},
+	})
+	f3 := MustWriteTSM(dir, 3, map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {tsm1.NewValue(3, 1.3)},
+	})
+
+	// Corrupt the first input; the iterator reads f2 and f3 after it before merging.
+	f, err := os.OpenFile(f1, os.O_RDWR, os.ModePerm)
+	require.NoError(t, err)
+	_, err = f.WriteAt([]byte("ffff"), 10) // skip over header
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = ffs
+	compactor.Open()
+
+	_, err = compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+	require.Error(t, err)
+
+	var moved []string
+	tsm1.MoveTsmOnReadErr(err, zap.NewNop(), func(oldFiles []string, _ []string) error {
+		moved = oldFiles
+		return nil
+	})
+	require.Equal(t, []string{f1}, moved)
+}
+
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	dir := MustTempDir()

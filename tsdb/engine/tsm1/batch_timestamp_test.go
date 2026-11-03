@@ -2,7 +2,9 @@ package tsm1
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"math/rand"
 	"reflect"
 	"sort"
@@ -1167,5 +1169,71 @@ func BenchmarkTimeArrayDecodeAllRLE(b *testing.B) {
 				dst, _ = TimeArrayDecodeAll(bytes, dst)
 			}
 		})
+	}
+}
+
+func TestTimeArrayDecodeBounds(t *testing.T) {
+	ones := make([]int64, 300) // 240-value run of ones uses simple8b selector 0
+	for i := range ones {
+		ones[i] = int64(i)
+	}
+	ones = append(ones, 1000)
+
+	random := make([]int64, 1000)
+	for i := range random {
+		random[i] = int64(i)*int64(time.Second) + rand.Int63n(1000)*int64(time.Second)
+	}
+	sort.Slice(random, func(i, j int) bool { return random[i] < random[j] })
+
+	rle := make([]int64, 500)
+	for i := range rle {
+		rle[i] = 1444448158000000000 + int64(i)*10*int64(time.Second)
+	}
+
+	tests := []struct {
+		name string
+		src  []int64
+		enc  byte
+	}{
+		{"single", []int64{42}, timeCompressedPackedSimple},
+		{"uncompressed", []int64{-5, 1 << 61, 1<<61 + 5}, timeUncompressed},
+		{"simple8b selector 0", ones, timeCompressedPackedSimple},
+		{"simple8b scaled", random, timeCompressedPackedSimple},
+		{"rle", rle, timeCompressedRLE},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := append([]int64(nil), tc.src...)
+			b, err := TimeArrayEncodeAll(src, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := b[0] >> 4; got != tc.enc {
+				t.Fatalf("encoding: got %d, exp %d", got, tc.enc)
+			}
+
+			var scratch [240]uint64
+			first, last, n, err := timeArrayDecodeBounds(b, &scratch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			exp := tc.src
+			if first != exp[0] || last != exp[len(exp)-1] || n != len(exp) {
+				t.Fatalf("got (%d, %d, %d), exp (%d, %d, %d)", first, last, n, exp[0], exp[len(exp)-1], len(exp))
+			}
+		})
+	}
+}
+
+func TestTimeArrayDecode_RLEInvalidCount(t *testing.T) {
+	b := []byte{timeCompressedRLE << 4, 0, 0, 0, 0, 0, 0, 0, 1, 1}
+	b = binary.AppendUvarint(b, math.MaxUint64)
+
+	var scratch [240]uint64
+	if _, _, _, err := timeArrayDecodeBounds(b, &scratch); err == nil {
+		t.Fatal("timeArrayDecodeBounds: expected error")
+	}
+	if _, err := TimeArrayDecodeAll(b, nil); err == nil {
+		t.Fatal("TimeArrayDecodeAll: expected error")
 	}
 }
