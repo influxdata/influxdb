@@ -48,6 +48,30 @@ pub struct ProcessingEngineConfig {
         default_value_t = NonZeroUsize::MAX
     )]
     pub async_trigger_concurrency_limit: NonZeroUsize,
+    /// Path to the plugin package allowlist: a pip requirements file listing
+    /// the packages users may install with the Processing Engine
+    /// package-install APIs, the versions they may install, and the package
+    /// index pip uses (`--index-url`, `--extra-index-url`, `--only-binary`, …).
+    ///
+    /// The file uses one of two modes and cannot mix them:
+    ///
+    /// * Version ranges: every entry is a PEP 508 dependency specifier, such as
+    ///   `numpy>=2,<3`.
+    /// * Pinned hashes: every entry is pinned with `==` and has `--hash`
+    ///   options, covering the packages and all their dependencies (for
+    ///   example the output of `uv pip compile --generate-hashes`). Requires
+    ///   pip 26.1 or later in the plugin environment.
+    ///
+    /// The server refuses to start with an invalid allowlist and refuses
+    /// installs of packages or versions it does not allow. The allowlist is
+    /// passed to pip as a constraints file, so it only limits new installs; it
+    /// never installs, removes, or changes a package. Changing it requires a
+    /// restart. When unset, installs are not restricted.
+    #[clap(
+        long = "plugin-package-allowlist",
+        env = "INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST"
+    )]
+    pub plugin_package_allowlist: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, clap::ValueEnum)]

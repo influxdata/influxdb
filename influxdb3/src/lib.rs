@@ -36,6 +36,7 @@ pub mod commands {
     pub use influxdb3_commands::install;
     pub use influxdb3_commands::query;
     pub use influxdb3_commands::test;
+    pub use influxdb3_commands::uninstall;
     pub use influxdb3_commands::write;
     // Local (not shared)
     pub mod create;
@@ -145,6 +146,9 @@ enum Command {
 
     /// Install packages for the processing engine
     Install(commands::install::Config),
+
+    /// Uninstall packages from the processing engine
+    Uninstall(commands::uninstall::Config),
 
     /// Diagnostic and support tooling
     Debug(commands::debug::Config),
@@ -555,6 +559,12 @@ fn non_serve_main(
                     exit_client_command_failure()
                 }
             }
+            Some(Command::Uninstall(config)) => {
+                if let Err(e) = commands::uninstall::command(config).await {
+                    eprintln!("Uninstall command failed: {e}");
+                    exit_client_command_failure()
+                }
+            }
             Some(Command::Debug(config)) => {
                 if let Err(e) = commands::debug::command(config).await {
                     eprintln!("Debug command failed: {e}");
@@ -639,6 +649,7 @@ fn maybe_print_help() {
         Query,
         Serve,
         Install,
+        Uninstall,
         Debug,
         Show,
         Test,
@@ -667,6 +678,7 @@ fn maybe_print_help() {
                 "query" => command = Some(SubCommand::Query),
                 "serve" => command = Some(SubCommand::Serve),
                 "install" => command = Some(SubCommand::Install),
+                "uninstall" => command = Some(SubCommand::Uninstall),
                 "debug" => command = Some(SubCommand::Debug),
                 "show" => command = Some(SubCommand::Show),
                 "test" => command = Some(SubCommand::Test),
@@ -695,6 +707,7 @@ fn maybe_print_help() {
                     "disable".bold(),
                     "System Management:".bold().underline(),
                     "install".bold(),
+                    "uninstall".bold(),
                     "test".bold(),
                     "Common Options:".bold().underline(),
                     "Advanced Help Options:".bold().underline(),
@@ -747,6 +760,7 @@ fn maybe_print_help() {
                     "disable".bold(),
                     "System Management:".bold().underline(),
                     "install".bold(),
+                    "uninstall".bold(),
                     "test".bold(),
                     "Configuration Options:".bold().underline(),
                     "Additional Options:".bold().underline(),

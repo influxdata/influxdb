@@ -35,6 +35,7 @@ use tokio::fs as async_fs;
 use tokio::sync::{RwLock, oneshot};
 use tokio_util::sync::CancellationToken;
 
+pub mod allowlist;
 pub mod environment;
 pub mod logging;
 pub mod manager;

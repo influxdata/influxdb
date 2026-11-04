@@ -38,9 +38,10 @@ fn disable_package_management_builds_no_venv() {
             plugin_repo: None,
             restrict_plugin_triggers_to: Vec::new(),
             async_trigger_concurrency_limit: std::num::NonZeroUsize::MAX,
+            plugin_package_allowlist: None,
         };
 
-        let env = super::setup_processing_engine_env_manager(&config);
+        let env = super::setup_processing_engine_env_manager(&config).unwrap();
         let manager_debug = format!("{:?}", env.package_manager);
         assert!(
             manager_debug.contains("DisabledPackageManager"),

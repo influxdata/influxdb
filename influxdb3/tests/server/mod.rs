@@ -100,6 +100,7 @@ pub struct TestConfig {
     virtual_env_dir: Option<String>,
     package_manager: Option<String>,
     disable_package_management: bool,
+    plugin_package_allowlist: Option<String>,
     restrict_plugin_triggers_to: Vec<String>,
     async_trigger_concurrency_limit: Option<std::num::NonZeroUsize>,
     // If None, use memory object store.
@@ -180,6 +181,12 @@ impl TestConfig {
     /// Start this [`TestServer`] with `--disable-package-management`.
     pub fn with_disable_package_management(mut self) -> Self {
         self.disable_package_management = true;
+        self
+    }
+
+    /// Set `--plugin-package-allowlist` for this [`TestServer`]
+    pub fn with_plugin_package_allowlist<S: Into<String>>(mut self, path: S) -> Self {
+        self.plugin_package_allowlist = Some(path.into());
         self
     }
 
@@ -312,6 +319,12 @@ impl ConfigProvider for TestConfig {
         }
         if self.disable_package_management {
             args.push("--disable-package-management".to_string());
+        }
+        if let Some(allowlist) = &self.plugin_package_allowlist {
+            args.extend([
+                "--plugin-package-allowlist".to_string(),
+                allowlist.to_owned(),
+            ]);
         }
         if !self.restrict_plugin_triggers_to.is_empty() {
             args.push("--restrict-plugin-triggers-to".to_string());

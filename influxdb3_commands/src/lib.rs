@@ -6,4 +6,5 @@ pub mod helpers;
 pub mod install;
 pub mod query;
 pub mod test;
+pub mod uninstall;
 pub mod write;

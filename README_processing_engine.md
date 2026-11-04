@@ -505,3 +505,200 @@ recommendation to call with `python -m pip` still holds true.
 ### What limitations are there?
 
 See https://github.com/influxdata/influxdb/issues?q=is%3Aissue%20state%3Aopen%20label%3Av3
+
+## Restricting plugin package installs (allowlist)
+
+The Processing Engine exposes a package-install API so plugins can pull their
+Python dependencies. As an operator you restrict it with a package allowlist:
+a standard pip requirements file naming the packages users may install, the
+versions they may install, and the package index pip fetches them from.
+
+```bash
+influxdb3 serve --plugin-package-allowlist allowlist.txt ...
+```
+
+The flag also reads `INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST`. With no allowlist,
+installs are not restricted.
+
+Start every process node with the same file and every node enforces it.
+The server reads the file at startup, so changing it requires restarting the nodes.
+The server refuses to start with an invalid allowlist.
+
+### Modes
+
+An allowlist uses one of two modes, chosen by its contents. A file cannot mix
+them.
+
+**Version ranges.** Every entry is a standard PyPA dependency specifier
+(PEP 508):
+
+```text
+# allowlist.txt
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+--only-binary :all:
+
+accelerate>=1.15
+chronos-forecasting~=2.3
+numpy>=2,<3
+torch==2.6.0+cpu
+transformers>=5.20
+```
+
+**Pinned hashes.** Every entry pins an exact version with `==` and carries its
+hashes, and the file lists each package's dependencies the same way. Generate
+it from a ranges allowlist with `uv`, for the target environment or with
+`--universal` for all platforms:
+
+```bash
+uv pip compile allowlist.txt --generate-hashes \
+  --python-version <version> --python-platform <platform> \
+  --emit-index-url --emit-build-options -o allowlist-hashed.txt
+```
+
+```text
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+--only-binary :all:
+
+accelerate==1.15.0 \
+    --hash=sha256:7f2a...
+numpy==2.2.6 \
+    --hash=sha256:0386... \
+    --hash=sha256:b7e1...
+torch==2.6.0+cpu \
+    --hash=sha256:24c9...
+...
+```
+
+The hashed allowlist is the whole closure: it is both the list users install
+from and the set of pins and hashes pip verifies, so there is no second file to
+keep in sync with it.
+
+Each `--hash` line under an entry is one artifact (wheel or sdist) of that
+version. A file compiled for one environment has one version per package. A
+file compiled with `--universal` can list several versions of a package, each
+behind an environment marker, and pip applies only the entry whose marker
+matches the node:
+
+```text
+numpy==2.0.2 ; python_full_version < '3.10' \
+    --hash=sha256:0123... \
+    --hash=sha256:11a7...
+numpy==2.2.6 ; python_full_version == '3.10.*' \
+    --hash=sha256:0386... \
+    --hash=sha256:0678...
+numpy==2.5.4 ; python_full_version >= '3.12' \
+    --hash=sha256:0673... \
+    --hash=sha256:0b47...
+```
+
+`--universal` resolves markers such as Python version and OS, but not wheel
+platform tags such as the glibc version. If a node cannot use the wheels of the
+version picked for it (for example, an older glibc with `--only-binary :all:`),
+installs on that node fail. Compile for each target environment with
+`--python-version` and `--python-platform` when that matters.
+
+Then restart each node with the new file:
+
+```bash
+influxdb3 serve --plugin-package-allowlist allowlist-hashed.txt ...
+```
+
+A hashed allowlist requires pip 26.1 or later in the plugin venv. The server checks
+the venv's pip at startup and refuses to start on an older one. Upgrade it with
+`<venv>/bin/python -m pip install --upgrade "pip>=26.1"`.
+
+### What the file may contain
+
+- Requirements: PEP 508 specifiers with optional environment markers
+  (`numpy>=2 ; python_version >= "3.10"`). Extras and direct URL references
+  (`name @ url`) are rejected. A package may appear more than once only if
+  every entry for it has a marker (as `uv pip compile --universal` emits).
+- `--hash=<sha256|sha384|sha512>:<digest>` on a requirement (hashed mode).
+- Index and build options on their own line: `--index-url`/`-i`,
+  `--extra-index-url`, `--no-index`, `--find-links`/`-f`, `--trusted-host`,
+  `--only-binary`, `--no-binary`, `--prefer-binary`, `--pre`, and
+  `--require-hashes` (which makes the file hashed).
+- Comments and blank lines.
+
+Anything else, including nested `-r`/`-c` files and editable installs, is
+rejected at startup.
+
+### How it is enforced
+
+The server checks each install request before running pip and rejects it with
+HTTP 403 if:
+
+- the package is not in the allowlist;
+- in ranges mode, an exact `==` version is outside the listed range;
+- in hashed mode, no pinned version satisfies the requested version;
+- a request carries pip options, a URL, or a local path. Users cannot change
+  the index.
+
+The same checks apply to each line of a `-r requirements.txt` submitted with
+`influxdb3 install package -r`.
+
+The server then runs `pip install <request> -c <allowlist>`, adding
+`--require-hashes` for a hashed allowlist. As a constraints file, the allowlist
+only limits what pip installs: pip uses its index and build options and its
+versions, but installs only the requested packages and their dependencies. In
+hashed mode pip also verifies every package it installs, including
+dependencies, against the allowlist's hashes and refuses any package that is
+not listed.
+
+The allowlist only limits new installs. It never installs, removes, or changes
+a package, so installed packages keep working when the allowlist changes.
+
+### Uninstalling packages
+
+```bash
+influxdb3 uninstall package pandas --host http://127.0.0.1:8181
+```
+
+`pip` itself can never be uninstalled, and entries starting with `-` are
+rejected. The allowlist does not restrict uninstalls, so packages installed
+before the allowlist changed, and dependencies that were never requested
+directly, can still be removed.
+
+pip removes only the named package and does not check whether other installed
+packages still need it. After each uninstall the server runs `pip check` and
+returns any installed package that now lacks a removed dependency; the CLI
+prints them as a warning:
+
+```text
+Warning: these installed packages still require a package you removed and may fail to import:
+  pandas==2.2.0 (requires numpy)
+Reinstall them with `influxdb3 install package <package>` to restore their dependencies, or uninstall them.
+```
+
+To fix it, reinstall each listed package. pip sees the missing dependency and
+installs it again within the allowlist:
+
+```bash
+influxdb3 install package pandas==2.2.0 --host http://127.0.0.1:8181
+```
+
+Alternatively, uninstall the listed packages too. The HTTP API returns the
+same list as `{"broken_dependents": [{"package": "pandas==2.2.0", "missing":
+["numpy"]}]}`.
+
+### Wiring it into `serve`
+
+```bash
+influxdb3 serve \
+  --node-id local01 \
+  --object-store file \
+  --data-dir ./data \
+  --plugin-dir ./plugins \
+  --plugin-package-allowlist ./allowlist-hashed.txt
+```
+
+Users then install by name; the allowed versions, index, and hashes all come
+from the allowlist:
+
+```bash
+# Allowed: torch is in the allowlist. pip downloads it and its dependencies
+# from the index declared in the allowlist and checks each against its hash.
+influxdb3 install package torch --host http://127.0.0.1:8181
+```

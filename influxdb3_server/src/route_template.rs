@@ -42,6 +42,9 @@ pub(crate) fn route_template(path: &str) -> &'static str {
         all_paths::API_V3_CONFIGURE_PLUGIN_INSTALL_PACKAGES => {
             return "/api/v3/configure/plugin_environment/install_packages";
         }
+        all_paths::API_V3_CONFIGURE_PLUGIN_UNINSTALL_PACKAGES => {
+            return "/api/v3/configure/plugin_environment/uninstall_packages";
+        }
         all_paths::API_V3_CONFIGURE_PLUGIN_INSTALL_REQUIREMENTS => {
             return "/api/v3/configure/plugin_environment/install_requirements";
         }
