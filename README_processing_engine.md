@@ -520,10 +520,9 @@ influxdb3 serve --plugin-package-allowlist allowlist.txt ...
 The flag also reads `INFLUXDB3_PLUGIN_PACKAGE_ALLOWLIST`. With no allowlist,
 installs are not restricted.
 
-One allowlist covers the whole cluster: start every process node with the same
-file, and every node enforces it. The server reads the file at startup, so
-changing it requires restarting the nodes. The server refuses to start with an
-invalid allowlist.
+Start every process node with the same file and every node enforces it.
+The server reads the file at startup, so changing it requires restarting the nodes.
+The server refuses to start with an invalid allowlist.
 
 ### Modes
 
@@ -606,10 +605,7 @@ Then restart each node with the new file:
 influxdb3 serve --plugin-package-allowlist allowlist-hashed.txt ...
 ```
 
-A hashed allowlist requires pip 26.1 or later in the plugin venv, the first
-release that reads hashes from a constraints file
-([pypa/pip#8792](https://github.com/pypa/pip/issues/8792),
-[pypa/pip#9243](https://github.com/pypa/pip/issues/9243)). The server checks
+A hashed allowlist requires pip 26.1 or later in the plugin venv. The server checks
 the venv's pip at startup and refuses to start on an older one. Upgrade it with
 `<venv>/bin/python -m pip install --upgrade "pip>=26.1"`.
 

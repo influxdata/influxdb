@@ -587,11 +587,85 @@ async fn test_allowlist_hashed_tablib() -> Result<()> {
         &server.install_package().add_package("requests").run(),
         "'requests' is not in the package allowlist",
     );
+    // Ranges the pinned version does not satisfy are refused before pip runs.
+    for spec in [
+        "tablib<3.8",
+        "tablib>3.8.0",
+        "tablib!=3.8.0",
+        "tablib==3.9.*",
+    ] {
+        assert_forbidden(
+            &server.install_package().add_package(spec).run(),
+            "Allowlisted version(s) of 'tablib': ==3.8.0",
+        );
+    }
 
-    // A bare name installs the pinned version, hash-verified.
+    // A range the pin satisfies installs the pinned version, hash-verified.
+    server.install_package().add_package("tablib>=3.8").run()?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
+    assert_eq!(logs, vec![TEST_VERSION]);
+
+    // So does a bare name.
+    uninstall_package(&server, TEST_PACKAGE)?;
     server.install_package().add_package(TEST_PACKAGE).run()?;
     let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
+    assert_tablib_not_in_system_python();
+    Ok(())
+}
+
+/// Range requests in ranges mode. The server checks only exact `==` pins
+/// against the allowlist; other specifiers go to pip, which applies the
+/// allowlist as `-c` constraints. A request that overlaps the allowed range
+/// installs within it; one that does not fails in pip's resolver (500 with
+/// pip's error), not with a 403.
+#[test_log::test(tokio::test)]
+#[ignore]
+async fn test_allowlist_ranges_version_specifiers() -> Result<()> {
+    let test = VenvTest::new()?;
+    setup_python_venv(&test.venv_path())?;
+    // Excludes 3.9.0 and later, which an unconstrained `tablib>=3.8` would
+    // pick, so getting 3.8.0 shows pip applied the allowlist.
+    let allowlist = write_allowlist(
+        "--index-url https://pypi.org/simple\n--only-binary :all:\n\ntablib>=3.8,<3.9\n",
+    )?;
+
+    let server = TestServer::configure()
+        .with_plugin_dir(test.plugin_dir())
+        .with_virtual_env(test.venv_path().to_string_lossy())
+        .with_plugin_package_allowlist(allowlist.path().to_string_lossy())
+        .spawn()
+        .await;
+    server.create_database(TEST_DB).run()?;
+
+    // pip picks the newest version allowed by both the request and the
+    // allowlist.
+    for spec in [
+        "tablib>=3.8",
+        "tablib>3.7,<=3.9",
+        "tablib~=3.0",
+        "tablib!=3.9.0",
+    ] {
+        server.install_package().add_package(spec).run()?;
+        let logs = run_version_check(&server, test.plugin_file_relative()).await?;
+        assert_eq!(logs, vec![TEST_VERSION], "{spec}");
+        uninstall_package(&server, TEST_PACKAGE)?;
+    }
+
+    // No overlap with the allowlist: pip cannot resolve it.
+    for spec in ["tablib<3.8", "tablib>=3.9", "tablib==3.9.*"] {
+        let msg = server
+            .install_package()
+            .add_package(spec)
+            .run()
+            .expect_err("pip should fail to resolve")
+            .to_string();
+        assert!(msg.contains("500 Internal Server Error"), "{spec}: {msg}");
+        assert!(msg.contains("'pip install' failed"), "{spec}: {msg}");
+        assert!(msg.contains("ResolutionImpossible"), "{spec}: {msg}");
+    }
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
+    assert_eq!(logs, vec!["tablib is not installed"]);
     assert_tablib_not_in_system_python();
     Ok(())
 }

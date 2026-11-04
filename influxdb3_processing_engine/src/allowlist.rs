@@ -642,6 +642,83 @@ torch==2.6.0+cpu \\
         ));
     }
 
+    /// Each PEP 440 operator in a user request, in ranges mode. Only a single
+    /// `==` or `===` pin is checked against the listed range; every other
+    /// specifier, including a `==` wildcard, is left to pip, which applies the
+    /// allowlist as `-c` constraints.
+    #[test]
+    fn ranges_allowlist_operators() {
+        let allowlist = parse("numpy>=2,<3\n").unwrap();
+        for ok in [
+            "numpy>=2.1",
+            "numpy>2.1",
+            "numpy<=2.5",
+            "numpy<2.5",
+            "numpy!=2.2.5",
+            "numpy~=2.2",
+            "numpy==2.*",
+            "numpy===2.2.6",
+            "numpy>=2.1,<2.5",
+            // Outside the range, but not an exact pin: pip rejects it.
+            "numpy<2",
+            "numpy>3",
+            "numpy==1.*",
+        ] {
+            check(&allowlist, ok).unwrap_or_else(|e| panic!("{ok}: {e}"));
+        }
+        for bad in ["numpy==1.26.4", "numpy===1.26.4", "numpy==3.0.0"] {
+            let err = check(&allowlist, bad).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    PluginEnvironmentError::PackageVersionNotAllowlisted { .. }
+                ),
+                "{bad}: {err:?}"
+            );
+        }
+    }
+
+    /// Each PEP 440 operator in a user request, in hashed mode. A request is
+    /// allowed when the pinned version satisfies it.
+    #[test]
+    fn hashed_allowlist_operators() {
+        let allowlist = parse("numpy==2.2.6 --hash=sha256:aa\n").unwrap();
+        for ok in [
+            "numpy>=2.2",
+            "numpy>2.2.5",
+            "numpy<=2.2.6",
+            "numpy<2.3",
+            "numpy!=2.2.5",
+            "numpy~=2.2",
+            "numpy~=2.2.0",
+            "numpy==2.2.*",
+            "numpy===2.2.6",
+            "numpy>=2,<3",
+        ] {
+            check(&allowlist, ok).unwrap_or_else(|e| panic!("{ok}: {e}"));
+        }
+        for bad in [
+            "numpy>=2.3",
+            "numpy>2.2.6",
+            "numpy<=2.2.5",
+            "numpy<2.2.6",
+            "numpy!=2.2.6",
+            "numpy~=2.3",
+            "numpy==2.3.*",
+            "numpy===2.2.5",
+            "numpy>=2,<2.2",
+        ] {
+            let err = check(&allowlist, bad).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    PluginEnvironmentError::PackageVersionNotAllowlisted { .. }
+                ),
+                "{bad}: {err:?}"
+            );
+        }
+    }
+
     #[test]
     fn hashed_allowlist_with_markers_allows_each_pin() {
         // `uv pip compile --universal` splits a package by marker.
