@@ -34,6 +34,9 @@ pub enum Error {
     #[error("failed to serialize the request body: {0}")]
     RequestSerialization(#[source] serde_json::Error),
 
+    #[error("failed to parse the API response body: {0}")]
+    ResponseDeserialization(#[source] serde_json::Error),
+
     #[error(
         "provided parameter ('{name}') could not be converted \
         to a statment parameter"
@@ -812,12 +815,15 @@ impl Client {
         Ok(())
     }
 
-    /// Make a request to `POST /api/v3/configure/plugin_environment/uninstall_packages`
+    /// Make a request to `POST /api/v3/configure/plugin_environment/uninstall_packages`.
+    ///
+    /// Returns the installed packages left without a required dependency. An
+    /// empty body (from servers that predate this report) means none.
     pub async fn api_v3_configure_plugin_environment_uninstall_packages(
         &self,
         packages: Vec<String>,
-    ) -> Result<()> {
-        let _bytes = self
+    ) -> Result<ProcessingEngineUninstallPackagesResponse> {
+        let bytes = self
             .send_json_get_bytes(
                 Method::POST,
                 "/api/v3/configure/plugin_environment/uninstall_packages",
@@ -826,7 +832,10 @@ impl Client {
                 None,
             )
             .await?;
-        Ok(())
+        if bytes.is_empty() {
+            return Ok(ProcessingEngineUninstallPackagesResponse::default());
+        }
+        serde_json::from_slice(&bytes).map_err(Error::ResponseDeserialization)
     }
 
     /// Make a request to `POST /api/v3/configure/plugin_environment/install_requirements`

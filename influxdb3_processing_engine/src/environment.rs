@@ -1,7 +1,12 @@
 use crate::environment::PluginEnvironmentError::PluginEnvironmentDisabled;
 
+use crate::allowlist::{
+    AllowlistMode, PackageAllowlist, logical_lines, parse_named_requirement,
+    split_requirement_options,
+};
 use crate::virtualenv::{VenvError, find_python, initialize_venv};
-use observability_deps::tracing::debug;
+use influxdb3_types::http::{BrokenDependent, ProcessingEngineUninstallPackagesResponse};
+use observability_deps::tracing::{debug, info, warn};
 use pyo3::prelude::PyAnyMethods;
 use pyo3::{PyResult, Python};
 use std::collections::{BTreeMap, BTreeSet};
@@ -16,6 +21,8 @@ use thiserror::Error;
 pub enum PluginEnvironmentError {
     #[error("Package manager not available: {0}")]
     PackageManagerNotFound(String),
+    #[error("'{command}' failed: {stderr}")]
+    PipCommandFailed { command: String, stderr: String },
     #[error("External call failed: {0}")]
     InstallationFailed(#[from] std::io::Error),
     #[error("Plugin environment management is disabled")]
@@ -37,18 +44,21 @@ pub enum PluginEnvironmentError {
     )]
     PackageNotAllowlisted { name: String },
 
-    #[error("'{name}=={requested}' is not supported. Allowlisted version(s): {allowlisted}.")]
+    #[error(
+        "'{spec}' is not allowed. Allowlisted version(s) of '{name}': {allowlisted}. Contact your \
+         administrator to request a different version."
+    )]
     PackageVersionNotAllowlisted {
+        spec: String,
         name: String,
-        requested: String,
         allowlisted: String,
     },
 
-    #[error("'{name}' must be installed with a pinned version, e.g. '{name}=={example_version}'.")]
-    PackageVersionRequired {
-        name: String,
-        example_version: String,
-    },
+    #[error("'{spec}' is not allowed: {reason}")]
+    PackageSpecNotAllowed { spec: String, reason: String },
+
+    #[error("'{name}' cannot be uninstalled: {reason}")]
+    UninstallNotAllowed { name: String, reason: String },
 
     #[error("failed to read package allowlist file '{path}': {source}")]
     AllowlistFileUnreadable {
@@ -66,22 +76,30 @@ pub enum PluginEnvironmentError {
         reason: String,
     },
 
-    #[error(
-        "--plugin-package-constraints-mode require-hashes requires --plugin-package-constraints to be set"
-    )]
-    RequireHashesWithoutConstraints,
+    #[error("package allowlist file '{path}' lists no packages")]
+    AllowlistEmpty { path: String },
 
     #[error(
-        "--plugin-package-constraints file '{path}' contains hashes (line {line_number}: '{line}'), \
-         but --plugin-package-constraints-mode is 'pin'. pip auto-enables hash checking when any \
-         constraint carries a hash, which then rejects the install. Use \
-         --plugin-package-constraints-mode require-hashes with a fully hashed closure, or remove \
-         the hashes for pin mode."
+        "package allowlist file '{path}' mixes modes: line {hashed_line} uses hashes, but line \
+         {unhashed_line} has none ('{line}'). Use version ranges with no hashes, or hash every \
+         entry (e.g. with 'uv pip compile --generate-hashes')."
     )]
-    PinModeConstraintsHaveHashes {
+    AllowlistMixedModes {
         path: String,
-        line_number: usize,
+        hashed_line: usize,
+        unhashed_line: usize,
         line: String,
+    },
+
+    #[error(
+        "a hashed --plugin-package-allowlist requires pip 26.1 or later in the plugin \
+         environment '{venv}' ({found}). Upgrade it with \
+         '{python} -m pip install --upgrade \"pip>=26.1\"', or use an allowlist of version ranges."
+    )]
+    PipTooOldForHashedAllowlist {
+        venv: String,
+        python: String,
+        found: String,
     },
 
     #[error("failed to read requirements file '{path}': {source}")]
@@ -99,9 +117,8 @@ pub enum PluginEnvironmentError {
 }
 
 /// Normalize a PyPI project name per PEP 503: lowercase and collapse any run of
-/// `-`, `_`, or `.` into a single `-`. Comparisons against the approved list are
-/// done on normalized names so `Foo_Bar` and `foo-bar` are treated as the same
-/// package.
+/// `-`, `_`, or `.` into a single `-`, so `Foo_Bar` and `foo-bar` are treated
+/// as the same package.
 pub fn normalize_package_name(name: &str) -> String {
     let mut normalized = String::with_capacity(name.len());
     let mut last_was_separator = false;
@@ -123,13 +140,11 @@ pub fn normalize_package_name(name: &str) -> String {
     normalized
 }
 
-/// Split a user-supplied package spec into its name and optional pinned version.
+/// Split a package spec into its name and optional pinned version.
 ///
 /// Only the exact-pin form `name==version` is recognized as carrying a version;
-/// any other spec (bare name, or a name with a non-`==` operator like `>=`) is
-/// returned with `version = None` and the operator/text left attached to the
-/// name portion so approval validation can reject it as unpinned. The returned
-/// name is *not* normalized; callers normalize as needed.
+/// any other spec is returned whole as the name with `version = None`. The
+/// returned name is *not* normalized; callers normalize as needed.
 pub fn parse_spec(spec: &str) -> (String, Option<String>) {
     let spec = spec.trim();
     if let Some((name, version)) = spec.split_once("==") {
@@ -139,296 +154,148 @@ pub fn parse_spec(spec: &str) -> (String, Option<String>) {
     }
 }
 
-/// The set of packages an operator has approved for end-user installation,
-/// keyed by PEP 503 normalized name. Each name maps to the set of exact
-/// versions approved for it.
-#[derive(Debug, Clone, Default)]
-pub struct AllowlistedPackages {
-    packages: BTreeMap<String, BTreeSet<String>>,
-}
-
-impl AllowlistedPackages {
-    /// Build an approved-packages set from a file. Each non-blank, non-comment
-    /// line must be a pinned `name==version` spec. Returns
-    /// `AllowlistFileUnreadable` if the file cannot be read and
-    /// `AllowlistFileInvalidEntry` on the first malformed line.
-    pub fn from_file(path: &Path) -> Result<Self, PluginEnvironmentError> {
-        let contents = std::fs::read_to_string(path).map_err(|source| {
-            PluginEnvironmentError::AllowlistFileUnreadable {
-                path: path.display().to_string(),
-                source,
-            }
-        })?;
-        Self::from_str_lines(&contents, &path.display().to_string())
-    }
-
-    /// Parse approved-packages contents. Blank lines and lines whose first
-    /// non-whitespace character is `#` are skipped. Every other line must be a
-    /// pinned `name==version`; an unpinned or malformed entry is rejected.
-    pub fn from_str_lines(
-        contents: &str,
-        path_for_errors: &str,
-    ) -> Result<Self, PluginEnvironmentError> {
-        let mut packages: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-        for (index, raw_line) in contents.lines().enumerate() {
-            let line = raw_line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            let (name, version) = parse_spec(line);
-            let invalid = |reason: &str| PluginEnvironmentError::AllowlistFileInvalidEntry {
-                path: path_for_errors.to_string(),
-                line_number: index + 1,
-                line: line.to_string(),
-                reason: reason.to_string(),
-            };
-            let normalized = normalize_package_name(&name);
-            if normalized.is_empty() {
-                return Err(invalid("missing package name"));
-            }
-            match version {
-                Some(version) if !version.is_empty() => {
-                    packages.entry(normalized).or_default().insert(version);
-                }
-                _ => {
-                    return Err(invalid("entries must be pinned as 'name==version'"));
-                }
-            }
-        }
-        Ok(Self { packages })
-    }
-
-    /// The approved versions for a normalized package name.
-    fn allowlisted_versions(&self, normalized_name: &str) -> Option<&BTreeSet<String>> {
-        self.packages.get(normalized_name)
-    }
-
-    /// Validate a single user-supplied spec against the approved list. Returns
-    /// the specific rejection error when the package/version is not approved.
-    pub fn validate_spec(&self, spec: &str) -> Result<(), PluginEnvironmentError> {
-        let (name, version) = parse_spec(spec);
-        let normalized = normalize_package_name(&name);
-        let Some(allowlisted_versions) = self.allowlisted_versions(&normalized) else {
-            return Err(PluginEnvironmentError::PackageNotAllowlisted {
-                name: name.trim().to_string(),
-            });
-        };
-        match version {
-            None => Err(PluginEnvironmentError::PackageVersionRequired {
-                name: name.trim().to_string(),
-                example_version: allowlisted_versions
-                    .iter()
-                    .next()
-                    .cloned()
-                    .unwrap_or_default(),
-            }),
-            Some(version) if allowlisted_versions.contains(&version) => Ok(()),
-            Some(version) => Err(PluginEnvironmentError::PackageVersionNotAllowlisted {
-                name: name.trim().to_string(),
-                requested: version,
-                allowlisted: allowlisted_versions
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            }),
-        }
-    }
-
-    /// Validate every spec, failing on the first rejected one.
-    pub fn validate_all(&self, specs: &[String]) -> Result<(), PluginEnvironmentError> {
-        for spec in specs {
-            self.validate_spec(spec)?;
-        }
-        Ok(())
-    }
-}
-
-/// The server-side policy applied to every pip install: an optional approved
-/// package list, an optional constraints file, and whether to require hashes.
-/// A [`PipManager`] holds one of these and consults it before shelling out to
-/// pip.
+/// The server-side policy applied to every pip install: the operator's
+/// optional package allowlist. A [`PipManager`] holds one of these and
+/// consults it before shelling out to pip.
 #[derive(Debug, Clone, Default)]
 pub struct PipPolicy {
-    /// When present, `install_packages` specs are validated against this list.
-    pub allowlist: Option<AllowlistedPackages>,
-    /// When present, passed to pip as `-c <file>`.
-    pub constraints_file: Option<PathBuf>,
-    /// When true, pip is invoked with `--require-hashes`.
-    pub require_hashes: bool,
-}
-
-/// Fail fast if a pin-mode constraints file carries pip hashes. pip enables
-/// `--require-hashes` behavior as soon as any constraint has a `--hash=`, so a
-/// hashed file in pin mode would make every install fail with a confusing pip
-/// error; reject it at startup with an actionable message instead.
-fn reject_pin_mode_hashes(path: &Path) -> Result<(), PluginEnvironmentError> {
-    let contents = std::fs::read_to_string(path).map_err(|source| {
-        PluginEnvironmentError::RequirementsFileUnreadable {
-            path: path.display().to_string(),
-            source,
-        }
-    })?;
-    for (index, raw_line) in contents.lines().enumerate() {
-        let line = raw_line.trim();
-        if line.starts_with('#') {
-            continue;
-        }
-        // Match pip's own token: `--hash=` (optionally after a line
-        // continuation). Checking for the flag token avoids false positives on
-        // package names that merely contain the substring "hash".
-        if line.contains("--hash=") || line.contains("--hash ") {
-            return Err(PluginEnvironmentError::PinModeConstraintsHaveHashes {
-                path: path.display().to_string(),
-                line_number: index + 1,
-                line: line.to_string(),
-            });
-        }
-    }
-    Ok(())
+    /// When present, requests are checked against it and it is passed to pip
+    /// as `-c <file>`.
+    pub allowlist: Option<PackageAllowlist>,
 }
 
 impl PipPolicy {
-    /// A policy that imposes no restrictions: no approved list, no constraints
-    /// file, no hash requirement. Matches the historical behavior.
+    /// A policy that imposes no restrictions. Matches the historical behavior.
     pub fn unrestricted() -> Self {
         Self::default()
     }
 
-    /// Build a policy from operator config. The approved-packages file is read
-    /// and parsed early so a bad file fails fast at startup rather than on the
+    /// Build a policy from operator config. The allowlist file is read and
+    /// validated here so an invalid allowlist fails startup rather than the
     /// first install request.
-    ///
-    /// `require_hashes` requires a `constraints_file`, since the hashes pip
-    /// verifies must come from it; that combination is rejected here so a
-    /// misconfiguration fails at startup rather than on the first install.
-    pub fn from_config(
-        allowlist_file: Option<&Path>,
-        constraints_file: Option<&Path>,
-        require_hashes: bool,
-    ) -> Result<Self, PluginEnvironmentError> {
-        if require_hashes && constraints_file.is_none() {
-            return Err(PluginEnvironmentError::RequireHashesWithoutConstraints);
+    pub fn from_config(allowlist_file: Option<&Path>) -> Result<Self, PluginEnvironmentError> {
+        let allowlist = allowlist_file
+            .map(PackageAllowlist::from_file)
+            .transpose()?;
+        if let Some(allowlist) = &allowlist {
+            info!(
+                path = %allowlist.path().display(),
+                mode = %allowlist.mode(),
+                packages = allowlist.package_count(),
+                "plugin package allowlist loaded"
+            );
         }
-        // In pin mode a `-c` file with hashes is a trap: pip silently turns on
-        // hash checking the moment any constraint carries a hash, then rejects
-        // the command-line spec for having none. Catch it at startup with an
-        // actionable message instead of letting the first install fail.
-        if !require_hashes
-            && let Some(path) = constraints_file
-        {
-            reject_pin_mode_hashes(path)?;
-        }
-        let allowlist = match allowlist_file {
-            Some(path) => Some(AllowlistedPackages::from_file(path)?),
-            None => None,
-        };
-        Ok(Self {
-            allowlist,
-            constraints_file: constraints_file.map(Path::to_path_buf),
-            require_hashes,
-        })
+        Ok(Self { allowlist })
     }
 
-    /// Whether an approved-packages allowlist is configured. Used to decide
-    /// whether the requirements (`-r`) path must be validated.
-    fn has_allowlist(&self) -> bool {
-        self.allowlist.is_some()
+    /// Whether the allowlist is hashed, so pip runs with `--require-hashes`
+    /// and must be new enough to read hashes from `-c`.
+    fn is_hashed(&self) -> bool {
+        self.allowlist
+            .as_ref()
+            .is_some_and(|allowlist| allowlist.mode() == AllowlistMode::Hashed)
     }
 
-    /// Validate every entry of a requirements file against the allowlist. Called
-    /// for the `-r requirements.txt` path so it cannot bypass the allowlist that
-    /// `install_packages` enforces.
-    ///
-    /// Only simple pinned `name==version` requirement lines are permitted. Lines
-    /// that pip would treat as something other than a plain pinned requirement —
-    /// URLs, VCS refs, local paths, editable installs (`-e`), index options
-    /// (`-i` / `--index-url` / `--extra-index-url`), nested requirement includes
-    /// (`-r` / `-c`), and line continuations — are rejected, because they could
-    /// pull code the allowlist never approved. Blank lines and `#` comments are
-    /// skipped. Each surviving line is validated with
-    /// [`AllowlistedPackages::validate_spec`], so version/pinning rules match the
-    /// `install_packages` path exactly.
-    fn validate_requirements_contents(&self, contents: &str) -> Result<(), PluginEnvironmentError> {
-        let Some(approved) = &self.allowlist else {
-            return Ok(());
-        };
-        for (index, raw_line) in contents.lines().enumerate() {
-            let line_number = index + 1;
-            // Drop inline comments (` #...`) and surrounding whitespace.
-            let without_comment = match raw_line.split_once(" #") {
-                Some((head, _)) => head,
-                None => raw_line,
-            };
-            let line = without_comment.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
+    /// Check one user-supplied spec against the allowlist. The spec must be a
+    /// plain PEP 508 requirement naming a package by version, so it cannot
+    /// carry pip options or a URL that would change where pip fetches from,
+    /// and the package must be allowed by the allowlist.
+    fn validate_spec(
+        allowlist: &PackageAllowlist,
+        spec: &str,
+    ) -> Result<(), PluginEnvironmentError> {
+        let requirement = parse_named_requirement(spec).map_err(|reason| {
+            PluginEnvironmentError::PackageSpecNotAllowed {
+                spec: spec.trim().to_string(),
+                reason,
             }
+        })?;
+        allowlist.check(&requirement, spec)
+    }
 
-            let reject = |reason: &str| PluginEnvironmentError::RequirementsEntryNotAllowed {
-                line_number,
-                line: line.to_string(),
-                reason: reason.to_string(),
-            };
-
-            // A trailing backslash continues the line, changing pip's parsing;
-            // reject rather than try to reassemble.
-            if line.ends_with('\\') {
-                return Err(reject("line continuations are not allowed"));
+    /// Validate install specs. A spec starting with `-` is always refused,
+    /// because pip would read it as an option (`-r <file>`, `--target <dir>`,
+    /// `--python <exe>`, …) rather than a package. With an allowlist
+    /// configured, each spec must also be a plain PEP 508 requirement that the
+    /// allowlist allows.
+    fn validate_packages(&self, packages: &[String]) -> Result<(), PluginEnvironmentError> {
+        for spec in packages {
+            if spec.trim_start().starts_with('-') {
+                return Err(PluginEnvironmentError::PackageSpecNotAllowed {
+                    spec: spec.trim().to_string(),
+                    reason: "pip options are not allowed".to_string(),
+                });
             }
-            // pip options: -e/--editable, -i/--index-url/--extra-index-url,
-            // -r/--requirement, -c/--constraint, -f/--find-links, hashes, etc.
-            if line.starts_with('-') {
-                return Err(reject(
-                    "pip options (-e, -i, --index-url, -r, -c, --hash, …) are not allowed",
-                ));
+            if let Some(allowlist) = &self.allowlist {
+                Self::validate_spec(allowlist, spec)?;
             }
-            // URLs, VCS refs, and local/editable paths.
-            let lowered = line.to_ascii_lowercase();
-            if lowered.contains("://")
-                || lowered.starts_with("git+")
-                || lowered.starts_with("hg+")
-                || lowered.starts_with("svn+")
-                || lowered.starts_with("bzr+")
-            {
-                return Err(reject("URLs and VCS references are not allowed"));
-            }
-            // `name @ url` direct references.
-            if line.contains('@') {
-                return Err(reject("direct references ('name @ url') are not allowed"));
-            }
-            // Local path requirements (absolute, home, or explicit relative).
-            if line.starts_with('/') || line.starts_with('.') || line.starts_with('~') {
-                return Err(reject("local path requirements are not allowed"));
-            }
-            // Environment-marker separator leaves the pin ambiguous for the
-            // allowlist; strip markers only after the pin is validated. Reject
-            // for now to keep the gate strict.
-            if line.contains(';') {
-                return Err(reject("environment markers are not allowed"));
-            }
-
-            // Whatever remains must be a plain pinned `name==version` that the
-            // allowlist approves.
-            approved.validate_spec(line)?;
         }
         Ok(())
     }
 
-    /// Validate install specs against the approved list, if one is configured.
-    /// A policy with no approved list approves everything.
-    fn validate_packages(&self, packages: &[String]) -> Result<(), PluginEnvironmentError> {
-        match &self.allowlist {
-            Some(approved) => approved.validate_all(packages),
-            None => Ok(()),
+    /// Validate every entry of a user requirements file against the
+    /// allowlist, so the `-r requirements.txt` path cannot bypass it.
+    ///
+    /// Only plain PEP 508 requirements are permitted. pip options of any kind
+    /// (index options, nested `-r`/`-c`, `-e`, `--hash`, …), URLs, and local
+    /// paths are rejected, because they could change where pip fetches from or
+    /// pull code the allowlist never approved.
+    fn validate_requirements_contents(&self, contents: &str) -> Result<(), PluginEnvironmentError> {
+        let Some(allowlist) = &self.allowlist else {
+            return Ok(());
+        };
+        for line in logical_lines(contents) {
+            let reject = |reason: String| PluginEnvironmentError::RequirementsEntryNotAllowed {
+                line_number: line.line_number,
+                line: line.text.clone(),
+                reason,
+            };
+            let (requirement_text, options) = split_requirement_options(&line.text);
+            if requirement_text.is_empty() || !options.is_empty() {
+                return Err(reject(
+                    "pip options (-e, -i, --index-url, -r, -c, --hash, …) are not allowed"
+                        .to_string(),
+                ));
+            }
+            let requirement = parse_named_requirement(&requirement_text).map_err(reject)?;
+            allowlist.check(&requirement, &requirement_text)?;
         }
+        Ok(())
+    }
+
+    /// Validate an uninstall request. Each entry may be a bare name or a
+    /// `name==version` spec; pip uninstalls whatever version is present.
+    ///
+    /// The allowlist only limits new installs, so it is not consulted here.
+    /// Two entries are always refused:
+    ///
+    /// * `pip` itself: removing it leaves the venv unable to install anything
+    ///   until it is rebuilt.
+    /// * Entries starting with `-`, so a request cannot inject pip options
+    ///   such as `-r <file>`.
+    fn validate_uninstall(&self, packages: &[String]) -> Result<(), PluginEnvironmentError> {
+        for spec in packages {
+            let spec = spec.trim();
+            let reject = |reason: &str| PluginEnvironmentError::UninstallNotAllowed {
+                name: spec.to_string(),
+                reason: reason.to_string(),
+            };
+            if spec.starts_with('-') {
+                return Err(reject("pip options are not allowed"));
+            }
+            let (name, _version) = parse_spec(spec);
+            if normalize_package_name(&name) == "pip" {
+                return Err(reject("pip is required by the plugin environment"));
+            }
+        }
+        Ok(())
     }
 
     /// Validate a requirements file (by path) against the allowlist. Reads the
     /// file server-side so a client-supplied `-r` path cannot bypass the
     /// allowlist. A policy with no allowlist performs no check.
     fn validate_requirements_file(&self, path: &str) -> Result<(), PluginEnvironmentError> {
-        if !self.has_allowlist() {
+        if self.allowlist.is_none() {
             return Ok(());
         }
         let contents = std::fs::read_to_string(path).map_err(|source| {
@@ -441,84 +308,41 @@ impl PipPolicy {
     }
 
     /// Build the argument list that follows `pip install` for a request naming
-    /// `specs` (the packages the user asked for, already allowlist-validated).
+    /// `specs` (already allowlist-validated).
     ///
-    /// The shape depends on `require_hashes`, because pip only reads hashes from
-    /// *requirement* inputs (command-line specs or a `-r` file) and **ignores**
-    /// hashes in a `-c` constraints file:
+    /// The user's specs drive the install; the allowlist only constrains it.
+    /// It is passed as `-c <file>`, so pip applies its versions and its index
+    /// and build options (`--index-url`, `--only-binary`, …) but installs
+    /// nothing the user did not ask for or need.
     ///
-    /// * **Pin-only** (`require_hashes == false`): the user's specs drive the
-    ///   install and the constraints file, if any, is passed as `-c <file>` to
-    ///   pin versions. Any hashes in that file are not enforced by pip in this
-    ///   mode, which is expected.
-    ///
-    /// * **Require-hashes** (`require_hashes == true`): a `-c` file cannot
-    ///   satisfy `--require-hashes` (pip would report the user's spec as having
-    ///   no hash), so the hashed constraints file — which is the operator's
-    ///   complete pinned-and-hashed dependency closure, e.g. from
-    ///   `pip-compile --generate-hashes` — is passed as `-r <file>` together with
-    ///   `--require-hashes`. The user's bare specs are intentionally **omitted**
-    ///   from the command line: a hashless spec there would fail the hash check,
-    ///   and the closure already contains the approved artifact (the allowlist
-    ///   guarantees the user may only request packages the operator put in that
-    ///   closure). `require_hashes` is only ever set with a constraints file
-    ///   present ([`PipPolicy::from_config`] enforces this), so the `-r` target
-    ///   always exists here.
+    /// A hashed allowlist also adds `--require-hashes`. pip 26.1 and later
+    /// take a requirement's hashes from a matching `-c` entry
+    /// (pypa/pip#8792, pypa/pip#9243), so every package installed, including
+    /// dependencies, must be in the allowlist with a matching hash.
     fn pip_install_args(&self, specs: &[String]) -> Vec<OsString> {
-        let mut args = Vec::new();
-        if self.require_hashes {
-            // Hashes live in the requirement input, not in `-c`. Install the
-            // operator's hashed closure via `-r` and enforce every hash.
-            if let Some(constraints_file) = &self.constraints_file {
-                args.push(OsString::from("-r"));
-                args.push(constraints_file.clone().into_os_string());
-            }
-            args.push(OsString::from("--require-hashes"));
-        } else {
-            // Pin-only: the user's specs drive the install; the constraints file
-            // (if any) just pins versions via `-c`.
-            args.extend(specs.iter().map(OsString::from));
-            if let Some(constraints_file) = &self.constraints_file {
-                args.push(OsString::from("-c"));
-                args.push(constraints_file.clone().into_os_string());
-            }
-        }
+        let mut args: Vec<OsString> = specs.iter().map(OsString::from).collect();
+        self.push_allowlist_args(&mut args);
         args
     }
 
     /// Build the argument list that follows `pip install` for the requirements
-    /// (`-r`) path, where the user supplies their own requirements file at
-    /// `user_requirements_path` (already allowlist-validated to contain only
-    /// plain pinned `name==version` lines, with no hashes).
-    ///
-    /// Mirrors [`PipPolicy::pip_install_args`]:
-    ///
-    /// * **Pin-only**: install from the user's file (`-r <user>`) and pin with
-    ///   the constraints file (`-c <file>`) if configured.
-    ///
-    /// * **Require-hashes**: the user's file has no hashes and a `-c` file cannot
-    ///   satisfy `--require-hashes`, so the install is driven by the operator's
-    ///   hashed closure (`-r <constraints_file> --require-hashes`) instead. Every
-    ///   line the user requested was validated to be an allowlisted pinned spec,
-    ///   so it is already present in that closure; the user's own file is not
-    ///   passed to pip (its hashless entries would fail the hash check).
+    /// (`-r`) path. Mirrors [`PipPolicy::pip_install_args`].
     fn pip_install_requirements_args(&self, user_requirements_path: &str) -> Vec<OsString> {
-        let mut args = Vec::new();
-        if self.require_hashes {
-            if let Some(constraints_file) = &self.constraints_file {
-                args.push(OsString::from("-r"));
-                args.push(constraints_file.clone().into_os_string());
-            }
-            args.push(OsString::from("--require-hashes"));
-        } else {
-            args.push(OsString::from("-r"));
-            args.push(OsString::from(user_requirements_path));
-            if let Some(constraints_file) = &self.constraints_file {
-                args.push(OsString::from("-c"));
-                args.push(constraints_file.clone().into_os_string());
-            }
-        }
+        let mut args = vec![OsString::from("-r"), OsString::from(user_requirements_path)];
+        self.push_allowlist_args(&mut args);
         args
+    }
+
+    /// Append `-c <allowlist>` if configured, and `--require-hashes` for a
+    /// hashed allowlist.
+    fn push_allowlist_args(&self, args: &mut Vec<OsString>) {
+        if let Some(allowlist) = &self.allowlist {
+            args.push(OsString::from("-c"));
+            args.push(allowlist.path().as_os_str().to_os_string());
+        }
+        if self.is_hashed() {
+            args.push(OsString::from("--require-hashes"));
+        }
     }
 }
 
@@ -533,7 +357,13 @@ pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
     fn install_requirements(&self, requirements_path: String)
     -> Result<(), PluginEnvironmentError>;
 
-    fn uninstall_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError>;
+    /// Uninstall `packages`. On success, reports installed packages that still
+    /// require one of the removed packages, so the caller can warn that they
+    /// need to be reinstalled.
+    fn uninstall_packages(
+        &self,
+        packages: Vec<String>,
+    ) -> Result<ProcessingEngineUninstallPackagesResponse, PluginEnvironmentError>;
 }
 
 #[derive(Debug, Clone)]
@@ -542,8 +372,7 @@ pub struct PipManager {
 }
 
 impl PipManager {
-    /// A `PipManager` with no restrictions (no approved list, constraints, or
-    /// hash requirement). Matches the historical behavior.
+    /// A `PipManager` with no allowlist. Matches the historical behavior.
     pub fn unrestricted() -> Self {
         Self {
             policy: Arc::new(PipPolicy::unrestricted()),
@@ -585,12 +414,15 @@ impl PythonEnvironmentManager for PipManager {
         }
 
         initialize_venv(&venv_path)?;
+        if self.policy.is_hashed() {
+            check_pip_supports_constraint_hashes(&venv_path)?;
+        }
         Ok(())
     }
 
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
-        // Enforce the approved-packages policy before shelling out to pip so an
-        // unapproved package never reaches the network.
+        // Enforce the allowlist before shelling out to pip so a package it does
+        // not allow never reaches the network.
         self.policy.validate_packages(&packages)?;
 
         let python_exe = find_python();
@@ -601,10 +433,7 @@ impl PythonEnvironmentManager for PipManager {
             .args(self.policy.pip_install_args(&packages))
             .output()?;
         if !output.status.success() {
-            return Err(PluginEnvironmentError::PackageManagerNotFound(format!(
-                "pip install failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )));
+            return Err(pip_command_failed("pip install", &output));
         }
         Ok(())
     }
@@ -627,19 +456,21 @@ impl PythonEnvironmentManager for PipManager {
             )
             .output()?;
         if !output.status.success() {
-            return Err(PluginEnvironmentError::PackageManagerNotFound(format!(
-                "pip install -r failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )));
+            return Err(pip_command_failed("pip install -r", &output));
         }
         Ok(())
     }
 
-    fn uninstall_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+    fn uninstall_packages(
+        &self,
+        packages: Vec<String>,
+    ) -> Result<ProcessingEngineUninstallPackagesResponse, PluginEnvironmentError> {
+        // Refuse protected names and pip options before shelling out to pip.
+        self.policy.validate_uninstall(&packages)?;
         // Treats an already-absent package as a warning with a zero exit
         // so uninstall is idempotent.
         let python_exe = find_python();
-        let output = Command::new(python_exe)
+        let output = Command::new(&python_exe)
             .arg("-m")
             .arg("pip")
             .arg("uninstall")
@@ -647,13 +478,147 @@ impl PythonEnvironmentManager for PipManager {
             .args(&packages)
             .output()?;
         if !output.status.success() {
-            return Err(PluginEnvironmentError::PackageManagerNotFound(format!(
-                "pip uninstall failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )));
+            return Err(pip_command_failed("pip uninstall", &output));
         }
-        Ok(())
+
+        // The uninstall succeeded; find installed packages that still need
+        // what was removed. `pip check` exits non-zero when it finds any
+        // problem, so its exit status is not an error here. A failure to run
+        // it only loses the warning, so it is logged rather than returned.
+        let removed: BTreeSet<String> = packages
+            .iter()
+            .map(|spec| normalize_package_name(&parse_spec(spec).0))
+            .collect();
+        let broken_dependents = match Command::new(&python_exe)
+            .arg("-m")
+            .arg("pip")
+            .arg("check")
+            .output()
+        {
+            Ok(check) => {
+                broken_dependents_from_pip_check(&String::from_utf8_lossy(&check.stdout), &removed)
+            }
+            Err(error) => {
+                warn!(%error, "failed to run pip check after uninstall");
+                Vec::new()
+            }
+        };
+        if !broken_dependents.is_empty() {
+            warn!(
+                ?broken_dependents,
+                "uninstall left installed packages without a required dependency"
+            );
+        }
+        Ok(ProcessingEngineUninstallPackagesResponse { broken_dependents })
     }
+}
+
+/// A failed pip invocation, with its stderr trimmed for the error message.
+fn pip_command_failed(command: &str, output: &std::process::Output) -> PluginEnvironmentError {
+    PluginEnvironmentError::PipCommandFailed {
+        command: command.to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+    }
+}
+
+/// Pick out the packages that `pip check` reports as missing one of the
+/// `removed` packages. pip prints one line per problem, e.g.
+/// `python-dateutil 2.9.0.post0 requires six, which is not installed.`; lines
+/// about other problems (version conflicts, packages missing for unrelated
+/// reasons) are ignored so the warning only covers this uninstall.
+fn broken_dependents_from_pip_check(
+    output: &str,
+    removed: &BTreeSet<String>,
+) -> Vec<BrokenDependent> {
+    let mut by_package: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for line in output.lines() {
+        let Some(rest) = line.trim().strip_suffix(", which is not installed.") else {
+            continue;
+        };
+        let Some((dependent, missing)) = rest.split_once(" requires ") else {
+            continue;
+        };
+        let missing = normalize_package_name(missing.trim());
+        if !removed.contains(&missing) {
+            continue;
+        }
+        // `dependent` is "<name> <version>"; report it as a reinstallable spec.
+        let package = match dependent.trim().rsplit_once(' ') {
+            Some((name, version)) => format!("{name}=={version}"),
+            None => dependent.trim().to_string(),
+        };
+        by_package.entry(package).or_default().insert(missing);
+    }
+    by_package
+        .into_iter()
+        .map(|(package, missing)| BrokenDependent {
+            package,
+            missing: missing.into_iter().collect(),
+        })
+        .collect()
+}
+
+/// The oldest pip that reads hashes from a `-c` constraints file
+/// (pip 26.1, pypa/pip#8792, pypa/pip#9243). Hashed allowlists depend on it.
+const MIN_PIP_FOR_CONSTRAINT_HASHES: (u64, u64) = (26, 1);
+
+/// The interpreter inside a venv. A venv always contains `bin/python`;
+/// `python3` is only a symlink that may be absent.
+fn venv_python(venv_path: &Path) -> PathBuf {
+    cfg_select! {
+        windows => venv_path.join("Scripts").join("python.exe"),
+        _ => venv_path.join("bin").join("python"),
+    }
+}
+
+/// Parse the major and minor version from `pip --version` output such as
+/// `pip 26.2.2 from /path/site-packages/pip (python 3.12)`. Trailing
+/// pre-release text on the minor (`26.1b1`) is ignored.
+fn parse_pip_version(output: &str) -> Option<(u64, u64)> {
+    let version = output
+        .trim()
+        .strip_prefix("pip ")?
+        .split_whitespace()
+        .next()?;
+    let mut parts = version.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor_text = parts.next().unwrap_or("0");
+    let digits_end = minor_text
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(minor_text.len());
+    let minor = minor_text[..digits_end].parse().ok()?;
+    Some((major, minor))
+}
+
+/// Refuse to start with a hashed allowlist unless the venv's pip is new enough
+/// to verify hashes from a `-c` file. Older pip rejects every such
+/// install, so this fails startup instead of every install request. A pip that
+/// cannot be run or whose version cannot be read is treated as too old.
+fn check_pip_supports_constraint_hashes(venv_path: &Path) -> Result<(), PluginEnvironmentError> {
+    let python = venv_python(venv_path);
+    let found = match Command::new(&python)
+        .args(["-m", "pip", "--version"])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            match parse_pip_version(&stdout) {
+                Some(version) if version >= MIN_PIP_FOR_CONSTRAINT_HASHES => return Ok(()),
+                Some(_) => stdout,
+                None => format!("unrecognized version output '{stdout}'"),
+            }
+        }
+        Ok(output) => format!(
+            "pip --version failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
+        Err(error) => format!("could not run pip: {error}"),
+    };
+    Err(PluginEnvironmentError::PipTooOldForHashedAllowlist {
+        venv: venv_path.display().to_string(),
+        python: python.display().to_string(),
+        found,
+    })
 }
 
 fn sorted_unique_package_names(mut package_names: Vec<String>) -> Vec<String> {
@@ -720,7 +685,10 @@ impl PythonEnvironmentManager for DisabledManager {
         Err(PluginEnvironmentDisabled)
     }
 
-    fn uninstall_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+    fn uninstall_packages(
+        &self,
+        _packages: Vec<String>,
+    ) -> Result<ProcessingEngineUninstallPackagesResponse, PluginEnvironmentError> {
         Err(PluginEnvironmentDisabled)
     }
 }
@@ -753,7 +721,10 @@ impl PythonEnvironmentManager for DisabledPackageManager {
         Err(PluginEnvironmentError::PackageInstallationDisabled)
     }
 
-    fn uninstall_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+    fn uninstall_packages(
+        &self,
+        _packages: Vec<String>,
+    ) -> Result<ProcessingEngineUninstallPackagesResponse, PluginEnvironmentError> {
         Err(PluginEnvironmentError::PackageInstallationDisabled)
     }
 }
@@ -789,9 +760,12 @@ impl PythonEnvironmentManager for TestManager {
         Ok(())
     }
 
-    fn uninstall_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+    fn uninstall_packages(
+        &self,
+        _packages: Vec<String>,
+    ) -> Result<ProcessingEngineUninstallPackagesResponse, PluginEnvironmentError> {
         // Always succeed for tests
-        Ok(())
+        Ok(ProcessingEngineUninstallPackagesResponse::default())
     }
 }
 
@@ -917,12 +891,7 @@ impl ReadyVenv {
         &self,
         policy: Arc<PipPolicy>,
     ) -> Arc<dyn PythonEnvironmentManager> {
-        // A venv always contains `bin/python`; `python3` is only a symlink that
-        // may be absent.
-        let venv_python = cfg_select! {
-            windows => self.path.join("Scripts").join("python.exe"),
-            _ => self.path.join("bin").join("python"),
-        };
+        let venv_python = venv_python(&self.path);
         debug!("Running: {} -m pip --version", venv_python.display());
         let pip_available = Command::new(&venv_python)
             .args(["-m", "pip", "--version"])
@@ -971,8 +940,7 @@ mod tests {
             ("numpy".to_string(), Some("2.1.3".to_string()))
         );
         assert_eq!(parse_spec("numpy"), ("numpy".to_string(), None));
-        // A non-`==` operator is left attached to the name so it is treated as
-        // unpinned by approval validation.
+        // A non-`==` operator is left attached to the name.
         assert_eq!(parse_spec("numpy>=2.0"), ("numpy>=2.0".to_string(), None));
         assert_eq!(
             parse_spec("  numpy == 2.1.3  "),
@@ -980,112 +948,15 @@ mod tests {
         );
     }
 
-    fn approved(contents: &str) -> AllowlistedPackages {
-        AllowlistedPackages::from_str_lines(contents, "test").expect("valid approved list")
-    }
+    const RANGES: &str = "--index-url https://pypi.org/simple\nnumpy>=2,<3\npandas~=2.2\n";
+    const HASHED: &str = "--only-binary :all:\nnumpy==2.2.6 \\\n    --hash=sha256:0386\nsix==1.17.0 --hash=sha256:abcd\n";
 
-    #[test]
-    fn approved_packages_parses_and_skips_blanks_and_comments() {
-        let list = approved(
-            "# a comment\n\nnumpy==2.1.3\nnumpy==2.0.0\n  # indented comment\nPandas==2.2.0\n",
-        );
-        // Two versions of numpy collapse under one normalized key.
-        assert!(list.validate_spec("numpy==2.1.3").is_ok());
-        assert!(list.validate_spec("numpy==2.0.0").is_ok());
-        // Name normalization: `Pandas` approved as `pandas`.
-        assert!(list.validate_spec("pandas==2.2.0").is_ok());
-    }
-
-    #[test]
-    fn approved_packages_rejects_unpinned_entry() {
-        let err = AllowlistedPackages::from_str_lines("numpy\n", "test").unwrap_err();
-        assert!(matches!(
-            err,
-            PluginEnvironmentError::AllowlistFileInvalidEntry { line_number: 1, .. }
-        ));
-    }
-
-    #[test]
-    fn approved_packages_rejects_range_operator_entry() {
-        let err = AllowlistedPackages::from_str_lines("numpy>=2.0\n", "test").unwrap_err();
-        assert!(matches!(
-            err,
-            PluginEnvironmentError::AllowlistFileInvalidEntry { .. }
-        ));
-    }
-
-    #[test]
-    fn validate_spec_not_on_list() {
-        let list = approved("numpy==2.1.3\n");
-        let err = list.validate_spec("scipy==1.0.0").unwrap_err();
-        match err {
-            PluginEnvironmentError::PackageNotAllowlisted { name } => assert_eq!(name, "scipy"),
-            other => panic!("expected PackageNotAllowlisted, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn validate_spec_wrong_version() {
-        let list = approved("numpy==2.1.3\nnumpy==2.0.0\n");
-        let err = list.validate_spec("numpy==1.0.0").unwrap_err();
-        match err {
-            PluginEnvironmentError::PackageVersionNotAllowlisted {
-                name,
-                requested,
-                allowlisted,
-            } => {
-                assert_eq!(name, "numpy");
-                assert_eq!(requested, "1.0.0");
-                // BTreeSet ordering makes the allowlisted list deterministic.
-                assert_eq!(allowlisted, "2.0.0, 2.1.3");
-            }
-            other => panic!("expected PackageVersionNotAllowlisted, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn validate_spec_missing_version() {
-        let list = approved("numpy==2.1.3\n");
-        let err = list.validate_spec("numpy").unwrap_err();
-        match err {
-            PluginEnvironmentError::PackageVersionRequired {
-                name,
-                example_version,
-            } => {
-                assert_eq!(name, "numpy");
-                assert_eq!(example_version, "2.1.3");
-            }
-            other => panic!("expected PackageVersionRequired, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn validate_spec_normalizes_requested_name() {
-        let list = approved("foo-bar==1.0.0\n");
-        // Underscore/case variant of an approved package validates.
-        assert!(list.validate_spec("Foo_Bar==1.0.0").is_ok());
-    }
-
-    #[test]
-    fn validate_all_fails_on_first_bad_spec() {
-        let list = approved("numpy==2.1.3\n");
-        let err = list
-            .validate_all(&["numpy==2.1.3".to_string(), "scipy==1.0.0".to_string()])
-            .unwrap_err();
-        assert!(matches!(
-            err,
-            PluginEnvironmentError::PackageNotAllowlisted { .. }
-        ));
-    }
-
-    #[test]
-    fn approved_packages_from_file_reports_unreadable() {
-        let missing = Path::new("/nonexistent/approved-packages.txt");
-        let err = AllowlistedPackages::from_file(missing).unwrap_err();
-        assert!(matches!(
-            err,
-            PluginEnvironmentError::AllowlistFileUnreadable { .. }
-        ));
+    /// Write an allowlist file into `dir` and build a policy from it.
+    fn policy_from(dir: &Path, contents: &str) -> (PipPolicy, PathBuf) {
+        let path = dir.join("allowlist.txt");
+        std::fs::write(&path, contents).unwrap();
+        let policy = PipPolicy::from_config(Some(&path)).expect("valid allowlist");
+        (policy, path)
     }
 
     #[test]
@@ -1093,215 +964,131 @@ mod tests {
         let policy = PipPolicy::unrestricted();
         assert!(
             policy
-                .validate_packages(&["anything==9.9.9".to_string()])
+                .validate_packages(&[
+                    "anything==9.9.9".to_string(),
+                    "git+https://example.com/pkg".to_string(),
+                ])
                 .is_ok()
         );
-        // With no constraints and no hash requirement, the only install args are
-        // the user's own specs.
+        assert!(policy.validate_requirements_contents("-e .\n").is_ok());
+        // With no allowlist, the only install args are the user's own specs.
         assert_eq!(
             policy.pip_install_args(&["numpy==2.1.3".to_string()]),
-            vec![std::ffi::OsString::from("numpy==2.1.3")]
+            vec![OsString::from("numpy==2.1.3")]
         );
     }
 
     #[test]
-    fn pip_policy_from_config_reads_approved_list_and_builds_args() {
-        let tmp = TempDir::new().unwrap();
-        let approved_path = tmp.path().join("approved.txt");
-        std::fs::write(&approved_path, "numpy==2.1.3\n").unwrap();
-        let constraints_path = tmp.path().join("constraints.txt");
-        std::fs::write(&constraints_path, "numpy==2.1.3 --hash=sha256:abc\n").unwrap();
-
-        let policy = PipPolicy::from_config(Some(&approved_path), Some(&constraints_path), true)
-            .expect("policy builds from valid config");
-
-        // Approved list is enforced.
-        assert!(
-            policy
-                .validate_packages(&["numpy==2.1.3".to_string()])
-                .is_ok()
-        );
-        assert!(
-            policy
-                .validate_packages(&["scipy==1.0.0".to_string()])
-                .is_err()
-        );
-
-        // In require-hashes mode the hashed constraints file is installed via
-        // `-r` (pip ignores hashes supplied through `-c`), `--require-hashes` is
-        // set, and the user's bare spec is NOT placed on the command line (a
-        // hashless spec there would fail the hash check).
-        let args = policy.pip_install_args(&["numpy==2.1.3".to_string()]);
-        assert_eq!(
-            args,
-            vec![
-                std::ffi::OsString::from("-r"),
-                constraints_path.clone().into_os_string(),
-                std::ffi::OsString::from("--require-hashes"),
-            ]
-        );
-        assert!(!args.contains(&std::ffi::OsString::from("-c")));
-        assert!(!args.contains(&std::ffi::OsString::from("numpy==2.1.3")));
-    }
-
-    #[test]
-    fn pip_policy_from_config_fails_fast_on_bad_approved_file() {
-        let tmp = TempDir::new().unwrap();
-        let approved_path = tmp.path().join("approved.txt");
-        std::fs::write(&approved_path, "numpy\n").unwrap();
-        let err = PipPolicy::from_config(Some(&approved_path), None, false).unwrap_err();
-        assert!(matches!(
-            err,
-            PluginEnvironmentError::AllowlistFileInvalidEntry { .. }
-        ));
-    }
-
-    #[test]
-    fn pip_policy_require_hashes_without_constraints_fails_fast() {
-        let err = PipPolicy::from_config(None, None, true).unwrap_err();
-        assert!(matches!(
-            err,
-            PluginEnvironmentError::RequireHashesWithoutConstraints
-        ));
-    }
-
-    #[test]
-    fn pip_policy_pin_mode_with_hashed_constraints_fails_fast() {
-        // A hashed constraints file in pin mode is rejected at startup, because
-        // pip would otherwise auto-enable hash checking and fail every install.
-        let tmp = TempDir::new().unwrap();
-        let constraints = tmp.path().join("constraints.txt");
-        std::fs::write(&constraints, "numpy==2.1.3 \\\n    --hash=sha256:abc123\n").unwrap();
-        let err = PipPolicy::from_config(None, Some(&constraints), false).unwrap_err();
-        assert!(matches!(
-            err,
-            PluginEnvironmentError::PinModeConstraintsHaveHashes { line_number: 2, .. }
-        ));
-    }
-
-    #[test]
-    fn pip_policy_pin_mode_with_hashfree_constraints_ok() {
-        // The same file without hashes is valid in pin mode.
-        let tmp = TempDir::new().unwrap();
-        let constraints = tmp.path().join("constraints.txt");
-        std::fs::write(&constraints, "# pins only\nnumpy==2.1.3\npandas==2.2.0\n").unwrap();
-        let policy = PipPolicy::from_config(None, Some(&constraints), false)
-            .expect("hash-free pin-mode constraints are valid");
-        assert!(!policy.require_hashes);
-    }
-
-    #[test]
-    fn pip_policy_require_hashes_with_constraints_ok() {
-        let tmp = TempDir::new().unwrap();
-        let constraints = tmp.path().join("constraints.txt");
-        std::fs::write(&constraints, "numpy==2.1.3 --hash=sha256:abc\n").unwrap();
-        let policy = PipPolicy::from_config(None, Some(&constraints), true)
-            .expect("require-hashes with a constraints file is valid");
-        let args = policy.pip_install_args(&["numpy==2.1.3".to_string()]);
-        assert!(args.contains(&std::ffi::OsString::from("--require-hashes")));
-    }
-
-    #[test]
-    fn pip_install_args_pin_mode_uses_c_and_keeps_specs() {
-        // Pin-only: constraints file is passed as `-c`, user specs stay on the
-        // command line, and `--require-hashes` is absent.
-        let tmp = TempDir::new().unwrap();
-        let constraints = tmp.path().join("constraints.txt");
-        std::fs::write(&constraints, "numpy==2.1.3\n").unwrap();
-        let policy = PipPolicy::from_config(None, Some(&constraints), false)
-            .expect("pin mode with a constraints file is valid");
-
-        let args = policy.pip_install_args(&["numpy==2.1.3".to_string()]);
-        assert_eq!(
-            args,
-            vec![
-                std::ffi::OsString::from("numpy==2.1.3"),
-                std::ffi::OsString::from("-c"),
-                constraints.clone().into_os_string(),
-            ]
-        );
-        assert!(!args.contains(&std::ffi::OsString::from("--require-hashes")));
-        assert!(!args.contains(&std::ffi::OsString::from("-r")));
-    }
-
-    #[test]
-    fn pip_install_requirements_args_require_hashes_uses_closure_not_user_file() {
-        // On the `-r` path under require-hashes, the operator's hashed closure is
-        // installed via `-r <constraints>`; the user's hashless file is not
-        // passed to pip, and `--require-hashes` is set.
-        let tmp = TempDir::new().unwrap();
-        let constraints = tmp.path().join("constraints.txt");
-        std::fs::write(&constraints, "numpy==2.1.3 --hash=sha256:abc\n").unwrap();
-        let policy = PipPolicy::from_config(None, Some(&constraints), true)
-            .expect("require-hashes with a constraints file is valid");
-
-        let args = policy.pip_install_requirements_args("/tmp/user-reqs.txt");
-        assert_eq!(
-            args,
-            vec![
-                std::ffi::OsString::from("-r"),
-                constraints.clone().into_os_string(),
-                std::ffi::OsString::from("--require-hashes"),
-            ]
-        );
-        assert!(!args.contains(&std::ffi::OsString::from("/tmp/user-reqs.txt")));
-    }
-
-    #[test]
-    fn pip_install_requirements_args_pin_mode_uses_user_file_and_c() {
-        // On the `-r` path under pin-only, the user's file drives the install
-        // and the constraints file pins via `-c`.
-        let tmp = TempDir::new().unwrap();
-        let constraints = tmp.path().join("constraints.txt");
-        std::fs::write(&constraints, "numpy==2.1.3\n").unwrap();
-        let policy = PipPolicy::from_config(None, Some(&constraints), false)
-            .expect("pin mode with a constraints file is valid");
-
-        let args = policy.pip_install_requirements_args("/tmp/user-reqs.txt");
-        assert_eq!(
-            args,
-            vec![
-                std::ffi::OsString::from("-r"),
-                std::ffi::OsString::from("/tmp/user-reqs.txt"),
-                std::ffi::OsString::from("-c"),
-                constraints.clone().into_os_string(),
-            ]
-        );
-        assert!(!args.contains(&std::ffi::OsString::from("--require-hashes")));
-    }
-
-    fn policy_with_allowlist(contents: &str) -> PipPolicy {
-        PipPolicy {
-            allowlist: Some(approved(contents)),
-            constraints_file: None,
-            require_hashes: false,
+    fn validate_packages_rejects_options_without_allowlist() {
+        let policy = PipPolicy::unrestricted();
+        for bad in ["-r", "--python", "  --target=/tmp/x", "-e."] {
+            let err = policy
+                .validate_packages(&["numpy".to_string(), bad.to_string()])
+                .unwrap_err();
+            assert!(
+                matches!(err, PluginEnvironmentError::PackageSpecNotAllowed { .. }),
+                "{bad:?}: {err:?}"
+            );
         }
     }
 
+    #[cfg(unix)]
     #[test]
-    fn requirements_allows_approved_pinned_entries() {
-        let policy = policy_with_allowlist("numpy==2.1.3\npandas==2.2.0\n");
-        let reqs = "# a comment\n\nnumpy==2.1.3\npandas==2.2.0  # inline comment\n";
-        assert!(policy.validate_requirements_contents(reqs).is_ok());
+    fn pip_command_failed_reports_command_and_stderr() {
+        use std::os::unix::process::ExitStatusExt;
+        let output = std::process::Output {
+            status: std::process::ExitStatus::from_raw(1 << 8),
+            stdout: Vec::new(),
+            stderr: b"ERROR: No matching distribution found for nope\n".to_vec(),
+        };
+        assert_eq!(
+            pip_command_failed("pip install", &output).to_string(),
+            "'pip install' failed: ERROR: No matching distribution found for nope"
+        );
     }
 
     #[test]
-    fn requirements_rejects_unapproved_package() {
-        let policy = policy_with_allowlist("numpy==2.1.3\n");
+    fn pip_policy_from_config_fails_fast_on_invalid_allowlist() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("allowlist.txt");
+        std::fs::write(&path, "numpy>=\n").unwrap();
+        assert!(matches!(
+            PipPolicy::from_config(Some(&path)).unwrap_err(),
+            PluginEnvironmentError::AllowlistFileInvalidEntry { .. }
+        ));
+        assert!(matches!(
+            PipPolicy::from_config(Some(&tmp.path().join("missing.txt"))).unwrap_err(),
+            PluginEnvironmentError::AllowlistFileUnreadable { .. }
+        ));
+    }
+
+    #[test]
+    fn ranges_policy_passes_allowlist_as_constraints() {
+        let tmp = TempDir::new().unwrap();
+        let (policy, path) = policy_from(tmp.path(), RANGES);
+        assert!(!policy.is_hashed());
+        assert_eq!(
+            policy.pip_install_args(&["numpy".to_string()]),
+            vec![
+                OsString::from("numpy"),
+                OsString::from("-c"),
+                path.clone().into_os_string(),
+            ]
+        );
+        assert_eq!(
+            policy.pip_install_requirements_args("/tmp/user-reqs.txt"),
+            vec![
+                OsString::from("-r"),
+                OsString::from("/tmp/user-reqs.txt"),
+                OsString::from("-c"),
+                path.into_os_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn hashed_policy_adds_require_hashes() {
+        let tmp = TempDir::new().unwrap();
+        let (policy, path) = policy_from(tmp.path(), HASHED);
+        assert!(policy.is_hashed());
+        assert_eq!(
+            policy.pip_install_args(&["numpy".to_string()]),
+            vec![
+                OsString::from("numpy"),
+                OsString::from("-c"),
+                path.clone().into_os_string(),
+                OsString::from("--require-hashes"),
+            ]
+        );
+        assert_eq!(
+            policy.pip_install_requirements_args("/tmp/user-reqs.txt"),
+            vec![
+                OsString::from("-r"),
+                OsString::from("/tmp/user-reqs.txt"),
+                OsString::from("-c"),
+                path.into_os_string(),
+                OsString::from("--require-hashes"),
+            ]
+        );
+    }
+
+    #[test]
+    fn validate_packages_enforces_allowlist() {
+        let tmp = TempDir::new().unwrap();
+        let (policy, _) = policy_from(tmp.path(), RANGES);
+        policy
+            .validate_packages(&["numpy".to_string(), "Pandas==2.2.3".to_string()])
+            .unwrap();
+        // The first rejected spec fails the request.
         let err = policy
-            .validate_requirements_contents("scipy==1.11.0\n")
+            .validate_packages(&["numpy".to_string(), "scipy".to_string()])
             .unwrap_err();
         assert!(matches!(
             err,
             PluginEnvironmentError::PackageNotAllowlisted { .. }
         ));
-    }
-
-    #[test]
-    fn requirements_rejects_wrong_version() {
-        let policy = policy_with_allowlist("numpy==2.1.3\n");
         let err = policy
-            .validate_requirements_contents("numpy==2.5.3\n")
+            .validate_packages(&["numpy==1.26.4".to_string()])
             .unwrap_err();
         assert!(matches!(
             err,
@@ -1310,31 +1097,71 @@ mod tests {
     }
 
     #[test]
-    fn requirements_rejects_unpinned_entry() {
-        let policy = policy_with_allowlist("numpy==2.1.3\n");
-        let err = policy
-            .validate_requirements_contents("numpy\n")
-            .unwrap_err();
+    fn validate_packages_rejects_options_urls_and_paths() {
+        let tmp = TempDir::new().unwrap();
+        let (policy, _) = policy_from(tmp.path(), RANGES);
+        for bad in [
+            "-r /etc/requirements.txt",
+            "--index-url=https://evil.example/simple",
+            "-i",
+            "numpy --index-url https://evil.example/simple",
+            "numpy @ https://evil.example/numpy.whl",
+            "https://evil.example/numpy.whl",
+            "./numpy",
+            "git+https://github.com/numpy/numpy",
+            "",
+        ] {
+            let err = policy.validate_packages(&[bad.to_string()]).unwrap_err();
+            assert!(
+                matches!(err, PluginEnvironmentError::PackageSpecNotAllowed { .. }),
+                "{bad:?}: {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn requirements_allows_allowlisted_entries() {
+        let tmp = TempDir::new().unwrap();
+        let (policy, _) = policy_from(tmp.path(), RANGES);
+        let reqs = "# a comment\n\nnumpy>=2.1\npandas==2.2.3  # inline comment\nnumpy \\\n  <2.5\n";
+        policy.validate_requirements_contents(reqs).unwrap();
+    }
+
+    #[test]
+    fn requirements_rejects_unlisted_and_disallowed_versions() {
+        let tmp = TempDir::new().unwrap();
+        let (policy, _) = policy_from(tmp.path(), HASHED);
         assert!(matches!(
-            err,
-            PluginEnvironmentError::PackageVersionRequired { .. }
+            policy
+                .validate_requirements_contents("scipy==1.11.0\n")
+                .unwrap_err(),
+            PluginEnvironmentError::PackageNotAllowlisted { .. }
+        ));
+        assert!(matches!(
+            policy
+                .validate_requirements_contents("numpy==2.2.5\n")
+                .unwrap_err(),
+            PluginEnvironmentError::PackageVersionNotAllowlisted { .. }
         ));
     }
 
     #[test]
     fn requirements_rejects_urls_vcs_paths_and_options() {
-        let policy = policy_with_allowlist("numpy==2.1.3\n");
+        let tmp = TempDir::new().unwrap();
+        let (policy, _) = policy_from(tmp.path(), RANGES);
         for bad in [
             "https://example.com/evil-1.0-py3-none-any.whl",
             "git+https://github.com/foo/bar.git",
             "-e .",
             "--index-url https://evil.example.com/simple",
+            "--extra-index-url=https://evil.example.com/simple",
             "-r other-requirements.txt",
+            "-c other-constraints.txt",
             "./local-package",
             "/abs/path/pkg",
-            "evilpkg @ https://example.com/evil.whl",
-            "numpy==2.1.3; python_version < '3.12'",
-            "numpy==2.1.3 \\",
+            "numpy @ https://example.com/evil.whl",
+            "numpy==2.2.6 --hash=sha256:abcd",
+            "numpy==2.2.6 \\\n    --index-url https://evil.example.com/simple",
         ] {
             let err = policy
                 .validate_requirements_contents(&format!("{bad}\n"))
@@ -1350,25 +1177,102 @@ mod tests {
     }
 
     #[test]
-    fn requirements_without_allowlist_is_noop() {
-        // No allowlist configured => the requirements path is not gated here.
-        let policy = PipPolicy::unrestricted();
-        assert!(
-            policy
-                .validate_requirements_contents("anything==9.9.9\n-e .\n")
-                .is_ok()
-        );
-    }
-
-    #[test]
     fn requirements_file_unreadable_reports_error() {
-        let policy = policy_with_allowlist("numpy==2.1.3\n");
+        let tmp = TempDir::new().unwrap();
+        let (policy, _) = policy_from(tmp.path(), RANGES);
         let err = policy
             .validate_requirements_file("/nonexistent/requirements.txt")
             .unwrap_err();
         assert!(matches!(
             err,
             PluginEnvironmentError::RequirementsFileUnreadable { .. }
+        ));
+    }
+
+    #[test]
+    fn validate_uninstall_refuses_only_pip_and_options() {
+        // The allowlist only limits new installs: packages that are not on it,
+        // such as dependencies or packages installed before it changed, can
+        // still be removed.
+        let tmp = TempDir::new().unwrap();
+        let (with_allowlist, _) = policy_from(tmp.path(), RANGES);
+        for policy in [PipPolicy::unrestricted(), with_allowlist] {
+            for ok in ["numpy", "six", "scipy==1.0", "Python_Dateutil"] {
+                assert!(
+                    policy.validate_uninstall(&[ok.to_string()]).is_ok(),
+                    "{ok} should be allowed"
+                );
+            }
+            for spec in ["pip", "PIP", "pip==26.2.2", "-r", "--yes"] {
+                let err = policy.validate_uninstall(&[spec.to_string()]).unwrap_err();
+                assert!(
+                    matches!(err, PluginEnvironmentError::UninstallNotAllowed { .. }),
+                    "{spec}: unexpected error {err:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn broken_dependents_from_pip_check_reports_only_removed_packages() {
+        let output = "\
+python-dateutil 2.9.0.post0 requires six, which is not installed.
+pandas 2.2.0 requires python-dateutil, which is not installed.
+pandas 2.2.0 requires Six, which is not installed.
+pandas 2.2.0 requires pytz, which is not installed.
+foo 1.0 has requirement bar<2, but you have bar 3.0.
+";
+        let removed: BTreeSet<String> = ["six".to_string()].into_iter().collect();
+        assert_eq!(
+            broken_dependents_from_pip_check(output, &removed),
+            vec![
+                BrokenDependent {
+                    package: "pandas==2.2.0".to_string(),
+                    missing: vec!["six".to_string()],
+                },
+                BrokenDependent {
+                    package: "python-dateutil==2.9.0.post0".to_string(),
+                    missing: vec!["six".to_string()],
+                },
+            ]
+        );
+        assert!(
+            broken_dependents_from_pip_check("No broken requirements found.\n", &removed)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn parse_pip_version_reads_major_minor() {
+        let cases = [
+            (
+                "pip 26.2.2 from /v/site-packages/pip (python 3.12)",
+                Some((26, 2)),
+            ),
+            (
+                "pip 26.1 from /v/site-packages/pip (python 3.13)",
+                Some((26, 1)),
+            ),
+            ("pip 26.1b1 from /v (python 3.13)", Some((26, 1))),
+            ("pip 24.0 from /v (python 3.12)", Some((24, 0))),
+            ("pip 27 from /v (python 3.13)", Some((27, 0))),
+            ("not pip output", None),
+            ("pip x.y from /v", None),
+        ];
+        for (output, expected) in cases {
+            assert_eq!(parse_pip_version(output), expected, "{output}");
+        }
+        assert!(parse_pip_version("pip 26.0.1 from /v").unwrap() < MIN_PIP_FOR_CONSTRAINT_HASHES);
+        assert!(parse_pip_version("pip 26.1 from /v").unwrap() >= MIN_PIP_FOR_CONSTRAINT_HASHES);
+    }
+
+    #[test]
+    fn check_pip_supports_constraint_hashes_fails_closed_without_venv() {
+        let tmp = TempDir::new().unwrap();
+        let err = check_pip_supports_constraint_hashes(&tmp.path().join("no-venv")).unwrap_err();
+        assert!(matches!(
+            err,
+            PluginEnvironmentError::PipTooOldForHashedAllowlist { .. }
         ));
     }
 

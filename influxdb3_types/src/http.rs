@@ -249,6 +249,25 @@ pub struct ProcessingEngineUninstallPackagesRequest {
     pub packages: Vec<String>,
 }
 
+/// Response body for the `POST /api/v3/configure/plugin_environment/uninstall_packages` API
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ProcessingEngineUninstallPackagesResponse {
+    /// Installed packages that still require one of the removed packages and
+    /// are now broken, each with what they are missing. Reinstall these to
+    /// restore the removed dependencies.
+    #[serde(default)]
+    pub broken_dependents: Vec<BrokenDependent>,
+}
+
+/// An installed package left without a dependency after an uninstall.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct BrokenDependent {
+    /// The installed package, as `name==version`.
+    pub package: String,
+    /// The removed packages it still requires.
+    pub missing: Vec<String>,
+}
+
 /// Request definition for the `POST /api/v3/configure/plugin_environment/install_requirements` API
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineInstallRequirementsRequest {

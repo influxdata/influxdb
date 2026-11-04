@@ -1795,7 +1795,16 @@ impl HttpApi {
                 self.read_body_json(req).await?
             };
         let manager = self.processing_engine.get_environment_manager();
-        self.handle_install_result(manager.uninstall_packages(packages))
+        match manager.uninstall_packages(packages) {
+            Ok(response) => {
+                let body = serde_json::to_vec(&response)?;
+                Ok(ResponseBuilder::new()
+                    .status(StatusCode::OK)
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(bytes_to_response_body(body))?)
+            }
+            Err(err) => self.handle_install_result(Err(err)),
+        }
     }
 
     async fn install_plugin_environment_requirements(&self, req: Request) -> Result<Response> {

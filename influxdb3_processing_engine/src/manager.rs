@@ -48,8 +48,9 @@ impl From<PluginEnvironmentError> for ProcessingEngineError {
             PluginEnvironmentError::PackageInstallationDisabled
             | PluginEnvironmentError::PackageNotAllowlisted { .. }
             | PluginEnvironmentError::PackageVersionNotAllowlisted { .. }
-            | PluginEnvironmentError::PackageVersionRequired { .. }
-            | PluginEnvironmentError::RequirementsEntryNotAllowed { .. } => {
+            | PluginEnvironmentError::PackageSpecNotAllowed { .. }
+            | PluginEnvironmentError::RequirementsEntryNotAllowed { .. }
+            | PluginEnvironmentError::UninstallNotAllowed { .. } => {
                 ProcessingEngineError::PackageInstallationDisabled(err)
             }
             other => ProcessingEngineError::PythonPackageError(other),

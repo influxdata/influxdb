@@ -38,7 +38,7 @@ pub struct PackageConfig {
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     auth_token: Option<Secret<String>>,
 
-    /// Package names to uninstall, versions are not accepted.
+    /// Package names to uninstall.
     #[arg(required = true)]
     packages: Vec<String>,
 
@@ -60,9 +60,26 @@ impl PackageConfig {
         )?
         .with_resolved_auth_token(self.auth_token.as_ref())
         .await?;
-        client
+        let response = client
             .api_v3_configure_plugin_environment_uninstall_packages(self.packages.clone())
             .await?;
+        if !response.broken_dependents.is_empty() {
+            eprintln!(
+                "Warning: these installed packages still require a package you removed and may \
+                 fail to import:"
+            );
+            for dependent in &response.broken_dependents {
+                eprintln!(
+                    "  {} (requires {})",
+                    dependent.package,
+                    dependent.missing.join(", ")
+                );
+            }
+            eprintln!(
+                "Reinstall them with `influxdb3 install package <package>` to restore their \
+                 dependencies, or uninstall them."
+            );
+        }
         Ok(())
     }
 }

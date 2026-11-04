@@ -1676,15 +1676,10 @@ pub(crate) fn setup_processing_engine_env_manager(
         environment::venv_path_for(plugin_dir, config.virtual_env_location.as_ref())
     });
 
-    // Build the pip policy early so a bad allowlist file or a require-hashes
-    // mode with no constraints file fails startup rather than the first install
-    // request.
-    let require_hashes = config.plugin_package_constraints_mode
-        == influxdb3_clap_blocks::plugins::PipConstraintsMode::RequireHashes;
+    // Build the pip policy early so an invalid allowlist fails startup rather
+    // than the first install request.
     let policy = Arc::new(PipPolicy::from_config(
         config.plugin_package_allowlist.as_deref(),
-        config.plugin_package_constraints.as_deref(),
-        require_hashes,
     )?);
 
     let package_manager: Arc<dyn PythonEnvironmentManager> = if config.disable_package_management {
