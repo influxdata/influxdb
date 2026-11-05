@@ -427,8 +427,11 @@ func (s *Shard) closeNoLock() error {
 		s._engine = nil
 	}
 
-	if e := s.index.Close(); e == nil {
-		s.index = nil
+	// The index is already closed and nil if this retries a failed engine close.
+	if s.index != nil {
+		if e := s.index.Close(); e == nil {
+			s.index = nil
+		}
 	}
 	return err
 }
