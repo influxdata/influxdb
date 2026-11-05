@@ -67,6 +67,10 @@ var (
 	// access the shard's underlying engine.
 	ErrEngineClosed = errors.New("engine is closed")
 
+	// ErrMeasurementFieldSetClosed is returned when changes are saved to a
+	// MeasurementFieldSet that has been closed.
+	ErrMeasurementFieldSetClosed = errors.New("measurement field set is closed")
+
 	// ErrShardDisabled is returned when a the shard is not available for
 	// queries or writes.
 	ErrShardDisabled = errors.New("shard is disabled")
@@ -1678,18 +1682,27 @@ func NewMeasurementFieldSet(path string, logger *zap.Logger) (*MeasurementFieldS
 	return fs, fs.load()
 }
 
+// Close stops accepting saves, waits for those queued, and saves the
+// in-memory set to fields.idx if it changed or a changes file exists. It may
+// be called more than once, and concurrently.
 func (fs *MeasurementFieldSet) Close() error {
-	if fs != nil && fs.changeMgr != nil {
-		fs.changeMgr.Close()
-		// If there is a change log file, save the in-memory version
-		if _, err := os.Stat(fs.changeMgr.changeFilePath); err == nil {
-			return fs.WriteToFile()
-		} else if os.IsNotExist(err) {
+	if fs == nil || fs.changeMgr == nil {
+		return nil
+	}
+	fs.changeMgr.Close()
+	// Save the in-memory version if it changed, even if writing the
+	// changes file failed, or if there is a changes file left to replace.
+	if !fs.changeMgr.changed.Load() {
+		if _, err := os.Stat(fs.changeMgr.changeFilePath); os.IsNotExist(err) {
 			return nil
-		} else {
+		} else if err != nil {
 			return fmt.Errorf("cannot get file information for %s: %w", fs.changeMgr.changeFilePath, err)
 		}
 	}
+	if err := fs.WriteToFile(); err != nil {
+		return err
+	}
+	fs.changeMgr.changed.Store(false)
 	return nil
 }
 
@@ -1801,12 +1814,21 @@ type writeRequest struct {
 }
 
 type measurementFieldSetChangeMgr struct {
-	mu             sync.Mutex
-	wg             sync.WaitGroup
+	// mu serializes writes to the changes file, and WriteToFile, which
+	// replaces fields.idx and removes the changes file
+	mu sync.Mutex
+	wg sync.WaitGroup
+	// chMu guards writeRequests, which is nil after Close. Senders hold
+	// it for reading across the nil check and the send, so the channel
+	// cannot be closed between the two.
+	chMu           sync.RWMutex
 	writeRequests  chan writeRequest
 	changeFilePath string
 	logger         *zap.Logger
 	changeFileSize int64
+	// changed is set when changes are queued, so Close writes fields.idx
+	// from the in-memory set even if writing the changes file failed.
+	changed atomic.Bool
 }
 
 // SetMeasurementFieldSetWriter - initialize the queue for write requests
@@ -1821,52 +1843,123 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int, log
 		changeFileSize: int64(0),
 	}
 	fs.changeMgr.wg.Add(1)
-	go fs.changeMgr.SaveWriter()
+	// Pass the channel rather than have SaveWriter read the field, which
+	// Close sets to nil, possibly before SaveWriter is scheduled.
+	go fs.changeMgr.SaveWriter(fs.changeMgr.writeRequests)
 }
 
+// Close stops accepting write requests, and waits until those already
+// queued are written. It may be called more than once.
 func (fscm *measurementFieldSetChangeMgr) Close() {
-	if fscm != nil {
-		close(fscm.writeRequests)
-		fscm.wg.Wait()
+	if fscm == nil {
+		return
 	}
+	fscm.chMu.Lock()
+	ch := fscm.writeRequests
+	fscm.writeRequests = nil
+	fscm.chMu.Unlock()
+	if ch != nil {
+		close(ch)
+	}
+	fscm.wg.Wait()
 }
 
+// Save persists changes already made to the in-memory set. A caller that
+// makes those changes should use SaveAfter instead, so that Close cannot
+// come between the change and its save, unless something else keeps Close
+// out, as the shard's lock does for writes.
 func (fs *MeasurementFieldSet) Save(changes FieldChanges) error {
-	return fs.changeMgr.RequestSave(changes)
+	return fs.changeMgr.RequestSave(func() (FieldChanges, error) { return changes, nil })
 }
 
-func (fscm *measurementFieldSetChangeMgr) RequestSave(changes FieldChanges) error {
+// SaveAfter runs fn, which changes the in-memory set, and persists the
+// changes fn returns. Close waits for fn and the queuing of its changes, so
+// either both happen and the changes are persisted, or after Close neither
+// happens and SaveAfter returns ErrMeasurementFieldSetClosed. The changes fn
+// returns are persisted even when fn also returns an error, as they describe
+// what it already did. fn may do other work that must not outlive the field
+// set, such as a delete removing data, and Close then waits for that too. fn
+// must not call Save or SaveAfter.
+func (fs *MeasurementFieldSet) SaveAfter(fn func() (FieldChanges, error)) error {
+	return fs.changeMgr.RequestSave(fn)
+}
+
+func (fscm *measurementFieldSetChangeMgr) RequestSave(fn func() (FieldChanges, error)) error {
 	done := make(chan error)
-	fscm.writeRequests <- writeRequest{errorReturn: done, changes: changes}
-	return <-done
+	queued, err := fscm.enqueue(done, fn)
+	if queued {
+		// The write errors already name the changes file.
+		err = errors.Join(err, <-done)
+	}
+	return err
 }
 
-func (fscm *measurementFieldSetChangeMgr) SaveWriter() {
+// enqueue runs fn and queues the changes it returns for SaveWriter, holding
+// off Close until both are done. After Close it returns
+// ErrMeasurementFieldSetClosed without running fn. queued reports whether
+// the result of writing the changes will be sent on done. enqueue does not
+// wait for the write, so Close never waits on a caller's changes file I/O.
+func (fscm *measurementFieldSetChangeMgr) enqueue(done errorChannel, fn func() (FieldChanges, error)) (queued bool, err error) {
+	if fscm == nil {
+		return false, fmt.Errorf("saving field changes without a change writer: %w", ErrMeasurementFieldSetClosed)
+	}
+	fscm.chMu.RLock()
+	defer fscm.chMu.RUnlock()
+	if fscm.writeRequests == nil {
+		return false, fmt.Errorf("saving field changes to %s: %w", fscm.changeFilePath, ErrMeasurementFieldSetClosed)
+	}
+	changes, err := fn()
+	if len(changes) == 0 {
+		return false, err
+	}
+	fscm.changed.Store(true)
+	fscm.writeRequests <- writeRequest{errorReturn: done, changes: changes}
+	return true, err
+}
+
+func (fscm *measurementFieldSetChangeMgr) SaveWriter(writeRequests <-chan writeRequest) {
 	defer fscm.wg.Done()
 	// Block until someone modifies the MeasurementFieldSet, and
 	// it needs to be written to disk. Exit when the channel is closed
-	for wr, ok := <-fscm.writeRequests; ok; wr, ok = <-fscm.writeRequests {
-		fscm.appendToChangesFile(wr)
+	// and drained.
+	for wr := range writeRequests {
+		fscm.appendToChangesFile(wr, writeRequests)
 	}
 }
 
 // WriteToFile: Write the new index to a temp file and rename when it's sync'd
 // This locks the MeasurementFieldSet during the marshaling, the write, and the rename.
-func (fs *MeasurementFieldSet) WriteToFile() error {
+func (fs *MeasurementFieldSet) WriteToFile() (err error) {
 	path := fs.path + ".tmp"
+
+	// Hold off concurrent calls, which would collide on the temp file, and
+	// appends to the changes file, so every change appended before the
+	// in-memory set is marshaled below is in fields.idx before the changes
+	// file is removed.
+	fs.changeMgr.mu.Lock()
+	defer fs.changeMgr.mu.Unlock()
 
 	// Open the temp file
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
 	if err != nil {
 		return fmt.Errorf("failed opening %s: %w", fs.path, err)
 	}
-	// Ensure temp file is cleaned up
+	// Ensure temp file is cleaned up. Remove the changes file only once
+	// fields.idx holds them, so a failure leaves them to replay on open.
+	// That includes a failure after fields.idx was replaced, as replaying
+	// changes it already holds leaves it the same; see ApplyChanges.
 	defer func() {
 		if e := os.RemoveAll(path); err == nil && e != nil {
 			err = fmt.Errorf("failed removing temporary file %s: %w", path, e)
 		}
-		if e := os.RemoveAll(fs.changeMgr.changeFilePath); err == nil && e != nil {
+		if err != nil {
+			return
+		}
+		if e := os.RemoveAll(fs.changeMgr.changeFilePath); e != nil {
 			err = fmt.Errorf("failed removing saved field changes - %s: %w", fs.changeMgr.changeFilePath, e)
+		} else {
+			// The next append starts a new changes file.
+			fs.changeMgr.changeFileSize = 0
 		}
 	}()
 	fs.mu.RLock()
@@ -1911,8 +2004,9 @@ func (fs *MeasurementFieldSet) WriteToFile() error {
 }
 
 // appendToChangesFile: Write a change file for fields.idx
-// Only called in one Go proc, so does not need locking.
-func (fscm *measurementFieldSetChangeMgr) appendToChangesFile(first writeRequest) {
+// Only called from SaveWriter, but holds mu so that WriteToFile cannot
+// remove the changes file or reset changeFileSize during the append.
+func (fscm *measurementFieldSetChangeMgr) appendToChangesFile(first writeRequest, writeRequests <-chan writeRequest) {
 	var err error = nil
 	// Put the errorChannel on which we blocked into a slice to allow more invocations
 	// to share the return code from the file write
@@ -1968,7 +2062,7 @@ func (fscm *measurementFieldSetChangeMgr) appendToChangesFile(first writeRequest
 	// requests
 	for {
 		select {
-		case wr, ok := <-fscm.writeRequests:
+		case wr, ok := <-writeRequests:
 			if ok {
 				changes = append(changes, wr.changes)
 				errorChannels = append(errorChannels, wr.errorReturn)
@@ -2024,7 +2118,7 @@ func (fs *MeasurementFieldSet) renameFileNoLock(path string) error {
 
 	dir := filepath.Dir(fs.path)
 	if err := file.SyncDir(dir); err != nil {
-		return fmt.Errorf("cannot sync directory %s: %w", dir, err)
+		return fmt.Errorf("replaced %s, but cannot sync directory %s: %w", fs.path, dir, err)
 	}
 
 	return nil
@@ -2261,8 +2355,33 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 		return os.RemoveAll(fs.changeMgr.changeFilePath)
 	}
 
+	// A measurement's changes before its last deletion cannot affect the
+	// result, so skip them. Without them, changes already in fields.idx
+	// replay to the same field set: the deletion clears the measurement
+	// and the changes after it put back what fields.idx had. That happens
+	// when fields.idx was replaced but the changes file was not removed,
+	// after a crash or a failed directory sync, and replaying the skipped
+	// changes could then fail, for a field added with one type before the
+	// deletion and with another type after it.
+	lastDeletion := make(map[string]int)
+	n := 0
 	for _, fcs := range changes {
 		for _, fc := range fcs {
+			if fc.ChangeType == DeleteMeasurement {
+				lastDeletion[string(fc.Measurement)] = n
+			}
+			n++
+		}
+	}
+
+	n = 0
+	for _, fcs := range changes {
+		for _, fc := range fcs {
+			pos := n
+			n++
+			if last, ok := lastDeletion[string(fc.Measurement)]; ok && pos < last {
+				continue
+			}
 			if fc.ChangeType == DeleteMeasurement {
 				fs.Delete(string(fc.Measurement))
 			} else {
