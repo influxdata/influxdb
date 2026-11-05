@@ -234,6 +234,129 @@ func TestStore_Close_RetriesAfterFailure(t *testing.T) {
 	}
 }
 
+// TestStore_DeleteShard_KeepsSeriesAddedDuringDiff checks that a series another
+// shard uses survives DeleteShard when a write still running on the deleted
+// shard adds it to that shard's set after DeleteShard compared the two shards.
+func TestStore_DeleteShard_KeepsSeriesAddedDuringDiff(t *testing.T) {
+	t.Parallel()
+
+	s := MustOpenStore(t, tsdb.InmemIndexName)
+	t.Cleanup(func() { s.CloseStore(t, tsdb.InmemIndexName) })
+	for id := uint64(1); id <= 3; id++ {
+		require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+	}
+	const sharedKey = "shared,server=a"
+	s.MustWriteToShardString(1, "unique,server=a v=1 10")
+	s.MustWriteToShardString(2, sharedKey+" v=1 10")
+	deleted := s.Shard(1)
+	require.NotNil(t, deleted, "expected shard")
+
+	// Comparing against shard 3 blocks on this lock, by which time the comparison
+	// against shard 2, running in parallel, has finished.
+	blocked, err := s.Shard(3).Index()
+	require.NoError(t, err, "getting index of shard 3")
+	blocked.SeriesIDSet().Lock()
+	unblock := sync.OnceFunc(blocked.SeriesIDSet().Unlock)
+	// Runs before CloseStore above, which would wait on this lock.
+	t.Cleanup(unblock)
+
+	result := make(chan error, 1)
+	go func() { result <- s.DeleteShard(1) }()
+	require.Eventually(t, func() bool { return s.Shard(1) == nil },
+		10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
+	time.Sleep(100 * time.Millisecond)
+
+	points, err := models.ParsePointsString(sharedKey + " v=2 20")
+	require.NoError(t, err, "parsing point")
+	require.NoError(t, deleted.WritePoints(points, tsdb.NoopStatsTracker()), "writing to the shard being deleted")
+	unblock()
+
+	select {
+	case err := <-result:
+		require.NoError(t, err, "DeleteShard")
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "DeleteShard did not return")
+	}
+
+	remaining := s.Shard(2)
+	require.NotNil(t, remaining, "expected shard")
+	sfile, err := remaining.SeriesFile()
+	require.NoError(t, err, "getting series file")
+	require.True(t, sfile.HasSeries([]byte("shared"), models.NewTags(map[string]string{"server": "a"}), nil),
+		"shared series removed from the series file")
+	index, err := remaining.Index()
+	require.NoError(t, err, "getting index of shard 2")
+	series, err := index.(*inmem.ShardIndex).Series([]byte(sharedKey))
+	require.NoError(t, err, "looking up shared series")
+	require.NotNil(t, series, "shared series removed from the index")
+}
+
+// TestStore_Delete_RemovesIndexType checks that deleting shards updates which
+// index types a database uses, counting each shard once. Deletes are rejected
+// only while the database has shards using more than one index type.
+func TestStore_Delete_RemovesIndexType(t *testing.T) {
+	t.Parallel()
+
+	deleteShard := func(s *Store, id uint64, _ string) error { return s.DeleteShard(id) }
+	deleteRP := func(s *Store, _ uint64, rp string) error { return s.DeleteRetentionPolicy("db0", rp) }
+
+	// Shards 1 and 2 use inmem, in their own retention policies, and shard 3 tsi1.
+	mixedStore := func(t *testing.T) *Store {
+		s := MustOpenStore(t, tsdb.InmemIndexName)
+		t.Cleanup(func() { s.CloseStore(t, s.index) })
+		require.NoError(t, s.CreateShard("db0", "rp1", 1, true), "creating shard")
+		require.NoError(t, s.CreateShard("db0", "rp2", 2, true), "creating shard")
+		s.index = tsdb.TSI1IndexName
+		require.NoError(t, s.Reopen(t), "reopening store as tsi1")
+		require.NoError(t, s.CreateShard("db0", "rp3", 3, true), "creating shard")
+		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "before deleting")
+		return s
+	}
+
+	for name, del := range map[string]func(s *Store, id uint64, rp string) error{
+		"DeleteShard":           deleteShard,
+		"DeleteRetentionPolicy": deleteRP,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := mixedStore(t)
+			require.NoError(t, del(s, 1, "rp1"), "deleting shard 1")
+			require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
+			require.NoError(t, del(s, 2, "rp2"), "deleting shard 2")
+			require.NoError(t, s.DeleteMeasurement("db0", "m"), "only tsi1 shards remain")
+		})
+	}
+
+	// Both calls delete shard 1 here, which must count once.
+	t.Run("Overlapping", func(t *testing.T) {
+		s := mixedStore(t)
+		done := s.HoldDeleteForTest(1)
+		require.NotNil(t, done, "shard has no epoch tracker")
+		release := sync.OnceFunc(done)
+		// Runs before CloseStore above, which would wait on this delete.
+		t.Cleanup(release)
+
+		results := make(chan error, 2)
+		go func() { results <- deleteRP(s, 1, "rp1") }()
+		// Let DeleteRetentionPolicy snapshot the shard and block closing it.
+		time.Sleep(100 * time.Millisecond)
+		go func() { results <- deleteShard(s, 1, "rp1") }()
+		require.Eventually(t, func() bool { return s.Shard(1) == nil },
+			10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
+		time.Sleep(100 * time.Millisecond)
+		release()
+
+		for range 2 {
+			select {
+			case err := <-results:
+				require.NoError(t, err, "deleting shard 1")
+			case <-time.After(30 * time.Second):
+				require.FailNow(t, "delete did not return")
+			}
+		}
+		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
+	})
+}
+
 // dumpGoroutines logs the stacks of all goroutines.
 func dumpGoroutines(t *testing.T) {
 	var buf bytes.Buffer

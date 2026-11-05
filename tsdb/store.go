@@ -1076,7 +1076,15 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return err
 	}
 
-	ss := index.SeriesIDSet()
+	// The shard is closed below, after which it no longer reports its index type.
+	indexType := index.Type()
+
+	// Work on a copy, since the inmem index returns the shard's live set. A write
+	// still running on this shard can add a series to that set, which must not be
+	// taken for one that no other shard has. Iterating the live set would also
+	// hold its lock while dropping series from the inmem index takes the index
+	// lock, and such a write takes those locks in the opposite order.
+	ss := index.SeriesIDSet().Clone()
 
 	err = s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
@@ -1094,11 +1102,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		// exist in that shard as well as in the current shard, we stop the current deletion
 		return err
 	}
-
-	// Iterate a copy, since ss is the shard's live set. ForEach holds the set's
-	// lock while dropping series from the inmem index takes the index lock, and
-	// a write still running on this shard takes those locks in the opposite order.
-	ss = ss.Clone()
 
 	// Remove any remaining series in the set from the series file, as they don't
 	// exist in any of the database's remaining shards.
@@ -1201,7 +1204,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		// Remove index type from the database on success. Readers check it under
 		// s.mu, and DeleteDatabase may have removed the database state meanwhile.
 		s.mu.Lock()
-		s.databases[db].removeIndexType(sh.IndexType())
+		s.databases[db].removeIndexType(indexType)
 		s.mu.Unlock()
 		return nil
 	}
@@ -1284,6 +1287,12 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	epochs := s.epochsForShards(shards)
 	s.mu.RUnlock()
 
+	// A closed shard no longer reports its index type.
+	indexTypes := make([]string, len(shards))
+	for i, sh := range shards {
+		indexTypes[i] = sh.IndexType()
+	}
+
 	// Close and delete all shards under the retention policy on the
 	// database.
 	if err := s.walkShards(shards, func(sh *Shard) error {
@@ -1315,9 +1324,13 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 
 	s.mu.Lock()
 	state := s.databases[database]
-	for _, sh := range shards {
-		delete(s.shards, sh.id)
-		state.removeIndexType(sh.IndexType())
+	for i, sh := range shards {
+		// A DeleteShard that overlapped this call has already taken the shard
+		// out of s.shards and removes its index type itself.
+		if s.shards[sh.id] == sh {
+			delete(s.shards, sh.id)
+			state.removeIndexType(indexTypes[i])
+		}
 	}
 	s.mu.Unlock()
 	return nil
