@@ -479,6 +479,7 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 		seriesPerBat  = 64
 		overlapsWant  = 5
 		opTimeout     = time.Minute
+		closeStartRun = 50 * time.Millisecond
 		afterCloseRun = 50 * time.Millisecond
 	)
 	ops := map[string]func(s *Store) error{
@@ -676,11 +677,22 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 					require.Eventually(t, func() bool { return compactionsUnderDelete.Load() >= overlapsWant },
 						opTimeout, time.Millisecond, "TSI compactions never finished during a delete")
 				}
-				// Barrier: close only while a delete is running.
-				require.Eventually(t, func() bool { return deletesInFlight.Load() > 0 },
-					opTimeout, 100*time.Microsecond, "no delete in flight")
+				// Barrier: close only while a delete is running. Every delete walks
+				// shard 1, so each one soon blocks on this write, and cannot return
+				// until the write ends, which is not until the close has started.
+				deleteHeld, endWrite := s.HoldWriteForTest(1)
+				require.NotNil(t, endWrite, "shard has no epoch tracker")
+				release := sync.OnceFunc(endWrite)
+				// Runs before the worker cleanup above, which waits on the deletes.
+				t.Cleanup(release)
+				require.Eventually(t, deleteHeld, opTimeout, 100*time.Microsecond, "no delete blocked on the write")
 				closeStarted.Store(true)
-				require.NoError(t, waitOrDump(t, run(func() error { return op(s) }), name), name)
+				result := run(func() error { return op(s) })
+				// The close waits for the held delete, so it cannot return before
+				// release. Give it time to get that far.
+				time.Sleep(closeStartRun)
+				release()
+				require.NoError(t, waitOrDump(t, result, name), name)
 
 				time.Sleep(afterCloseRun)
 				stopWorkers()
