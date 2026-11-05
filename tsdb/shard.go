@@ -1877,7 +1877,9 @@ func (fs *MeasurementFieldSet) Save(changes FieldChanges) error {
 // either both happen and the changes are persisted, or after Close neither
 // happens and SaveAfter returns ErrMeasurementFieldSetClosed. The changes fn
 // returns are persisted even when fn also returns an error, as they describe
-// what it already did. fn must not call Save or SaveAfter.
+// what it already did. fn may do other work that must not outlive the field
+// set, such as a delete removing data, and Close then waits for that too. fn
+// must not call Save or SaveAfter.
 func (fs *MeasurementFieldSet) SaveAfter(fn func() (FieldChanges, error)) error {
 	return fs.changeMgr.RequestSave(fn)
 }
@@ -1944,6 +1946,8 @@ func (fs *MeasurementFieldSet) WriteToFile() (err error) {
 	}
 	// Ensure temp file is cleaned up. Remove the changes file only once
 	// fields.idx holds them, so a failure leaves them to replay on open.
+	// That includes a failure after fields.idx was replaced, as replaying
+	// changes it already holds leaves it the same; see ApplyChanges.
 	defer func() {
 		if e := os.RemoveAll(path); err == nil && e != nil {
 			err = fmt.Errorf("failed removing temporary file %s: %w", path, e)
@@ -2114,7 +2118,7 @@ func (fs *MeasurementFieldSet) renameFileNoLock(path string) error {
 
 	dir := filepath.Dir(fs.path)
 	if err := file.SyncDir(dir); err != nil {
-		return fmt.Errorf("cannot sync directory %s: %w", dir, err)
+		return fmt.Errorf("replaced %s, but cannot sync directory %s: %w", fs.path, dir, err)
 	}
 
 	return nil
@@ -2351,8 +2355,33 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 		return os.RemoveAll(fs.changeMgr.changeFilePath)
 	}
 
+	// A measurement's changes before its last deletion cannot affect the
+	// result, so skip them. Without them, changes already in fields.idx
+	// replay to the same field set: the deletion clears the measurement
+	// and the changes after it put back what fields.idx had. That happens
+	// when fields.idx was replaced but the changes file was not removed,
+	// after a crash or a failed directory sync, and replaying the skipped
+	// changes could then fail, for a field added with one type before the
+	// deletion and with another type after it.
+	lastDeletion := make(map[string]int)
+	n := 0
 	for _, fcs := range changes {
 		for _, fc := range fcs {
+			if fc.ChangeType == DeleteMeasurement {
+				lastDeletion[string(fc.Measurement)] = n
+			}
+			n++
+		}
+	}
+
+	n = 0
+	for _, fcs := range changes {
+		for _, fc := range fcs {
+			pos := n
+			n++
+			if last, ok := lastDeletion[string(fc.Measurement)]; ok && pos < last {
+				continue
+			}
 			if fc.ChangeType == DeleteMeasurement {
 				fs.Delete(string(fc.Measurement))
 			} else {
