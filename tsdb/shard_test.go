@@ -2047,6 +2047,191 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	}
 }
 
+// fieldSetOp is a change to a MeasurementFieldSet: the creation of a field, or
+// with no field, the deletion of a measurement.
+type fieldSetOp struct {
+	measurement string
+	field       string
+	typ         influxql.DataType
+}
+
+// applyFieldSetOps makes each change to the in-memory set and saves it to
+// the changes file, as the shard and the engine do.
+func applyFieldSetOps(t *testing.T, mf *tsdb.MeasurementFieldSet, ops []fieldSetOp) {
+	t.Helper()
+	for i, op := range ops {
+		if op.field == "" {
+			mf.Delete(op.measurement)
+			require.NoError(t, mf.Save(tsdb.MeasurementsToFieldChangeDeletions([]string{op.measurement})), "op %d: saving deletion of %s", i, op.measurement)
+			continue
+		}
+		_, _, err := mf.CreateFieldsIfNotExists([]byte(op.measurement)).CreateFieldIfNotExists(op.field, op.typ)
+		require.NoError(t, err, "op %d: creating %s.%s", i, op.measurement, op.field)
+		require.NoError(t, mf.Save(tsdb.FieldChanges{{
+			FieldCreate: tsdb.FieldCreate{Measurement: []byte(op.measurement), Field: &tsdb.Field{Name: op.field, Type: op.typ}},
+			ChangeType:  tsdb.AddMeasurementField,
+		}}), "op %d: saving %s.%s", i, op.measurement, op.field)
+	}
+}
+
+// fieldSetContents returns the type of every field of every measurement.
+func fieldSetContents(mf *tsdb.MeasurementFieldSet) map[string]map[string]influxql.DataType {
+	contents := make(map[string]map[string]influxql.DataType)
+	for _, name := range mf.MeasurementNames() {
+		fields := make(map[string]influxql.DataType)
+		mf.FieldsByString(name).ForEachField(func(field string, typ influxql.DataType) bool {
+			fields[field] = typ
+			return true
+		})
+		contents[name] = fields
+	}
+	return contents
+}
+
+// TestMeasurementFieldSet_ReplayStaleChanges reopens a field set whose
+// changes file was left beside a fields.idx that already holds its changes,
+// as after a crash or a failed directory sync between replacing fields.idx
+// and removing the changes file. The replay must give the same field set,
+// as it must for the changes file alone, with fields.idx never written.
+func TestMeasurementFieldSet_ReplayStaleChanges(t *testing.T) {
+	type contents = map[string]map[string]influxql.DataType
+	for _, tc := range []struct {
+		name string
+		ops  []fieldSetOp
+		want contents
+	}{
+		{
+			name: "field recreated with another type",
+			ops: []fieldSetOp{
+				{measurement: "cpu", field: "value", typ: influxql.Integer},
+				{measurement: "cpu"},
+				{measurement: "cpu", field: "value", typ: influxql.Float},
+			},
+			want: contents{"cpu": {"value": influxql.Float}},
+		},
+		{
+			name: "measurement deleted twice",
+			ops: []fieldSetOp{
+				{measurement: "cpu", field: "value", typ: influxql.Integer},
+				{measurement: "cpu"},
+				{measurement: "cpu", field: "value", typ: influxql.Float},
+				{measurement: "cpu", field: "idle", typ: influxql.Float},
+				{measurement: "cpu"},
+				{measurement: "cpu", field: "value", typ: influxql.String},
+			},
+			want: contents{"cpu": {"value": influxql.String}},
+		},
+		{
+			name: "measurement deleted and not recreated",
+			ops: []fieldSetOp{
+				{measurement: "mem", field: "free", typ: influxql.Integer},
+				{measurement: "cpu", field: "value", typ: influxql.Integer},
+				{measurement: "cpu"},
+			},
+			want: contents{"mem": {"free": influxql.Integer}},
+		},
+		{
+			name: "every measurement deleted",
+			ops: []fieldSetOp{
+				{measurement: "cpu", field: "value", typ: influxql.Integer},
+				{measurement: "cpu"},
+			},
+			want: contents{},
+		},
+		{
+			name: "another measurement untouched",
+			ops: []fieldSetOp{
+				{measurement: "cpu", field: "value", typ: influxql.Integer},
+				{measurement: "mem", field: "value", typ: influxql.Integer},
+				{measurement: "cpu"},
+				{measurement: "mem", field: "free", typ: influxql.Unsigned},
+				{measurement: "cpu", field: "value", typ: influxql.Float},
+			},
+			want: contents{
+				"cpu": {"value": influxql.Float},
+				"mem": {"value": influxql.Integer, "free": influxql.Unsigned},
+			},
+		},
+		{
+			name: "no deletion",
+			ops: []fieldSetOp{
+				{measurement: "cpu", field: "value", typ: influxql.Integer},
+				{measurement: "cpu", field: "idle", typ: influxql.Float},
+			},
+			want: contents{"cpu": {"value": influxql.Integer, "idle": influxql.Float}},
+		},
+	} {
+		for _, snapshot := range []bool{true, false} {
+			name := tc.name + "/changes file only"
+			if snapshot {
+				name = tc.name + "/changes already in fields.idx"
+			}
+			t.Run(name, func(t *testing.T) {
+				dir, cleanup := MustTempDir()
+				defer cleanup()
+
+				path := filepath.Join(dir, "fields.idx")
+				mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+				require.NoError(t, err)
+				applyFieldSetOps(t, mf, tc.ops)
+				require.Equal(t, tc.want, fieldSetContents(mf), "field set before close")
+				changes, err := os.ReadFile(mf.ChangesPath())
+				require.NoError(t, err, "reading the changes file")
+
+				// Close writes fields.idx and removes the changes file.
+				checkMeasurementFieldSetClose(t, mf)
+				if !snapshot {
+					require.NoError(t, os.RemoveAll(path), "removing fields.idx")
+				}
+				require.NoError(t, os.WriteFile(mf.ChangesPath(), changes, 0666), "restoring the changes file")
+
+				mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+				require.NoError(t, err, "reopening with the changes file restored")
+				require.Equal(t, tc.want, fieldSetContents(mf2), "field set after replay")
+				_, err = os.Stat(mf2.ChangesPath())
+				require.ErrorIs(t, err, os.ErrNotExist, "changes file left after replay")
+				checkMeasurementFieldSetClose(t, mf2)
+
+				mf3, err := tsdb.NewMeasurementFieldSet(path, nil)
+				require.NoError(t, err, "reopening after replay")
+				defer checkMeasurementFieldSetClose(t, mf3)
+				require.Equal(t, tc.want, fieldSetContents(mf3), "field set reopened after replay")
+			})
+		}
+	}
+}
+
+// TestMeasurementFieldSet_ReplayConflict replays a changes file that adds a
+// field with a different type than fields.idx has, with no deletion of the
+// measurement in between. That is a real conflict, and must still fail.
+func TestMeasurementFieldSet_ReplayConflict(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	applyFieldSetOps(t, mf, []fieldSetOp{
+		{measurement: "mem", field: "free", typ: influxql.Integer},
+		{measurement: "mem"},
+		{measurement: "cpu", field: "value", typ: influxql.Integer},
+	})
+	changes, err := os.ReadFile(mf.ChangesPath())
+	require.NoError(t, err, "reading the changes file")
+	checkMeasurementFieldSetClose(t, mf)
+	require.NoError(t, os.RemoveAll(path), "removing fields.idx")
+
+	mf, err = tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	applyFieldSetOps(t, mf, []fieldSetOp{{measurement: "cpu", field: "value", typ: influxql.Float}})
+	checkMeasurementFieldSetClose(t, mf)
+	require.NoError(t, os.WriteFile(mf.ChangesPath(), changes, 0666), "restoring the changes file")
+
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.ErrorIs(t, err, tsdb.ErrFieldTypeConflict)
+	require.NoError(t, mf2.Close())
+}
+
 func checkMeasurementFieldSetClose(t *testing.T, fs *tsdb.MeasurementFieldSet) {
 	assert.NoError(t, fs.Close(), "failed closing tsdb.MeasurementFieldSet")
 	_, err := os.Stat(fs.ChangesPath())
