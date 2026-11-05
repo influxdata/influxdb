@@ -693,11 +693,18 @@ func (s *Store) warnMixedIndexTypes(dbList ...string) {
 }
 
 // Close closes the store and all associated shards. After calling Close accessing
-// shards through the Store will result in ErrStoreClosed being returned.
+// shards through the Store will result in ErrStoreClosed being returned. Close
+// may be called concurrently, and called again to retry after it fails.
 func (s *Store) Close() error {
 	s.mu.Lock()
 	if s.opened {
-		close(s.closing)
+		// s.opened stays set until a Close succeeds, so s.closing is already
+		// closed if another Close is running or an earlier one failed.
+		select {
+		case <-s.closing:
+		default:
+			close(s.closing)
+		}
 	}
 	s.mu.Unlock()
 
@@ -1087,6 +1094,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		// exist in that shard as well as in the current shard, we stop the current deletion
 		return err
 	}
+
+	// Iterate a copy, since ss is the shard's live set. ForEach holds the set's
+	// lock while dropping series from the inmem index takes the index lock, and
+	// a write still running on this shard takes those locks in the opposite order.
+	ss = ss.Clone()
 
 	// Remove any remaining series in the set from the series file, as they don't
 	// exist in any of the database's remaining shards.

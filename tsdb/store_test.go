@@ -140,6 +140,205 @@ func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
 	}
 }
 
+// TestStore_Close_Concurrent checks that overlapping Closes all return without
+// error. Each one used to close s.closing, which panicked.
+func TestStore_Close_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	const closers = 32
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+
+			// No Close can return while this delete runs, which makes them overlap.
+			done := s.HoldDeleteForTest(1)
+			require.NotNil(t, done, "shard has no epoch tracker")
+			release := sync.OnceFunc(done)
+			// Runs before CloseStore above, which would wait on this delete.
+			t.Cleanup(release)
+
+			var mu sync.RWMutex
+			var concurrency, maxConcurrency atomic.Int64
+			errs := make([]error, closers)
+			var wg sync.WaitGroup
+			mu.Lock()
+			for i := range closers {
+				wg.Add(1)
+				go func(idx int) {
+					mu.RLock()
+					defer mu.RUnlock()
+					defer wg.Done()
+					c := concurrency.Add(1)
+					for {
+						old := maxConcurrency.Load()
+						if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+							break
+						}
+					}
+					errs[idx] = s.Store.Close()
+					concurrency.Add(-1)
+				}(i)
+			}
+			mu.Unlock()
+			require.Eventually(t, func() bool { return concurrency.Load() == closers },
+				10*time.Second, time.Millisecond, "Closes never overlapped")
+			release()
+
+			finished := make(chan struct{})
+			go func() { wg.Wait(); close(finished) }()
+			select {
+			case <-finished:
+			case <-time.After(30 * time.Second):
+				require.FailNow(t, "Closes did not return after the delete finished")
+			}
+			t.Logf("max concurrency: %d", maxConcurrency.Load())
+			require.EqualValues(t, closers, maxConcurrency.Load(), "max concurrency")
+			require.NoError(t, errors.Join(errs...), "closing store")
+		})
+	}
+}
+
+// TestStore_Close_RetriesAfterFailure checks that a Close that fails leaves the
+// store rejecting work, and that calling Close again finishes the job, so the
+// store can be reopened.
+func TestStore_Close_RetriesAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+			require.NoError(t, s.CreateShard("db0", "rp0", 2, true), "creating shard")
+			sh := s.Shard(1)
+			require.NotNil(t, sh, "expected shard")
+
+			closeErr := errors.New("injected engine close failure")
+			require.True(t, s.FailNextEngineCloseForTest(1, closeErr), "shard not open")
+
+			// walkShards wraps per-shard errors with %s, so match the message.
+			require.ErrorContains(t, s.Store.Close(), closeErr.Error(), "first Close")
+			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after failed Close")
+
+			require.NoError(t, s.Store.Close(), "retrying Close")
+			_, err := sh.Index()
+			require.ErrorIs(t, err, tsdb.ErrEngineClosed, "retry did not close the shard")
+			require.NoError(t, s.Store.Close(), "Close after successful retry")
+
+			require.NoError(t, s.Reopen(t), "reopening store")
+			require.NotNil(t, s.Shard(1), "shard 1 after reopen")
+			require.NotNil(t, s.Shard(2), "shard 2 after reopen")
+		})
+	}
+}
+
+// dumpGoroutines logs the stacks of all goroutines.
+func dumpGoroutines(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, pprof.Lookup("goroutine").WriteTo(&buf, 2), "dumping goroutines")
+	t.Log(buf.String())
+}
+
+// TestStore_DeleteShard_DuringSeriesCreation checks that DeleteShard does not
+// deadlock with writes creating series on the same shard. With the inmem index,
+// such a write holds the index lock while it waits for the shard's series ID set,
+// so DeleteShard must not wait for the index lock while it holds that set's lock.
+func TestStore_DeleteShard_DuringSeriesCreation(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rounds       = 20
+		seedSeries   = 2000
+		writers      = 8
+		seriesPerBat = 64
+		opTimeout    = 30 * time.Second
+	)
+	points := func(id uint64, prefix string, n int) []models.Point {
+		pts := make([]models.Point, 0, n)
+		for j := range n {
+			p, err := models.NewPoint("m", models.NewTags(map[string]string{"k": fmt.Sprintf("%d-%s-%d", id, prefix, j)}),
+				models.Fields{"v": float64(j)}, time.Unix(int64(j), 0))
+			require.NoError(t, err, "building point")
+			pts = append(pts, p)
+		}
+		return pts
+	}
+
+	// Not t.TempDir, which would remove the files under whatever is still
+	// running after a hang.
+	root, err := os.MkdirTemp("", "store-delete-shard-")
+	require.NoError(t, err, "creating store directory")
+	var hung bool
+	wait := func(ch <-chan struct{}, what string) {
+		select {
+		case <-ch:
+		case <-time.After(opTimeout):
+			hung = true
+			dumpGoroutines(t)
+			t.Logf("leaving store files in place at %s", root)
+			require.FailNow(t, what+" hung")
+		}
+	}
+
+	s := newStoreInDir(t, root, tsdb.InmemIndexName)
+	s.WithLogger(zaptest.NewLogger(t, zaptest.Level(zap.ErrorLevel)))
+	t.Cleanup(func() {
+		if hung {
+			return
+		}
+		closed := make(chan struct{})
+		var closeErr error
+		go func() { defer close(closed); closeErr = s.Store.Close() }()
+		wait(closed, "closing store")
+		require.NoError(t, errors.Join(closeErr, os.RemoveAll(root)), "closing store and removing %s", root)
+	})
+	require.NoError(t, s.Open(), "opening store")
+
+	for round := range rounds {
+		id := uint64(round + 1)
+		require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard")
+		require.NoError(t, s.WriteToShard(tsdb.WriteContext{}, id, points(id, "seed", seedSeries)), "seeding shard")
+
+		var writes atomic.Int64
+		var start sync.RWMutex
+		var workers sync.WaitGroup
+		start.Lock()
+		for w := range writers {
+			workers.Add(1)
+			go func() {
+				start.RLock()
+				defer start.RUnlock()
+				defer workers.Done()
+				for i := 0; ; i++ {
+					// New series each time, so the write takes the index lock.
+					// Writers stop on the error that says the shard is closed or
+					// gone; TestStore_DeleteCompactClose_Stress checks those errors.
+					if err := s.WriteToShard(tsdb.WriteContext{}, id, points(id, fmt.Sprintf("%d-%d", w, i), seriesPerBat)); err != nil {
+						return
+					}
+					writes.Add(1)
+				}
+			}()
+		}
+		start.Unlock()
+		// Barrier: delete only once writes are running.
+		require.Eventually(t, func() bool { return writes.Load() >= writers },
+			opTimeout, 100*time.Microsecond, "writes never ran")
+
+		var deleteErr error
+		deleted := make(chan struct{})
+		go func() { defer close(deleted); deleteErr = s.DeleteShard(id) }()
+		wait(deleted, fmt.Sprintf("DeleteShard %d", id))
+		require.NoError(t, deleteErr, "deleting shard %d", id)
+
+		stopped := make(chan struct{})
+		go func() { workers.Wait(); close(stopped) }()
+		wait(stopped, "writers")
+	}
+}
+
 // TestStore_DeleteCompactClose_Stress runs real DROP MEASUREMENT, DROP SERIES
 // and DELETE calls against shards that are written to with a tiny index log
 // file size, so TSI compactions keep finishing while deletes hold index file
@@ -178,25 +377,42 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 		return false
 	}
 
-	dumpGoroutines := func(t *testing.T) {
-		var buf bytes.Buffer
-		require.NoError(t, pprof.Lookup("goroutine").WriteTo(&buf, 2), "dumping goroutines")
-		t.Log(buf.String())
-	}
-	waitOrDump := func(t *testing.T, ch <-chan error, what string) error {
-		select {
-		case err := <-ch:
-			return err
-		case <-time.After(opTimeout):
-			dumpGoroutines(t)
-			require.FailNow(t, what+" hung")
-			return nil
-		}
+	// run calls fn in a goroutine. The returned channel yields fn's result and
+	// is then closed, so waiting on it again does not block.
+	run := func(fn func() error) <-chan error {
+		ch := make(chan error, 1)
+		go func() {
+			defer close(ch)
+			ch <- fn()
+		}()
+		return ch
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		for name, op := range ops {
 			t.Run(index+"/"+name, func(t *testing.T) {
+				// Not t.TempDir, which would remove the files under whatever
+				// is still running after a hang. The cleanups below remove
+				// them only once everything has stopped.
+				root, err := os.MkdirTemp("", "store-stress-")
+				require.NoError(t, err, "creating store directory")
+
+				// hung is only touched on the test goroutine, which also runs
+				// the cleanups.
+				var hung bool
+				waitOrDump := func(t *testing.T, ch <-chan error, what string) error {
+					select {
+					case err := <-ch:
+						return err
+					case <-time.After(opTimeout):
+						hung = true
+						dumpGoroutines(t)
+						t.Logf("leaving store files in place at %s", root)
+						require.FailNow(t, what+" hung")
+						return nil
+					}
+				}
+
 				var deletesInFlight, compactions, compactionsUnderDelete atomic.Int64
 				countCompactions := func(e zapcore.Entry) error {
 					if strings.HasSuffix(e.Message, "compaction (end)") && strings.HasPrefix(e.Message, "TSI ") {
@@ -213,12 +429,21 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 					zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 					zapcore.AddSync(io.Discard), zap.InfoLevel), countCompactions)
 
-				s := NewStore(t, index)
+				s := newStoreInDir(t, root, index)
 				s.EngineOptions.Config.MaxIndexLogFileSize = 1024
 				s.WithLogger(zap.New(zapcore.NewTee(
 					zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)).Core(), hooked)))
+				// Unlike CloseStore, this cannot hang the test on the deadlock
+				// it is looking for. After a hang it does nothing, since another
+				// Close would block too.
+				t.Cleanup(func() {
+					if hung {
+						return
+					}
+					closeErr := waitOrDump(t, run(s.Store.Close), "closing store")
+					require.NoError(t, errors.Join(closeErr, os.RemoveAll(root)), "closing store and removing %s", root)
+				})
 				require.NoError(t, s.Open(), "opening store")
-				t.Cleanup(func() { s.CloseStore(t, index) })
 				for id := uint64(1); id <= shardN; id++ {
 					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
 				}
@@ -259,7 +484,6 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 
 				stop := make(chan struct{})
 				stopWorkers := sync.OnceFunc(func() { close(stop) })
-				t.Cleanup(stopWorkers)
 				var start sync.RWMutex
 				var workers sync.WaitGroup
 				start.Lock()
@@ -313,6 +537,16 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 						}
 					}()
 				}
+				done := run(func() error { workers.Wait(); return nil })
+				// Runs before the Close cleanup above, which must not race the
+				// workers. Stop them even after a hang, so those not stuck do
+				// not keep writing through later subtests.
+				t.Cleanup(func() {
+					stopWorkers()
+					if !hung {
+						require.NoError(t, waitOrDump(t, done, "writers and deleters"))
+					}
+				})
 				start.Unlock()
 
 				if index == "tsi1" {
@@ -323,14 +557,10 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 				require.Eventually(t, func() bool { return deletesInFlight.Load() > 0 },
 					opTimeout, 100*time.Microsecond, "no delete in flight")
 				closeStarted.Store(true)
-				closed := make(chan error, 1)
-				go func() { closed <- op(s) }()
-				require.NoError(t, waitOrDump(t, closed, name), name)
+				require.NoError(t, waitOrDump(t, run(func() error { return op(s) }), name), name)
 
 				time.Sleep(afterCloseRun)
 				stopWorkers()
-				done := make(chan error, 1)
-				go func() { workers.Wait(); done <- nil }()
 				require.NoError(t, waitOrDump(t, done, "writers and deleters"))
 
 				t.Logf("deletes: %d, across close: %d, TSI compactions: %d, during a delete: %d",
@@ -3163,10 +3393,16 @@ func WithStartupMetrics(sm *mockStartupLogger) StoreOption {
 // NewStore returns a new instance of Store with a temporary path.
 func NewStore(tb testing.TB, index string, opts ...StoreOption) *Store {
 	tb.Helper()
+	return newStoreInDir(tb, tb.TempDir(), index, opts...)
+}
+
+// newStoreInDir returns a new instance of Store under rootPath, which the
+// caller owns.
+func newStoreInDir(tb testing.TB, rootPath, index string, opts ...StoreOption) *Store {
+	tb.Helper()
 
 	// The WAL directory must not be rooted under the data path. Otherwise reopening
 	// the store will generate series indices for the WAL directories.
-	rootPath := tb.TempDir()
 	path := filepath.Join(rootPath, "data")
 	walPath := filepath.Join(rootPath, "wal")
 
