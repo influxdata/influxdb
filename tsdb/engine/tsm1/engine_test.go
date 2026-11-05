@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1381,11 +1382,14 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 func TestEngine_DeleteSeriesRange_FieldSetClosed(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		for _, tc := range []struct {
-			name string
-			key  string
+			name     string
+			key      string
+			snapshot bool
 		}{
-			{name: "measurement kept", key: "cpu,host=A"},
-			{name: "measurement emptied", key: "mem,host=A"},
+			{name: "measurement kept", key: "cpu,host=A", snapshot: true},
+			{name: "measurement emptied", key: "mem,host=A", snapshot: true},
+			{name: "measurement kept, cache only", key: "cpu,host=A"},
+			{name: "measurement emptied, cache only", key: "mem,host=A"},
 		} {
 			t.Run(index+"/"+tc.name, func(t *testing.T) {
 				e, err := NewEngine(index)
@@ -1400,7 +1404,9 @@ func TestEngine_DeleteSeriesRange_FieldSetClosed(t *testing.T) {
 					"cpu,host=B value=1.2 1000000000",
 					"mem,host=A value=1.3 1000000000",
 				))
-				require.NoError(t, e.WriteSnapshot())
+				if tc.snapshot {
+					require.NoError(t, e.WriteSnapshot())
+				}
 				// The engine leaves creating fields to the shard.
 				for _, m := range []string{"cpu", "mem"} {
 					_, _, err := e.MeasurementFieldSet().CreateFieldsIfNotExists([]byte(m)).CreateFieldIfNotExists("value", influxql.Float)
@@ -1418,6 +1424,7 @@ func TestEngine_DeleteSeriesRange_FieldSetClosed(t *testing.T) {
 				err = e.DeleteSeriesRange(&seriesIterator{keys: [][]byte{[]byte(tc.key)}}, math.MinInt64, math.MaxInt64)
 				require.ErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed, "deleting %s", tc.key)
 
+				require.True(t, seriesHasValues(t, e, tc.key, "value", 1000000000), "data of %s deleted after the field set closed", tc.key)
 				require.False(t, e.sfile.IsDeleted(sid), "series %s deleted from the series file after the field set closed", tc.key)
 				indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 				itr, err := indexSet.MeasurementSeriesIDIterator(name)
@@ -1437,6 +1444,208 @@ func TestEngine_DeleteSeriesRange_FieldSetClosed(t *testing.T) {
 				require.NotNil(t, e.MeasurementFieldSet().FieldsByString(string(name)), "fields of %s changed after the field set closed", name)
 			})
 		}
+	}
+}
+
+// seriesHasValues reports whether the engine has a value at time ts for a
+// field of a series, in its cache or its TSM files.
+func seriesHasValues(t *testing.T, e *Engine, seriesKey, field string, ts int64) bool {
+	t.Helper()
+	key := tsm1.SeriesFieldKeyBytes(seriesKey, field)
+	if e.Cache.Values(key).Len() > 0 {
+		return true
+	}
+	values, err := e.FileStore.Read(key, ts)
+	require.NoError(t, err, "reading %s from TSM files", key)
+	return len(values) > 0
+}
+
+// saveFloatField creates a float field in the engine's field set and saves
+// it, as the shard does for a write.
+func saveFloatField(t *testing.T, e *Engine, measurement, field string) {
+	t.Helper()
+	_, _, err := e.MeasurementFieldSet().CreateFieldsIfNotExists([]byte(measurement)).CreateFieldIfNotExists(field, influxql.Float)
+	require.NoError(t, err, "creating field %s.%s", measurement, field)
+	require.NoError(t, e.MeasurementFieldSet().Save(tsdb.FieldChanges{{
+		FieldCreate: tsdb.FieldCreate{Measurement: []byte(measurement), Field: &tsdb.Field{Name: field, Type: influxql.Float}},
+		ChangeType:  tsdb.AddMeasurementField,
+	}}), "saving field %s.%s", measurement, field)
+}
+
+// TestEngine_DeleteSeriesRange_FieldSetClosed_Retry deletes the only series
+// of a measurement, held only in the cache and the WAL, after the field set
+// closed. The delete is rejected with the data in place, so that the same
+// delete, retried after a reopen, still finds the data and removes the
+// series and the measurement with it.
+func TestEngine_DeleteSeriesRange_FieldSetClosed_Retry(t *testing.T) {
+	const key = "mem,host=A"
+	const ts = 1000000000
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			e, err := NewEngine(index)
+			require.NoError(t, err)
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			require.NoError(t, e.Open())
+			defer func() { tassert.NoError(t, e.Close()) }()
+
+			require.NoError(t, e.WritePointsString(
+				"cpu,host=A value=1.1 1000000000",
+				"mem,host=A value=1.3 1000000000",
+			))
+			saveFloatField(t, e, "cpu", "value")
+			saveFloatField(t, e, "mem", "value")
+
+			// Close wins the race with the delete.
+			require.NoError(t, e.MeasurementFieldSet().Close())
+			err = e.DeleteSeriesRange(&seriesIterator{keys: [][]byte{[]byte(key)}}, math.MinInt64, math.MaxInt64)
+			require.ErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed)
+			require.True(t, seriesHasValues(t, e, key, "value", ts), "data of %s deleted by a rejected delete", key)
+
+			require.NoError(t, e.Reopen())
+			e.CompactionPlan = &mockPlanner{}
+			require.True(t, seriesHasValues(t, e, key, "value", ts), "data of %s lost over a reopen after a rejected delete", key)
+			require.NotNil(t, e.MeasurementFieldSet().FieldsByString("mem"), "fields of mem lost over a reopen")
+			name, tags := models.ParseKeyBytes([]byte(key))
+			sid := e.sfile.SeriesID(name, tags, nil)
+			require.NotZero(t, sid, "series %s not in the series file", key)
+
+			require.NoError(t, e.DeleteSeriesRange(&seriesIterator{keys: [][]byte{[]byte(key)}}, math.MinInt64, math.MaxInt64), "retried delete")
+
+			require.False(t, seriesHasValues(t, e, key, "value", ts), "data of %s left by the retried delete", key)
+			require.True(t, e.sfile.IsDeleted(sid), "series %s left in the series file by the retried delete", key)
+			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			itr, err := indexSet.MeasurementSeriesIDIterator(name)
+			require.NoError(t, err)
+			if itr != nil {
+				defer func() { tassert.NoError(t, itr.Close()) }()
+				elem, err := itr.Next()
+				require.NoError(t, err)
+				require.Zero(t, elem.SeriesID, "series of %s left in the index by the retried delete", name)
+			}
+			require.Nil(t, e.MeasurementFieldSet().FieldsByString("mem"), "fields of mem left by the retried delete")
+			require.NotNil(t, e.MeasurementFieldSet().FieldsByString("cpu"), "fields of cpu removed by a delete of mem")
+			require.True(t, seriesHasValues(t, e, "cpu,host=A", "value", ts), "data of cpu removed by a delete of mem")
+		})
+	}
+}
+
+// TestEngine_DeleteSeriesRange_FieldSetCloseStress races deletes of series
+// held only in the cache, each the only series of its measurement, against
+// the close of the field set, which starts once the first delete has
+// returned. Every delete must either succeed, removing the data, the
+// series, and the measurement's fields, or be rejected with all three in
+// place.
+func TestEngine_DeleteSeriesRange_FieldSetCloseStress(t *testing.T) {
+	const deleters = 64
+	const ts = 1000000000
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			e, err := NewEngine(index)
+			require.NoError(t, err)
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			require.NoError(t, e.Open())
+			defer func() { tassert.NoError(t, e.Close()) }()
+
+			// Create the test data up front.
+			keys := make([]string, deleters)
+			names := make([]string, deleters)
+			sids := make([]uint64, deleters)
+			points := make([]string, deleters)
+			for i := range deleters {
+				names[i] = fmt.Sprintf("m%03d", i)
+				keys[i] = names[i] + ",host=A"
+				points[i] = fmt.Sprintf("%s value=1.5 %d", keys[i], ts)
+			}
+			require.NoError(t, e.WritePointsString(points...))
+			for i := range deleters {
+				saveFloatField(t, e, names[i], "value")
+				name, tags := models.ParseKeyBytes([]byte(keys[i]))
+				sids[i] = e.sfile.SeriesID(name, tags, nil)
+				require.NotZero(t, sids[i], "series %s not in the series file", keys[i])
+			}
+
+			var mu sync.RWMutex
+			var concurrency, maxConcurrency atomic.Int64
+			// arrived holds every goroutine until all have started, so
+			// the deletes and the close overlap however they are
+			// scheduled.
+			var arrived sync.WaitGroup
+			arrived.Add(deleters + 1)
+			errs := make([]error, deleters)
+			var closeErr error
+			var returned atomic.Int64
+			var wg sync.WaitGroup
+			run := func(fn func()) {
+				wg.Add(1)
+				go func() {
+					mu.RLock()
+					defer mu.RUnlock()
+					defer wg.Done()
+					c := concurrency.Add(1)
+					for {
+						old := maxConcurrency.Load()
+						if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+							break
+						}
+					}
+					arrived.Done()
+					arrived.Wait()
+					fn()
+					concurrency.Add(-1)
+				}()
+			}
+			mu.Lock()
+			for i := range deleters {
+				run(func() {
+					errs[i] = e.DeleteSeriesRange(&seriesIterator{keys: [][]byte{[]byte(keys[i])}}, math.MinInt64, math.MaxInt64)
+					returned.Add(1)
+				})
+			}
+			run(func() {
+				// Let some deletes win, and close with the rest in flight.
+				for returned.Load() < 1 {
+					runtime.Gosched()
+				}
+				closeErr = e.MeasurementFieldSet().Close()
+			})
+			mu.Unlock() // Release to start all goroutines simultaneously
+
+			finished := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(finished)
+			}()
+			select {
+			case <-finished:
+			case <-time.After(2 * time.Minute):
+				require.FailNow(t, "a delete or the field set close did not return; deadlock")
+			}
+			require.NoError(t, closeErr, "closing the field set")
+			require.Equal(t, int64(deleters+1), maxConcurrency.Load(), "the deletes and the close did not all overlap")
+
+			var deleted, rejected int
+			for i, err := range errs {
+				hasValues := seriesHasValues(t, e, keys[i], "value", ts)
+				hasFields := e.MeasurementFieldSet().FieldsByString(names[i]) != nil
+				inSeriesFile := !e.sfile.IsDeleted(sids[i])
+				if err == nil {
+					deleted++
+					require.False(t, hasValues, "data of %s left by a successful delete", keys[i])
+					require.False(t, hasFields, "fields of %s left by a successful delete", names[i])
+					require.False(t, inSeriesFile, "series %s left in the series file by a successful delete", keys[i])
+				} else {
+					rejected++
+					require.ErrorIs(t, err, tsdb.ErrMeasurementFieldSetClosed, "delete of %s", keys[i])
+					require.True(t, hasValues, "data of %s deleted by a rejected delete", keys[i])
+					require.True(t, hasFields, "fields of %s deleted by a rejected delete", names[i])
+					require.True(t, inSeriesFile, "series %s deleted from the series file by a rejected delete", keys[i])
+				}
+			}
+			t.Logf("max concurrency: %d, deleted: %d, rejected: %d", maxConcurrency.Load(), deleted, rejected)
+			require.GreaterOrEqual(t, deleted, 1, "deletes that returned before the field set closed")
+		})
 	}
 }
 
