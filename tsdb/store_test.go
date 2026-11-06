@@ -5,18 +5,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/davecgh/go-spew/spew"
@@ -30,6 +35,752 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/stretchr/testify/require"
 )
+
+// TestStore_CloseShard_WaitsForDeletes checks that every path that closes
+// shards waits for deletes running on them. A delete holds index file sets
+// while it takes shard and index locks that closing holds, and closing waits
+// for compactions blocked on those file sets, so closing under a running
+// delete deadlocks.
+func TestStore_CloseShard_WaitsForDeletes(t *testing.T) {
+	t.Parallel()
+
+	ops := map[string]func(s *Store) error{
+		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
+		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
+		"DeleteShard":           func(s *Store) error { return s.DeleteShard(1) },
+		"Close":                 func(s *Store) error { return s.Store.Close() },
+	}
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range ops {
+			t.Run(index+"/"+name, func(t *testing.T) {
+				s := MustOpenStore(t, index)
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+				sh := s.Shard(1)
+				require.NotNil(t, sh, "expected shard")
+
+				done := s.HoldDeleteForTest(1)
+				require.NotNil(t, done, "shard has no epoch tracker")
+				release := sync.OnceFunc(done)
+				// Runs before CloseStore above, which would wait on this delete.
+				t.Cleanup(release)
+
+				result := make(chan error, 1)
+				go func() { result <- op(s) }()
+				select {
+				case err := <-result:
+					require.FailNow(t, name+" returned while a delete was running", "err: %v", err)
+				case <-time.After(100 * time.Millisecond):
+				}
+				_, err := sh.Index()
+				require.NoError(t, err, "%s closed the shard while a delete was running", name)
+
+				release()
+				select {
+				case err := <-result:
+					require.NoError(t, err, name)
+				case <-time.After(10 * time.Second):
+					require.FailNow(t, name+" did not return after the delete finished")
+				}
+				_, err = sh.Index()
+				require.ErrorIs(t, err, tsdb.ErrEngineClosed, "%s did not close the shard", name)
+			})
+		}
+	}
+}
+
+// TestStore_Close_WaitsForDeleteShard checks that Close waits for a DeleteShard
+// already in progress, whose shard has left s.shards, before it closes the
+// series files that DeleteShard still uses, and that a DeleteShard started
+// after Close, whether Close is still running or has returned, is rejected.
+func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+			require.NoError(t, s.CreateShard("db0", "rp0", 2, true), "creating shard")
+
+			// DeleteShard blocks on this delete after removing shard 1 from the store.
+			done := s.HoldDeleteForTest(1)
+			require.NotNil(t, done, "shard has no epoch tracker")
+			release := sync.OnceFunc(done)
+			// Runs before CloseStore above, which would wait on this delete.
+			t.Cleanup(release)
+
+			deleted := make(chan error, 1)
+			go func() { deleted <- s.DeleteShard(1) }()
+			require.Eventually(t, func() bool { return s.Shard(1) == nil },
+				10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
+
+			closed := make(chan error, 1)
+			go func() { closed <- s.Store.Close() }()
+			select {
+			case err := <-closed:
+				require.FailNow(t, "Close returned while DeleteShard was running", "err: %v", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after Close started")
+
+			release()
+			for name, ch := range map[string]chan error{"DeleteShard": deleted, "Close": closed} {
+				select {
+				case err := <-ch:
+					require.NoError(t, err, name)
+				case <-time.After(10 * time.Second):
+					require.FailNow(t, name+" did not return after the delete finished")
+				}
+			}
+			// Close has emptied s.shards, so this must not fall through to
+			// ErrShardNotFound.
+			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after Close returned")
+		})
+	}
+}
+
+// TestStore_Close_Concurrent checks that overlapping Closes all return without
+// error. Each one used to close s.closing, which panicked.
+func TestStore_Close_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	const closers = 32
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+
+			// No Close can return while this delete runs, which makes them overlap.
+			done := s.HoldDeleteForTest(1)
+			require.NotNil(t, done, "shard has no epoch tracker")
+			release := sync.OnceFunc(done)
+			// Runs before CloseStore above, which would wait on this delete.
+			t.Cleanup(release)
+
+			var mu sync.RWMutex
+			var concurrency, maxConcurrency atomic.Int64
+			errs := make([]error, closers)
+			var wg sync.WaitGroup
+			mu.Lock()
+			for i := range closers {
+				wg.Add(1)
+				go func(idx int) {
+					mu.RLock()
+					defer mu.RUnlock()
+					defer wg.Done()
+					c := concurrency.Add(1)
+					for {
+						old := maxConcurrency.Load()
+						if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+							break
+						}
+					}
+					errs[idx] = s.Store.Close()
+					concurrency.Add(-1)
+				}(i)
+			}
+			mu.Unlock()
+			require.Eventually(t, func() bool { return concurrency.Load() == closers },
+				10*time.Second, time.Millisecond, "Closes never overlapped")
+			release()
+
+			finished := make(chan struct{})
+			go func() { wg.Wait(); close(finished) }()
+			select {
+			case <-finished:
+			case <-time.After(30 * time.Second):
+				require.FailNow(t, "Closes did not return after the delete finished")
+			}
+			t.Logf("max concurrency: %d", maxConcurrency.Load())
+			require.EqualValues(t, closers, maxConcurrency.Load(), "max concurrency")
+			require.NoError(t, errors.Join(errs...), "closing store")
+		})
+	}
+}
+
+// TestStore_Close_RetriesAfterFailure checks that a Close that fails leaves the
+// store rejecting work, and that calling Close again finishes the job, so the
+// store can be reopened.
+func TestStore_Close_RetriesAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+			require.NoError(t, s.CreateShard("db0", "rp0", 2, true), "creating shard")
+			sh := s.Shard(1)
+			require.NotNil(t, sh, "expected shard")
+
+			closeErr := errors.New("injected engine close failure")
+			require.True(t, s.FailNextEngineCloseForTest(1, closeErr), "shard not open")
+
+			// walkShards wraps per-shard errors with %s, so match the message.
+			require.ErrorContains(t, s.Store.Close(), closeErr.Error(), "first Close")
+			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after failed Close")
+
+			require.NoError(t, s.Store.Close(), "retrying Close")
+			_, err := sh.Index()
+			require.ErrorIs(t, err, tsdb.ErrEngineClosed, "retry did not close the shard")
+			require.NoError(t, s.Store.Close(), "Close after successful retry")
+
+			require.NoError(t, s.Reopen(t), "reopening store")
+			require.NotNil(t, s.Shard(1), "shard 1 after reopen")
+			require.NotNil(t, s.Shard(2), "shard 2 after reopen")
+		})
+	}
+}
+
+// TestStore_DeleteShard_RejectsWriteDuringDiff checks that a write reaching the
+// deleted shard while DeleteShard compares it with the other shards is rejected,
+// and that a series another shard uses survives.
+func TestStore_DeleteShard_RejectsWriteDuringDiff(t *testing.T) {
+	t.Parallel()
+
+	s := MustOpenStore(t, tsdb.InmemIndexName)
+	t.Cleanup(func() { s.CloseStore(t, tsdb.InmemIndexName) })
+	for id := uint64(1); id <= 3; id++ {
+		require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+	}
+	const sharedKey = "shared,server=a"
+	s.MustWriteToShardString(1, "unique,server=a v=1 10")
+	s.MustWriteToShardString(2, sharedKey+" v=1 10")
+	deleted := s.Shard(1)
+	require.NotNil(t, deleted, "expected shard")
+
+	// Comparing against shard 3 blocks on this lock, by which time the comparison
+	// against shard 2, running in parallel, has finished.
+	blocked, err := s.Shard(3).Index()
+	require.NoError(t, err, "getting index of shard 3")
+	blocked.SeriesIDSet().Lock()
+	unblock := sync.OnceFunc(blocked.SeriesIDSet().Unlock)
+	// Runs before CloseStore above, which would wait on this lock.
+	t.Cleanup(unblock)
+
+	result := make(chan error, 1)
+	go func() { result <- s.DeleteShard(1) }()
+	require.Eventually(t, func() bool { return s.Shard(1) == nil },
+		10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
+	time.Sleep(100 * time.Millisecond)
+
+	points, err := models.ParsePointsString(sharedKey + " v=2 20")
+	require.NoError(t, err, "parsing point")
+	require.ErrorIs(t, deleted.WritePoints(points, tsdb.NoopStatsTracker()), tsdb.ErrShardDeletion,
+		"writing to the shard being deleted")
+	unblock()
+
+	select {
+	case err := <-result:
+		require.NoError(t, err, "DeleteShard")
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "DeleteShard did not return")
+	}
+
+	remaining := s.Shard(2)
+	require.NotNil(t, remaining, "expected shard")
+	sfile, err := remaining.SeriesFile()
+	require.NoError(t, err, "getting series file")
+	require.True(t, sfile.HasSeries([]byte("shared"), models.NewTags(map[string]string{"server": "a"}), nil),
+		"shared series removed from the series file")
+	index, err := remaining.Index()
+	require.NoError(t, err, "getting index of shard 2")
+	series, err := index.(*inmem.ShardIndex).Series([]byte(sharedKey))
+	require.NoError(t, err, "looking up shared series")
+	require.NotNil(t, series, "shared series removed from the index")
+}
+
+// TestStore_DeleteShard_RemovesSeriesFromInFlightWrite checks that a series only
+// the deleted shard has is removed when the write creating it was still running
+// as DeleteShard started. DeleteShard must wait for that write before it reads
+// the shard's series.
+func TestStore_DeleteShard_RemovesSeriesFromInFlightWrite(t *testing.T) {
+	t.Parallel()
+
+	const opTimeout = 30 * time.Second
+	s := MustOpenStore(t, tsdb.InmemIndexName)
+	t.Cleanup(func() { s.CloseStore(t, tsdb.InmemIndexName) })
+	for id := uint64(1); id <= 2; id++ {
+		require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+	}
+	const keptKey, uniqueKey = "kept,server=a", "unique,server=b"
+	uniqueTags := models.NewTags(map[string]string{"server": "b"})
+	s.MustWriteToShardString(1, "seed,server=a v=1 10")
+	s.MustWriteToShardString(2, keptKey+" v=1 10")
+
+	remaining := s.Shard(2)
+	require.NotNil(t, remaining, "expected shard")
+	sfile, err := remaining.SeriesFile()
+	require.NoError(t, err, "getting series file")
+	deleted := s.Shard(1)
+	require.NotNil(t, deleted, "expected shard")
+	deletedIndex, err := deleted.Index()
+	require.NoError(t, err, "getting index of shard 1")
+
+	// The write creates its series in the series file, then blocks adding it to
+	// the shard's set.
+	deletedIndex.SeriesIDSet().Lock()
+	unblock := sync.OnceFunc(deletedIndex.SeriesIDSet().Unlock)
+	// Runs before CloseStore above, which would wait on this lock.
+	t.Cleanup(unblock)
+
+	points, err := models.ParsePointsString(uniqueKey + " v=1 10")
+	require.NoError(t, err, "parsing point")
+	results := make(chan error, 2)
+	go func() { results <- s.WriteToShard(tsdb.WriteContext{}, 1, points) }()
+	// Barrier: delete only once the write is running.
+	require.Eventually(t, func() bool { return sfile.HasSeries([]byte("unique"), uniqueTags, nil) },
+		opTimeout, time.Millisecond, "write never created its series")
+	time.Sleep(100 * time.Millisecond)
+
+	go func() { results <- s.DeleteShard(1) }()
+	require.Eventually(t, func() bool { return s.Shard(1) == nil },
+		opTimeout, time.Millisecond, "DeleteShard never removed the shard from the store")
+	time.Sleep(100 * time.Millisecond)
+	unblock()
+
+	for range 2 {
+		select {
+		case err := <-results:
+			require.NoError(t, err, "write and DeleteShard")
+		case <-time.After(opTimeout):
+			dumpGoroutines(t)
+			require.FailNow(t, "write or DeleteShard did not return")
+		}
+	}
+
+	require.False(t, sfile.HasSeries([]byte("unique"), uniqueTags, nil),
+		"series only the deleted shard had is still in the series file")
+	index, err := remaining.Index()
+	require.NoError(t, err, "getting index of shard 2")
+	shardIndex := index.(*inmem.ShardIndex)
+	series, err := shardIndex.Series([]byte(uniqueKey))
+	require.NoError(t, err, "looking up unique series")
+	require.Nil(t, series, "series only the deleted shard had is still in the index")
+	series, err = shardIndex.Series([]byte(keptKey))
+	require.NoError(t, err, "looking up kept series")
+	require.NotNil(t, series, "series of the remaining shard removed from the index")
+	require.True(t, sfile.HasSeries([]byte("kept"), models.NewTags(map[string]string{"server": "a"}), nil),
+		"series of the remaining shard removed from the series file")
+}
+
+// TestStore_Delete_RemovesIndexType checks that deleting shards updates which
+// index types a database uses, counting each shard once. Deletes are rejected
+// only while the database has shards using more than one index type.
+func TestStore_Delete_RemovesIndexType(t *testing.T) {
+	t.Parallel()
+
+	deleteShard := func(s *Store, id uint64, _ string) error { return s.DeleteShard(id) }
+	deleteRP := func(s *Store, _ uint64, rp string) error { return s.DeleteRetentionPolicy("db0", rp) }
+
+	// Shards 1 and 2 use inmem, in their own retention policies, and shard 3 tsi1.
+	mixedStore := func(t *testing.T) *Store {
+		s := MustOpenStore(t, tsdb.InmemIndexName)
+		t.Cleanup(func() { s.CloseStore(t, s.index) })
+		require.NoError(t, s.CreateShard("db0", "rp1", 1, true), "creating shard")
+		require.NoError(t, s.CreateShard("db0", "rp2", 2, true), "creating shard")
+		s.index = tsdb.TSI1IndexName
+		require.NoError(t, s.Reopen(t), "reopening store as tsi1")
+		require.NoError(t, s.CreateShard("db0", "rp3", 3, true), "creating shard")
+		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "before deleting")
+		return s
+	}
+
+	for name, del := range map[string]func(s *Store, id uint64, rp string) error{
+		"DeleteShard":           deleteShard,
+		"DeleteRetentionPolicy": deleteRP,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := mixedStore(t)
+			require.NoError(t, del(s, 1, "rp1"), "deleting shard 1")
+			require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
+			require.NoError(t, del(s, 2, "rp2"), "deleting shard 2")
+			require.NoError(t, s.DeleteMeasurement("db0", "m"), "only tsi1 shards remain")
+		})
+	}
+
+	// Both calls delete shard 1 here, which must count once.
+	t.Run("Overlapping", func(t *testing.T) {
+		s := mixedStore(t)
+		done := s.HoldDeleteForTest(1)
+		require.NotNil(t, done, "shard has no epoch tracker")
+		release := sync.OnceFunc(done)
+		// Runs before CloseStore above, which would wait on this delete.
+		t.Cleanup(release)
+
+		results := make(chan error, 2)
+		go func() { results <- deleteRP(s, 1, "rp1") }()
+		// Let DeleteRetentionPolicy snapshot the shard and block closing it.
+		time.Sleep(100 * time.Millisecond)
+		go func() { results <- deleteShard(s, 1, "rp1") }()
+		require.Eventually(t, func() bool { return s.Shard(1) == nil },
+			10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
+		time.Sleep(100 * time.Millisecond)
+		release()
+
+		for range 2 {
+			select {
+			case err := <-results:
+				require.NoError(t, err, "deleting shard 1")
+			case <-time.After(30 * time.Second):
+				require.FailNow(t, "delete did not return")
+			}
+		}
+		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
+	})
+}
+
+// dumpGoroutines logs the stacks of all goroutines.
+func dumpGoroutines(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, pprof.Lookup("goroutine").WriteTo(&buf, 2), "dumping goroutines")
+	t.Log(buf.String())
+}
+
+// TestStore_DeleteShard_DuringSeriesCreation checks that DeleteShard does not
+// deadlock with writes creating series on the same shard. With the inmem index,
+// such a write holds the index lock while it waits for the shard's series ID set,
+// so DeleteShard must not wait for the index lock while it holds that set's lock.
+func TestStore_DeleteShard_DuringSeriesCreation(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rounds       = 20
+		seedSeries   = 2000
+		writers      = 8
+		seriesPerBat = 64
+		opTimeout    = 30 * time.Second
+	)
+	points := func(id uint64, prefix string, n int) []models.Point {
+		pts := make([]models.Point, 0, n)
+		for j := range n {
+			p, err := models.NewPoint("m", models.NewTags(map[string]string{"k": fmt.Sprintf("%d-%s-%d", id, prefix, j)}),
+				models.Fields{"v": float64(j)}, time.Unix(int64(j), 0))
+			require.NoError(t, err, "building point")
+			pts = append(pts, p)
+		}
+		return pts
+	}
+
+	// Not t.TempDir, which would remove the files under whatever is still
+	// running after a hang.
+	root, err := os.MkdirTemp("", "store-delete-shard-")
+	require.NoError(t, err, "creating store directory")
+	var hung bool
+	wait := func(ch <-chan struct{}, what string) {
+		select {
+		case <-ch:
+		case <-time.After(opTimeout):
+			hung = true
+			dumpGoroutines(t)
+			t.Logf("leaving store files in place at %s", root)
+			require.FailNow(t, what+" hung")
+		}
+	}
+
+	s := newStoreInDir(t, root, tsdb.InmemIndexName)
+	s.WithLogger(zaptest.NewLogger(t, zaptest.Level(zap.ErrorLevel)))
+	t.Cleanup(func() {
+		if hung {
+			return
+		}
+		closed := make(chan struct{})
+		var closeErr error
+		go func() { defer close(closed); closeErr = s.Store.Close() }()
+		wait(closed, "closing store")
+		require.NoError(t, errors.Join(closeErr, os.RemoveAll(root)), "closing store and removing %s", root)
+	})
+	require.NoError(t, s.Open(), "opening store")
+
+	for round := range rounds {
+		id := uint64(round + 1)
+		require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard")
+		require.NoError(t, s.WriteToShard(tsdb.WriteContext{}, id, points(id, "seed", seedSeries)), "seeding shard")
+
+		var writes atomic.Int64
+		var start sync.RWMutex
+		var workers sync.WaitGroup
+		start.Lock()
+		for w := range writers {
+			workers.Add(1)
+			go func() {
+				start.RLock()
+				defer start.RUnlock()
+				defer workers.Done()
+				for i := 0; ; i++ {
+					// New series each time, so the write takes the index lock.
+					// Writers stop on the error that says the shard is closed or
+					// gone; TestStore_DeleteCompactClose_Stress checks those errors.
+					if err := s.WriteToShard(tsdb.WriteContext{}, id, points(id, fmt.Sprintf("%d-%d", w, i), seriesPerBat)); err != nil {
+						return
+					}
+					writes.Add(1)
+				}
+			}()
+		}
+		start.Unlock()
+		// Barrier: delete only once writes are running.
+		require.Eventually(t, func() bool { return writes.Load() >= writers },
+			opTimeout, 100*time.Microsecond, "writes never ran")
+
+		var deleteErr error
+		deleted := make(chan struct{})
+		go func() { defer close(deleted); deleteErr = s.DeleteShard(id) }()
+		wait(deleted, fmt.Sprintf("DeleteShard %d", id))
+		require.NoError(t, deleteErr, "deleting shard %d", id)
+
+		stopped := make(chan struct{})
+		go func() { workers.Wait(); close(stopped) }()
+		wait(stopped, "writers")
+	}
+}
+
+// TestStore_DeleteCompactClose_Stress runs real DROP MEASUREMENT, DROP SERIES
+// and DELETE calls against shards that are written to with a tiny index log
+// file size, so TSI compactions keep finishing while deletes hold index file
+// sets. With deletes still in flight, it then closes the shards through each
+// store path. It fails if any operation hangs, or returns an error other than
+// the ones a closed or removed shard produces. Run it with -race.
+func TestStore_DeleteCompactClose_Stress(t *testing.T) {
+	t.Parallel()
+
+	const (
+		shardN        = 4
+		measurementN  = 4
+		writersPer    = 2
+		deleterN      = 4
+		seriesPerBat  = 64
+		overlapsWant  = 5
+		opTimeout     = time.Minute
+		closeStartRun = 50 * time.Millisecond
+		afterCloseRun = 50 * time.Millisecond
+	)
+	ops := map[string]func(s *Store) error{
+		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
+		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
+		"DeleteShard":           func(s *Store) error { return s.DeleteShard(1) },
+		"Close":                 func(s *Store) error { return s.Store.Close() },
+	}
+	// What writes and deletes may return once their shard is closed or gone.
+	expected := []error{tsdb.ErrStoreClosed, tsdb.ErrShardNotFound, tsdb.ErrEngineClosed, tsdb.ErrShardDeletion}
+	isExpected := func(err error) bool {
+		for _, e := range expected {
+			// walkShards wraps per-shard errors with %s, so errors.Is
+			// cannot see through it; match the message as well.
+			if errors.Is(err, e) || strings.Contains(err.Error(), e.Error()) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// run calls fn in a goroutine. The returned channel yields fn's result and
+	// is then closed, so waiting on it again does not block.
+	run := func(fn func() error) <-chan error {
+		ch := make(chan error, 1)
+		go func() {
+			defer close(ch)
+			ch <- fn()
+		}()
+		return ch
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range ops {
+			t.Run(index+"/"+name, func(t *testing.T) {
+				// Not t.TempDir, which would remove the files under whatever
+				// is still running after a hang. The cleanups below remove
+				// them only once everything has stopped.
+				root, err := os.MkdirTemp("", "store-stress-")
+				require.NoError(t, err, "creating store directory")
+
+				// hung is only touched on the test goroutine, which also runs
+				// the cleanups.
+				var hung bool
+				waitOrDump := func(t *testing.T, ch <-chan error, what string) error {
+					select {
+					case err := <-ch:
+						return err
+					case <-time.After(opTimeout):
+						hung = true
+						dumpGoroutines(t)
+						t.Logf("leaving store files in place at %s", root)
+						require.FailNow(t, what+" hung")
+						return nil
+					}
+				}
+
+				var deletesInFlight, compactions, compactionsUnderDelete atomic.Int64
+				countCompactions := func(e zapcore.Entry) error {
+					if strings.HasSuffix(e.Message, "compaction (end)") && strings.HasPrefix(e.Message, "TSI ") {
+						compactions.Add(1)
+						if deletesInFlight.Load() > 0 {
+							compactionsUnderDelete.Add(1)
+						}
+					}
+					return nil
+				}
+				// Hooks fire only for enabled entries, so count on a discarding
+				// core at Info, where compactions log.
+				hooked := zapcore.RegisterHooks(zapcore.NewCore(
+					zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+					zapcore.AddSync(io.Discard), zap.InfoLevel), countCompactions)
+
+				s := newStoreInDir(t, root, index)
+				s.EngineOptions.Config.MaxIndexLogFileSize = 1024
+				s.WithLogger(zap.New(zapcore.NewTee(
+					zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)).Core(), hooked)))
+				// Unlike CloseStore, this cannot hang the test on the deadlock
+				// it is looking for. After a hang it does nothing, since another
+				// Close would block too.
+				t.Cleanup(func() {
+					if hung {
+						return
+					}
+					closeErr := waitOrDump(t, run(s.Store.Close), "closing store")
+					require.NoError(t, errors.Join(closeErr, os.RemoveAll(root)), "closing store and removing %s", root)
+				})
+				require.NoError(t, s.Open(), "opening store")
+				for id := uint64(1); id <= shardN; id++ {
+					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+				}
+
+				var errMu sync.Mutex
+				var unexpected []error
+				record := func(err error, what string) {
+					if err == nil || isExpected(err) {
+						return
+					}
+					errMu.Lock()
+					defer errMu.Unlock()
+					unexpected = append(unexpected, fmt.Errorf("%s: %w", what, err))
+				}
+
+				var closeStarted atomic.Bool
+				var deletes, deletesAcrossClose atomic.Int64
+				deleteFns := []func(m string) (string, error){
+					func(m string) (string, error) {
+						return "DeleteMeasurement " + m, s.DeleteMeasurement("db0", m)
+					},
+					func(m string) (string, error) {
+						cond, err := influxql.ParseExpr("w = '0'")
+						if err != nil {
+							return "parsing DROP SERIES condition", err
+						}
+						return "DeleteSeries tag " + m, s.DeleteSeries("db0", []influxql.Source{&influxql.Measurement{Name: m}}, cond)
+					},
+					func(m string) (string, error) {
+						// DELETE with a time range: removes data, then drops series left empty.
+						cond, err := influxql.ParseExpr("time < 50s")
+						if err != nil {
+							return "parsing DELETE condition", err
+						}
+						return "DeleteSeries time " + m, s.DeleteSeries("db0", []influxql.Source{&influxql.Measurement{Name: m}}, cond)
+					},
+				}
+
+				stop := make(chan struct{})
+				stopWorkers := sync.OnceFunc(func() { close(stop) })
+				var start sync.RWMutex
+				var workers sync.WaitGroup
+				start.Lock()
+				for id := 1; id <= shardN; id++ {
+					for w := range writersPer {
+						workers.Add(1)
+						go func() {
+							start.RLock()
+							defer start.RUnlock()
+							defer workers.Done()
+							for i := 0; ; i++ {
+								select {
+								case <-stop:
+									return
+								default:
+								}
+								points := make([]models.Point, 0, seriesPerBat)
+								for j := range seriesPerBat {
+									p, err := models.NewPoint(fmt.Sprintf("m%d", (i+j)%measurementN),
+										models.NewTags(map[string]string{"w": fmt.Sprint(j % 2), "k": fmt.Sprintf("%d-%d-%d-%d", id, w, i, j)}),
+										models.Fields{"v": float64(j)}, time.Unix(int64(j), 0))
+									require.NoError(t, err, "building point")
+									points = append(points, p)
+								}
+								record(s.WriteToShard(tsdb.WriteContext{}, uint64(id), points), fmt.Sprintf("WriteToShard %d", id))
+							}
+						}()
+					}
+				}
+				for d := range deleterN {
+					workers.Add(1)
+					go func() {
+						start.RLock()
+						defer start.RUnlock()
+						defer workers.Done()
+						for i := 0; ; i++ {
+							select {
+							case <-stop:
+								return
+							default:
+							}
+							before := !closeStarted.Load()
+							deletesInFlight.Add(1)
+							what, err := deleteFns[(d+i)%len(deleteFns)](fmt.Sprintf("m%d", (d+i)%measurementN))
+							deletesInFlight.Add(-1)
+							deletes.Add(1)
+							if before && closeStarted.Load() {
+								deletesAcrossClose.Add(1)
+							}
+							record(err, what)
+						}
+					}()
+				}
+				done := run(func() error { workers.Wait(); return nil })
+				// Runs before the Close cleanup above, which must not race the
+				// workers. Stop them even after a hang, so those not stuck do
+				// not keep writing through later subtests.
+				t.Cleanup(func() {
+					stopWorkers()
+					if !hung {
+						require.NoError(t, waitOrDump(t, done, "writers and deleters"))
+					}
+				})
+				start.Unlock()
+
+				if index == "tsi1" {
+					require.Eventually(t, func() bool { return compactionsUnderDelete.Load() >= overlapsWant },
+						opTimeout, time.Millisecond, "TSI compactions never finished during a delete")
+				}
+				// Barrier: close only while a delete is running. Every delete walks
+				// shard 1, so each one soon blocks on this write, and cannot return
+				// until the write ends, which is not until the close has started.
+				deleteHeld, endWrite := s.HoldWriteForTest(1)
+				require.NotNil(t, endWrite, "shard has no epoch tracker")
+				release := sync.OnceFunc(endWrite)
+				// Runs before the worker cleanup above, which waits on the deletes.
+				t.Cleanup(release)
+				require.Eventually(t, deleteHeld, opTimeout, 100*time.Microsecond, "no delete blocked on the write")
+				closeStarted.Store(true)
+				result := run(func() error { return op(s) })
+				// The close waits for the held delete, so it cannot return before
+				// release. Give it time to get that far.
+				time.Sleep(closeStartRun)
+				release()
+				require.NoError(t, waitOrDump(t, result, name), name)
+
+				time.Sleep(afterCloseRun)
+				stopWorkers()
+				require.NoError(t, waitOrDump(t, done, "writers and deleters"))
+
+				t.Logf("deletes: %d, across close: %d, TSI compactions: %d, during a delete: %d",
+					deletes.Load(), deletesAcrossClose.Load(), compactions.Load(), compactionsUnderDelete.Load())
+				require.Empty(t, unexpected, "unexpected errors")
+				require.Positive(t, deletesAcrossClose.Load(), "no delete was running when %s started", name)
+			})
+		}
+	}
+}
 
 // Ensure the store can delete a retention policy and all shards under
 // it.
@@ -2852,10 +3603,16 @@ func WithStartupMetrics(sm *mockStartupLogger) StoreOption {
 // NewStore returns a new instance of Store with a temporary path.
 func NewStore(tb testing.TB, index string, opts ...StoreOption) *Store {
 	tb.Helper()
+	return newStoreInDir(tb, tb.TempDir(), index, opts...)
+}
+
+// newStoreInDir returns a new instance of Store under rootPath, which the
+// caller owns.
+func newStoreInDir(tb testing.TB, rootPath, index string, opts ...StoreOption) *Store {
+	tb.Helper()
 
 	// The WAL directory must not be rooted under the data path. Otherwise reopening
 	// the store will generate series indices for the WAL directories.
-	rootPath := tb.TempDir()
 	path := filepath.Join(rootPath, "data")
 	walPath := filepath.Join(rootPath, "wal")
 

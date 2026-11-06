@@ -33,7 +33,8 @@ var (
 	ErrShardNotFound = fmt.Errorf("shard not found")
 	// ErrStoreClosed is returned when trying to use a closed Store.
 	ErrStoreClosed = fmt.Errorf("store is closed")
-	// ErrShardDeletion is returned when trying to create a shard that is being deleted
+	// ErrShardDeletion is returned when trying to create or write to a shard
+	// that is being deleted
 	ErrShardDeletion = errors.New("shard is being deleted")
 	// ErrMultipleIndexTypes is returned when trying to do deletes on a database with
 	// multiple index types.
@@ -73,9 +74,9 @@ func (d *databaseState) addIndexType(indexType string) {
 	d.indexTypes[indexType]++
 }
 
-// addIndexType records that the database no longer has a shard with the given index type.
+// removeIndexType records that the database no longer has a shard with the given index type.
 func (d *databaseState) removeIndexType(indexType string) {
-	if d.indexTypes != nil {
+	if d != nil && d.indexTypes != nil {
 		d.indexTypes[indexType]--
 		if d.indexTypes[indexType] <= 0 {
 			delete(d.indexTypes, indexType)
@@ -159,6 +160,10 @@ type Store struct {
 	closing chan struct{}
 	wg      sync.WaitGroup
 	opened  bool
+
+	// shardDeletes counts DeleteShard calls in progress. DeleteShard adds to it
+	// under mu only while the store is not closing, so Close can wait for it.
+	shardDeletes sync.WaitGroup
 }
 
 // NewStore returns a new store with the given path and a default configuration.
@@ -689,20 +694,36 @@ func (s *Store) warnMixedIndexTypes(dbList ...string) {
 }
 
 // Close closes the store and all associated shards. After calling Close accessing
-// shards through the Store will result in ErrStoreClosed being returned.
+// shards through the Store will result in ErrStoreClosed being returned. Close
+// may be called concurrently, and called again to retry after it fails.
 func (s *Store) Close() error {
 	s.mu.Lock()
 	if s.opened {
-		close(s.closing)
+		// s.opened stays set until a Close succeeds, so s.closing is already
+		// closed if another Close is running or an earlier one failed.
+		select {
+		case <-s.closing:
+		default:
+			close(s.closing)
+		}
 	}
 	s.mu.Unlock()
 
 	s.wg.Wait()
-	// No other goroutines accessing the store, so no need for a Lock.
+	// A DeleteShard in progress has already removed its shard from s.shards, so
+	// the snapshot below cannot see it; wait for it before closing series files.
+	s.shardDeletes.Wait()
+
+	// Deletes are not tracked by s.wg and may still be running, so snapshot
+	// the epochs under the lock and let each close wait for them.
+	s.mu.RLock()
+	shards := s.shardsSlice()
+	epochs := s.epochsForShards(shards)
+	s.mu.RUnlock()
 
 	// Close all the shards in parallel.
-	if err := s.walkShards(s.shardsSlice(), func(sh *Shard) error {
-		return sh.Close()
+	if err := s.walkShards(shards, func(sh *Shard) error {
+		return closeShardAfterDeletes(epochs[sh.id], sh.Close)
 	}); err != nil {
 		return err
 	}
@@ -734,6 +755,24 @@ func (s *Store) epochsForShards(shards []*Shard) map[uint64]*epochTracker {
 		out[sh.id] = s.epochs[sh.id]
 	}
 	return out
+}
+
+// closeShardAfterDeletes waits for deletes running on a shard to finish, then
+// closes it with closeFn. A delete holds index file sets while it takes the shard and
+// index locks that Shard.Close holds, and Shard.Close waits for compactions
+// blocked on those file sets, so closing under a running delete can deadlock.
+// A delete that starts after this point waits for the close (it counts as a
+// write) and then fails on the closed shard.
+func closeShardAfterDeletes(epoch *epochTracker, closeFn func() error) error {
+	if epoch == nil {
+		return closeFn()
+	}
+	guards, gen := epoch.StartWrite()
+	defer epoch.EndWrite(gen)
+	for _, guard := range guards {
+		guard.Wait()
+	}
+	return closeFn()
 }
 
 // openSeriesFile either returns or creates a series file for the provided
@@ -987,16 +1026,23 @@ func (s *Store) ShardInUse(shardID uint64) (bool, error) {
 
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
-	sh := s.Shard(shardID)
-	if sh == nil {
-		return ErrShardNotFound
-	}
-
 	// Remove the shard from Store, so it's not returned to callers requesting
 	// shards. Also mark that this shard is currently being deleted in a separate
 	// map so that we do not have to retain the global store lock while deleting
-	// files.
+	// files. Check for closing first: Close empties s.shards, so a lookup after
+	// it would report ErrShardNotFound instead.
 	s.mu.Lock()
+	select {
+	case <-s.closing:
+		s.mu.Unlock()
+		return fmt.Errorf("deleting shard %d: %w", shardID, ErrStoreClosed)
+	default:
+	}
+	sh := s.shards[shardID]
+	if sh == nil {
+		s.mu.Unlock()
+		return ErrShardNotFound
+	}
 	if _, ok := s.pendingShardDeletes[shardID]; ok {
 		// We are already being deleted? This is possible if delete shard
 		// was called twice in sequence before the shard could be removed from
@@ -1007,6 +1053,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	}
 	delete(s.shards, shardID)
 	s.pendingShardDeletes[shardID] = struct{}{}
+	s.shardDeletes.Add(1)
 
 	db := sh.Database()
 	// Determine if the shard contained any series that are not present in any
@@ -1021,6 +1068,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		defer s.mu.Unlock()
 		delete(s.epochs, shardID)
 		delete(s.pendingShardDeletes, shardID)
+		s.shardDeletes.Done()
 	}()
 
 	// Get the shard's local bitset of series IDs.
@@ -1029,7 +1077,19 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return err
 	}
 
-	ss := index.SeriesIDSet()
+	// The shard is closed below, after which it no longer reports its index type.
+	indexType := index.Type()
+
+	// A write that found the shard before it left s.shards may still be running.
+	// Wait for it and reject later ones, so every series the shard holds is in
+	// the set read below. A series added after that would be left in the shared
+	// index and series file once the shard is gone.
+	sh.blockWritesForDeletion()
+
+	// Work on a copy, since the inmem index returns the shard's live set, which
+	// the comparison below would modify. Iterating the live set would also hold
+	// its lock while dropping series from the inmem index takes the index lock.
+	ss := index.SeriesIDSet().Clone()
 
 	err = s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
@@ -1146,8 +1206,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	} else if err = os.RemoveAll(sh.walPath); err != nil {
 		return err
 	} else {
-		// Remove index type from the database on success
-		s.databases[db].removeIndexType(sh.IndexType())
+		// Remove index type from the database on success. Readers check it under
+		// s.mu, and DeleteDatabase may have removed the database state meanwhile.
+		s.mu.Lock()
+		s.databases[db].removeIndexType(indexType)
+		s.mu.Unlock()
 		return nil
 	}
 }
@@ -1168,18 +1231,7 @@ func (s *Store) DeleteDatabase(name string) error {
 		if sh.database != name {
 			return nil
 		}
-
-		epoch := epochs[sh.id]
-		// enter the epoch tracker
-		guards, gen := epoch.StartWrite()
-		defer epoch.EndWrite(gen)
-
-		// wait for any guards before closing the shard
-		for _, guard := range guards {
-			guard.Wait()
-		}
-
-		return sh.Close()
+		return closeShardAfterDeletes(epochs[sh.id], sh.Close)
 	}); err != nil {
 		return err
 	}
@@ -1237,7 +1289,14 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 		return nil
 	}
 	shards := s.filterShards(ComposeShardFilter(byDatabase(database), byRetentionPolicy(name)))
+	epochs := s.epochsForShards(shards)
 	s.mu.RUnlock()
+
+	// A closed shard no longer reports its index type.
+	indexTypes := make([]string, len(shards))
+	for i, sh := range shards {
+		indexTypes[i] = sh.IndexType()
+	}
 
 	// Close and delete all shards under the retention policy on the
 	// database.
@@ -1245,8 +1304,7 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 		if sh.database != database || sh.retentionPolicy != name {
 			return nil
 		}
-
-		return sh.Close()
+		return closeShardAfterDeletes(epochs[sh.id], sh.Close)
 	}); err != nil {
 		return err
 	}
@@ -1271,9 +1329,13 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 
 	s.mu.Lock()
 	state := s.databases[database]
-	for _, sh := range shards {
-		delete(s.shards, sh.id)
-		state.removeIndexType(sh.IndexType())
+	for i, sh := range shards {
+		// A DeleteShard that overlapped this call has already taken the shard
+		// out of s.shards and removes its index type itself.
+		if s.shards[sh.id] == sh {
+			delete(s.shards, sh.id)
+			state.removeIndexType(indexTypes[i])
+		}
 	}
 	s.mu.Unlock()
 	return nil
