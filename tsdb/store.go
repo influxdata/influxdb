@@ -33,7 +33,8 @@ var (
 	ErrShardNotFound = fmt.Errorf("shard not found")
 	// ErrStoreClosed is returned when trying to use a closed Store.
 	ErrStoreClosed = fmt.Errorf("store is closed")
-	// ErrShardDeletion is returned when trying to create a shard that is being deleted
+	// ErrShardDeletion is returned when trying to create or write to a shard
+	// that is being deleted
 	ErrShardDeletion = errors.New("shard is being deleted")
 	// ErrMultipleIndexTypes is returned when trying to do deletes on a database with
 	// multiple index types.
@@ -1079,11 +1080,15 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	// The shard is closed below, after which it no longer reports its index type.
 	indexType := index.Type()
 
-	// Work on a copy, since the inmem index returns the shard's live set. A write
-	// still running on this shard can add a series to that set, which must not be
-	// taken for one that no other shard has. Iterating the live set would also
-	// hold its lock while dropping series from the inmem index takes the index
-	// lock, and such a write takes those locks in the opposite order.
+	// A write that found the shard before it left s.shards may still be running.
+	// Wait for it and reject later ones, so every series the shard holds is in
+	// the set read below. A series added after that would be left in the shared
+	// index and series file once the shard is gone.
+	sh.blockWritesForDeletion()
+
+	// Work on a copy, since the inmem index returns the shard's live set, which
+	// the comparison below would modify. Iterating the live set would also hold
+	// its lock while dropping series from the inmem index takes the index lock.
 	ss := index.SeriesIDSet().Clone()
 
 	err = s.walkShards(shards, func(sh *Shard) error {
