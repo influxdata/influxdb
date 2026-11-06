@@ -234,10 +234,10 @@ func TestStore_Close_RetriesAfterFailure(t *testing.T) {
 	}
 }
 
-// TestStore_DeleteShard_KeepsSeriesAddedDuringDiff checks that a series another
-// shard uses survives DeleteShard when a write still running on the deleted
-// shard adds it to that shard's set after DeleteShard compared the two shards.
-func TestStore_DeleteShard_KeepsSeriesAddedDuringDiff(t *testing.T) {
+// TestStore_DeleteShard_RejectsWriteDuringDiff checks that a write reaching the
+// deleted shard while DeleteShard compares it with the other shards is rejected,
+// and that a series another shard uses survives.
+func TestStore_DeleteShard_RejectsWriteDuringDiff(t *testing.T) {
 	t.Parallel()
 
 	s := MustOpenStore(t, tsdb.InmemIndexName)
@@ -268,7 +268,8 @@ func TestStore_DeleteShard_KeepsSeriesAddedDuringDiff(t *testing.T) {
 
 	points, err := models.ParsePointsString(sharedKey + " v=2 20")
 	require.NoError(t, err, "parsing point")
-	require.NoError(t, deleted.WritePoints(points, tsdb.NoopStatsTracker()), "writing to the shard being deleted")
+	require.ErrorIs(t, deleted.WritePoints(points, tsdb.NoopStatsTracker()), tsdb.ErrShardDeletion,
+		"writing to the shard being deleted")
 	unblock()
 
 	select {
@@ -289,6 +290,80 @@ func TestStore_DeleteShard_KeepsSeriesAddedDuringDiff(t *testing.T) {
 	series, err := index.(*inmem.ShardIndex).Series([]byte(sharedKey))
 	require.NoError(t, err, "looking up shared series")
 	require.NotNil(t, series, "shared series removed from the index")
+}
+
+// TestStore_DeleteShard_RemovesSeriesFromInFlightWrite checks that a series only
+// the deleted shard has is removed when the write creating it was still running
+// as DeleteShard started. DeleteShard must wait for that write before it reads
+// the shard's series.
+func TestStore_DeleteShard_RemovesSeriesFromInFlightWrite(t *testing.T) {
+	t.Parallel()
+
+	const opTimeout = 30 * time.Second
+	s := MustOpenStore(t, tsdb.InmemIndexName)
+	t.Cleanup(func() { s.CloseStore(t, tsdb.InmemIndexName) })
+	for id := uint64(1); id <= 2; id++ {
+		require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+	}
+	const keptKey, uniqueKey = "kept,server=a", "unique,server=b"
+	uniqueTags := models.NewTags(map[string]string{"server": "b"})
+	s.MustWriteToShardString(1, "seed,server=a v=1 10")
+	s.MustWriteToShardString(2, keptKey+" v=1 10")
+
+	remaining := s.Shard(2)
+	require.NotNil(t, remaining, "expected shard")
+	sfile, err := remaining.SeriesFile()
+	require.NoError(t, err, "getting series file")
+	deleted := s.Shard(1)
+	require.NotNil(t, deleted, "expected shard")
+	deletedIndex, err := deleted.Index()
+	require.NoError(t, err, "getting index of shard 1")
+
+	// The write creates its series in the series file, then blocks adding it to
+	// the shard's set.
+	deletedIndex.SeriesIDSet().Lock()
+	unblock := sync.OnceFunc(deletedIndex.SeriesIDSet().Unlock)
+	// Runs before CloseStore above, which would wait on this lock.
+	t.Cleanup(unblock)
+
+	points, err := models.ParsePointsString(uniqueKey + " v=1 10")
+	require.NoError(t, err, "parsing point")
+	results := make(chan error, 2)
+	go func() { results <- s.WriteToShard(tsdb.WriteContext{}, 1, points) }()
+	// Barrier: delete only once the write is running.
+	require.Eventually(t, func() bool { return sfile.HasSeries([]byte("unique"), uniqueTags, nil) },
+		opTimeout, time.Millisecond, "write never created its series")
+	time.Sleep(100 * time.Millisecond)
+
+	go func() { results <- s.DeleteShard(1) }()
+	require.Eventually(t, func() bool { return s.Shard(1) == nil },
+		opTimeout, time.Millisecond, "DeleteShard never removed the shard from the store")
+	time.Sleep(100 * time.Millisecond)
+	unblock()
+
+	for range 2 {
+		select {
+		case err := <-results:
+			require.NoError(t, err, "write and DeleteShard")
+		case <-time.After(opTimeout):
+			dumpGoroutines(t)
+			require.FailNow(t, "write or DeleteShard did not return")
+		}
+	}
+
+	require.False(t, sfile.HasSeries([]byte("unique"), uniqueTags, nil),
+		"series only the deleted shard had is still in the series file")
+	index, err := remaining.Index()
+	require.NoError(t, err, "getting index of shard 2")
+	shardIndex := index.(*inmem.ShardIndex)
+	series, err := shardIndex.Series([]byte(uniqueKey))
+	require.NoError(t, err, "looking up unique series")
+	require.Nil(t, series, "series only the deleted shard had is still in the index")
+	series, err = shardIndex.Series([]byte(keptKey))
+	require.NoError(t, err, "looking up kept series")
+	require.NotNil(t, series, "series of the remaining shard removed from the index")
+	require.True(t, sfile.HasSeries([]byte("kept"), models.NewTags(map[string]string{"server": "a"}), nil),
+		"series of the remaining shard removed from the series file")
 }
 
 // TestStore_Delete_RemovesIndexType checks that deleting shards updates which

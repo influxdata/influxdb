@@ -158,6 +158,9 @@ type Shard struct {
 	_engine Engine
 	index   Index
 	enabled bool
+	// deleting is set once Store.DeleteShard starts removing the shard's series.
+	// It is never cleared.
+	deleting bool
 
 	// expvar-based stats.
 	stats       *ShardStatistics
@@ -232,6 +235,15 @@ func (s *Shard) setEnabledNoLock(enabled bool) {
 		// Disable background compactions and snapshotting
 		s._engine.SetEnabled(enabled)
 	}
+}
+
+// blockWritesForDeletion makes WritePoints, Restore and Import fail with
+// ErrShardDeletion. It returns once the calls already running have finished, so
+// no series is added to the shard after it returns.
+func (s *Shard) blockWritesForDeletion() {
+	s.mu.Lock()
+	s.deleting = true
+	s.mu.Unlock()
 }
 
 // SetNewReadersBlocked sets if new readers can access the shard. If blocked
@@ -569,6 +581,9 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 	engine, err := s.engineNoLock()
 	if err != nil {
 		return err
+	}
+	if s.deleting {
+		return ErrShardDeletion
 	}
 
 	var writeError error
@@ -1144,6 +1159,9 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 	if s._engine == nil {
 		return ErrEngineClosed
 	}
+	if s.deleting {
+		return ErrShardDeletion
+	}
 
 	// Restore to engine.
 	if err := s._engine.Restore(r, basePath); err != nil {
@@ -1169,6 +1187,9 @@ func (s *Shard) Import(r io.Reader, basePath string) error {
 	defer s.mu.Unlock()
 	if s._engine == nil {
 		return ErrEngineClosed
+	}
+	if s.deleting {
+		return ErrShardDeletion
 	}
 
 	// Import to engine.
