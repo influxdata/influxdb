@@ -1,10 +1,14 @@
-use std::io::Write as _;
+use std::{fmt::Debug, future::Future, io::Write as _, time::Duration};
 
-use influxdb3_types::http::{LastCacheSize, LastCacheTtl};
+use influxdb3_types::http::{LastCacheSize, LastCacheTtl, WalPluginTestRequest};
 use mockito::{Matcher, Server};
 use serde_json::json;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+};
 
-use crate::{Client, Precision, QueryFormat};
+use crate::{Client, Error, Precision, QueryFormat};
 
 /// Produce the gzip encoding the client is expected to put on the wire for the
 /// given input. Stays in sync with `WriteRequestBuilder::send` (default
@@ -478,5 +482,168 @@ async fn api_v3_configure_last_cache_delete() {
         .api_v3_configure_last_cache_delete(db, table, name)
         .await
         .unwrap();
+    mock.assert_async().await;
+}
+
+/// Keep a connection open after reading the request, optionally sending only part
+/// of a response. Dropping the server future closes the socket even if the test fails.
+async fn request_to_stalled_server<F, T>(
+    response: &[u8],
+    request: impl FnOnce(Client) -> F + Send,
+) -> Error
+where
+    F: Future<Output = crate::Result<T>> + Send,
+    T: Debug + Send,
+{
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let client = Client::new(
+        format!("http://{}", listener.local_addr().unwrap()),
+        None,
+        false,
+    )
+    .unwrap()
+    .with_timeout(Duration::from_secs(1));
+    let mut response_started = false;
+    let server = async {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut headers = Vec::new();
+        while !headers.ends_with(b"\r\n\r\n") {
+            headers.push(stream.read_u8().await.unwrap());
+        }
+        stream.write_all(response).await.unwrap();
+        response_started = true;
+        std::future::pending::<()>().await;
+    };
+
+    let error = tokio::select! {
+        () = server => unreachable!("server must keep the connection open"),
+        result = tokio::time::timeout(Duration::from_secs(10), request(client.clone())) => {
+            result.expect("client did not enforce its timeout").expect_err("request must time out")
+        }
+    };
+    assert!(response_started, "server did not receive the request");
+    error
+}
+
+#[tokio::test]
+async fn request_timeout_ping() {
+    for response in [
+        b"".as_slice(),
+        b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{",
+        b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 100\r\n\r\n{",
+    ] {
+        let error =
+            request_to_stalled_server(response, |client| async move { client.ping().await }).await;
+        match error {
+            Error::RequestSend { source, .. } if response.is_empty() => {
+                assert!(source.is_timeout())
+            }
+            Error::Json(source) | Error::Text(source) if !response.is_empty() => {
+                assert!(source.is_timeout())
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn request_timeout_write() {
+    for response in [
+        b"".as_slice(),
+        b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nx",
+        b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 100\r\n\r\nx",
+    ] {
+        let error = request_to_stalled_server(response, |client| async move {
+            client
+                .api_v3_write_lp("db")
+                .body("cpu usage=0.5")
+                .send()
+                .await
+        })
+        .await;
+        match error {
+            Error::RequestSend { source, .. } if response.is_empty() => {
+                assert!(source.is_timeout())
+            }
+            Error::Bytes(source) if !response.is_empty() => assert!(source.is_timeout()),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn request_timeout_create() {
+    for response in [
+        b"".as_slice(),
+        b"HTTP/1.1 201 Created\r\nContent-Length: 100\r\n\r\n{",
+        b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 100\r\n\r\n{",
+    ] {
+        let error = request_to_stalled_server(response, |client| async move {
+            client.api_v3_configure_create_admin_token().await
+        })
+        .await;
+        match error {
+            Error::RequestSend { source, .. } if response.is_empty() => {
+                assert!(source.is_timeout())
+            }
+            Error::Json(source) | Error::Text(source) if !response.is_empty() => {
+                assert!(source.is_timeout())
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn request_timeout_json() {
+    for response in [
+        b"".as_slice(),
+        b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{",
+        b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 100\r\n\r\n{",
+    ] {
+        let error = request_to_stalled_server(response, |client| async move {
+            client
+                .wal_plugin_test(WalPluginTestRequest {
+                    filename: "plugin.py".into(),
+                    database: "db".into(),
+                    input_lp: "cpu usage=0.5".into(),
+                    cache_name: None,
+                    input_arguments: None,
+                })
+                .await
+        })
+        .await;
+        match error {
+            Error::RequestSend { source, .. } if response.is_empty() => {
+                assert!(source.is_timeout())
+            }
+            Error::Json(source) | Error::Text(source) if !response.is_empty() => {
+                assert!(source.is_timeout())
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn request_timeout_allows_successful_authenticated_request() {
+    let mut server = Server::new_async().await;
+    let mock = server
+        .mock("POST", "/api/v3/query_sql")
+        .match_header("Authorization", "Bearer secret")
+        .with_body("[]")
+        .create_async()
+        .await;
+    let client = Client::new(server.url(), None, false)
+        .unwrap()
+        .with_timeout(Duration::from_secs(10))
+        .with_auth_token("secret");
+    let response = client
+        .clone()
+        .api_v3_query_sql("db", "SELECT * FROM cpu")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(&response[..], b"[]");
     mock.assert_async().await;
 }
