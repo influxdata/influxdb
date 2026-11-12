@@ -246,13 +246,6 @@ func (p Permission) matchesV1(perm Permission) bool {
 		return true
 	}
 
-	if p.Resource.OrgID != nil && perm.Resource.OrgID != nil && p.Resource.ID != nil && perm.Resource.ID != nil {
-		if *p.Resource.OrgID != *perm.Resource.OrgID && *p.Resource.ID == *perm.Resource.ID {
-			fmt.Printf("v1: old match used: p.Resource.OrgID=%s perm.Resource.OrgID=%s p.Resource.ID=%s",
-				*p.Resource.OrgID, *perm.Resource.OrgID, *p.Resource.ID)
-		}
-	}
-
 	if p.Resource.OrgID != nil && p.Resource.ID == nil {
 		pOrgID := *p.Resource.OrgID
 		if perm.Resource.OrgID != nil {
@@ -263,14 +256,19 @@ func (p Permission) matchesV1(perm Permission) bool {
 		}
 	}
 
-	if p.Resource.ID != nil {
-		pID := *p.Resource.ID
-		if perm.Resource.ID != nil {
-			permID := *perm.Resource.ID
-			if pID == permID {
-				return true
-			}
+	// A permission that names a resource by ID applies within the permission's
+	// organization. If either permission has no organization, the IDs alone
+	// decide, except for users and organizations: they don't belong to an
+	// organization, so a permission that names one by ID and has an
+	// organization doesn't match a request without one.
+	if p.Resource.ID != nil && perm.Resource.ID != nil && *p.Resource.ID == *perm.Resource.ID {
+		if p.Resource.OrgID != nil && perm.Resource.OrgID != nil {
+			return *p.Resource.OrgID == *perm.Resource.OrgID
 		}
+		if p.Resource.OrgID != nil && (p.Resource.Type == UsersResourceType || p.Resource.Type == OrgsResourceType) {
+			return false
+		}
+		return true
 	}
 
 	return false

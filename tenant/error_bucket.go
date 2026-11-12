@@ -3,6 +3,7 @@ package tenant
 import (
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
@@ -23,10 +24,7 @@ var (
 		Msg:  "system buckets cannot be deleted",
 	}
 
-	ErrBucketNotFound = &errors.Error{
-		Code: errors.ENotFound,
-		Msg:  "bucket not found",
-	}
+	ErrBucketNotFound = influxdb.ErrBucketNotFound
 
 	ErrBucketNameNotUnique = &errors.Error{
 		Code: errors.EConflict,

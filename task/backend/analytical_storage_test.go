@@ -119,7 +119,14 @@ func TestDeduplicateRuns(t *testing.T) {
 	metaClient := meta.NewClient(meta.NewConfig(), store)
 	require.NoError(t, metaClient.Open())
 
-	_, err := metaClient.CreateDatabase(platform.ID(10).String())
+	// Creating the org also creates its _tasks system bucket. The bucket must
+	// exist in the same bucket service the query engine uses.
+	org := &influxdb.Organization{Name: "dedup-org"}
+	require.NoError(t, ts.CreateOrganization(context.Background(), org))
+	tasksBucket, err := ts.FindBucketByName(context.Background(), org.ID, influxdb.TasksSystemBucketName)
+	require.NoError(t, err)
+
+	_, err = metaClient.CreateDatabase(tasksBucket.ID.String())
 	require.NoError(t, err)
 
 	ab := newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, metaClient)
@@ -127,7 +134,7 @@ func TestDeduplicateRuns(t *testing.T) {
 
 	mockTS := &mock.TaskService{
 		FindTaskByIDFn: func(context.Context, platform.ID) (*taskmodel.Task, error) {
-			return &taskmodel.Task{ID: 1, OrganizationID: 20}, nil
+			return &taskmodel.Task{ID: 1, OrganizationID: org.ID}, nil
 		},
 		FindRunsFn: func(context.Context, taskmodel.RunFilter) ([]*taskmodel.Run, int, error) {
 			return []*taskmodel.Run{
@@ -140,9 +147,7 @@ func TestDeduplicateRuns(t *testing.T) {
 			return &taskmodel.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
 		},
 	}
-	mockBS := mock.NewBucketService()
-
-	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, mockBS, mockTCS, ab.PointsWriter(), ab.QueryService())
+	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, ts.BucketService, mockTCS, ab.PointsWriter(), ab.QueryService())
 
 	_, err = svcStack.FinishRun(context.Background(), 1, 2)
 	if err != nil {

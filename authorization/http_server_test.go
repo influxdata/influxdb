@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"testing"
 
 	"github.com/go-chi/chi"
@@ -118,7 +117,6 @@ func TestService_handlePostAuthorization(t *testing.T) {
   "description": "only read dashboards sucka",
   "id": "020f755c3c082000",
   "links": {
-    "self": "/api/v2/authorizations/020f755c3c082000",
     "user": "/api/v2/users/aaaaaaaaaaaaaaaa"
   },
   "org": "o1",
@@ -135,6 +133,93 @@ func TestService_handlePostAuthorization(t *testing.T) {
   ],
   "status": "active",
   "token": "new-test-token",
+  "user": "u1",
+  "userID": "aaaaaaaaaaaaaaaa"
+}
+`,
+			},
+		},
+		{
+			name: "create a new authorization with a bucket permission",
+			fields: fields{
+				TenantService: &tenantService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
+						return &influxdb.User{
+							ID:   id,
+							Name: "u1",
+						}, nil
+					},
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
+							ID:   id,
+							Name: "o1",
+						}, nil
+					},
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    id,
+							OrgID: itesting.MustIDBase16("020f755c3c083000"),
+							Name:  "b1",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				session: &influxdb.Authorization{
+					Token:       "session-token",
+					ID:          itesting.MustIDBase16("020f755c3c082000"),
+					UserID:      itesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+					Description: "can write to authorization resource",
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.WriteAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.AuthorizationsResourceType,
+								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+							},
+						},
+					},
+				},
+				authorization: &influxdb.Authorization{
+					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+					Description: "read one bucket",
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.ReadAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.BucketsResourceType,
+								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+								ID:    itesting.IDPtr(itesting.MustIDBase16("020f755c3c084000")),
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "description": "read one bucket",
+  "links": {
+    "user": "/api/v2/users/aaaaaaaaaaaaaaaa"
+  },
+  "org": "o1",
+  "orgID": "020f755c3c083000",
+  "permissions": [
+    {
+      "action": "read",
+      "resource": {
+        "type": "buckets",
+        "orgID": "020f755c3c083000",
+        "id": "020f755c3c084000",
+        "name": "b1",
+        "org": "o1"
+      }
+    }
+  ],
+  "status": "active",
   "user": "u1",
   "userID": "aaaaaaaaaaaaaaaa"
 }
@@ -190,9 +275,19 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				if tt.wants.contentType != "" {
 					require.Equal(t, tt.wants.contentType, contentType)
 				}
-				diff, err := jsonDiff(string(body), tt.wants.body)
-				require.NoError(t, err, "jsonDiff failed")
-				require.Empty(t, diff, "authorization endpoint returned unexpected result")
+
+				var got, want authResponse
+				require.NoErrorf(t, json.Unmarshal(body, &got), "body: %s", body)
+				require.NoError(t, json.Unmarshal([]byte(tt.wants.body), &want))
+
+				// The store assigns the ID, so the self link must name the ID
+				// that was returned.
+				require.Truef(t, got.ID.Valid(), "body: %s", body)
+				require.NotNil(t, want.Links, "the expected body must have links")
+				want.Links["self"] = "/api/v2/authorizations/" + got.ID.String()
+
+				require.Empty(t, cmp.Diff(got, want, authResponseCmpOptions...),
+					"authorization endpoint returned unexpected result")
 			})
 		}
 	}
@@ -263,8 +358,9 @@ func TestService_handleGetAuthorization(t *testing.T) {
 					},
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   id,
-							Name: "b1",
+							ID:    id,
+							OrgID: itesting.MustIDBase16("020f755c3c083000"),
+							Name:  "b1",
 						}, nil
 					},
 				},
@@ -297,6 +393,197 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				"name": "b1",
 				"org": "o1"
 			}
+    }
+  ],
+  "status": "",
+  "token": "hello",
+  "user": "u1",
+  "userID": "020f755c3c082000"
+}
+`,
+			},
+		},
+		{
+			name: "get an authorization with a bucket permission that has no org",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
+						return &influxdb.Authorization{
+							ID:     itesting.MustIDBase16("020f755c3c082000"),
+							UserID: itesting.MustIDBase16("020f755c3c082000"),
+							OrgID:  itesting.MustIDBase16("020f755c3c083000"),
+							Permissions: []influxdb.Permission{
+								{
+									Action: influxdb.ReadAction,
+									Resource: influxdb.Resource{
+										Type: influxdb.BucketsResourceType,
+										ID:   itesting.IDPtr(itesting.MustIDBase16("020f755c3c084000")),
+									},
+								},
+							},
+							Token: "hello",
+						}, nil
+					},
+				},
+				TenantService: &tenantService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
+						return &influxdb.User{
+							ID:   id,
+							Name: "u1",
+						}, nil
+					},
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
+							ID:   id,
+							Name: "o1",
+						}, nil
+					},
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    id,
+							OrgID: itesting.MustIDBase16("020f755c3c083000"),
+							Name:  "b1",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "createdAt": "0001-01-01T00:00:00Z",
+  "updatedAt": "0001-01-01T00:00:00Z",
+  "description": "",
+  "id": "020f755c3c082000",
+  "links": {
+    "self": "/api/v2/authorizations/020f755c3c082000",
+    "user": "/api/v2/users/020f755c3c082000"
+  },
+  "org": "o1",
+  "orgID": "020f755c3c083000",
+  "permissions": [
+    {
+      "action": "read",
+      "resource": {
+        "type": "buckets",
+        "id": "020f755c3c084000",
+        "name": "b1"
+      }
+    }
+  ],
+  "status": "",
+  "token": "hello",
+  "user": "u1",
+  "userID": "020f755c3c082000"
+}
+`,
+			},
+		},
+		{
+			// Users and organizations don't belong to an organization, so a
+			// permission that names one by ID and has an organization gets no
+			// names. Without an organization, it gets the name.
+			name: "get an authorization with user and org permissions by ID",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
+						userID := itesting.MustIDBase16("020f755c3c082000")
+						orgID := itesting.MustIDBase16("020f755c3c083000")
+						return &influxdb.Authorization{
+							ID:     itesting.MustIDBase16("020f755c3c082000"),
+							UserID: userID,
+							OrgID:  orgID,
+							Permissions: []influxdb.Permission{
+								{
+									Action:   influxdb.ReadAction,
+									Resource: influxdb.Resource{Type: influxdb.UsersResourceType, ID: &userID, OrgID: &orgID},
+								},
+								{
+									Action:   influxdb.ReadAction,
+									Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, ID: &orgID, OrgID: &orgID},
+								},
+								{
+									Action:   influxdb.ReadAction,
+									Resource: influxdb.Resource{Type: influxdb.UsersResourceType, ID: &userID},
+								},
+								{
+									Action:   influxdb.ReadAction,
+									Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, ID: &orgID},
+								},
+							},
+							Token: "hello",
+						}, nil
+					},
+				},
+				TenantService: &tenantService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
+						return &influxdb.User{
+							ID:   id,
+							Name: "u1",
+						}, nil
+					},
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
+							ID:   id,
+							Name: "o1",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "createdAt": "0001-01-01T00:00:00Z",
+  "updatedAt": "0001-01-01T00:00:00Z",
+  "description": "",
+  "id": "020f755c3c082000",
+  "links": {
+    "self": "/api/v2/authorizations/020f755c3c082000",
+    "user": "/api/v2/users/020f755c3c082000"
+  },
+  "org": "o1",
+  "orgID": "020f755c3c083000",
+  "permissions": [
+    {
+      "action": "read",
+      "resource": {
+        "type": "users",
+        "id": "020f755c3c082000",
+        "orgID": "020f755c3c083000"
+      }
+    },
+    {
+      "action": "read",
+      "resource": {
+        "type": "orgs",
+        "id": "020f755c3c083000",
+        "orgID": "020f755c3c083000"
+      }
+    },
+    {
+      "action": "read",
+      "resource": {
+        "type": "users",
+        "id": "020f755c3c082000",
+        "name": "u1"
+      }
+    },
+    {
+      "action": "read",
+      "resource": {
+        "type": "orgs",
+        "id": "020f755c3c083000",
+        "name": "o1"
+      }
     }
   ],
   "status": "",
@@ -860,35 +1147,147 @@ func jsonDiff(s1, s2 string) (diff string, err error) {
 		return s1, fmt.Errorf("s2 is empty")
 	}
 
-	var o1 influxdb.Authorization
+	// Decode into the response type rather than influxdb.Authorization, so the
+	// user, org and resource names in the response are compared too.
+	var o1 authResponse
 	if err = json.Unmarshal([]byte(s1), &o1); err != nil {
 		return
 	}
 
-	var o2 influxdb.Authorization
+	var o2 authResponse
 	if err = json.Unmarshal([]byte(s2), &o2); err != nil {
 		return
 	}
 
-	return cmp.Diff(o1, o2, authorizationCmpOptions...), err
+	return cmp.Diff(o1, o2, authResponseCmpOptions...), err
 }
 
-var authorizationCmpOptions = cmp.Options{
+var authResponseCmpOptions = cmp.Options{
 	cmpopts.EquateEmpty(),
-	cmpopts.IgnoreFields(influxdb.Authorization{}, "ID", "Token", "HashedToken", "CreatedAt", "UpdatedAt"),
-	cmp.Comparer(func(x, y []byte) bool {
-		return bytes.Equal(x, y)
-	}),
-	cmp.Transformer("Sort", func(in []*influxdb.Authorization) []*influxdb.Authorization {
-		out := append([]*influxdb.Authorization(nil), in...) // Copy input to avoid mutating it
-		sort.Slice(out, func(i, j int) bool {
-			return out[i].ID.String() > out[j].ID.String()
-		})
-		return out
-	}),
+	cmpopts.IgnoreFields(authResponse{}, "ID", "Token", "CreatedAt", "UpdatedAt"),
 }
 
 func MustMarshal(o interface{}) []byte {
 	b, _ := json.Marshal(o)
 	return b
+}
+
+// TestAuthHandler_getNameForPermission gets the name of the resource that a
+// permission names by ID.
+func TestAuthHandler_getNameForPermission(t *testing.T) {
+	var (
+		orgID     = itesting.MustIDBase16("020f755c3c083000")
+		userID    = itesting.MustIDBase16("020f755c3c082000")
+		bucketID  = itesting.MustIDBase16("020f755c3c084000")
+		missingID = itesting.MustIDBase16("020f755c3c085000")
+		failingID = itesting.MustIDBase16("020f755c3c086000")
+		dashID    = itesting.MustIDBase16("020f755c3c087000")
+		invalidID = platform.ID(0)
+	)
+	lookupFailed := &errors.Error{Code: errors.EInternal, Msg: "bucket lookup failed"}
+
+	h := &AuthHandler{tenantService: &tenantService{
+		FindUserByIDFn: func(_ context.Context, id platform.ID) (*influxdb.User, error) {
+			return &influxdb.User{ID: id, Name: "u1"}, nil
+		},
+		FindOrganizationByIDF: func(_ context.Context, id platform.ID) (*influxdb.Organization, error) {
+			return &influxdb.Organization{ID: id, Name: "o1"}, nil
+		},
+		FindBucketByIDFn: func(_ context.Context, id platform.ID) (*influxdb.Bucket, error) {
+			switch id {
+			case bucketID:
+				return &influxdb.Bucket{ID: id, OrgID: orgID, Name: "b1"}, nil
+			case failingID:
+				return nil, lookupFailed
+			}
+			return nil, &errors.Error{Code: errors.ENotFound, Msg: "bucket not found"}
+		},
+	}}
+
+	perm := func(rt influxdb.ResourceType, id platform.ID, org *platform.ID) influxdb.Permission {
+		return influxdb.Permission{
+			Action:   influxdb.ReadAction,
+			Resource: influxdb.Resource{Type: rt, ID: &id, OrgID: org},
+		}
+	}
+
+	tests := []struct {
+		name string
+		p    influxdb.Permission
+		// wantName is the name, used when wantErr is empty.
+		wantName string
+		// wantErr and wantCode are the error's message and code.
+		wantErr  string
+		wantCode string
+	}{
+		{
+			name:     "bucket in the permission's organization",
+			p:        perm(influxdb.BucketsResourceType, bucketID, &orgID),
+			wantName: "b1",
+		},
+		{
+			name:     "bucket permission with no organization",
+			p:        perm(influxdb.BucketsResourceType, bucketID, nil),
+			wantName: "b1",
+		},
+		{
+			name:     "bucket that does not exist",
+			p:        perm(influxdb.BucketsResourceType, missingID, &orgID),
+			wantErr:  "bucket not found",
+			wantCode: errors.ENotFound,
+		},
+		{
+			name:     "bucket lookup fails",
+			p:        perm(influxdb.BucketsResourceType, failingID, &orgID),
+			wantErr:  "bucket lookup failed",
+			wantCode: errors.EInternal,
+		},
+		{
+			name:     "bucket with an invalid ID",
+			p:        perm(influxdb.BucketsResourceType, invalidID, &orgID),
+			wantErr:  "invalid ID",
+			wantCode: errors.EInvalid,
+		},
+		{
+			name:     "user with an organization",
+			p:        perm(influxdb.UsersResourceType, userID, &orgID),
+			wantErr:  "resource not found",
+			wantCode: errors.ENotFound,
+		},
+		{
+			name:     "organization with an organization",
+			p:        perm(influxdb.OrgsResourceType, orgID, &orgID),
+			wantErr:  "resource not found",
+			wantCode: errors.ENotFound,
+		},
+		{
+			name:     "user with no organization",
+			p:        perm(influxdb.UsersResourceType, userID, nil),
+			wantName: "u1",
+		},
+		{
+			name:     "organization with no organization",
+			p:        perm(influxdb.OrgsResourceType, orgID, nil),
+			wantName: "o1",
+		},
+		{
+			// Only buckets, organizations and users have names here.
+			name: "another resource type with an organization",
+			p:    perm(influxdb.DashboardsResourceType, dashID, &orgID),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, err := h.getNameForPermission(context.Background(), tt.p)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				require.Equal(t, tt.wantCode, errors.ErrorCode(err))
+				require.Empty(t, name)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantName, name)
+			}
+		})
+	}
 }

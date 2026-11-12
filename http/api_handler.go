@@ -169,7 +169,8 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	scraperBackend := NewScraperBackend(b.Logger.With(zap.String("handler", "scraper")), b)
 	scraperBackend.ScraperStorageService = authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService,
 		b.UserResourceMappingService,
-		b.OrganizationService)
+		b.OrganizationService,
+		b.BucketService)
 	h.Mount(prefixTargets, NewScraperHandler(b.Logger, scraperBackend))
 
 	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)

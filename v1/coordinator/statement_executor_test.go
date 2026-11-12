@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/internal"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -510,6 +511,7 @@ func testExecDeleteSeriesOrDropMeasurement(t *testing.T, qType string) {
 				Return(res, 1, nil)
 
 			qe := DefaultQueryExecutor(t, WithDBRP(dbrp))
+			qe.StatementExecutor.BucketService = bucketServiceFor(&influxdb.Bucket{ID: bucketID, OrgID: orgID})
 
 			// assume storage succeeds if we get that far
 			qe.TSDBStore.DeleteSeriesFn = func(context.Context, string, []influxql.Source, influxql.Expr) error {
@@ -551,6 +553,112 @@ func TestQueryExecutor_ExecuteQuery_DeleteSeries(t *testing.T) {
 
 func TestQueryExecutor_ExecuteQuery_DropMeasurement(t *testing.T) {
 	testExecDeleteSeriesOrDropMeasurement(t, "DROP MEASUREMENT")
+}
+
+// TestQueryExecutor_ExecuteQuery_DeleteMappingWithoutBucket deletes through a
+// database with two mappings, where one mapping's bucket no longer exists. That
+// mapping is skipped without error and the other mapping's bucket is still deleted
+// from.
+func TestQueryExecutor_ExecuteQuery_DeleteMappingWithoutBucket(t *testing.T) {
+	orgID := platform.ID(0xff00)
+	bucketID := platform.ID(0xffee)
+	missingBucketID := platform.ID(0xffef)
+
+	for _, stmt := range []string{"DELETE FROM", "DROP MEASUREMENT"} {
+		t.Run(stmt, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			dbrp := mocks.NewMockDBRPMappingService(ctrl)
+			dbrp.EXPECT().
+				FindMany(gomock.Any(), gomock.Any()).
+				Return([]*influxdb.DBRPMapping{
+					{Database: "db0", RetentionPolicy: "rp0", OrganizationID: orgID, BucketID: missingBucketID},
+					{Database: "db0", RetentionPolicy: "rp1", OrganizationID: orgID, BucketID: bucketID, Default: true},
+				}, 2, nil)
+
+			qe := DefaultQueryExecutor(t, WithDBRP(dbrp))
+			qe.StatementExecutor.BucketService = bucketServiceFor(&influxdb.Bucket{ID: bucketID, OrgID: orgID})
+
+			var deleted []string
+			qe.TSDBStore.DeleteSeriesFn = func(_ context.Context, database string, _ []influxql.Source, _ influxql.Expr) error {
+				deleted = append(deleted, database)
+				return nil
+			}
+			qe.TSDBStore.DeleteMeasurementFn = func(_ context.Context, database string, _ string) error {
+				deleted = append(deleted, database)
+				return nil
+			}
+
+			ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
+				ID:     orgID,
+				OrgID:  orgID,
+				Status: influxdb.Active,
+				Permissions: []influxdb.Permission{
+					*itesting.MustNewPermission(influxdb.WriteAction, influxdb.BucketsResourceType, orgID),
+				},
+			})
+
+			results := ReadAllResults(qe.ExecuteQuery(ctx, stmt+" cpu", "db0", 0, orgID))
+
+			require.Empty(t, results)
+			require.Equal(t, []string{bucketID.String()}, deleted)
+		})
+	}
+}
+
+// TestQueryExecutor_ExecuteQuery_DeleteBucketLookupError deletes through a mapping
+// whose bucket can't be looked up. The lookup error is returned and nothing is
+// deleted.
+func TestQueryExecutor_ExecuteQuery_DeleteBucketLookupError(t *testing.T) {
+	orgID := platform.ID(0xff00)
+	bucketID := platform.ID(0xffee)
+	lookupErr := errors.New("bucket lookup failed")
+
+	for _, stmt := range []string{"DELETE FROM", "DROP MEASUREMENT"} {
+		t.Run(stmt, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			dbrp := mocks.NewMockDBRPMappingService(ctrl)
+			dbrp.EXPECT().
+				FindMany(gomock.Any(), gomock.Any()).
+				Return([]*influxdb.DBRPMapping{
+					{Database: "db0", RetentionPolicy: "rp0", OrganizationID: orgID, BucketID: bucketID, Default: true},
+				}, 1, nil)
+
+			qe := DefaultQueryExecutor(t, WithDBRP(dbrp))
+			buckets := mock.NewBucketService()
+			buckets.FindBucketByIDFn = func(context.Context, platform.ID) (*influxdb.Bucket, error) {
+				return nil, lookupErr
+			}
+			qe.StatementExecutor.BucketService = buckets
+
+			deletes := 0
+			qe.TSDBStore.DeleteSeriesFn = func(context.Context, string, []influxql.Source, influxql.Expr) error {
+				deletes++
+				return nil
+			}
+			qe.TSDBStore.DeleteMeasurementFn = func(context.Context, string, string) error {
+				deletes++
+				return nil
+			}
+
+			ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
+				ID:     orgID,
+				OrgID:  orgID,
+				Status: influxdb.Active,
+				Permissions: []influxdb.Permission{
+					*itesting.MustNewPermission(influxdb.WriteAction, influxdb.BucketsResourceType, orgID),
+				},
+			})
+
+			results := ReadAllResults(qe.ExecuteQuery(ctx, stmt+" cpu", "db0", 0, orgID))
+
+			require.Equal(t, []*query.Result{{Err: lookupErr}}, results)
+			require.Equal(t, 0, deletes)
+		})
+	}
 }
 
 // QueryExecutor is a test wrapper for coordinator.QueryExecutor.
@@ -615,7 +723,20 @@ func WithDBRP(dbrp *mocks.MockDBRPMappingService) optFn {
 func DefaultQueryExecutor(t *testing.T, opts ...optFn) *QueryExecutor {
 	e := NewQueryExecutor(t, opts...)
 	e.MetaClient.DatabaseFn = DefaultMetaClientDatabaseFn
+	e.StatementExecutor.BucketService = mock.NewBucketService()
 	return e
+}
+
+// bucketServiceFor returns a bucket service that finds only bucket.
+func bucketServiceFor(bucket *influxdb.Bucket) *mock.BucketService {
+	buckets := mock.NewBucketService()
+	buckets.FindBucketByIDFn = func(_ context.Context, id platform.ID) (*influxdb.Bucket, error) {
+		if id == bucket.ID {
+			return bucket, nil
+		}
+		return nil, influxdb.ErrBucketNotFound
+	}
+	return buckets
 }
 
 // ExecuteQuery parses query and executes against the database.

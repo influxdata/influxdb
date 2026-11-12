@@ -615,7 +615,7 @@ func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.
 		},
 		ScraperTarget: target,
 	}
-	bucket, err := h.BucketService.FindBucketByID(ctx, target.BucketID)
+	bucket, err := influxdb.FindBucketInOrg(ctx, h.BucketService, target.OrgID, target.BucketID)
 	if err == nil {
 		res.Bucket = bucket.Name
 		res.BucketID = bucket.ID
