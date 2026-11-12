@@ -867,6 +867,304 @@ func FindBuckets(
 			},
 		},
 		{
+			name: "find buckets by id and organization id",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID:             idOne,
+				organizationID: idOne,
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						ID:    idOne,
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "find buckets by id that does not exist returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID: idFive,
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find buckets by id and organization id that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID:             idOne,
+				organizationID: idTwo,
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find buckets by id and name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID:   idOne,
+				name: "xyz",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find buckets by id and organization name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID:           idOne,
+				organization: "otherorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find buckets by id, organization id and organization name",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID:             idOne,
+				organizationID: idOne,
+				organization:   "theorg",
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						ID:    idOne,
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "find buckets by id, organization id and organization name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID:             idOne,
+				organizationID: idOne,
+				organization:   "otherorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find buckets by name, organization id and organization name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				name:           "abc",
+				organizationID: idOne,
+				organization:   "otherorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find buckets by id and organization name that does not exist returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				ID:           idOne,
+				organization: "missingorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
 			name: "missing bucket returns no buckets",
 			fields: BucketFields{
 				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
@@ -1104,6 +1402,7 @@ func FindBucket(
 ) {
 	type args struct {
 		name           string
+		organization   string
 		organizationID platform.ID
 		id             platform.ID
 	}
@@ -1200,6 +1499,271 @@ func FindBucket(
 			},
 		},
 		{
+			name: "find bucket by id and organization id",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				id:             idOne,
+				organizationID: idOne,
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:    idOne,
+					OrgID: idOne,
+					Name:  "abc",
+				},
+			},
+		},
+		{
+			name: "find bucket by id and organization id that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				id:             idOne,
+				organizationID: idTwo,
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find bucket by id and name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				id:   idOne,
+				name: "xyz",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find bucket by id and organization name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				id:           idOne,
+				organization: "otherorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find bucket by id, organization id and organization name",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				id:             idOne,
+				organizationID: idOne,
+				organization:   "theorg",
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:    idOne,
+					OrgID: idOne,
+					Name:  "abc",
+				},
+			},
+		},
+		{
+			name: "find bucket by id, organization id and organization name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				id:             idOne,
+				organizationID: idOne,
+				organization:   "otherorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find bucket by name, organization id and organization name that do not match returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+					{
+						// ID(2)
+						Name: "otherorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				name:           "abc",
+				organizationID: idOne,
+				organization:   "otherorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
+			name: "find bucket by id and organization name that does not exist returns error",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				id:           idOne,
+				organization: "missingorg",
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.ENotFound,
+					Msg:  "bucket not found",
+				},
+			},
+		},
+		{
 			name: "missing bucket returns error",
 			fields: BucketFields{
 				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
@@ -1234,6 +1798,9 @@ func FindBucket(
 			filter := influxdb.BucketFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
+			}
+			if tt.args.organization != "" {
+				filter.Org = &tt.args.organization
 			}
 			if tt.args.id.Valid() {
 				filter.ID = &tt.args.id

@@ -61,13 +61,9 @@ func (s *BucketSvc) FindBucketByName(ctx context.Context, orgID platform.ID, nam
 
 }
 
-// FindBucket returns the first bucket that matches filter.
+// FindBucket returns the first bucket that matches all fields of filter.
 func (s *BucketSvc) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
-	if filter.ID != nil {
-		return s.FindBucketByID(ctx, *filter.ID)
-	}
-
-	if filter.Name != nil && filter.OrganizationID != nil {
+	if filter.ID == nil && filter.Org == nil && filter.Name != nil && filter.OrganizationID != nil {
 		return s.FindBucketByName(ctx, *filter.OrganizationID, *filter.Name)
 	}
 
@@ -89,19 +85,29 @@ func (s *BucketSvc) FindBucket(ctx context.Context, filter influxdb.BucketFilter
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *BucketSvc) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+	if filter.Org != nil {
+		org, err := s.svc.FindOrganization(ctx, influxdb.OrganizationFilter{Name: filter.Org})
+		if err != nil {
+			if filter.ID != nil && errors.ErrorCode(err) == errors.ENotFound {
+				return nil, 0, ErrBucketNotFound
+			}
+			return nil, 0, err
+		}
+		if filter.OrganizationID != nil && *filter.OrganizationID != org.ID {
+			return nil, 0, ErrBucketNotFound
+		}
+		filter.OrganizationID = &org.ID
+	}
 	if filter.ID != nil {
 		b, err := s.FindBucketByID(ctx, *filter.ID)
 		if err != nil {
 			return nil, 0, err
 		}
-		return []*influxdb.Bucket{b}, 1, nil
-	}
-	if filter.OrganizationID == nil && filter.Org != nil {
-		org, err := s.svc.FindOrganization(ctx, influxdb.OrganizationFilter{Name: filter.Org})
-		if err != nil {
-			return nil, 0, err
+		if (filter.OrganizationID != nil && b.OrgID != *filter.OrganizationID) ||
+			(filter.Name != nil && b.Name != *filter.Name) {
+			return nil, 0, ErrBucketNotFound
 		}
-		filter.OrganizationID = &org.ID
+		return []*influxdb.Bucket{b}, 1, nil
 	}
 
 	var buckets []*influxdb.Bucket

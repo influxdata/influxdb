@@ -85,8 +85,9 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platformtesting.MustIDBase16("0000000000000212"),
-							Name: "bucket1",
+							ID:    platformtesting.MustIDBase16("0000000000000212"),
+							OrgID: platformtesting.MustIDBase16("0000000000000211"),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -180,8 +181,9 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platformtesting.MustIDBase16("0000000000000212"),
-							Name: "bucket1",
+							ID:    platformtesting.MustIDBase16("0000000000000212"),
+							OrgID: platformtesting.MustIDBase16("0000000000000211"),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -288,8 +290,9 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platformtesting.MustIDBase16("0000000000000212"),
-							Name: "bucket1",
+							ID:    platformtesting.MustIDBase16("0000000000000212"),
+							OrgID: platformtesting.MustIDBase16("0000000000000211"),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -533,8 +536,9 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platformtesting.MustIDBase16("0000000000000212"),
-							Name: "bucket1",
+							ID:    platformtesting.MustIDBase16("0000000000000212"),
+							OrgID: platformtesting.MustIDBase16("0000000000000211"),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -662,8 +666,9 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platformtesting.MustIDBase16("0000000000000212"),
-							Name: "bucket1",
+							ID:    platformtesting.MustIDBase16("0000000000000212"),
+							OrgID: platformtesting.MustIDBase16("0000000000000211"),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -730,8 +735,9 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platformtesting.MustIDBase16("0000000000000212"),
-							Name: "bucket1",
+							ID:    platformtesting.MustIDBase16("0000000000000212"),
+							OrgID: platformtesting.MustIDBase16("0000000000000211"),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -846,12 +852,7 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (influxdb.
 	scraperBackend.ScraperStorageService = svc
 	scraperBackend.OrganizationService = tenantService
 	scraperBackend.BucketService = &mock.BucketService{
-		FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
-			return &influxdb.Bucket{
-				ID:   id,
-				Name: "bucket1",
-			}, nil
-		},
+		FindBucketByIDFn: platformtesting.FindScraperTargetTestBucketByID,
 	}
 
 	handler := NewScraperHandler(zaptest.NewLogger(t), scraperBackend)

@@ -53,6 +53,30 @@ var (
 	}
 )
 
+// scraperTargetBucketOrgs maps each bucket used by the scraper target tests to its org.
+var scraperTargetBucketOrgs = map[platform.ID]platform.ID{
+	idOne:   idOne,
+	idTwo:   idTwo,
+	idThree: idOne,
+}
+
+// FindScraperTargetTestBucketByID finds the buckets used by the scraper target
+// tests. It can be used as a mock.BucketService FindBucketByIDFn.
+func FindScraperTargetTestBucketByID(_ context.Context, id platform.ID) (*influxdb.Bucket, error) {
+	orgID, ok := scraperTargetBucketOrgs[id]
+	if !ok {
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
+			Msg:  "bucket not found",
+		}
+	}
+	return &influxdb.Bucket{
+		ID:    id,
+		OrgID: orgID,
+		Name:  "bucket1",
+	}, nil
+}
+
 // TargetFields will include the IDGenerator, and targets
 type TargetFields struct {
 	IDGenerator   platform.IDGenerator

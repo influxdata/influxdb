@@ -2,7 +2,10 @@ package influxdb
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/query"
@@ -16,8 +19,51 @@ type HostLookup interface {
 	Watch() <-chan struct{}
 }
 
+// BucketLookup resolves a bucket referenced by name or ID within an org.
 type BucketLookup interface {
+	// Lookup returns the ID of the bucket with the given name in orgID.
 	Lookup(ctx context.Context, orgID platform2.ID, name string) (platform2.ID, bool)
+	// LookupByID returns the ID of the bucket with the given ID, provided that
+	// it exists in orgID.
+	LookupByID(ctx context.Context, orgID platform2.ID, id platform2.ID) (platform2.ID, bool)
+}
+
+// lookupBucketID resolves a bucket referenced either by name or by its
+// string-encoded ID. Both forms are resolved through the BucketLookup.
+func lookupBucketID(ctx context.Context, orgID platform2.ID, buckets BucketLookup, name, id string) (platform2.ID, error) {
+	switch {
+	case name != "":
+		b, ok := buckets.Lookup(ctx, orgID, name)
+		if !ok {
+			return 0, &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("could not find bucket %q", name),
+			}
+		}
+		return b, nil
+	case len(id) != 0:
+		var b platform2.ID
+		if err := b.DecodeFromString(id); err != nil {
+			return 0, &flux.Error{
+				Code: codes.Invalid,
+				Msg:  "invalid bucket id",
+				Err:  err,
+			}
+		}
+		found, ok := buckets.LookupByID(ctx, orgID, b)
+		if !ok {
+			return 0, &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("could not find bucket %q", id),
+			}
+		}
+		return found, nil
+	default:
+		return 0, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "no bucket name or id have been specified",
+		}
+	}
 }
 
 type OrganizationLookup interface {

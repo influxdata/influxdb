@@ -7,6 +7,7 @@ import (
 
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/execute/table/static"
@@ -121,6 +122,98 @@ func TestProvider_SeriesCardinalityReader(t *testing.T) {
 
 	if diff := table.Diff(want, got); err != nil {
 		t.Errorf("unexpected output -want/+got:\n%s", diff)
+	}
+}
+
+func TestProvider_SeriesCardinalityReader_BucketID(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		bucketID platform.ID
+		wantErr  bool
+	}{
+		{name: "accepted", bucketID: bucketID},
+		{name: "rejected", bucketID: bucketID + 1, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := &mock.ReadsStore{
+				ReadSeriesCardinalityFn: func(ctx context.Context, req *datatypes.ReadSeriesCardinalityRequest) (cursors.Int64Iterator, error) {
+					require.False(t, tc.wantErr, "storage must not be read for a rejected bucket")
+					source, err := storage.GetReadSource(req.GetReadSource())
+					if err != nil {
+						return nil, err
+					}
+					require.Equal(t, orgID, platform.ID(source.GetOrgID()))
+					require.Equal(t, tc.bucketID, platform.ID(source.GetBucketID()))
+					return cursors.NewInt64SliceIterator([]int64{4}), nil
+				},
+				SupportReadSeriesCardinalityFn: func(ctx context.Context) bool {
+					return true
+				},
+				GetSourceFn: func(orgID, bucketID uint64) proto.Message {
+					return &storage.ReadSource{
+						BucketID: bucketID,
+						OrgID:    orgID,
+					}
+				},
+			}
+
+			provider := influxdb.Provider{
+				Reader:       storageflux.NewReader(store),
+				BucketLookup: mock.BucketLookup{},
+			}
+
+			ctx := query.ContextWithRequest(
+				context.Background(),
+				&query.Request{
+					OrganizationID: orgID,
+				},
+			)
+
+			reader, err := provider.SeriesCardinalityReaderFor(
+				ctx,
+				influxdb.Config{
+					Bucket: influxdb.NameOrID{
+						ID: tc.bucketID.String(),
+					},
+				},
+				flux.Bounds{
+					Start: flux.Time{
+						Absolute: time.Unix(1, 0),
+					},
+					Stop: flux.Time{
+						Absolute: time.Unix(2, 0),
+					},
+				},
+				nil,
+			)
+			if tc.wantErr {
+				require.Nil(t, reader)
+				require.Equal(t, codes.NotFound, flux.ErrorCode(err))
+				return
+			}
+			require.NoError(t, err)
+
+			got := table.Iterator{}
+			require.NoError(t, reader.Read(ctx, func(tbl flux.Table) error {
+				cpy, err := execute.CopyTable(tbl)
+				if err != nil {
+					return err
+				}
+				got = append(got, cpy)
+				return nil
+			}, memory.DefaultAllocator))
+
+			want := static.Table{
+				static.Ints("_value", 4),
+			}
+			if diff := table.Diff(want, got); diff != "" {
+				t.Errorf("unexpected output -want/+got:\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -259,6 +352,95 @@ func TestWriterFor(t *testing.T) {
 	_, gotErr := provider.WriterFor(ctx, conf)
 
 	require.Nil(t, gotErr)
+}
+
+func TestWriterFor_BucketID(t *testing.T) {
+	t.Parallel()
+
+	writeAuth := &influxdb2.Authorization{
+		Status: influxdb2.Active,
+		Permissions: []influxdb2.Permission{
+			{
+				Action: influxdb2.WriteAction,
+				Resource: influxdb2.Resource{
+					Type: influxdb2.BucketsResourceType,
+				},
+			},
+		},
+	}
+	readAuth := &influxdb2.Authorization{
+		Status: influxdb2.Active,
+		Permissions: []influxdb2.Permission{
+			{
+				Action: influxdb2.ReadAction,
+				Resource: influxdb2.Resource{
+					Type: influxdb2.BucketsResourceType,
+				},
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		name     string
+		auth     *influxdb2.Authorization
+		bucketID platform.ID
+		wantErr  error
+	}{
+		{
+			name:     "accepted",
+			auth:     writeAuth,
+			bucketID: bucketID,
+		},
+		{
+			name:     "rejected",
+			auth:     writeAuth,
+			bucketID: bucketID + 1,
+			wantErr: &flux.Error{
+				Code: codes.NotFound,
+				Msg:  `could not find bucket "` + (bucketID + 1).String() + `"`,
+			},
+		},
+		{
+			name:     "accepted without write permission",
+			auth:     readAuth,
+			bucketID: bucketID,
+			wantErr: &errors.Error{
+				Code: errors.EForbidden,
+				Msg:  "user not authorized to write",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider := influxdb.Provider{
+				Reader:       storageflux.NewReader(&mock.ReadsStore{}),
+				BucketLookup: mock.BucketLookup{},
+			}
+
+			conf := influxdb.Config{
+				Bucket: influxdb.NameOrID{
+					ID: tc.bucketID.String(),
+				},
+			}
+
+			ctx := context.Background()
+			req := query.Request{
+				OrganizationID: platform.ID(2),
+			}
+			ctx = query.ContextWithRequest(ctx, &req)
+			ctx = context2.SetAuthorizer(ctx, tc.auth)
+
+			w, gotErr := provider.WriterFor(ctx, conf)
+			if tc.wantErr != nil {
+				require.Nil(t, w)
+				require.Equal(t, tc.wantErr, gotErr)
+				return
+			}
+			require.NoError(t, gotErr)
+			require.NotNil(t, w)
+		})
+	}
 }
 
 func TestWriterFor_Error(t *testing.T) {

@@ -68,7 +68,10 @@ func queryBucket(ctx context.Context, orgID platform2.ID, r *http.Request, svc p
 			return nil, err
 		}
 	}
-	if filter.ID == nil && filter.Name == nil {
+	if filter.ID != nil {
+		return platform.FindBucketInOrg(ctx, svc, orgID, *filter.ID)
+	}
+	if filter.Name == nil {
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "Please provide either bucketID or bucket",

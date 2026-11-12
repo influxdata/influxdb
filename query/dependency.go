@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // FromBucketService wraps an influxdb.BucketService in the BucketLookup interface.
@@ -34,17 +35,42 @@ func (b *BucketLookup) Lookup(ctx context.Context, orgID platform.ID, name strin
 	return bucket.ID, true
 }
 
+// LookupByID returns the ID of the bucket with the given id in orgID, and
+// whether it was found.
+func (b *BucketLookup) LookupByID(ctx context.Context, orgID platform.ID, id platform.ID) (platform.ID, bool) {
+	bucket, err := b.findBucketByID(ctx, orgID, id)
+	if err != nil {
+		return platform.InvalidID(), false
+	}
+	return bucket.ID, true
+}
+
 // LookupName returns an bucket name given its organization ID and its bucket ID.
 func (b *BucketLookup) LookupName(ctx context.Context, orgID platform.ID, id platform.ID) string {
+	bucket, err := b.findBucketByID(ctx, orgID, id)
+	if err != nil {
+		return ""
+	}
+	return bucket.Name
+}
+
+// findBucketByID returns the bucket with the given id in orgID.
+func (b *BucketLookup) findBucketByID(ctx context.Context, orgID platform.ID, id platform.ID) (*influxdb.Bucket, error) {
 	filter := influxdb.BucketFilter{
 		OrganizationID: &orgID,
 		ID:             &id,
 	}
 	bucket, err := b.BucketService.FindBucket(ctx, filter)
-	if err != nil || bucket == nil {
-		return ""
+	if err != nil {
+		return nil, err
 	}
-	return bucket.Name
+	if bucket == nil || bucket.OrgID != orgID {
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
+			Msg:  "bucket not found",
+		}
+	}
+	return bucket, nil
 }
 
 func (b *BucketLookup) FindAllBuckets(ctx context.Context, orgID platform.ID) ([]*influxdb.Bucket, int) {

@@ -234,8 +234,8 @@ func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxd
 	}); err != nil {
 		// if not found, fallback to virtual DBRP search
 		if err == ErrDBRPNotFound {
-			b, err := s.bucketSvc.FindBucketByID(ctx, id)
-			if err != nil || b == nil {
+			b, err := influxdb.FindBucketInOrg(ctx, s.bucketSvc, orgID, id)
+			if err != nil {
 				return nil, ErrDBRPNotFound
 			}
 			return bucketToMapping(b), nil
@@ -424,7 +424,7 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMapping) error 
 		return ErrInvalidDBRP(err)
 	}
 
-	if _, err := s.bucketSvc.FindBucketByID(ctx, dbrp.BucketID); err != nil {
+	if _, err := influxdb.FindBucketInOrg(ctx, s.bucketSvc, dbrp.OrganizationID, dbrp.BucketID); err != nil {
 		return err
 	}
 

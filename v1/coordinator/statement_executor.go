@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/authorizer"
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/tracing"
@@ -36,6 +37,9 @@ type StatementExecutor struct {
 	ShardMapper query.ShardMapper
 
 	DBRP influxdb.DBRPMappingService
+
+	// BucketService resolves the buckets that DBRP mappings refer to.
+	BucketService influxdb.BucketByIDFinder
 
 	// Select statement limits
 	MaxSelectPointN   int
@@ -402,15 +406,22 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 	q.Condition = influxql.Reduce(q.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
 	for _, mapping := range mappings {
+		b, skip, err := e.findMappedBucket(ctx, ectx.OrgID, mapping)
+		if err != nil {
+			return err
+		} else if skip {
+			continue
+		}
+
 		// Require write for DELETE queries
-		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
 		if err != nil {
 			return ectx.Send(ctx, &query.Result{
 				Err: fmt.Errorf("insufficient permissions"),
 			})
 		}
 
-		rerr = errors.Join(rerr, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
+		rerr = errors.Join(rerr, e.TSDBStore.DeleteSeries(ctx, b.ID.String(), q.Sources, q.Condition))
 	}
 	return rerr
 }
@@ -429,17 +440,36 @@ func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context,
 	}
 
 	for _, mapping := range mappings {
+		b, skip, err := e.findMappedBucket(ctx, ectx.OrgID, mapping)
+		if err != nil {
+			return err
+		} else if skip {
+			continue
+		}
+
 		// Require write for DROP MEASUREMENT queries
-		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
 		if err != nil {
 			return ectx.Send(ctx, &query.Result{
 				Err: fmt.Errorf("insufficient permissions"),
 			})
 		}
-		rerr = errors.Join(rerr, e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name))
+		rerr = errors.Join(rerr, e.TSDBStore.DeleteMeasurement(ctx, b.ID.String(), q.Name))
 	}
 
 	return rerr
+}
+
+// findMappedBucket returns the bucket that mapping refers to. skip is true if
+// there is no such bucket, in which case there is nothing to delete.
+func (e *StatementExecutor) findMappedBucket(ctx context.Context, orgID platform.ID, mapping *influxdb.DBRPMapping) (b *influxdb.Bucket, skip bool, err error) {
+	b, err = influxdb.FindBucketInOrg(ctx, e.BucketService, orgID, mapping.BucketID)
+	if errors2.ErrorCode(err) == errors2.ENotFound {
+		return nil, true, nil
+	} else if err != nil {
+		return nil, false, err
+	}
+	return b, false, nil
 }
 
 type measurementRow struct {

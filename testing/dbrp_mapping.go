@@ -24,7 +24,42 @@ const (
 	dbrpBucket2ID = "ca1fca1fca1fca1f"
 	dbrpBucketAID = "a55e55eda55e55ed"
 	dbrpBucketBID = "b1077edb1077eded"
+	dbrpBucketCID = "c0ffeec0ffeec0fe"
+	dbrpBucketDID = "d00dadd00dadd00d"
 )
+
+// dbrpBucketOrgs maps each bucket used by the DBRP mapping tests to its org.
+var dbrpBucketOrgs = map[platform.ID]platform.ID{
+	MustIDBase16(dbrpBucket1ID): MustIDBase16(dbrpOrg1ID),
+	MustIDBase16(dbrpBucket2ID): MustIDBase16(dbrpOrg1ID),
+	MustIDBase16(dbrpBucketCID): MustIDBase16(dbrpOrg2ID),
+	MustIDBase16(dbrpBucketDID): MustIDBase16(dbrpOrg2ID),
+	MustIDBase16(dbrpBucketAID): MustIDBase16(dbrpOrg3ID),
+	MustIDBase16(dbrpBucketBID): MustIDBase16(dbrpOrg3ID),
+	// Buckets listed by the virtual mapping tests.
+	100: MustIDBase16(dbrpOrg3ID),
+	200: MustIDBase16(dbrpOrg3ID),
+	300: MustIDBase16(dbrpOrg2ID),
+	400: MustIDBase16(dbrpOrg2ID),
+	500: MustIDBase16(dbrpOrg2ID),
+}
+
+// FindDBRPMappingTestBucketByID finds the buckets used by the DBRP mapping
+// tests. It can be used as a mock.BucketService FindBucketByIDFn.
+func FindDBRPMappingTestBucketByID(_ context.Context, id platform.ID) (*influxdb.Bucket, error) {
+	orgID, ok := dbrpBucketOrgs[id]
+	if !ok {
+		return nil, &errors2.Error{
+			Code: errors2.ENotFound,
+			Msg:  "bucket not found",
+		}
+	}
+	return &influxdb.Bucket{
+		ID:    id,
+		OrgID: orgID,
+		Name:  fmt.Sprintf("bucket-%v", id),
+	}, nil
+}
 
 var DBRPMappingCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
@@ -329,7 +364,7 @@ func CreateDBRPMappingV2(
 								Msg:  "bucket not found",
 							}
 						}
-						return nil, nil
+						return FindDBRPMappingTestBucketByID(ctx, id)
 					},
 					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 						return []*influxdb.Bucket{}, 0, nil
@@ -436,7 +471,7 @@ func FindManyDBRPMappingsV2(
 						RetentionPolicy: "retention_policy2",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket2ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 				},
 			},
@@ -459,7 +494,7 @@ func FindManyDBRPMappingsV2(
 						RetentionPolicy: "retention_policy2",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket2ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 				},
 			},
@@ -554,7 +589,7 @@ func FindManyDBRPMappingsV2(
 						RetentionPolicy: "retention_policyA",
 						Default:         false,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucketAID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 					{
 						ID:              200,
@@ -562,7 +597,7 @@ func FindManyDBRPMappingsV2(
 						RetentionPolicy: "retention_policyB",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucketBID),
+						BucketID:        MustIDBase16(dbrpBucketDID),
 					},
 					{
 						ID:              300,
@@ -635,7 +670,7 @@ func FindManyDBRPMappingsV2(
 								Msg:  "bucket not found",
 							}
 						}
-						return nil, nil
+						return FindDBRPMappingTestBucketByID(ctx, id)
 					},
 					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 						return []*influxdb.Bucket{
@@ -688,7 +723,7 @@ func FindManyDBRPMappingsV2(
 								Msg:  "bucket not found",
 							}
 						}
-						return nil, nil
+						return FindDBRPMappingTestBucketByID(ctx, id)
 					},
 					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 						return []*influxdb.Bucket{
@@ -752,7 +787,7 @@ func FindManyDBRPMappingsV2(
 								Msg:  "bucket not found",
 							}
 						}
-						return nil, nil
+						return FindDBRPMappingTestBucketByID(ctx, id)
 					},
 					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 						return []*influxdb.Bucket{
@@ -796,7 +831,7 @@ func FindManyDBRPMappingsV2(
 								Msg:  "bucket not found",
 							}
 						}
-						return nil, nil
+						return FindDBRPMappingTestBucketByID(ctx, id)
 					},
 					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 						return []*influxdb.Bucket{
@@ -984,7 +1019,7 @@ func FindManyDBRPMappingsV2(
 						RetentionPolicy: "retention_policyB",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucketBID),
+						BucketID:        MustIDBase16(dbrpBucketDID),
 					},
 				},
 			},
@@ -1034,7 +1069,7 @@ func FindManyDBRPMappingsV2(
 						RetentionPolicy: "retention_policyA",
 						Default:         false,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucketAID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 					// This one will substitute 200 as default for "database2".
 					{
@@ -1090,7 +1125,7 @@ func FindManyDBRPMappingsV2(
 						RetentionPolicy: "retention_policyA",
 						Default:         false,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucketAID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 					{
 						Database:        "database2",
@@ -1208,7 +1243,7 @@ func FindDBRPMappingByIDV2(
 				BucketSvc: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						if id == MustIDBase16(dbrpBucketAID) {
-							return &influxdb.Bucket{ID: id}, nil
+							return &influxdb.Bucket{ID: id, OrgID: MustIDBase16(dbrpOrg3ID)}, nil
 						}
 						return nil, &errors2.Error{
 							Code: errors2.ENotFound,
@@ -1311,7 +1346,7 @@ func FindDBRPMappingByIDV2(
 				BucketSvc: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						if id == MustIDBase16(dbrpBucketAID) {
-							return &influxdb.Bucket{ID: id}, nil
+							return &influxdb.Bucket{ID: id, OrgID: MustIDBase16(dbrpOrg3ID)}, nil
 						}
 						return nil, &errors2.Error{
 							Code: errors2.ENotFound,
@@ -1459,7 +1494,7 @@ func UpdateDBRPMappingV2(
 				BucketSvc: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						if id == MustIDBase16(dbrpBucket1ID) {
-							return &influxdb.Bucket{ID: id}, nil
+							return &influxdb.Bucket{ID: id, OrgID: MustIDBase16(dbrpOrg1ID)}, nil
 						}
 						return nil, &errors2.Error{
 							Code: errors2.ENotFound,
@@ -1823,7 +1858,7 @@ func DeleteDBRPMappingV2(
 						RetentionPolicy: "retention_policy2",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket2ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 				},
 			},
@@ -1838,7 +1873,7 @@ func DeleteDBRPMappingV2(
 					RetentionPolicy: "retention_policy2",
 					Default:         true,
 					OrganizationID:  MustIDBase16(dbrpOrg2ID),
-					BucketID:        MustIDBase16(dbrpBucket2ID),
+					BucketID:        MustIDBase16(dbrpBucketCID),
 				}},
 			},
 		},
@@ -1876,7 +1911,7 @@ func DeleteDBRPMappingV2(
 						RetentionPolicy: "retention_policy1",
 						Default:         false,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket1ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 					{
 						ID:              500,
@@ -1884,7 +1919,7 @@ func DeleteDBRPMappingV2(
 						RetentionPolicy: "retention_policy2",
 						Default:         false,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket1ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 				},
 			},
@@ -1917,7 +1952,7 @@ func DeleteDBRPMappingV2(
 						RetentionPolicy: "retention_policy1",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket1ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 					{
 						ID:              500,
@@ -1925,7 +1960,7 @@ func DeleteDBRPMappingV2(
 						RetentionPolicy: "retention_policy2",
 						Default:         false,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket1ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 				},
 			},
@@ -1948,7 +1983,7 @@ func DeleteDBRPMappingV2(
 						RetentionPolicy: "retention_policy2",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket2ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 				},
 			},
@@ -1972,7 +2007,7 @@ func DeleteDBRPMappingV2(
 						RetentionPolicy: "retention_policy2",
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
-						BucketID:        MustIDBase16(dbrpBucket2ID),
+						BucketID:        MustIDBase16(dbrpBucketCID),
 					},
 				},
 			},
@@ -2027,7 +2062,7 @@ func MiscDBRPMappingV2(
 				RetentionPolicy: "retention_policy2",
 				Default:         true,
 				OrganizationID:  MustIDBase16(dbrpOrg2ID),
-				BucketID:        MustIDBase16(dbrpBucket2ID),
+				BucketID:        MustIDBase16(dbrpBucketCID),
 			},
 		},
 	}
@@ -2081,7 +2116,7 @@ func MiscDBRPMappingV2(
 			RetentionPolicy: "retention_policy2",
 			Default:         false,
 			OrganizationID:  MustIDBase16(dbrpOrg2ID),
-			BucketID:        MustIDBase16(dbrpBucket2ID),
+			BucketID:        MustIDBase16(dbrpBucketCID),
 		}
 		if err := s.Create(ctx, m); err != nil {
 			t.Fatalf("failed to create: %v", err)

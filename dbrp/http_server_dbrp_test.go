@@ -24,7 +24,15 @@ import (
 func initHttpService(t *testing.T) (influxdb.DBRPMappingService, *httptest.Server, func()) {
 	t.Helper()
 	ctx := context.Background()
+	orgID := influxdbtesting.MustIDBase16("059af7ed2a034000")
+	bucketID := influxdbtesting.MustIDBase16("5555f7ed2a035555")
 	bucketSvc := mock.NewBucketService()
+	bucketSvc.FindBucketByIDFn = func(_ context.Context, id platform.ID) (*influxdb.Bucket, error) {
+		if id == bucketID {
+			return &influxdb.Bucket{ID: id, OrgID: orgID}, nil
+		}
+		return nil, influxdb.ErrBucketNotFound
+	}
 	orgSvc := &mock.OrganizationService{
 		FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 			if filter.Name == nil || *filter.Name != "org" {
@@ -32,7 +40,7 @@ func initHttpService(t *testing.T) (influxdb.DBRPMappingService, *httptest.Serve
 			}
 			return &influxdb.Organization{
 				Name: "org",
-				ID:   influxdbtesting.MustIDBase16("059af7ed2a034000"),
+				ID:   orgID,
 			}, nil
 		},
 	}

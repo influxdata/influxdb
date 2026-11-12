@@ -381,6 +381,9 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 				return tt.state.org, tt.state.orgErr
 			}
 			buckets := mock.NewBucketService()
+			buckets.FindBucketByIDFn = func(context.Context, platform.ID) (*influxdb.Bucket, error) {
+				return tt.state.bucket, tt.state.bucketErr
+			}
 			buckets.FindBucketFn = func(context.Context, influxdb.BucketFilter) (*influxdb.Bucket, error) {
 				return tt.state.bucket, tt.state.bucketErr
 			}
@@ -430,7 +433,7 @@ func TestWriteHandler_handleWrite_RecordsEvent(t *testing.T) {
 		return testOrg(org), nil
 	}
 	buckets := mock.NewBucketService()
-	buckets.FindBucketFn = func(context.Context, influxdb.BucketFilter) (*influxdb.Bucket, error) {
+	buckets.FindBucketByIDFn = func(context.Context, platform.ID) (*influxdb.Bucket, error) {
 		return testBucket(org, bucket), nil
 	}
 	rec := &captureEventRecorder{}
