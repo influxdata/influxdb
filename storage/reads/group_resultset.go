@@ -47,7 +47,7 @@ func IsLastDescendingGroupOptimization(req *datatypes.ReadGroupRequest) bool {
 	return req.Aggregate != nil && req.Aggregate.Type == datatypes.Aggregate_AggregateTypeLast
 }
 
-func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newSeriesCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
+func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newSeriesCursorFn func() (SeriesCursor, error), opts ...GroupOption) (GroupResultSet, error) {
 	g := &groupResultSet{
 		ctx:               ctx,
 		req:               req,
@@ -79,21 +79,21 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		}
 
 		if n, err := g.groupBySort(); n == 0 || err != nil {
-			return nil
+			return nil, err
 		}
 
 	case datatypes.ReadGroupRequest_GroupNone:
 		g.nextGroupFn = groupNoneNextGroup
 
 		if n, err := g.groupNoneSort(); n == 0 || err != nil {
-			return nil
+			return nil, err
 		}
 
 	default:
-		panic("not implemented")
+		return nil, fmt.Errorf("unknown group type: %s", req.Group)
 	}
 
-	return g
+	return g, nil
 }
 
 // NilSort values determine the lexicographical order of nil values in the
@@ -119,9 +119,12 @@ func (g *groupResultSet) Next() GroupCursor {
 
 // seriesHasPoints reads the first block of TSM data to verify the series has points for
 // the time range of the query.
-func (g *groupResultSet) seriesHasPoints(row *SeriesRow) bool {
+func (g *groupResultSet) seriesHasPoints(row *SeriesRow) (bool, error) {
 	// TODO(sgc): this is expensive. Storage engine must provide efficient time range queries of series keys.
-	cur := g.arrayCursors.createCursor(*row)
+	cur, err := g.arrayCursors.createCursor(*row)
+	if err != nil {
+		return false, err
+	}
 	var ts []int64
 	switch c := cur.(type) {
 	case cursors.IntegerArrayCursor:
@@ -140,12 +143,12 @@ func (g *groupResultSet) seriesHasPoints(row *SeriesRow) bool {
 		a := c.Next()
 		ts = a.Timestamps
 	case nil:
-		return false
+		return false, nil
 	default:
-		panic(fmt.Sprintf("unreachable: %T", c))
+		return false, fmt.Errorf("unexpected cursor type: %s", arrayCursorType(c))
 	}
 	cur.Close()
-	return len(ts) > 0
+	return len(ts) > 0, nil
 }
 
 func groupNoneNextGroup(g *groupResultSet) GroupCursor {
@@ -180,7 +183,11 @@ func (g *groupResultSet) groupNoneSort() (int, error) {
 	n := 0
 	seriesRow := seriesCursor.Next()
 	for seriesRow != nil {
-		if allTime || g.seriesHasPoints(seriesRow) {
+		hasPoints, err := g.seriesHasPoints(seriesRow)
+		if err != nil {
+			return 0, err
+		}
+		if allTime || hasPoints {
 			n++
 			g.km.MergeTagKeys(seriesRow.Tags)
 		}
@@ -231,7 +238,11 @@ func (g *groupResultSet) groupBySort() (int, error) {
 
 	seriesRow := seriesCursor.Next()
 	for seriesRow != nil {
-		if allTime || g.seriesHasPoints(seriesRow) {
+		hasPoints, err := g.seriesHasPoints(seriesRow)
+		if err != nil {
+			return 0, err
+		}
+		if allTime || hasPoints {
 			nr := *seriesRow
 			nr.SeriesTags = tagsBuf.copyTags(nr.SeriesTags)
 			nr.Tags = tagsBuf.copyTags(nr.Tags)
@@ -302,15 +313,18 @@ func (c *groupNoneCursor) Next() bool {
 }
 
 func (c *groupNoneCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
-	cur = c.arrayCursors.createCursor(c.row)
+	cur, err = c.arrayCursors.createCursor(c.row)
+	if err != nil {
+		return nil, err
+	}
 	if c.agg != nil {
 		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
 	return cur, err
 }
 
-func (c *groupNoneCursor) Cursor() cursors.Cursor {
-	return c.cursor
+func (c *groupNoneCursor) Cursor() (cursors.Cursor, error) {
+	return c.cursor, c.err
 }
 
 type groupByCursor struct {
@@ -350,15 +364,18 @@ func (c *groupByCursor) Next() bool {
 }
 
 func (c *groupByCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
-	cur = c.arrayCursors.createCursor(seriesRow)
+	cur, err = c.arrayCursors.createCursor(seriesRow)
+	if err != nil {
+		return nil, err
+	}
 	if c.agg != nil {
 		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
 	return cur, err
 }
 
-func (c *groupByCursor) Cursor() cursors.Cursor {
-	return c.cursor
+func (c *groupByCursor) Cursor() (cursors.Cursor, error) {
+	return c.cursor, c.err
 }
 
 func (c *groupByCursor) Stats() cursors.CursorStats {

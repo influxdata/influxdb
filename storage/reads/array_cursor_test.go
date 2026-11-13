@@ -2227,7 +2227,9 @@ func TestMultiShardArrayCursor(t *testing.T) {
 		row := SeriesRow{Query: iter}
 		ctx := context.Background()
 		msac := newMultiShardArrayCursors(ctx, models.MinNanoTime, models.MaxNanoTime, true)
-		cur, ok := msac.createCursor(row).(cursors.IntegerArrayCursor)
+		cursor, err := msac.createCursor(row)
+		require.NoError(t, err, "create cursor failed")
+		cur, ok := cursor.(cursors.IntegerArrayCursor)
 		require.Truef(t, ok, "Expected IntegerArrayCursor")
 
 		ia := cur.Next()

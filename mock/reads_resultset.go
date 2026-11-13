@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"fmt"
+
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/data/gen"
 	"github.com/influxdata/influxdb/v2/storage/reads"
@@ -61,7 +63,7 @@ func (g *GeneratorResultSet) Next() bool {
 	return g.sg.Next() && (g.max == 0 || remain > 0)
 }
 
-func (g *GeneratorResultSet) Cursor() cursors.Cursor {
+func (g *GeneratorResultSet) Cursor() (cursors.Cursor, error) {
 	switch g.sg.FieldType() {
 	case models.Float:
 		g.f.tv = g.sg.TimeValuesGenerator()
@@ -79,10 +81,10 @@ func (g *GeneratorResultSet) Cursor() cursors.Cursor {
 		g.b.tv = g.sg.TimeValuesGenerator()
 		g.cur = &g.b
 	default:
-		panic("unreachable")
+		return nil, fmt.Errorf("unsupported field type: %v", g.sg.FieldType())
 	}
 
-	return g.cur
+	return g.cur, nil
 }
 
 func copyTags(dst, src models.Tags) models.Tags {
