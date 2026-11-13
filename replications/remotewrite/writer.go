@@ -2,6 +2,7 @@ package remotewrite
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"math"
 	"net"
@@ -36,6 +37,18 @@ var (
 		influxdb.GetBuildInfo().Commit,
 		influxdb.GetBuildInfo().Date)
 )
+
+// Transports shared by all replication streams; TLS verification is the only per-stream setting a Transport carries.
+var (
+	secureTransport   = newTransport(false)
+	insecureTransport = newTransport(true)
+)
+
+func newTransport(insecureSkipVerify bool) *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.TLSClientConfig = &tls.Config{InsecureSkipVerify: insecureSkipVerify}
+	return t
+}
 
 func invalidRemoteUrl(remoteUrl string, err error) *ierrors.Error {
 	return &ierrors.Error{
@@ -213,6 +226,11 @@ func PostWrite(ctx context.Context, config *influxdb.ReplicationHTTPConfig, data
 	}
 	conf := api.NewAPIConfig(params)
 	conf.HTTPClient.Timeout = timeout
+	// NewAPIConfig creates a fresh transport per call, which would never reuse a connection. Share one per TLS mode.
+	conf.HTTPClient.Transport = secureTransport
+	if config.AllowInsecureTLS {
+		conf.HTTPClient.Transport = insecureTransport
+	}
 	client := api.NewAPIClient(conf).WriteApi
 
 	var bucket string

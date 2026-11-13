@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -320,6 +322,57 @@ func TestWrite(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Regression test for https://github.com/influxdata/influxdb/issues/23996: every remote write used to build a new
+// HTTP client, so no connection was ever reused and each write leaked an idle connection until file descriptors ran out.
+func TestWrite_ReusesConnections(t *testing.T) {
+	t.Parallel()
+
+	testData := []byte("some data")
+
+	newServer := func() (*httptest.Server, *atomic.Int32) {
+		var conns atomic.Int32
+		svr := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		svr.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+			if state == http.StateNew {
+				conns.Add(1)
+			}
+		}
+		svr.Start()
+		return svr, &conns
+	}
+
+	svr1, conns1 := newServer()
+	defer svr1.Close()
+	svr2, conns2 := newServer()
+	defer svr2.Close()
+
+	w, configStore, _ := testWriter(t)
+	configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusNoContent, "").Return(nil).AnyTimes()
+
+	const writes = 10
+	config1 := &influxdb.ReplicationHTTPConfig{RemoteURL: svr1.URL}
+	configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(config1, nil).Times(writes)
+	for range writes {
+		_, err := w.Write(testData, 0)
+		require.NoError(t, err)
+	}
+	require.Equal(t, int32(1), conns1.Load(), "all writes to an unchanged remote should share one connection")
+
+	// Changing the remote URL must build a new client pointed at the new remote.
+	config2 := &influxdb.ReplicationHTTPConfig{RemoteURL: svr2.URL}
+	configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(config2, nil).Times(writes)
+	for range writes {
+		_, err := w.Write(testData, 0)
+		require.NoError(t, err)
+	}
+	require.Equal(t, int32(1), conns1.Load())
+	require.Equal(t, int32(1), conns2.Load(), "all writes to the new remote should share one connection")
 }
 
 func TestWrite_Metrics(t *testing.T) {
