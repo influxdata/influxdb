@@ -221,6 +221,18 @@ impl WalObjectStore {
                         )),
                     ) if !fail_on_error => {
                         warn!(%error, %path, "Skipping corrupt WAL file");
+                        // The skipped file still occupies its sequence number in the object
+                        // store. Replaying an earlier valid file rewinds the next sequence
+                        // onto this name, so advance past the skipped number. Otherwise the
+                        // first flush after recovery collides with it (`AlreadyExists`) and
+                        // shuts the node down.
+                        if let Ok(skipped) = WalFileSequenceNumber::try_from(&path) {
+                            let mut buffer = self.flush_buffer.lock().await;
+                            let next = skipped.next();
+                            if next > buffer.wal_buffer.wal_file_sequence_number {
+                                buffer.wal_buffer.wal_file_sequence_number = next;
+                            }
+                        }
                         continue;
                     }
                     (path, Err(error)) => {
