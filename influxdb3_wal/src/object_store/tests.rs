@@ -1200,3 +1200,107 @@ async fn max_write_buffer_size_rejects_sync_writes_when_buffer_full() {
         .unwrap()
         .expect("the accepted write resolves once the flush lands");
 }
+
+
+/// A power failure can leave zero-byte WAL objects after the latest snapshot.
+/// Replay skips their contents, but startup must not reuse their names.
+#[tokio::test]
+async fn zero_byte_wal_after_snapshot_does_not_collide_on_first_flush() {
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    let shutdown = CancellationToken::new();
+
+    for sequence in 5..=8 {
+        object_store
+            .put(
+                &wal_path("my_host", WalFileSequenceNumber::new(sequence)),
+                PutPayload::from_static(b""),
+            )
+            .await
+            .unwrap();
+    }
+
+    let paths = load_all_wal_file_paths(Arc::clone(&object_store), "my_host".to_owned())
+        .await
+        .unwrap();
+    let wal = WalObjectStore::new_without_replay(
+        time_provider,
+        Arc::clone(&object_store),
+        "my_host",
+        notifier,
+        WalConfig {
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_secs(1),
+            snapshot_size: 2,
+            gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
+        },
+        Some(WalFileSequenceNumber::new(4)),
+        None,
+        &paths,
+        10,
+        shutdown.clone(),
+    );
+
+    wal.replay(Some(WalFileSequenceNumber::new(4)), &paths, 2, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        wal.flush_buffer.lock().await.wal_buffer.wal_file_sequence_number,
+        WalFileSequenceNumber::new(9)
+    );
+
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    assert!(wal.flush_buffer(true).await.is_some());
+    assert!(!shutdown.is_cancelled(), "first post-recovery write shut down the node");
+
+    // The corrupt files are preserved for diagnosis; the new write uses 9.
+    for sequence in 5..=8 {
+        assert_eq!(
+            object_store
+                .get(&wal_path("my_host", WalFileSequenceNumber::new(sequence)))
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+    object_store
+        .get(&wal_path("my_host", WalFileSequenceNumber::new(9)))
+        .await
+        .expect("first post-recovery WAL must use sequence 9");
+}
+
+/// Snapshot metadata can be newer than the file listing. Never move backwards,
+/// and ignore paths that do not encode a WAL sequence number.
+#[tokio::test]
+async fn next_wal_sequence_uses_greater_of_snapshot_and_disk() {
+    let paths = vec![
+        Path::from("my_host/wal/00000000008.wal"),
+        Path::from("my_host/wal/invalid.wal"),
+        Path::from("my_host/wal/00000000005.wal"),
+    ];
+    for (snapshot, expected) in [(Some(4), 9), (Some(12), 13), (None, 9)] {
+        let wal = WalObjectStore::new_without_replay(
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+            Arc::new(InMemory::new()),
+            "my_host",
+            Arc::new(TestNotifier::default()),
+            WalConfig::default(),
+            snapshot.map(WalFileSequenceNumber::new),
+            None,
+            &paths,
+            10,
+            CancellationToken::new(),
+        );
+        assert_eq!(
+            wal.flush_buffer.lock().await.wal_buffer.wal_file_sequence_number,
+            WalFileSequenceNumber::new(expected)
+        );
+    }
+}
