@@ -105,7 +105,23 @@ impl WalObjectStore {
         num_wal_files_to_keep: u64,
         shutdown_token: CancellationToken,
     ) -> Self {
-        let wal_file_sequence_number = last_wal_sequence_number.unwrap_or_default().next();
+        // Corrupt or truncated WAL files may be skipped during replay, but their
+        // paths still occupy sequence numbers in the object store. Never reuse
+        // one of those numbers for the first write after an unclean shutdown.
+        let last_disk_sequence_number = all_wal_file_paths
+            .iter()
+            .filter_map(|path| {
+                path.filename()
+                    .and_then(|filename| filename.strip_suffix(".wal"))
+                    .and_then(|filename| WalFileSequenceNumber::from_str(filename).ok())
+            })
+            .max();
+        let wal_file_sequence_number = last_wal_sequence_number
+            .into_iter()
+            .chain(last_disk_sequence_number)
+            .max()
+            .unwrap_or_default()
+            .next();
         let oldest_wal_file_num = oldest_wal_file_num(all_wal_file_paths);
 
         Self {
