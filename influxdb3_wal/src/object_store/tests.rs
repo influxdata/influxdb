@@ -1200,3 +1200,612 @@ async fn max_write_buffer_size_rejects_sync_writes_when_buffer_full() {
         .unwrap()
         .expect("the accepted write resolves once the flush lands");
 }
+
+/// A power failure can leave zero-byte WAL objects after the latest snapshot.
+/// Replay skips their contents, but startup must not reuse their names.
+#[tokio::test]
+async fn zero_byte_wal_after_snapshot_does_not_collide_on_first_flush() {
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    let shutdown = CancellationToken::new();
+
+    for sequence in 5..=8 {
+        object_store
+            .put(
+                &wal_path("my_host", WalFileSequenceNumber::new(sequence)),
+                PutPayload::from_static(b""),
+            )
+            .await
+            .unwrap();
+    }
+
+    let paths = load_all_wal_file_paths(Arc::clone(&object_store), "my_host".to_owned())
+        .await
+        .unwrap();
+    let wal = WalObjectStore::new_without_replay(
+        time_provider,
+        Arc::clone(&object_store),
+        "my_host",
+        notifier,
+        WalConfig {
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_secs(1),
+            snapshot_size: 2,
+            gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
+        },
+        Some(WalFileSequenceNumber::new(4)),
+        None,
+        &paths,
+        10,
+        shutdown.clone(),
+    );
+
+    wal.replay(Some(WalFileSequenceNumber::new(4)), &paths, 2, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        wal.flush_buffer
+            .lock()
+            .await
+            .wal_buffer
+            .wal_file_sequence_number,
+        WalFileSequenceNumber::new(9)
+    );
+
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    assert!(wal.flush_buffer(true).await.is_some());
+    assert!(
+        !shutdown.is_cancelled(),
+        "first post-recovery write shut down the node"
+    );
+
+    // The corrupt files are preserved for diagnosis; the new write uses 9.
+    for sequence in 5..=8 {
+        assert_eq!(
+            object_store
+                .get(&wal_path("my_host", WalFileSequenceNumber::new(sequence)))
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+    object_store
+        .get(&wal_path("my_host", WalFileSequenceNumber::new(9)))
+        .await
+        .expect("first post-recovery WAL must use sequence 9");
+}
+
+/// Serialize `contents` and put it at the WAL path for `sequence`, producing a
+/// replayable file (unlike a bare 0-byte put).
+async fn put_valid_wal_file(
+    object_store: &Arc<dyn ObjectStore>,
+    sequence: u64,
+    contents: &WalContents,
+) {
+    let bytes = crate::serialize::serialize_to_file_bytes(contents).unwrap();
+    object_store
+        .put(
+            &wal_path("my_host", WalFileSequenceNumber::new(sequence)),
+            PutPayload::from_bytes(Bytes::from(bytes)),
+        )
+        .await
+        .unwrap();
+}
+
+fn wal_contents_for(sequence: u64) -> WalContents {
+    WalContents {
+        persist_timestamp_ms: 0,
+        min_timestamp_ns: 1,
+        max_timestamp_ns: 1,
+        wal_file_number: WalFileSequenceNumber::new(sequence),
+        ops: vec![op()],
+        snapshot: None,
+    }
+}
+
+/// The replay of a *valid* file sets the next sequence to its number + 1. If a
+/// corrupt file sits at the tail after the last valid file, replaying the valid
+/// file rewinds the sequence back onto the corrupt file's name. The skip branch
+/// must therefore advance past skipped files, or the first flush collides.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn corrupt_file_after_valid_file_does_not_collide_on_first_flush() {
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    let shutdown = CancellationToken::new();
+
+    // 5 is a valid WAL file; 6 is a 0-byte file left by an unclean shutdown.
+    put_valid_wal_file(&object_store, 5, &wal_contents_for(5)).await;
+    object_store
+        .put(
+            &wal_path("my_host", WalFileSequenceNumber::new(6)),
+            PutPayload::from_static(b""),
+        )
+        .await
+        .unwrap();
+
+    let paths = load_all_wal_file_paths(Arc::clone(&object_store), "my_host".to_owned())
+        .await
+        .unwrap();
+    let wal = WalObjectStore::new_without_replay(
+        time_provider,
+        Arc::clone(&object_store),
+        "my_host",
+        notifier,
+        WalConfig {
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_secs(1),
+            snapshot_size: 2,
+            gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
+        },
+        Some(WalFileSequenceNumber::new(4)),
+        None,
+        &paths,
+        10,
+        shutdown.clone(),
+    );
+
+    wal.replay(Some(WalFileSequenceNumber::new(4)), &paths, 2, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        wal.flush_buffer
+            .lock()
+            .await
+            .wal_buffer
+            .wal_file_sequence_number,
+        WalFileSequenceNumber::new(7),
+        "replay of the valid file rewound the sequence onto the corrupt file"
+    );
+
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    assert!(wal.flush_buffer(true).await.is_some());
+    assert!(
+        !shutdown.is_cancelled(),
+        "first post-recovery write shut down the node"
+    );
+    object_store
+        .get(&wal_path("my_host", WalFileSequenceNumber::new(7)))
+        .await
+        .expect("first post-recovery WAL must use sequence 7");
+}
+
+/// Snapshot metadata can be newer than the file listing. Never move backwards,
+/// and ignore paths that do not encode a WAL sequence number.
+#[tokio::test]
+async fn next_wal_sequence_uses_greater_of_snapshot_and_disk() {
+    let paths = vec![
+        Path::from("my_host/wal/00000000008.wal"),
+        Path::from("my_host/wal/invalid.wal"),
+        Path::from("my_host/wal/00000000005.wal"),
+    ];
+    for (snapshot, expected) in [(Some(4), 9), (Some(12), 13), (None, 9)] {
+        let wal = WalObjectStore::new_without_replay(
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+            Arc::new(InMemory::new()),
+            "my_host",
+            Arc::new(TestNotifier::default()),
+            WalConfig::default(),
+            snapshot.map(WalFileSequenceNumber::new),
+            None,
+            &paths,
+            10,
+            CancellationToken::new(),
+        );
+        assert_eq!(
+            wal.flush_buffer
+                .lock()
+                .await
+                .wal_buffer
+                .wal_file_sequence_number,
+            WalFileSequenceNumber::new(expected)
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Extended recovery coverage for issue #26970.
+// ---------------------------------------------------------------------------
+
+fn recovery_config() -> WalConfig {
+    WalConfig {
+        max_write_buffer_size: 100,
+        flush_interval: Duration::from_secs(1),
+        snapshot_size: 2,
+        gen1_duration: Gen1Duration::new_1m(),
+        ..Default::default()
+    }
+}
+
+/// A snapshot size large enough that no snapshot is ever triggered, so tests
+/// can observe WAL sequence numbers in isolation.
+fn no_snapshot_config() -> WalConfig {
+    WalConfig {
+        snapshot_size: 1_000_000,
+        ..recovery_config()
+    }
+}
+
+async fn put_zero_byte_wal(object_store: &Arc<dyn ObjectStore>, sequence: u64) {
+    object_store
+        .put(
+            &wal_path("my_host", WalFileSequenceNumber::new(sequence)),
+            PutPayload::from_static(b""),
+        )
+        .await
+        .unwrap();
+}
+
+async fn recover_wal_with_config(
+    object_store: Arc<dyn ObjectStore>,
+    notifier: Arc<dyn WalFileNotifier>,
+    config: WalConfig,
+    last_wal_sequence_number: Option<WalFileSequenceNumber>,
+    fail_on_error: bool,
+) -> Result<WalObjectStore, crate::Error> {
+    let paths = load_all_wal_file_paths(Arc::clone(&object_store), "my_host".to_owned())
+        .await
+        .unwrap();
+    let wal = WalObjectStore::new_without_replay(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Arc::clone(&object_store),
+        "my_host",
+        notifier,
+        config,
+        last_wal_sequence_number,
+        None,
+        &paths,
+        10,
+        CancellationToken::new(),
+    );
+    wal.replay(last_wal_sequence_number, &paths, 2, fail_on_error)
+        .await?;
+    Ok(wal)
+}
+
+async fn recover_wal(
+    object_store: Arc<dyn ObjectStore>,
+    notifier: Arc<dyn WalFileNotifier>,
+    last_wal_sequence_number: Option<WalFileSequenceNumber>,
+) -> WalObjectStore {
+    recover_wal_with_config(
+        object_store,
+        notifier,
+        recovery_config(),
+        last_wal_sequence_number,
+        false,
+    )
+    .await
+    .unwrap()
+}
+
+async fn next_sequence(wal: &WalObjectStore) -> u64 {
+    wal.flush_buffer
+        .lock()
+        .await
+        .wal_buffer
+        .wal_file_sequence_number
+        .as_u64()
+}
+
+async fn wal_file_len(object_store: &Arc<dyn ObjectStore>, sequence: u64) -> usize {
+    object_store
+        .get(&wal_path("my_host", WalFileSequenceNumber::new(sequence)))
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap()
+        .len()
+}
+
+/// Buffer a single write and flush it without forcing a snapshot. Returns the
+/// sequence number the flushed file was written to.
+async fn write_and_flush(wal: &WalObjectStore, object_store: &Arc<dyn ObjectStore>) -> u64 {
+    let before = next_sequence(wal).await;
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    wal.flush_buffer(false).await;
+    assert!(
+        object_store
+            .get(&wal_path("my_host", WalFileSequenceNumber::new(before)))
+            .await
+            .is_ok(),
+        "expected a WAL file at sequence {before}"
+    );
+    assert_eq!(next_sequence(wal).await, before + 1);
+    before
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn single_zero_byte_wal_recovers_without_collision() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    put_zero_byte_wal(&object_store, 5).await;
+
+    let wal = recover_wal(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier),
+        Some(WalFileSequenceNumber::new(4)),
+    )
+    .await;
+
+    assert_eq!(next_sequence(&wal).await, 6);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 6);
+    assert_eq!(
+        wal_file_len(&object_store, 5).await,
+        0,
+        "corrupt file changed"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn multiple_consecutive_zero_byte_wals_recover_without_collision() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    for sequence in 5..=8 {
+        put_zero_byte_wal(&object_store, sequence).await;
+    }
+
+    let wal = recover_wal(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier),
+        Some(WalFileSequenceNumber::new(4)),
+    )
+    .await;
+
+    assert_eq!(next_sequence(&wal).await, 9);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 9);
+    for sequence in 5..=8 {
+        assert_eq!(wal_file_len(&object_store, sequence).await, 0);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn corrupt_files_mixed_with_valid_files_recover_in_order() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier = Arc::new(TestNotifier::default());
+    // 5 valid, 6 corrupt, 7 valid, 8 corrupt.
+    put_valid_wal_file(&object_store, 5, &wal_contents_for(5)).await;
+    put_zero_byte_wal(&object_store, 6).await;
+    put_valid_wal_file(&object_store, 7, &wal_contents_for(7)).await;
+    put_zero_byte_wal(&object_store, 8).await;
+
+    let wal = recover_wal(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier) as Arc<dyn WalFileNotifier>,
+        Some(WalFileSequenceNumber::new(4)),
+    )
+    .await;
+
+    assert_eq!(next_sequence(&wal).await, 9);
+    // Both valid files were replayed into the notifier, in order.
+    let replayed: Vec<u64> = notifier
+        .notified_writes
+        .lock()
+        .iter()
+        .map(|contents| contents.wal_file_number.as_u64())
+        .collect();
+    assert_eq!(replayed, vec![5, 7]);
+
+    assert_eq!(write_and_flush(&wal, &object_store).await, 9);
+    assert_eq!(
+        wal_file_len(&object_store, 6).await,
+        0,
+        "corrupt file changed"
+    );
+    assert_eq!(
+        wal_file_len(&object_store, 8).await,
+        0,
+        "corrupt file changed"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn snapshot_behind_existing_wal_files_uses_disk_max() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    put_valid_wal_file(&object_store, 6, &wal_contents_for(6)).await;
+    put_zero_byte_wal(&object_store, 8).await;
+
+    // Snapshot metadata lags the files on disk (4 < 8).
+    let wal = recover_wal(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier),
+        Some(WalFileSequenceNumber::new(4)),
+    )
+    .await;
+
+    assert_eq!(next_sequence(&wal).await, 9);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 9);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn snapshot_ahead_of_existing_wal_files_is_not_rewound() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    for sequence in 5..=8 {
+        put_zero_byte_wal(&object_store, sequence).await;
+    }
+
+    // Snapshot metadata is ahead of every file on disk; those files are older
+    // than the snapshot and must not be replayed, and the sequence must not
+    // move backwards.
+    let wal = recover_wal(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier),
+        Some(WalFileSequenceNumber::new(12)),
+    )
+    .await;
+
+    assert_eq!(next_sequence(&wal).await, 13);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 13);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn empty_wal_directory_starts_at_sequence_one() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+
+    let wal = recover_wal(Arc::clone(&object_store), Arc::clone(&notifier), None).await;
+
+    assert_eq!(next_sequence(&wal).await, 1);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn invalid_wal_filenames_are_ignored_when_choosing_sequence() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    object_store
+        .put(
+            &Path::from("my_host/wal/not-a-number.wal"),
+            PutPayload::from_static(b"junk"),
+        )
+        .await
+        .unwrap();
+    object_store
+        .put(
+            &Path::from("my_host/wal/README.txt"),
+            PutPayload::from_static(b"notes"),
+        )
+        .await
+        .unwrap();
+    put_valid_wal_file(&object_store, 8, &wal_contents_for(8)).await;
+
+    let wal = recover_wal(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier),
+        Some(WalFileSequenceNumber::new(4)),
+    )
+    .await;
+
+    assert_eq!(next_sequence(&wal).await, 9);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 9);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn multiple_writes_and_flushes_after_recovery_increase_sequence() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    put_zero_byte_wal(&object_store, 5).await;
+
+    let wal = recover_wal_with_config(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier),
+        no_snapshot_config(),
+        Some(WalFileSequenceNumber::new(4)),
+        false,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(write_and_flush(&wal, &object_store).await, 6);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 7);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 8);
+    assert_eq!(next_sequence(&wal).await, 9);
+    // The corrupt file is still present and untouched.
+    assert_eq!(wal_file_len(&object_store, 5).await, 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn repeated_restart_and_replay_cycles_do_not_collide() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+
+    // A 0-byte file left behind by the first unclean shutdown.
+    put_zero_byte_wal(&object_store, 5).await;
+
+    for expected_first_sequence in (6..).take(3) {
+        let wal = recover_wal_with_config(
+            Arc::clone(&object_store),
+            Arc::clone(&notifier),
+            no_snapshot_config(),
+            Some(WalFileSequenceNumber::new(4)),
+            false,
+        )
+        .await
+        .unwrap();
+
+        let written = write_and_flush(&wal, &object_store).await;
+        assert_eq!(written, expected_first_sequence);
+
+        // Shutdown flushes nothing new; the file must survive for the next cycle.
+        wal.shutdown().await;
+        assert!(
+            object_store
+                .get(&wal_path("my_host", WalFileSequenceNumber::new(written)))
+                .await
+                .is_ok()
+        );
+    }
+
+    assert_eq!(wal_file_len(&object_store, 5).await, 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn strict_replay_mode_still_fails_on_corrupt_files() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    put_valid_wal_file(&object_store, 5, &wal_contents_for(5)).await;
+    put_zero_byte_wal(&object_store, 6).await;
+
+    let err = recover_wal_with_config(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier),
+        recovery_config(),
+        Some(WalFileSequenceNumber::new(4)),
+        true,
+    )
+    .await
+    .expect_err("strict replay must surface corruption");
+
+    assert!(
+        matches!(err, crate::Error::Serialize(_)),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn recovery_preserves_valid_historical_records() {
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier = Arc::new(TestNotifier::default());
+    put_valid_wal_file(&object_store, 5, &wal_contents_for(5)).await;
+    let valid_bytes = object_store
+        .get(&wal_path("my_host", WalFileSequenceNumber::new(5)))
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+
+    let wal = recover_wal(
+        Arc::clone(&object_store),
+        Arc::clone(&notifier) as Arc<dyn WalFileNotifier>,
+        Some(WalFileSequenceNumber::new(4)),
+    )
+    .await;
+
+    // The historical record reached the notifier.
+    assert_eq!(notifier.notified_writes.lock().len(), 1);
+    assert_eq!(write_and_flush(&wal, &object_store).await, 6);
+    // The historical file is byte-for-byte intact.
+    assert_eq!(
+        object_store
+            .get(&wal_path("my_host", WalFileSequenceNumber::new(5)))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+        valid_bytes
+    );
+}
