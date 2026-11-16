@@ -52,6 +52,7 @@ func init() {
 			WithSeriesIDCacheMaxSize(opt.Config.SeriesIDSetCacheMaxSize),
 			WithSeriesIDCacheTargetHitRate(opt.Config.SeriesIDSetCacheTargetHitRate),
 			WithSeriesIDCacheShrinkConservatism(opt.Config.SeriesIDSetCacheShrinkConservatism),
+			WithSeriesIDCacheIdleTimeout(time.Duration(opt.Config.SeriesIDSetCacheIdleTimeout)),
 		)
 		return idx
 	})
@@ -161,6 +162,16 @@ var WithSeriesIDCacheShrinkConservatism = func(c float64) IndexOption {
 	}
 }
 
+// WithSeriesIDCacheIdleTimeout sets how long an adaptive series id set cache
+// must serve no reads before its borrowed capacity is returned in steps (the
+// first after d, then one every d/4). 0 disables it. Ignored unless adaptive
+// sizing is enabled. See tsdb.Config.
+var WithSeriesIDCacheIdleTimeout = func(d time.Duration) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheIdleTimeout = d
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
@@ -169,9 +180,10 @@ type Index struct {
 
 	tagValueCache                   *TagValueSeriesIDCache
 	tagValueCacheSize               int
-	tagValueCacheMaxSize            int     // 0 = adaptive sizing disabled
-	tagValueCacheTargetHitRate      float64 // 0 = adaptive sizing disabled
-	tagValueCacheShrinkConservatism float64 // sigmas below the at-target eviction mean for the shrink gate; validated by Config to be >= 0.0
+	tagValueCacheMaxSize            int           // 0 = adaptive sizing disabled
+	tagValueCacheTargetHitRate      float64       // 0 = adaptive sizing disabled
+	tagValueCacheShrinkConservatism float64       // sigmas below the at-target eviction mean for the shrink gate; validated by Config to be >= 0.0
+	tagValueCacheIdleTimeout        time.Duration // adaptive only; 0 = idle shrink disabled
 
 	// The following may be set when initializing an Index.
 	path               string        // Root directory of the index partitions.
@@ -206,6 +218,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 	idx := &Index{
 		tagValueCacheSize:               tsdb.DefaultSeriesIDSetCacheSize,
 		tagValueCacheShrinkConservatism: tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+		tagValueCacheIdleTimeout:        tsdb.DefaultSeriesIDSetCacheIdleTimeout,
 		maxLogFileSize:                  tsdb.DefaultMaxIndexLogFileSize,
 		maxLogFileAge:                   tsdb.DefaultCompactFullWriteColdDuration,
 		logger:                          zap.NewNop(),
@@ -230,6 +243,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 			idx.tagValueCacheTargetHitRate,
 			idx.tagValueCacheShrinkConservatism,
 			tsdb.DefaultAdaptiveCacheMinSamples,
+			idx.tagValueCacheIdleTimeout,
 			idx.logger,
 		)
 	} else {
@@ -364,6 +378,9 @@ func (i *Index) Open() (rErr error) {
 
 	// Mark opened.
 	i.opened = true
+	if i.tagValueCache != nil {
+		i.tagValueCache.startIdleSweeper()
+	}
 	i.logger.Info(fmt.Sprintf("index opened with %d partitions", partitionN))
 	return nil
 }
@@ -412,6 +429,10 @@ func (i *Index) Close() error {
 
 // close closes the index without locking
 func (i *Index) close() (rErr error) {
+	// Stop the cache's idle sweeper first; a no-op if it was never started.
+	if i.tagValueCache != nil {
+		i.tagValueCache.stopIdleSweeper()
+	}
 	for _, p := range i.partitions {
 		if (p != nil) && p.IsOpen() {
 			if pErr := p.Close(); pErr != nil {

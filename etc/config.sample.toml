@@ -212,6 +212,16 @@
   # approximation underlying the bound.
   # series-id-set-cache-shrink-conservatism = 2.5
 
+  # How long an adaptively sized series-id-set cache must go without queries
+  # before it returns the memory it grew into. The first shrink step runs after
+  # this duration with no reads, then one more every quarter of it while reads
+  # stay absent; each step drops unused headroom or sheds up to half the cache
+  # (at most 8192 least-recently-used entries). The cache settles at
+  # series-id-set-cache-size and re-grows on demand. Only applies when adaptive
+  # sizing is enabled. A value of 0 disables idle shrinking; otherwise the
+  # minimum is "1m".
+  # series-id-set-cache-idle-timeout = "2h"
+
   # The size of tar buffer window size in bytes while running tar
   # streaming operations such as renaming and copying tar files during backups.
   # The default value is 1MB. This should only change if backups are having performance issues

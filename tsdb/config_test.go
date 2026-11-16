@@ -1,11 +1,13 @@
 package tsdb_test
 
 import (
+	"bytes"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	itoml "github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/stretchr/testify/require"
 )
@@ -221,6 +223,66 @@ func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
 			},
 			wantErr: nil,
 		},
+		{
+			name: "idle timeout negative rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheIdleTimeout = -1
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheIdleTimeoutRange,
+		},
+		{
+			name: "idle timeout 1ns rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheIdleTimeout = 1
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheIdleTimeoutRange,
+		},
+		{
+			name: "idle timeout just under the minimum rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheIdleTimeout = itoml.Duration(tsdb.MinSeriesIDSetCacheIdleTimeout - time.Nanosecond)
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheIdleTimeoutRange,
+		},
+		{
+			name: "idle timeout below the minimum rejected without adaptive sizing",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheIdleTimeout = itoml.Duration(30 * time.Second)
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheIdleTimeoutRange,
+		},
+		{
+			name: "idle timeout at the minimum accepted",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheIdleTimeout = itoml.Duration(tsdb.MinSeriesIDSetCacheIdleTimeout)
+			},
+			wantErr: nil,
+		},
+		{
+			// Ignored, not rejected, without adaptive sizing: the default is
+			// non-zero and adaptive sizing is off by default.
+			name: "idle timeout positive without adaptive sizing accepted",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheIdleTimeout = itoml.Duration(time.Minute)
+			},
+			wantErr: nil,
+		},
+		{
+			name: "idle timeout positive with adaptive sizing accepted",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheMaxSize = 200
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+				c.SeriesIDSetCacheIdleTimeout = itoml.Duration(time.Minute)
+			},
+			wantErr: nil,
+		},
+		{
+			name: "idle timeout zero (disabled) accepted",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheIdleTimeout = 0
+			},
+			wantErr: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -235,6 +297,30 @@ func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfig_SeriesIDSetCacheIdleTimeout(t *testing.T) {
+	c := tsdb.NewConfig()
+	require.Equal(t, itoml.Duration(tsdb.DefaultSeriesIDSetCacheIdleTimeout), c.SeriesIDSetCacheIdleTimeout)
+	require.Equal(t, 2*time.Hour, time.Duration(c.SeriesIDSetCacheIdleTimeout))
+
+	_, err := toml.Decode(`
+dir = "/var/lib/influxdb/data"
+wal-dir = "/var/lib/influxdb/wal"
+series-id-set-cache-idle-timeout = "90m"
+`, &c)
+	require.NoError(t, err)
+	require.NoError(t, c.Validate())
+	require.Equal(t, 90*time.Minute, time.Duration(c.SeriesIDSetCacheIdleTimeout))
+
+	// Round trip: encode and decode back to an identical config.
+	var buf bytes.Buffer
+	require.NoError(t, toml.NewEncoder(&buf).Encode(c))
+	require.Contains(t, buf.String(), `series-id-set-cache-idle-timeout = "1h30m0s"`)
+	var got tsdb.Config
+	_, err = toml.Decode(buf.String(), &got)
+	require.NoError(t, err)
+	require.Equal(t, c.SeriesIDSetCacheIdleTimeout, got.SeriesIDSetCacheIdleTimeout)
 }
 
 func TestConfig_ByteSizes(t *testing.T) {
