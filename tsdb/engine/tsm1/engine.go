@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1652,8 +1653,8 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// stop the others from being tried, and the series are still removed
 	// from the series file below rather than orphaned there, with
 	// measurementErr returned after.
-	var deleteIDList []uint64
-	seriesDropped := false
+	// droppedIDs holds the series dropped from the index, once they are.
+	var droppedIDs []uint64
 	measurementErr := e.fieldset.SaveAfter(func() (tsdb.FieldChanges, error) {
 		deleteKeys, err := e.deleteSeriesData(seriesKeys, min, max)
 		if err != nil {
@@ -1661,16 +1662,14 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		}
 		// The series are deleted on disk, but the index may still say
 		// they exist.
-		var deleteKeyList [][]byte
-		var measurements map[string]struct{}
-		deleteIDList, deleteKeyList, measurements, err = e.seriesWithoutData(seriesKeys, deleteKeys)
+		deleteIDList, deleteKeyList, measurements, err := e.seriesWithoutData(seriesKeys, deleteKeys)
 		if err != nil || len(deleteIDList) == 0 {
 			return nil, err
 		}
 		if err := e.index.DropSeriesList(deleteIDList, deleteKeyList, false); err != nil {
 			return nil, fmt.Errorf("dropping %d series from the index: %w", len(deleteIDList), err)
 		}
-		seriesDropped = true
+		droppedIDs = deleteIDList
 		var errs []error
 		actuallyDeleted := make([]string, 0, len(measurements))
 		for k := range measurements {
@@ -1689,14 +1688,11 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if measurementErr != nil {
 		measurementErr = fmt.Errorf("deleting %d series in shard %s: %w", len(seriesKeys), e.path, measurementErr)
 	}
-	if !seriesDropped {
+	if len(droppedIDs) == 0 {
 		return measurementErr
 	}
 
-	ids := tsdb.NewSeriesIDSet()
-	for _, sid := range deleteIDList {
-		ids.Add(sid)
-	}
+	ids := tsdb.NewSeriesIDSet(droppedIDs...)
 
 	// Remove any series IDs for our set that still exist in other shards.
 	// We cannot remove these from the series file yet.
@@ -1901,7 +1897,11 @@ func (e *Engine) seriesWithoutData(seriesKeys, deleteKeys [][]byte) (deleteIDLis
 	}
 
 	// The series not crossed out have no values left, and need to be
-	// removed from the index.
+	// removed from the index. Often there are none, as when a delete
+	// leaves data outside its time range in every series.
+	if !slices.ContainsFunc(seriesKeys, func(k []byte) bool { return len(k) > 0 }) {
+		return nil, nil, nil, nil
+	}
 	buf := make([]byte, 1024) // For use when accessing series file.
 	measurements = make(map[string]struct{}, 1)
 

@@ -92,11 +92,7 @@ func (fs *MeasurementFieldSet) LockChangesFile() (unlock func()) {
 // SaveAsync queues changes without waiting for them to be written. The
 // result of the write arrives on the returned channel.
 func (fs *MeasurementFieldSet) SaveAsync(changes FieldChanges) (<-chan error, error) {
-	done := make(chan error, 1)
-	if _, err := fs.changeMgr.enqueue(done, func() (FieldChanges, error) { return changes, nil }); err != nil {
-		return nil, err
-	}
-	return done, nil
+	return fs.changeMgr.enqueue(func() (FieldChanges, error) { return changes, nil })
 }
 
 // ClosedForSaves reports whether Close has stopped accepting saves.
