@@ -6,18 +6,20 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// This file holds exported methods that exist only to support tests. Because it
-// is a _test.go file it is compiled only by `go test`, so these helpers do not
-// become part of the production build or the public package API, yet they remain
-// callable from the external tsdb_test package.
+// Test-only hooks into Store and Shard internals for the tsdb_test package.
+
+// epochForTest returns the shard's epoch tracker, or nil if it has none.
+func (s *Store) epochForTest(shardID uint64) *epochTracker {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.epochs[shardID]
+}
 
 // HoldDeleteForTest installs a delete guard on the shard's epoch tracker the
 // way DeleteSeries and DeleteMeasurement do, and returns the func that ends the
 // delete. It returns nil if the shard has no epoch tracker.
 func (s *Store) HoldDeleteForTest(shardID uint64) func() {
-	s.mu.RLock()
-	epoch := s.epochs[shardID]
-	s.mu.RUnlock()
+	epoch := s.epochForTest(shardID)
 	if epoch == nil {
 		return nil
 	}
@@ -32,9 +34,7 @@ func (s *Store) HoldDeleteForTest(shardID uint64) func() {
 // exists; once true, it stays true until endWrite. Both are nil if the shard has
 // no epoch tracker.
 func (s *Store) HoldWriteForTest(shardID uint64) (deleteHeld func() bool, endWrite func()) {
-	s.mu.RLock()
-	epoch := s.epochs[shardID]
-	s.mu.RUnlock()
+	epoch := s.epochForTest(shardID)
 	if epoch == nil {
 		return nil, nil
 	}

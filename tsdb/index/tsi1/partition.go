@@ -401,7 +401,9 @@ func (p *Partition) Close() error {
 	})
 	p.mu.Unlock()
 
-	// Wait for goroutines to finish outstanding compactions.
+	// Wait for goroutines to finish outstanding compactions. The wait below
+	// covers this one, but a compaction stuck before installing its output is
+	// then reported as that, not as a reader holding replaced files.
 	p.Wait()
 	// Wait for compaction goroutines to finish closing and removing the files
 	// they replaced, so nothing touches the partition directory after Close.
@@ -1064,24 +1066,7 @@ func (p *Partition) compact() {
 			if p.levelCompacting[0] {
 				break
 			}
-			// Mark the level as compacting.
-			p.levelCompacting[0] = true
-			// compactLogFile decrements currentCompactionN once its output is installed.
-			p.currentCompactionN.Add(1)
-			p.runningCompactionN.Add(1)
-			go func() {
-				defer func() {
-					p.mu.Lock()
-					p.levelCompacting[0] = false
-					p.mu.Unlock()
-					p.Compact()
-					// Decrement after Compact so Close cannot return while this
-					// goroutine may still schedule work on the partition.
-					p.runningCompactionN.Add(-1)
-				}()
-
-				p.compactLogFile(logFile)
-			}()
+			p.startCompaction(0, func(installed func()) { p.compactLogFile(logFile, installed) })
 		}
 	}
 
@@ -1106,45 +1091,45 @@ func (p *Partition) compact() {
 		// Retain files during compaction.
 		IndexFiles(files).Retain()
 
-		// Mark the level as compacting.
-		p.levelCompacting[level] = true
-
-		// Execute in closure to save reference to the group within the loop.
-		func(files []*IndexFile, level int) {
-			// Start compacting in a separate goroutine.
-			// compactToLevel decrements currentCompactionN once its output is installed.
-			p.currentCompactionN.Add(1)
-			p.runningCompactionN.Add(1)
-			go func() {
-				defer func() {
-					// Ensure compaction lock for the level is released.
-					p.mu.Lock()
-					p.levelCompacting[level] = false
-					p.mu.Unlock()
-
-					// Check for new compactions
-					p.Compact()
-					// Decrement after Compact so Close cannot return while this
-					// goroutine may still schedule work on the partition.
-					p.runningCompactionN.Add(-1)
-				}()
-
-				// Compact to a new level.
-				p.compactToLevel(files, level+1, interrupt)
-			}()
-		}(files, level)
+		// Compact to a new level.
+		p.startCompaction(level, func(installed func()) { p.compactToLevel(files, level+1, interrupt, installed) })
 	}
+}
+
+// startCompaction marks level as compacting and runs fn in a new goroutine,
+// counting it in currentCompactionN and runningCompactionN. fn calls installed
+// once its output is in the file set, which stops it counting toward Wait():
+// closing the files it replaced waits for readers, and a reader may itself be
+// waiting in Wait() (series deletion). A compaction that fails stops counting
+// when fn returns. Must be called with p.mu held.
+func (p *Partition) startCompaction(level int, fn func(installed func())) {
+	p.levelCompacting[level] = true
+	p.currentCompactionN.Add(1)
+	p.runningCompactionN.Add(1)
+	go func() {
+		installed := sync.OnceFunc(func() { p.currentCompactionN.Add(-1) })
+		defer func() {
+			installed()
+
+			// Ensure compaction lock for the level is released.
+			p.mu.Lock()
+			p.levelCompacting[level] = false
+			p.mu.Unlock()
+
+			// Check for new compactions
+			p.Compact()
+			// Decrement after Compact so Close cannot return while this
+			// goroutine may still schedule work on the partition.
+			p.runningCompactionN.Add(-1)
+		}()
+		fn(installed)
+	}()
 }
 
 // compactToLevel compacts a set of files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
-func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-chan struct{}) {
-	// Stop counting toward Wait() once the new file is installed or the
-	// compaction fails. Closing replaced files below waits for readers, and a
-	// reader may itself be waiting in Wait() (series deletion).
-	installed := sync.OnceFunc(func() { p.currentCompactionN.Add(-1) })
-	defer installed()
-
+// It calls installed once the new file is in the file set.
+func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-chan struct{}, installed func()) {
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
@@ -1311,13 +1296,8 @@ func (p *Partition) checkLogFile() error {
 // compactLogFile compacts f into a tsi file. The new file will share the
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
-func (p *Partition) compactLogFile(logFile *LogFile) {
-	// Stop counting toward Wait() once the new file is installed or the
-	// compaction fails. Closing replaced files below waits for readers, and a
-	// reader may itself be waiting in Wait() (series deletion).
-	installed := sync.OnceFunc(func() { p.currentCompactionN.Add(-1) })
-	defer installed()
-
+// It calls installed once the new file is in the file set.
+func (p *Partition) compactLogFile(logFile *LogFile, installed func()) {
 	if p.isClosing() {
 		return
 	}

@@ -36,6 +36,94 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// shardCloseOps returns the store paths that close shard 1 of db0/rp0. Each
+// caller gets its own map, since the tests using it run in parallel.
+func shardCloseOps() map[string]func(s *Store) error {
+	return map[string]func(s *Store) error{
+		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
+		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
+		"DeleteShard":           func(s *Store) error { return s.DeleteShard(1) },
+		"Close":                 func(s *Store) error { return s.Store.Close() },
+	}
+}
+
+// holdDelete holds a delete in flight on the shard until release is called.
+// release also runs as a cleanup, ahead of any cleanup registered earlier, such
+// as CloseStore, which would wait on this delete.
+func (s *Store) holdDelete(t *testing.T, shardID uint64) (release func()) {
+	t.Helper()
+	done := s.HoldDeleteForTest(shardID)
+	require.NotNil(t, done, "shard has no epoch tracker")
+	release = sync.OnceFunc(done)
+	t.Cleanup(release)
+	return release
+}
+
+// runAsync calls fn in a goroutine. The returned channel yields fn's result and
+// is then closed, so waiting on it again does not block.
+func runAsync(fn func() error) <-chan error {
+	ch := make(chan error, 1)
+	go func() {
+		defer close(ch)
+		ch <- fn()
+	}()
+	return ch
+}
+
+// hangGuard gives a test that is looking for deadlocks a store directory and
+// bounded waits. Its directory is not t.TempDir, which would remove the files
+// under whatever is still running after a hang; the guard removes them when the
+// test ends unless something hung. hung is only touched on the test goroutine,
+// which also runs the cleanups.
+type hangGuard struct {
+	root    string
+	timeout time.Duration
+	hung    bool
+}
+
+func newHangGuard(t *testing.T, pattern string, timeout time.Duration) *hangGuard {
+	t.Helper()
+	root, err := os.MkdirTemp("", pattern)
+	require.NoError(t, err, "creating store directory")
+	g := &hangGuard{root: root, timeout: timeout}
+	// Registered first, so it runs after every cleanup the test adds, including
+	// the one that closes the store.
+	t.Cleanup(func() {
+		if g.hung {
+			return
+		}
+		require.NoError(t, os.RemoveAll(g.root), "removing %s", g.root)
+	})
+	return g
+}
+
+// wait returns the result from ch. If none arrives in time it marks the guard
+// hung, dumps all goroutines and fails the test.
+func (g *hangGuard) wait(t *testing.T, ch <-chan error, what string) error {
+	t.Helper()
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(g.timeout):
+		g.hung = true
+		dumpGoroutines(t)
+		t.Logf("leaving store files in place at %s", g.root)
+		require.FailNow(t, what+" hung")
+		return nil
+	}
+}
+
+// closeStore closes the store. Unlike CloseStore, it cannot hang the test on
+// the deadlock it is looking for. After a hang it does nothing, since another
+// Close would block too.
+func (g *hangGuard) closeStore(t *testing.T, s *Store) {
+	t.Helper()
+	if g.hung {
+		return
+	}
+	require.NoError(t, g.wait(t, runAsync(s.Store.Close), "closing store"), "closing store in %s", g.root)
+}
+
 // TestStore_CloseShard_WaitsForDeletes checks that every path that closes
 // shards waits for deletes running on them. A delete holds index file sets
 // while it takes shard and index locks that closing holds, and closing waits
@@ -44,14 +132,8 @@ import (
 func TestStore_CloseShard_WaitsForDeletes(t *testing.T) {
 	t.Parallel()
 
-	ops := map[string]func(s *Store) error{
-		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
-		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
-		"DeleteShard":           func(s *Store) error { return s.DeleteShard(1) },
-		"Close":                 func(s *Store) error { return s.Store.Close() },
-	}
 	for _, index := range tsdb.RegisteredIndexes() {
-		for name, op := range ops {
+		for name, op := range shardCloseOps() {
 			t.Run(index+"/"+name, func(t *testing.T) {
 				s := MustOpenStore(t, index)
 				t.Cleanup(func() { s.CloseStore(t, index) })
@@ -59,14 +141,9 @@ func TestStore_CloseShard_WaitsForDeletes(t *testing.T) {
 				sh := s.Shard(1)
 				require.NotNil(t, sh, "expected shard")
 
-				done := s.HoldDeleteForTest(1)
-				require.NotNil(t, done, "shard has no epoch tracker")
-				release := sync.OnceFunc(done)
-				// Runs before CloseStore above, which would wait on this delete.
-				t.Cleanup(release)
+				release := s.holdDelete(t, 1)
 
-				result := make(chan error, 1)
-				go func() { result <- op(s) }()
+				result := runAsync(func() error { return op(s) })
 				select {
 				case err := <-result:
 					require.FailNow(t, name+" returned while a delete was running", "err: %v", err)
@@ -104,19 +181,13 @@ func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
 			require.NoError(t, s.CreateShard("db0", "rp0", 2, true), "creating shard")
 
 			// DeleteShard blocks on this delete after removing shard 1 from the store.
-			done := s.HoldDeleteForTest(1)
-			require.NotNil(t, done, "shard has no epoch tracker")
-			release := sync.OnceFunc(done)
-			// Runs before CloseStore above, which would wait on this delete.
-			t.Cleanup(release)
+			release := s.holdDelete(t, 1)
 
-			deleted := make(chan error, 1)
-			go func() { deleted <- s.DeleteShard(1) }()
+			deleted := runAsync(func() error { return s.DeleteShard(1) })
 			require.Eventually(t, func() bool { return s.Shard(1) == nil },
 				10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
 
-			closed := make(chan error, 1)
-			go func() { closed <- s.Store.Close() }()
+			closed := runAsync(s.Store.Close)
 			select {
 			case err := <-closed:
 				require.FailNow(t, "Close returned while DeleteShard was running", "err: %v", err)
@@ -125,7 +196,7 @@ func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
 			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after Close started")
 
 			release()
-			for name, ch := range map[string]chan error{"DeleteShard": deleted, "Close": closed} {
+			for name, ch := range map[string]<-chan error{"DeleteShard": deleted, "Close": closed} {
 				select {
 				case err := <-ch:
 					require.NoError(t, err, name)
@@ -153,11 +224,7 @@ func TestStore_Close_Concurrent(t *testing.T) {
 			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
 
 			// No Close can return while this delete runs, which makes them overlap.
-			done := s.HoldDeleteForTest(1)
-			require.NotNil(t, done, "shard has no epoch tracker")
-			release := sync.OnceFunc(done)
-			// Runs before CloseStore above, which would wait on this delete.
-			t.Cleanup(release)
+			release := s.holdDelete(t, 1)
 
 			var mu sync.RWMutex
 			var concurrency, maxConcurrency atomic.Int64
@@ -372,9 +439,6 @@ func TestStore_DeleteShard_RemovesSeriesFromInFlightWrite(t *testing.T) {
 func TestStore_Delete_RemovesIndexType(t *testing.T) {
 	t.Parallel()
 
-	deleteShard := func(s *Store, id uint64, _ string) error { return s.DeleteShard(id) }
-	deleteRP := func(s *Store, _ uint64, rp string) error { return s.DeleteRetentionPolicy("db0", rp) }
-
 	// Shards 1 and 2 use inmem, in their own retention policies, and shard 3 tsi1.
 	mixedStore := func(t *testing.T) *Store {
 		s := MustOpenStore(t, tsdb.InmemIndexName)
@@ -388,15 +452,16 @@ func TestStore_Delete_RemovesIndexType(t *testing.T) {
 		return s
 	}
 
-	for name, del := range map[string]func(s *Store, id uint64, rp string) error{
-		"DeleteShard":           deleteShard,
-		"DeleteRetentionPolicy": deleteRP,
+	// Shard n is the only shard in retention policy rpn.
+	for name, del := range map[string]func(s *Store, n uint64) error{
+		"DeleteShard":           func(s *Store, n uint64) error { return s.DeleteShard(n) },
+		"DeleteRetentionPolicy": func(s *Store, n uint64) error { return s.DeleteRetentionPolicy("db0", fmt.Sprintf("rp%d", n)) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := mixedStore(t)
-			require.NoError(t, del(s, 1, "rp1"), "deleting shard 1")
+			require.NoError(t, del(s, 1), "deleting shard 1")
 			require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
-			require.NoError(t, del(s, 2, "rp2"), "deleting shard 2")
+			require.NoError(t, del(s, 2), "deleting shard 2")
 			require.NoError(t, s.DeleteMeasurement("db0", "m"), "only tsi1 shards remain")
 		})
 	}
@@ -404,28 +469,23 @@ func TestStore_Delete_RemovesIndexType(t *testing.T) {
 	// Both calls delete shard 1 here, which must count once.
 	t.Run("Overlapping", func(t *testing.T) {
 		s := mixedStore(t)
-		done := s.HoldDeleteForTest(1)
-		require.NotNil(t, done, "shard has no epoch tracker")
-		release := sync.OnceFunc(done)
-		// Runs before CloseStore above, which would wait on this delete.
-		t.Cleanup(release)
+		release := s.holdDelete(t, 1)
 
-		results := make(chan error, 2)
-		go func() { results <- deleteRP(s, 1, "rp1") }()
+		deletedRP := runAsync(func() error { return s.DeleteRetentionPolicy("db0", "rp1") })
 		// Let DeleteRetentionPolicy snapshot the shard and block closing it.
 		time.Sleep(100 * time.Millisecond)
-		go func() { results <- deleteShard(s, 1, "rp1") }()
+		deletedShard := runAsync(func() error { return s.DeleteShard(1) })
 		require.Eventually(t, func() bool { return s.Shard(1) == nil },
 			10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
 		time.Sleep(100 * time.Millisecond)
 		release()
 
-		for range 2 {
+		for name, ch := range map[string]<-chan error{"DeleteRetentionPolicy": deletedRP, "DeleteShard": deletedShard} {
 			select {
-			case err := <-results:
-				require.NoError(t, err, "deleting shard 1")
+			case err := <-ch:
+				require.NoError(t, err, "%s deleting shard 1", name)
 			case <-time.After(30 * time.Second):
-				require.FailNow(t, "delete did not return")
+				require.FailNow(t, name+" did not return")
 			}
 		}
 		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
@@ -464,34 +524,10 @@ func TestStore_DeleteShard_DuringSeriesCreation(t *testing.T) {
 		return pts
 	}
 
-	// Not t.TempDir, which would remove the files under whatever is still
-	// running after a hang.
-	root, err := os.MkdirTemp("", "store-delete-shard-")
-	require.NoError(t, err, "creating store directory")
-	var hung bool
-	wait := func(ch <-chan struct{}, what string) {
-		select {
-		case <-ch:
-		case <-time.After(opTimeout):
-			hung = true
-			dumpGoroutines(t)
-			t.Logf("leaving store files in place at %s", root)
-			require.FailNow(t, what+" hung")
-		}
-	}
-
-	s := newStoreInDir(t, root, tsdb.InmemIndexName)
+	g := newHangGuard(t, "store-delete-shard-", opTimeout)
+	s := newStoreInDir(t, g.root, tsdb.InmemIndexName)
 	s.WithLogger(zaptest.NewLogger(t, zaptest.Level(zap.ErrorLevel)))
-	t.Cleanup(func() {
-		if hung {
-			return
-		}
-		closed := make(chan struct{})
-		var closeErr error
-		go func() { defer close(closed); closeErr = s.Store.Close() }()
-		wait(closed, "closing store")
-		require.NoError(t, errors.Join(closeErr, os.RemoveAll(root)), "closing store and removing %s", root)
-	})
+	t.Cleanup(func() { g.closeStore(t, s) })
 	require.NoError(t, s.Open(), "opening store")
 
 	for round := range rounds {
@@ -525,15 +561,9 @@ func TestStore_DeleteShard_DuringSeriesCreation(t *testing.T) {
 		require.Eventually(t, func() bool { return writes.Load() >= writers },
 			opTimeout, 100*time.Microsecond, "writes never ran")
 
-		var deleteErr error
-		deleted := make(chan struct{})
-		go func() { defer close(deleted); deleteErr = s.DeleteShard(id) }()
-		wait(deleted, fmt.Sprintf("DeleteShard %d", id))
-		require.NoError(t, deleteErr, "deleting shard %d", id)
-
-		stopped := make(chan struct{})
-		go func() { workers.Wait(); close(stopped) }()
-		wait(stopped, "writers")
+		deleted := runAsync(func() error { return s.DeleteShard(id) })
+		require.NoError(t, g.wait(t, deleted, fmt.Sprintf("DeleteShard %d", id)), "deleting shard %d", id)
+		require.NoError(t, g.wait(t, runAsync(func() error { workers.Wait(); return nil }), "writers"))
 	}
 }
 
@@ -557,12 +587,6 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 		closeStartRun = 50 * time.Millisecond
 		afterCloseRun = 50 * time.Millisecond
 	)
-	ops := map[string]func(s *Store) error{
-		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
-		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
-		"DeleteShard":           func(s *Store) error { return s.DeleteShard(1) },
-		"Close":                 func(s *Store) error { return s.Store.Close() },
-	}
 	// What writes and deletes may return once their shard is closed or gone.
 	expected := []error{tsdb.ErrStoreClosed, tsdb.ErrShardNotFound, tsdb.ErrEngineClosed, tsdb.ErrShardDeletion}
 	isExpected := func(err error) bool {
@@ -576,41 +600,10 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 		return false
 	}
 
-	// run calls fn in a goroutine. The returned channel yields fn's result and
-	// is then closed, so waiting on it again does not block.
-	run := func(fn func() error) <-chan error {
-		ch := make(chan error, 1)
-		go func() {
-			defer close(ch)
-			ch <- fn()
-		}()
-		return ch
-	}
-
 	for _, index := range tsdb.RegisteredIndexes() {
-		for name, op := range ops {
+		for name, op := range shardCloseOps() {
 			t.Run(index+"/"+name, func(t *testing.T) {
-				// Not t.TempDir, which would remove the files under whatever
-				// is still running after a hang. The cleanups below remove
-				// them only once everything has stopped.
-				root, err := os.MkdirTemp("", "store-stress-")
-				require.NoError(t, err, "creating store directory")
-
-				// hung is only touched on the test goroutine, which also runs
-				// the cleanups.
-				var hung bool
-				waitOrDump := func(t *testing.T, ch <-chan error, what string) error {
-					select {
-					case err := <-ch:
-						return err
-					case <-time.After(opTimeout):
-						hung = true
-						dumpGoroutines(t)
-						t.Logf("leaving store files in place at %s", root)
-						require.FailNow(t, what+" hung")
-						return nil
-					}
-				}
+				g := newHangGuard(t, "store-stress-", opTimeout)
 
 				var deletesInFlight, compactions, compactionsUnderDelete atomic.Int64
 				countCompactions := func(e zapcore.Entry) error {
@@ -628,20 +621,11 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 					zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 					zapcore.AddSync(io.Discard), zap.InfoLevel), countCompactions)
 
-				s := newStoreInDir(t, root, index)
+				s := newStoreInDir(t, g.root, index)
 				s.EngineOptions.Config.MaxIndexLogFileSize = 1024
 				s.WithLogger(zap.New(zapcore.NewTee(
 					zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)).Core(), hooked)))
-				// Unlike CloseStore, this cannot hang the test on the deadlock
-				// it is looking for. After a hang it does nothing, since another
-				// Close would block too.
-				t.Cleanup(func() {
-					if hung {
-						return
-					}
-					closeErr := waitOrDump(t, run(s.Store.Close), "closing store")
-					require.NoError(t, errors.Join(closeErr, os.RemoveAll(root)), "closing store and removing %s", root)
-				})
+				t.Cleanup(func() { g.closeStore(t, s) })
 				require.NoError(t, s.Open(), "opening store")
 				for id := uint64(1); id <= shardN; id++ {
 					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
@@ -736,19 +720,19 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 						}
 					}()
 				}
-				done := run(func() error { workers.Wait(); return nil })
+				done := runAsync(func() error { workers.Wait(); return nil })
 				// Runs before the Close cleanup above, which must not race the
 				// workers. Stop them even after a hang, so those not stuck do
 				// not keep writing through later subtests.
 				t.Cleanup(func() {
 					stopWorkers()
-					if !hung {
-						require.NoError(t, waitOrDump(t, done, "writers and deleters"))
+					if !g.hung {
+						require.NoError(t, g.wait(t, done, "writers and deleters"))
 					}
 				})
 				start.Unlock()
 
-				if index == "tsi1" {
+				if index == tsdb.TSI1IndexName {
 					require.Eventually(t, func() bool { return compactionsUnderDelete.Load() >= overlapsWant },
 						opTimeout, time.Millisecond, "TSI compactions never finished during a delete")
 				}
@@ -762,16 +746,16 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 				t.Cleanup(release)
 				require.Eventually(t, deleteHeld, opTimeout, 100*time.Microsecond, "no delete blocked on the write")
 				closeStarted.Store(true)
-				result := run(func() error { return op(s) })
+				result := runAsync(func() error { return op(s) })
 				// The close waits for the held delete, so it cannot return before
 				// release. Give it time to get that far.
 				time.Sleep(closeStartRun)
 				release()
-				require.NoError(t, waitOrDump(t, result, name), name)
+				require.NoError(t, g.wait(t, result, name), name)
 
 				time.Sleep(afterCloseRun)
 				stopWorkers()
-				require.NoError(t, waitOrDump(t, done, "writers and deleters"))
+				require.NoError(t, g.wait(t, done, "writers and deleters"))
 
 				t.Logf("deletes: %d, across close: %d, TSI compactions: %d, during a delete: %d",
 					deletes.Load(), deletesAcrossClose.Load(), compactions.Load(), compactionsUnderDelete.Load())

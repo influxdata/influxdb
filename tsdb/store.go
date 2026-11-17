@@ -723,7 +723,7 @@ func (s *Store) Close() error {
 
 	// Close all the shards in parallel.
 	if err := s.walkShards(shards, func(sh *Shard) error {
-		return closeShardAfterDeletes(epochs[sh.id], sh.Close)
+		return closeShardAfterDeletes(epochs[sh.id], sh)
 	}); err != nil {
 		return err
 	}
@@ -758,21 +758,21 @@ func (s *Store) epochsForShards(shards []*Shard) map[uint64]*epochTracker {
 }
 
 // closeShardAfterDeletes waits for deletes running on a shard to finish, then
-// closes it with closeFn. A delete holds index file sets while it takes the shard and
+// closes it. A delete holds index file sets while it takes the shard and
 // index locks that Shard.Close holds, and Shard.Close waits for compactions
 // blocked on those file sets, so closing under a running delete can deadlock.
 // A delete that starts after this point waits for the close (it counts as a
 // write) and then fails on the closed shard.
-func closeShardAfterDeletes(epoch *epochTracker, closeFn func() error) error {
+func closeShardAfterDeletes(epoch *epochTracker, sh *Shard) error {
 	if epoch == nil {
-		return closeFn()
+		return sh.Close()
 	}
 	guards, gen := epoch.StartWrite()
 	defer epoch.EndWrite(gen)
 	for _, guard := range guards {
 		guard.Wait()
 	}
-	return closeFn()
+	return sh.Close()
 }
 
 // openSeriesFile either returns or creates a series file for the provided
@@ -1231,7 +1231,7 @@ func (s *Store) DeleteDatabase(name string) error {
 		if sh.database != name {
 			return nil
 		}
-		return closeShardAfterDeletes(epochs[sh.id], sh.Close)
+		return closeShardAfterDeletes(epochs[sh.id], sh)
 	}); err != nil {
 		return err
 	}
@@ -1304,7 +1304,7 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 		if sh.database != database || sh.retentionPolicy != name {
 			return nil
 		}
-		return closeShardAfterDeletes(epochs[sh.id], sh.Close)
+		return closeShardAfterDeletes(epochs[sh.id], sh)
 	}); err != nil {
 		return err
 	}
