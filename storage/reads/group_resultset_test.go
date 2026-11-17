@@ -2,6 +2,7 @@ package reads_test
 
 import (
 	"context"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 
@@ -259,7 +260,7 @@ group:
 
 			var hints datatypes.HintFlags
 			hints.SetHintSchemaAllTime()
-			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
+			rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
 				Group:     tt.group,
 				GroupKeys: tt.keys,
 				// TODO(jlapacik):
@@ -267,6 +268,7 @@ group:
 				//     Eventually this field should be removed entirely.
 				Hints: uint32(hints),
 			}, newCursor)
+			require.NoError(t, err, "group result set creation error")
 
 			sb := new(strings.Builder)
 			GroupResultSetToString(sb, rs, SkipNilCursor())
@@ -278,6 +280,38 @@ group:
 	}
 }
 
+func TestNewGroupResultSet_ShouldFail_BadGroupType(t *testing.T) {
+	cur := &sliceSeriesCursor{
+		rows: newSeriesRows(
+			"aaa,tag0=val00",
+			"aaa,tag0=val01",
+			"cpu,tag0=val00,tag1=val10",
+			"cpu,tag0=val00,tag1=val11",
+			"cpu,tag0=val00,tag1=val12",
+			"mem,tag1=val10,tag2=val20",
+			"mem,tag1=val11,tag2=val20",
+			"mem,tag1=val11,tag2=val21",
+		)}
+
+	newCursor := func() (reads.SeriesCursor, error) {
+		return cur, nil
+	}
+
+	var hints datatypes.HintFlags
+	hints.SetHintSchemaAllTime()
+	_, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
+		// Group is of an int type but really is a proto enum.
+		// This should never be anything other than ReadGroupRequest_GroupNone
+		// or ReadGroupRequest_GroupBy. This test is here to only ensure that if
+		// the off chance something other than these two enums gets passed the server
+		// does not panic.
+		Group:     3,
+		GroupKeys: []string{"tag0", "tag2"},
+		Hints:     uint32(hints),
+	}, newCursor)
+	require.Error(t, err, "group result set creation should error")
+}
+
 func TestNewGroupResultSet_GroupNone_NoDataReturnsNil(t *testing.T) {
 	newCursor := func() (reads.SeriesCursor, error) {
 		return &sliceSeriesCursor{
@@ -287,7 +321,8 @@ func TestNewGroupResultSet_GroupNone_NoDataReturnsNil(t *testing.T) {
 			)}, nil
 	}
 
-	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupNone}, newCursor)
+	rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupNone}, newCursor)
+	require.NoError(t, err, "group result set creation error")
 	if rs != nil {
 		t.Errorf("expected nil cursor")
 	}
@@ -302,7 +337,8 @@ func TestNewGroupResultSet_GroupBy_NoDataReturnsNil(t *testing.T) {
 			)}, nil
 	}
 
-	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
+	rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
+	require.NoError(t, err, "group result set creation error")
 	if rs != nil {
 		t.Errorf("expected nil cursor")
 	}
@@ -385,7 +421,7 @@ group:
 
 			var hints datatypes.HintFlags
 			hints.SetHintSchemaAllTime()
-			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
+			rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
 				Group:     datatypes.ReadGroupRequest_GroupBy,
 				GroupKeys: tt.keys,
 				// TODO(jlapacik):
@@ -393,6 +429,7 @@ group:
 				//     Eventually this field should be removed entirely.
 				Hints: uint32(hints),
 			}, newCursor, tt.opts...)
+			require.NoError(t, err, "group result set creation error")
 
 			sb := new(strings.Builder)
 			GroupResultSetToString(sb, rs, SkipNilCursor())
@@ -459,7 +496,8 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 	hints.SetHintSchemaAllTime()
 
 	for i := 0; i < b.N; i++ {
-		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag2"}, Hints: uint32(hints)}, newCursor)
+		rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag2"}, Hints: uint32(hints)}, newCursor)
+		require.NoError(b, err, "group result set creation error")
 		rs.Close()
 	}
 }
@@ -490,9 +528,11 @@ func TestNewGroupResultSet_TimeRange(t *testing.T) {
 		},
 	}
 
-	resultSet := reads.NewGroupResultSet(ctx, &req, func() (reads.SeriesCursor, error) {
+	resultSet, err := reads.NewGroupResultSet(ctx, &req, func() (reads.SeriesCursor, error) {
 		return &newCursor, nil
 	})
+	require.NoError(t, err, "group result set creation error")
+
 	groupByCursor := resultSet.Next()
 	if groupByCursor == nil {
 		t.Fatal("unexpected: groupByCursor was nil")

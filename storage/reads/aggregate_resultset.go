@@ -97,7 +97,12 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 	agg := r.req.Aggregate[0]
 	every := r.req.WindowEvery
 	offset := r.req.Offset
-	cursor := r.arrayCursors.createCursor(seriesRow)
+	cursor, err := r.arrayCursors.createCursor(seriesRow)
+	// If the createCursor interface method fails, it will
+	// always return a nil cursor.
+	if err != nil {
+		return nil, err
+	}
 
 	var everyDur values.Duration
 	var offsetDur values.Duration
@@ -132,8 +137,8 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 	}
 }
 
-func (r *windowAggregateResultSet) Cursor() cursors.Cursor {
-	return r.cursor
+func (r *windowAggregateResultSet) Cursor() (cursors.Cursor, error) {
+	return r.cursor, r.err
 }
 
 func (r *windowAggregateResultSet) Close() {
