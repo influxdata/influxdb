@@ -33,25 +33,34 @@ const (
 
 // Config represents a configuration for a HTTP service.
 type Config struct {
-	Enabled                  bool              `toml:"enabled"`
-	BindAddress              string            `toml:"bind-address"`
-	AuthEnabled              bool              `toml:"auth-enabled"`
-	LogEnabled               bool              `toml:"log-enabled"`
-	SuppressWriteLog         bool              `toml:"suppress-write-log"`
-	WriteTracing             bool              `toml:"write-tracing"`
-	FluxEnabled              bool              `toml:"flux-enabled"`
-	FluxLogEnabled           bool              `toml:"flux-log-enabled"`
-	FluxTesting              bool              `toml:"flux-testing"`
-	PprofEnabled             bool              `toml:"pprof-enabled"`
-	PprofAuthEnabled         bool              `toml:"pprof-auth-enabled"`
-	DebugPprofEnabled        bool              `toml:"debug-pprof-enabled"`
-	PingAuthEnabled          bool              `toml:"ping-auth-enabled"`
-	PromReadAuthEnabled      bool              `toml:"prom-read-auth-enabled"`
-	HTTPHeaders              map[string]string `toml:"headers"`
-	HTTPSEnabled             bool              `toml:"https-enabled"`
-	HTTPSCertificate         string            `toml:"https-certificate"`
-	HTTPSPrivateKey          string            `toml:"https-private-key"`
-	HTTPSInsecureCertificate bool              `toml:"https-insecure-certificate"`
+	Enabled          bool   `toml:"enabled"`
+	BindAddress      string `toml:"bind-address"`
+	AuthEnabled      bool   `toml:"auth-enabled"`
+	LogEnabled       bool   `toml:"log-enabled"`
+	SuppressWriteLog bool   `toml:"suppress-write-log"`
+	WriteTracing     bool   `toml:"write-tracing"`
+	// AutoIncrementDuplicateTimestamps, when true, assigns timestamps to
+	// points written without an explicit one from a single monotonic
+	// nanosecond clock shared by every write connection on this server,
+	// instead of giving every such point in a request the same
+	// server-assigned time. This prevents silent last-write-wins data loss
+	// both within one batched write and across concurrent write requests.
+	// It forces full nanosecond resolution for these auto-assigned
+	// timestamps, ignoring the request's query-string precision.
+	AutoIncrementDuplicateTimestamps bool              `toml:"auto-increment-duplicate-timestamps"`
+	FluxEnabled                      bool              `toml:"flux-enabled"`
+	FluxLogEnabled                   bool              `toml:"flux-log-enabled"`
+	FluxTesting                      bool              `toml:"flux-testing"`
+	PprofEnabled                     bool              `toml:"pprof-enabled"`
+	PprofAuthEnabled                 bool              `toml:"pprof-auth-enabled"`
+	DebugPprofEnabled                bool              `toml:"debug-pprof-enabled"`
+	PingAuthEnabled                  bool              `toml:"ping-auth-enabled"`
+	PromReadAuthEnabled              bool              `toml:"prom-read-auth-enabled"`
+	HTTPHeaders                      map[string]string `toml:"headers"`
+	HTTPSEnabled                     bool              `toml:"https-enabled"`
+	HTTPSCertificate                 string            `toml:"https-certificate"`
+	HTTPSPrivateKey                  string            `toml:"https-private-key"`
+	HTTPSInsecureCertificate         bool              `toml:"https-insecure-certificate"`
 	// HTTPSIgnoreSanityChecks loads the certificate even when it fails the
 	// checks that decide whether a server can use it at all.
 	HTTPSIgnoreSanityChecks bool                    `toml:"https-ignore-sanity-checks"`
