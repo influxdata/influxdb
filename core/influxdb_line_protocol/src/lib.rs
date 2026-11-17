@@ -578,36 +578,43 @@ impl From<EscapedStr<'_>> for Arc<str> {
 /// [`ParsedLine`]. See the [crate-level documentation](self) for more
 /// information and examples.
 pub fn parse_lines(input: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
-    split_lines(input).filter_map(|line| {
-        let i = trim_leading(line);
+    split_lines(input).filter_map(parse_split_line)
+}
 
-        if i.is_empty() {
-            return None;
-        }
+/// Parses a single line as returned by [`split_lines`].
+///
+/// Returns `None` for a blank or comment line, which [`parse_lines`] skips.
+/// Use this with [`split_lines`] when the position of each line in the input
+/// is needed, for example to report line numbers in errors.
+pub fn parse_split_line(line: &str) -> Option<Result<ParsedLine<'_>>> {
+    let i = trim_leading(line);
 
-        let res = match parse_line(i) {
-            Ok((remaining, line)) => {
-                // should have parsed the whole input line; if any
-                // data remains it is a parse error for this line.
-                // Corresponding Go logic:
-                // https://github.com/influxdata/influxdb/blob/217eddc87e14a79b01d0c22994fc139f530094a2/models/points_parser.go#L259-L266
-                if !remaining.is_empty() {
-                    Some(Err(Error::CannotParseEntireLine {
-                        trailing_content: String::from(remaining),
-                    }))
-                } else {
-                    Some(Ok(line))
-                }
+    if i.is_empty() {
+        return None;
+    }
+
+    let res = match parse_line(i) {
+        Ok((remaining, line)) => {
+            // should have parsed the whole input line; if any
+            // data remains it is a parse error for this line.
+            // Corresponding Go logic:
+            // https://github.com/influxdata/influxdb/blob/217eddc87e14a79b01d0c22994fc139f530094a2/models/points_parser.go#L259-L266
+            if !remaining.is_empty() {
+                Some(Err(Error::CannotParseEntireLine {
+                    trailing_content: String::from(remaining),
+                }))
+            } else {
+                Some(Ok(line))
             }
-            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => Some(Err(e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!("Cannot have incomplete data"), // Only streaming parsers have this
-        };
-
-        if let Some(Err(r)) = &res {
-            debug!("Error parsing line: '{line}'. Error was {r:?}");
         }
-        res
-    })
+        Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => Some(Err(e)),
+        Err(nom::Err::Incomplete(_)) => unreachable!("Cannot have incomplete data"), // Only streaming parsers have this
+    };
+
+    if let Some(Err(r)) = &res {
+        debug!("Error parsing line: '{line}'. Error was {r:?}");
+    }
+    res
 }
 
 /// Split `input` into individual lines to be parsed, based on the
@@ -1417,6 +1424,22 @@ mod test {
         assert!(matches!(
             &vals[..],
             &[Err(Error::MeasurementValueInvalid), Ok(_)]
+        ));
+    }
+
+    #[test]
+    fn parse_split_line_skips_blank_and_comment_lines() {
+        let input = "# comment
+cpu val=1 1
+
+  
+cpu val= 2";
+        let vals = split_lines(input)
+            .map(parse_split_line)
+            .collect::<Vec<Option<Result<_>>>>();
+        assert!(matches!(
+            &vals[..],
+            &[None, Some(Ok(_)), None, None, Some(Err(_))]
         ));
     }
 

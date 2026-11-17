@@ -175,6 +175,66 @@ async fn rejected_bad_timestamp_line_creates_no_schema() {
     );
 }
 
+/// The parser skips blank and comment lines, but line errors must still report
+/// the line number and text of the offending line in the request body.
+#[tokio::test]
+async fn line_errors_point_at_input_line_with_blank_and_comment_lines() {
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
+    let database_name = DatabaseName::new("test").unwrap();
+    let lp = "# header comment\n\
+              cpu,host=a val=1 1\n\
+              \n\
+              cpu,host=b val= 2\n\
+              cpu,host=c val=3 3\n\
+              cpu,host=d val=\"x\" 4";
+
+    let result = WriteValidator::initialize(database_name.clone(), Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            lp,
+            true,
+            Time::from_timestamp_nanos(0),
+            Precision::Auto,
+        )
+        .unwrap()
+        .commit_catalog_changes()
+        .await
+        .unwrap()
+        .unwrap_success()
+        .convert_lines_to_buffer(Gen1Duration::new_5m());
+
+    let errors: Vec<_> = result
+        .errors
+        .iter()
+        .map(|e| (e.line_number, e.original_line.as_str()))
+        .collect();
+    assert_eq!(
+        errors,
+        [(4, "cpu,host=b val= 2"), (6, "cpu,host=d val=\"x\" 4")]
+    );
+    assert_eq!(result.line_count, 2);
+    assert_eq!(
+        result.valid_bytes_count,
+        ("cpu,host=a val=1 1".len() + "cpu,host=c val=3 3".len()) as u64
+    );
+
+    // Without partial writes the first bad line is reported the same way.
+    let err = WriteValidator::initialize(database_name, Arc::clone(&catalog))
+        .unwrap()
+        .v1_parse_lines_and_catalog_updates(
+            lp,
+            false,
+            Time::from_timestamp_nanos(0),
+            Precision::Auto,
+        )
+        .unwrap_err();
+    let Error::ParseError(e) = err else {
+        panic!("expected a ParseError, got: {err:?}");
+    };
+    assert_eq!(e.line_number, 4);
+    assert_eq!(e.original_line, "cpu,host=b val= 2");
+}
+
 #[tokio::test]
 async fn write_validator_v1() -> Result<(), Error> {
     let node_id = Arc::from("sample-host-id");

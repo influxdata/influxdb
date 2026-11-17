@@ -9,7 +9,7 @@ use influxdb3_catalog::catalog::{
 };
 use influxdb3_types::DatabaseName;
 
-use influxdb_line_protocol::{FieldValue, ParsedLine, parse_lines};
+use influxdb_line_protocol::{FieldValue, ParsedLine, parse_split_line, split_lines};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{Field, FieldData, Gen1Duration, Row, TableChunks, WriteBatch};
 use iox_time::Time;
@@ -128,25 +128,31 @@ impl WriteValidator<Initialized> {
         precision: Precision,
     ) -> Result<WriteValidator<LinesParsed>> {
         let mut errors = vec![];
-        let mut lp_lines = lp.lines();
         let mut lines = vec![];
         let mut bytes = 0;
 
-        for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
+        // Walk the raw input lines so that errors report the line number and
+        // text of the input line. `parse_lines` skips blank and comment lines,
+        // so its index does not match the input.
+        for (line_idx, raw_line) in split_lines(lp).enumerate() {
+            let Some(maybe_line) = parse_split_line(raw_line) else {
+                // blank or comment line
+                continue;
+            };
+            // `str::lines` used to drop the `\r` of CRLF input from errors.
+            let original_line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
             let qualified_line = match maybe_line
                 .map_err(|e| WriteLineError {
-                    // This unwrap is fine because we're moving line by line
-                    // alongside the output from parse_lines
-                    original_line: lp_lines.next().unwrap().to_string(),
+                    original_line: original_line.to_string(),
                     line_number: line_idx + 1,
                     timestamp_rejection: None,
                     error_message: e.to_string(),
                 })
                 .and_then(|l| {
-                    let raw_line = lp_lines.next().unwrap();
                     validate_and_qualify_v1_line(
                         &mut self.state.txn,
                         line_idx,
+                        original_line,
                         l,
                         ingest_time,
                         precision,
@@ -163,8 +169,6 @@ impl WriteValidator<Initialized> {
                     continue;
                 }
             };
-            // This unwrap is fine because we're moving line by line
-            // alongside the output from parse_lines
             lines.push(qualified_line);
         }
 
@@ -188,13 +192,14 @@ impl WriteValidator<Initialized> {
 fn validate_and_qualify_v1_line(
     txn: &mut DatabaseCatalogTransaction,
     line_number: usize,
+    original_line: &str,
     line: ParsedLine<'_>,
     ingest_time: Time,
     precision: Precision,
 ) -> Result<QualifiedLine, WriteLineError> {
     let table_name = line.series.measurement.as_str();
     let line_error = |error_message: String| WriteLineError {
-        original_line: line.to_string(),
+        original_line: original_line.to_string(),
         line_number: line_number + 1,
         timestamp_rejection: None,
         error_message,
