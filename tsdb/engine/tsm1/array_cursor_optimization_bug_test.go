@@ -155,6 +155,8 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 
 	// Verify no duplicates were found
 	assert.Equalf(len(seenTimestamps), len(allTimestamps), "Found duplicate timestamps! Total: %d, Unique: %d", len(allTimestamps), len(seenTimestamps))
+	// Confirm equal length of values and timestamps
+	assert.Equal(len(allValues), len(allTimestamps), "quantity of timestamps and values count mismatch: %d timestamps, %d values", len(allTimestamps), len(allValues))
 
 	// Verify we got all expected data (cache + TSM)
 	assert.Equalf(len(cacheValues)+len(tsmData[0].values), len(allTimestamps), "total timestamps")
