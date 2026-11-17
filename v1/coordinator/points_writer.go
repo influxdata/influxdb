@@ -17,9 +17,6 @@ import (
 )
 
 var (
-	// ErrTimeout is returned when a write times out.
-	ErrTimeout = errors.New("timeout")
-
 	// ErrWriteFailed is returned when no writes succeeded.
 	ErrWriteFailed = errors.New("write failed")
 )
@@ -458,6 +455,10 @@ func (w *PointsWriter) WritePointsPrivileged(
 		return err
 	}
 
+	// Set a timeout using the context object.
+	ctx, cancel := context.WithTimeout(ctx, w.WriteTimeout)
+	defer cancel()
+
 	// Write each shard in it's own goroutine and return as soon as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
@@ -465,18 +466,16 @@ func (w *PointsWriter) WritePointsPrivileged(
 			err := w.writeToShard(ctx, shard, database, retentionPolicy, points)
 			if err == nil {
 				w.stats.pointsWriteOk.Observe(float64(len(points)))
-			} else {
+			} else if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 				w.stats.pointsWriteErr.Observe(float64(len(points)))
+				w.Logger.Error("writing points to shard failed", zap.Error(err))
 			}
-			if err == tsdb.ErrShardDeletion {
+			if errors.Is(err, tsdb.ErrShardDeletion) {
 				err = tsdb.PartialWriteError{Reason: fmt.Sprintf("shard %d is pending deletion", shard.ID), Dropped: len(points)}
 			}
 			ch <- err
 		}(shardMappings.Shards[shardID], database, retentionPolicy, points)
 	}
-
-	timeout := time.NewTimer(w.WriteTimeout)
-	defer timeout.Stop()
 
 	if err == nil && shardMappings.Dropped() > 0 {
 		w.stats.pointsWriteDropped.Observe(float64(shardMappings.Dropped()))
@@ -491,11 +490,10 @@ func (w *PointsWriter) WritePointsPrivileged(
 		select {
 		case <-w.closing:
 			return ErrWriteFailed
-		case <-timeout.C:
-			w.stats.timeout.Inc()
-			// return timeout error to caller
-			return ErrTimeout
 		case err := <-ch:
+			if errors.Is(err, context.Canceled) {
+				w.stats.timeout.Inc()
+			}
 			if err != nil {
 				return err
 			}
