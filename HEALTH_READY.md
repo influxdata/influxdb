@@ -307,7 +307,7 @@ credential — they produce the same body.
 
 ### Check detail during the window
 
-`--startup-error-linger` and `--health-auth-enabled` interact badly, and
+`--startup-error-linger` and `--health-auth-mode=required` interact badly, and
 the interaction cannot be designed away. During the
 [linger window](#keeping-the-endpoints-alive-after-a-failed-startup) the
 store credentials are resolved against has been closed — releasing it is
