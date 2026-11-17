@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"errors"
 	"sync/atomic"
 
 	"github.com/influxdata/influxql"
@@ -69,6 +70,41 @@ func (e *failCloseOnceEngine) Close() error {
 // FailNextEngineCloseForTest makes the next Close of the shard's engine return
 // err. Later Closes close the engine. It returns false if the shard is not open.
 func (s *Store) FailNextEngineCloseForTest(shardID uint64, err error) bool {
+	return s.wrapEngineForTest(shardID, func(e Engine) Engine {
+		return &failCloseOnceEngine{Engine: e, err: err}
+	})
+}
+
+// failAfterCloseOnceEngine closes the wrapped engine on every Close, and fails
+// its first Close after doing so, like an engine that fails partway through
+// closing, with some of its cleanup already done.
+type failAfterCloseOnceEngine struct {
+	Engine
+	err    error
+	failed atomic.Bool
+}
+
+func (e *failAfterCloseOnceEngine) Close() error {
+	err := e.Engine.Close()
+	if e.failed.CompareAndSwap(false, true) {
+		return errors.Join(err, e.err)
+	}
+	return err
+}
+
+// FailNextEngineCloseAfterCleanupForTest makes the next Close of the shard's
+// engine close the engine and then return err, so the shard keeps the closed
+// engine and a retried Close closes it again. It returns false if the shard is
+// not open.
+func (s *Store) FailNextEngineCloseAfterCleanupForTest(shardID uint64, err error) bool {
+	return s.wrapEngineForTest(shardID, func(e Engine) Engine {
+		return &failAfterCloseOnceEngine{Engine: e, err: err}
+	})
+}
+
+// wrapEngineForTest replaces the shard's engine with wrap of it. It returns
+// false if the shard is not open.
+func (s *Store) wrapEngineForTest(shardID uint64, wrap func(Engine) Engine) bool {
 	sh := s.Shard(shardID)
 	if sh == nil {
 		return false
@@ -78,8 +114,16 @@ func (s *Store) FailNextEngineCloseForTest(shardID uint64, err error) bool {
 	if sh._engine == nil {
 		return false
 	}
-	sh._engine = &failCloseOnceEngine{Engine: sh._engine, err: err}
+	sh._engine = wrap(sh._engine)
 	return true
+}
+
+// EngineFieldSetClosedForTest reports whether the shard still holds an engine
+// whose field set has stopped accepting saves, as after a failed close.
+func (s *Shard) EngineFieldSetClosedForTest() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s._engine != nil && s._engine.MeasurementFieldSet().ClosedForSaves()
 }
 
 // LockChangesFile takes the lock SaveWriter holds while writing the changes
