@@ -679,6 +679,45 @@ func TestStore_Close_CancelsConcurrentDeletes(t *testing.T) {
 	}
 }
 
+// TestStore_Close_RetriesAfterEngineCleanup checks that Close can be retried
+// when a shard's engine failed to close after it had closed its field set. The
+// shard keeps that engine, so the retry closes the engine, and its field set,
+// a second time.
+func TestStore_Close_RetriesAfterEngineCleanup(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+			s.MustWriteToShardString(1, "cpu,server=a v=1 10")
+			sh := s.Shard(1)
+			require.NotNil(t, sh, "expected shard")
+
+			closeErr := errors.New("injected engine close failure")
+			require.True(t, s.FailNextEngineCloseAfterCleanupForTest(1, closeErr), "shard not open")
+
+			// walkShards wraps per-shard errors with %s, so match the message.
+			require.ErrorContains(t, s.Store.Close(), closeErr.Error(), "first Close")
+			require.True(t, sh.EngineFieldSetClosedForTest(),
+				"failed Close did not leave the shard an engine with a closed field set")
+
+			require.NoError(t, s.Store.Close(), "retrying Close")
+			_, err := sh.Index()
+			require.ErrorIs(t, err, tsdb.ErrEngineClosed, "retry did not close the shard")
+			require.NoError(t, s.Store.Close(), "Close after successful retry")
+
+			require.NoError(t, s.Reopen(t), "reopening store")
+			sh = s.Shard(1)
+			require.NotNil(t, sh, "shard 1 after reopen")
+			fields := sh.MeasurementFields([]byte("cpu"))
+			require.NotNil(t, fields, "cpu fields after reopen")
+			require.NotNil(t, fields.Field("v"), "cpu.v after reopen")
+		})
+	}
+}
+
 // TestStore_DeleteShard_RejectsWriteDuringDiff checks that a write reaching the
 // deleted shard while DeleteShard compares it with the other shards is rejected,
 // and that a series another shard uses survives.
