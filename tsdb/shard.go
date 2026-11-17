@@ -1709,16 +1709,25 @@ func NewMeasurementFieldSet(path string, logger *zap.Logger) (*MeasurementFieldS
 
 // Close stops accepting saves, waits for those queued, and saves the
 // in-memory set to fields.idx if it changed or a changes file exists. It may
-// be called more than once, and concurrently.
+// be called more than once, and concurrently. A Close that fails can be
+// retried. Once a Close has succeeded, later calls do not touch the files,
+// which another field set may have opened since.
 func (fs *MeasurementFieldSet) Close() error {
 	if fs == nil || fs.changeMgr == nil {
 		return nil
 	}
 	fs.changeMgr.Close()
+
+	fs.changeMgr.closeMu.Lock()
+	defer fs.changeMgr.closeMu.Unlock()
+	if fs.changeMgr.finalized {
+		return nil
+	}
 	// Save the in-memory version if it changed, even if writing the
 	// changes file failed, or if there is a changes file left to replace.
 	if !fs.changeMgr.changed.Load() {
 		if _, err := os.Stat(fs.changeMgr.changeFilePath); os.IsNotExist(err) {
+			fs.changeMgr.finalized = true
 			return nil
 		} else if err != nil {
 			return fmt.Errorf("cannot get file information for %s: %w", fs.changeMgr.changeFilePath, err)
@@ -1728,6 +1737,7 @@ func (fs *MeasurementFieldSet) Close() error {
 		return err
 	}
 	fs.changeMgr.changed.Store(false)
+	fs.changeMgr.finalized = true
 	return nil
 }
 
@@ -1854,6 +1864,12 @@ type measurementFieldSetChangeMgr struct {
 	// changed is set when changes are queued, so Close writes fields.idx
 	// from the in-memory set even if writing the changes file failed.
 	changed atomic.Bool
+	// closeMu serializes the final save in MeasurementFieldSet.Close.
+	// finalized is set once that save has succeeded, or was found
+	// unnecessary. After that the files may belong to a field set opened
+	// since, and Close leaves them alone.
+	closeMu   sync.Mutex
+	finalized bool
 }
 
 // SetMeasurementFieldSetWriter - initialize the queue for write requests

@@ -2366,6 +2366,75 @@ func TestMeasurementFieldSet_CloseIdempotent(t *testing.T) {
 	checkMeasurementFieldSetClose(t, mf)
 }
 
+// TestMeasurementFieldSet_CloseAfterReopen closes a field set again after
+// another has opened the same files and saved a change. The second Close must
+// leave the files alone: the change is only in the changes file, and must
+// still be there for a field set that opens after a crash.
+func TestMeasurementFieldSet_CloseAfterReopen(t *testing.T) {
+	type contents = map[string]map[string]influxql.DataType
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	old, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	applyFieldSetOps(t, old, []fieldSetOp{{measurement: "cpu", field: "value", typ: influxql.Float}})
+	checkMeasurementFieldSetClose(t, old)
+
+	reopened, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	defer checkMeasurementFieldSetClose(t, reopened)
+	applyFieldSetOps(t, reopened, []fieldSetOp{{measurement: "mem", field: "free", typ: influxql.Integer}})
+
+	require.NoError(t, old.Close(), "closing the old field set again")
+	_, err = os.Stat(reopened.ChangesPath())
+	require.NoError(t, err, "the old field set's Close removed the reopened one's changes file")
+
+	// Open what is on disk, as after a crash with reopened never closed.
+	// Copy it, so that replaying here does not remove reopened's files.
+	crashDir := filepath.Join(dir, "crash")
+	require.NoError(t, os.Mkdir(crashDir, 0777))
+	for _, name := range []string{"fields.idx", tsdb.FieldsChangeFile} {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		require.NoError(t, err, "reading %s", name)
+		require.NoError(t, os.WriteFile(filepath.Join(crashDir, name), b, 0666), "copying %s", name)
+	}
+	recovered, err := tsdb.NewMeasurementFieldSet(filepath.Join(crashDir, "fields.idx"), nil)
+	require.NoError(t, err, "opening the copy")
+	defer checkMeasurementFieldSetClose(t, recovered)
+	require.Equal(t, contents{
+		"cpu": {"value": influxql.Float},
+		"mem": {"free": influxql.Integer},
+	}, fieldSetContents(recovered), "field set recovered from disk")
+}
+
+// TestMeasurementFieldSet_CloseRetryAfterFailure fails a Close while it writes
+// fields.idx. Closing again must write it.
+func TestMeasurementFieldSet_CloseRetryAfterFailure(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	applyFieldSetOps(t, mf, []fieldSetOp{{measurement: "cpu", field: "value", typ: influxql.Float}})
+
+	// WriteToFile creates its temporary file exclusively, so this directory
+	// in its place makes it fail, and survives its cleanup.
+	tmp := path + ".tmp"
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "blocker"), 0777))
+	require.Error(t, mf.Close(), "Close with the temporary file blocked")
+	_, err = os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist, "fields.idx written by the failed Close")
+
+	require.NoError(t, os.RemoveAll(tmp))
+	checkMeasurementFieldSetClose(t, mf)
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	require.NoError(t, err)
+	defer checkMeasurementFieldSetClose(t, mf2)
+	require.Equal(t, map[string]map[string]influxql.DataType{"cpu": {"value": influxql.Float}}, fieldSetContents(mf2), "fields.idx contents")
+}
+
 // TestMeasurementFieldSet_CloseConcurrent closes a set with saved changes from
 // many goroutines at once. Every Close must succeed, and the changes must be
 // in fields.idx after.
