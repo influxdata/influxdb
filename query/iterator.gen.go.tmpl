@@ -705,6 +705,73 @@ func (itr *{{$k.name}}LimitIterator) Next() (*{{$k.Name}}Point, error) {
 	}
 }
 
+// {{$k.name}}LazyGroupChainIterator forwards points from a sequence of
+// iterators opened lazily on demand, stopping once enough points have
+// already been forwarded to satisfy a limit. It performs no filtering of
+// its own — all point trimming happens in the enclosing LimitIterator.
+type {{$k.name}}LazyGroupChainIterator struct {
+	cur   {{$k.Name}}Iterator
+	next  func() ({{$k.Name}}Iterator, error)
+	n     int
+	limit int
+}
+
+// new{{$k.Name}}LazyGroupChainIterator returns a new instance of {{$k.name}}LazyGroupChainIterator.
+func new{{$k.Name}}LazyGroupChainIterator(first {{$k.Name}}Iterator, next func() ({{$k.Name}}Iterator, error), opt IteratorOptions) *{{$k.name}}LazyGroupChainIterator {
+	return &{{$k.name}}LazyGroupChainIterator{
+		cur:   first,
+		next:  next,
+		limit: opt.Limit + opt.Offset,
+	}
+}
+
+// Stats returns stats from the currently open underlying iterator.
+func (itr *{{$k.name}}LazyGroupChainIterator) Stats() IteratorStats {
+	if itr.cur == nil {
+		return IteratorStats{}
+	}
+	return itr.cur.Stats()
+}
+
+// Close closes the currently open underlying iterator.
+func (itr *{{$k.name}}LazyGroupChainIterator) Close() error {
+	if itr.cur == nil {
+		return nil
+	}
+	return itr.cur.Close()
+}
+
+// Next returns the next point from the iterator, lazily opening further
+// iterators via next once the current one is exhausted.
+func (itr *{{$k.name}}LazyGroupChainIterator) Next() (*{{$k.Name}}Point, error) {
+	for {
+		if itr.cur == nil {
+			return nil, nil
+		}
+
+		p, err := itr.cur.Next()
+		if err != nil {
+			return nil, err
+		}
+		if p != nil {
+			itr.n++
+			return p, nil
+		}
+
+		itr.cur.Close()
+		itr.cur = nil
+		if itr.n >= itr.limit {
+			return nil, nil
+		}
+
+		cur, err := itr.next()
+		if err != nil {
+			return nil, err
+		}
+		itr.cur = cur
+	}
+}
+
 type {{$k.name}}FillIterator struct {
 	input     *buf{{$k.Name}}Iterator
 	prev      {{$k.Name}}Point

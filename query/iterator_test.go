@@ -770,6 +770,260 @@ func TestLimitIterator_Boolean(t *testing.T) {
 	}
 }
 
+// Ensure the lazy group chain iterator forwards every point from a sequence
+// of lazily-opened iterators, stops opening further ones once the running
+// count already satisfies Limit+Offset, and closes only the iterator it
+// currently holds open.
+func TestLazyGroupChainIterator_Float(t *testing.T) {
+	a := &FloatIterator{Points: []query.FloatPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+		{Name: "cpu", Time: 1, Value: 2},
+	}}
+	b := &FloatIterator{Points: []query.FloatPoint{
+		{Name: "cpu", Time: 2, Value: 3},
+		{Name: "cpu", Time: 3, Value: 4},
+	}}
+	c := &FloatIterator{Points: []query.FloatPoint{
+		{Name: "cpu", Time: 4, Value: 5},
+	}}
+
+	var nextCalls int
+	next := func() (query.Iterator, error) {
+		nextCalls++
+		switch nextCalls {
+		case 1:
+			return b, nil
+		case 2:
+			return c, nil
+		default:
+			t.Fatalf("next called too many times (%d)", nextCalls)
+			return nil, nil
+		}
+	}
+
+	itr := query.NewLazyGroupChainIterator(a, next, query.IteratorOptions{Limit: 3})
+	fitr := itr.(query.FloatIterator)
+
+	if a2, err := Iterators([]query.Iterator{fitr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a2, [][]query.Point{
+		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 1}},
+		{&query.FloatPoint{Name: "cpu", Time: 1, Value: 2}},
+		{&query.FloatPoint{Name: "cpu", Time: 2, Value: 3}},
+		{&query.FloatPoint{Name: "cpu", Time: 3, Value: 4}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a2))
+	}
+
+	if !a.Closed {
+		t.Error("first iterator not closed")
+	}
+	if !b.Closed {
+		t.Error("second iterator not closed")
+	}
+	if c.Closed {
+		t.Error("third iterator should never have been opened")
+	}
+	if nextCalls != 1 {
+		t.Errorf("expected next to be called exactly once, got %d", nextCalls)
+	}
+}
+
+// Ensure the lazy group chain iterator terminates cleanly when next reports
+// there is nothing further, even if the limit was never reached.
+func TestLazyGroupChainIterator_Float_Exhausted(t *testing.T) {
+	a := &FloatIterator{Points: []query.FloatPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+	}}
+
+	var nextCalls int
+	next := func() (query.Iterator, error) {
+		nextCalls++
+		return nil, nil
+	}
+
+	itr := query.NewLazyGroupChainIterator(a, next, query.IteratorOptions{Limit: 100})
+	fitr := itr.(query.FloatIterator)
+
+	if a2, err := Iterators([]query.Iterator{fitr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a2, [][]query.Point{
+		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a2))
+	}
+
+	if nextCalls != 1 {
+		t.Errorf("expected next to be called exactly once, got %d", nextCalls)
+	}
+}
+
+// Ensure Close only closes the currently-open sub-iterator, not one that
+// was never opened.
+func TestLazyGroupChainIterator_Float_Close(t *testing.T) {
+	a := &FloatIterator{Points: []query.FloatPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+		{Name: "cpu", Time: 1, Value: 2},
+	}}
+	b := &FloatIterator{Points: []query.FloatPoint{
+		{Name: "cpu", Time: 2, Value: 3},
+	}}
+
+	next := func() (query.Iterator, error) {
+		t.Fatal("next should not have been called")
+		return b, nil
+	}
+
+	itr := query.NewLazyGroupChainIterator(a, next, query.IteratorOptions{Limit: 10})
+	fitr := itr.(query.FloatIterator)
+
+	if _, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := fitr.Close(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if !a.Closed {
+		t.Error("currently-open iterator should be closed")
+	}
+	if b.Closed {
+		t.Error("iterator that was never opened should not be closed")
+	}
+}
+
+func TestLazyGroupChainIterator_Integer(t *testing.T) {
+	a := &IntegerIterator{Points: []query.IntegerPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+	}}
+	b := &IntegerIterator{Points: []query.IntegerPoint{
+		{Name: "cpu", Time: 1, Value: 2},
+	}}
+
+	var nextCalls int
+	next := func() (query.Iterator, error) {
+		nextCalls++
+		return b, nil
+	}
+
+	itr := query.NewLazyGroupChainIterator(a, next, query.IteratorOptions{Limit: 2})
+	iitr := itr.(query.IntegerIterator)
+
+	if a2, err := Iterators([]query.Iterator{iitr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a2, [][]query.Point{
+		{&query.IntegerPoint{Name: "cpu", Time: 0, Value: 1}},
+		{&query.IntegerPoint{Name: "cpu", Time: 1, Value: 2}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a2))
+	}
+	if nextCalls != 1 {
+		t.Errorf("expected next to be called exactly once, got %d", nextCalls)
+	}
+	if !a.Closed || !b.Closed {
+		t.Error("both iterators should be closed")
+	}
+}
+
+func TestLazyGroupChainIterator_Unsigned(t *testing.T) {
+	a := &UnsignedIterator{Points: []query.UnsignedPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+	}}
+	b := &UnsignedIterator{Points: []query.UnsignedPoint{
+		{Name: "cpu", Time: 1, Value: 2},
+	}}
+
+	var nextCalls int
+	next := func() (query.Iterator, error) {
+		nextCalls++
+		return b, nil
+	}
+
+	itr := query.NewLazyGroupChainIterator(a, next, query.IteratorOptions{Limit: 2})
+	uitr := itr.(query.UnsignedIterator)
+
+	if a2, err := Iterators([]query.Iterator{uitr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a2, [][]query.Point{
+		{&query.UnsignedPoint{Name: "cpu", Time: 0, Value: 1}},
+		{&query.UnsignedPoint{Name: "cpu", Time: 1, Value: 2}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a2))
+	}
+	if nextCalls != 1 {
+		t.Errorf("expected next to be called exactly once, got %d", nextCalls)
+	}
+	if !a.Closed || !b.Closed {
+		t.Error("both iterators should be closed")
+	}
+}
+
+func TestLazyGroupChainIterator_String(t *testing.T) {
+	a := &StringIterator{Points: []query.StringPoint{
+		{Name: "cpu", Time: 0, Value: "a"},
+	}}
+	b := &StringIterator{Points: []query.StringPoint{
+		{Name: "cpu", Time: 1, Value: "b"},
+	}}
+
+	var nextCalls int
+	next := func() (query.Iterator, error) {
+		nextCalls++
+		return b, nil
+	}
+
+	itr := query.NewLazyGroupChainIterator(a, next, query.IteratorOptions{Limit: 2})
+	sitr := itr.(query.StringIterator)
+
+	if a2, err := Iterators([]query.Iterator{sitr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a2, [][]query.Point{
+		{&query.StringPoint{Name: "cpu", Time: 0, Value: "a"}},
+		{&query.StringPoint{Name: "cpu", Time: 1, Value: "b"}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a2))
+	}
+	if nextCalls != 1 {
+		t.Errorf("expected next to be called exactly once, got %d", nextCalls)
+	}
+	if !a.Closed || !b.Closed {
+		t.Error("both iterators should be closed")
+	}
+}
+
+func TestLazyGroupChainIterator_Boolean(t *testing.T) {
+	a := &BooleanIterator{Points: []query.BooleanPoint{
+		{Name: "cpu", Time: 0, Value: true},
+	}}
+	b := &BooleanIterator{Points: []query.BooleanPoint{
+		{Name: "cpu", Time: 1, Value: false},
+	}}
+
+	var nextCalls int
+	next := func() (query.Iterator, error) {
+		nextCalls++
+		return b, nil
+	}
+
+	itr := query.NewLazyGroupChainIterator(a, next, query.IteratorOptions{Limit: 2})
+	bitr := itr.(query.BooleanIterator)
+
+	if a2, err := Iterators([]query.Iterator{bitr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a2, [][]query.Point{
+		{&query.BooleanPoint{Name: "cpu", Time: 0, Value: true}},
+		{&query.BooleanPoint{Name: "cpu", Time: 1, Value: false}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a2))
+	}
+	if nextCalls != 1 {
+		t.Errorf("expected next to be called exactly once, got %d", nextCalls)
+	}
+	if !a.Closed || !b.Closed {
+		t.Error("both iterators should be closed")
+	}
+}
+
 // Ensure limit iterator returns a subset of points.
 func TestLimitIterator(t *testing.T) {
 	itr := query.NewLimitIterator(
