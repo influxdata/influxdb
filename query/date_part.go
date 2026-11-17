@@ -1,0 +1,1080 @@
+package query
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxql"
+)
+
+const (
+	// DatePartString is the name of date_part function
+	DatePartString = "date_part"
+
+	// DatePartTimeString is a symbol used to represent a reference variable
+	// for the current timestamp from a given point. It is used during time
+	// lookup on the query path. The leading NUL byte makes it impossible to
+	// collide with a user field or tag name (those originate from InfluxQL
+	// identifiers, which can never contain a NUL), so a field or tag literally
+	// named "date_part_time" is not shadowed by this sentinel.
+	DatePartTimeString = "\x00date_part_time"
+
+	// DatePartArgCount is the amount of arguments required for date_part function
+	DatePartArgCount = 2
+)
+
+type DatePartExpr int
+
+const (
+	Year DatePartExpr = iota
+	Quarter
+	Month
+	Week
+	Day
+	Hour
+	Minute
+	Second
+	Millisecond
+	Microsecond
+	Nanosecond
+	DOW
+	DOY
+	Epoch
+	ISODOW
+	Invalid
+)
+
+// datePartNames is the single source of truth for the canonical part names;
+// String and ParseDatePartExpr both derive from it so they cannot drift. The
+// valid parts come from models.DatePartNames, which a models.Row indexes to
+// name its GROUP BY date_part dimension, so both must follow this enum order.
+var datePartNames = func() (names [Invalid + 1]string) {
+	copy(names[:], models.DatePartNames[:])
+	names[Invalid] = "invalid"
+	return names
+}()
+
+// models.DatePartNames must have exactly one name per valid part.
+var _ = [1]struct{}{}[len(models.DatePartNames)-int(Invalid)]
+
+// groupingKey returns the models.Row grouping key naming part d.
+func (d DatePartExpr) groupingKey() models.GroupingKey {
+	return models.GroupingKey(d + 1)
+}
+
+var datePartsByName = func() map[string]DatePartExpr {
+	m := make(map[string]DatePartExpr, Invalid)
+	for part := Year; part < Invalid; part++ {
+		m[datePartNames[part]] = part
+	}
+	return m
+}()
+
+func (d DatePartExpr) String() string {
+	if d < Year || d > Invalid {
+		return ""
+	}
+	return datePartNames[d]
+}
+
+func ParseDatePartExpr(t string) (DatePartExpr, bool) {
+	part, ok := datePartsByName[strings.ToLower(t)]
+	if !ok {
+		return Invalid, false
+	}
+	return part, true
+}
+
+// matchDatePartCall reports whether n is a well-formed date_part call —
+// date_part('<part>', time) with a recognized part — and returns the parsed
+// part. Anything else, including a date_part call with a malformed argument
+// list, does not match.
+func matchDatePartCall(n influxql.Node) (DatePartExpr, bool) {
+	call, ok := n.(*influxql.Call)
+	if !ok || call.Name != DatePartString || len(call.Args) != DatePartArgCount {
+		return Invalid, false
+	}
+	lit, ok := call.Args[0].(*influxql.StringLiteral)
+	if !ok {
+		return Invalid, false
+	}
+	ref, ok := call.Args[1].(*influxql.VarRef)
+	if !ok || ref.Val != models.TimeString {
+		return Invalid, false
+	}
+	return ParseDatePartExpr(lit.Val)
+}
+
+func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
+	switch expr {
+	case Year:
+		return int64(t.Year()), true
+	case Quarter:
+		month := t.Month()
+		return int64((month-1)/3 + 1), true
+	case Month:
+		return int64(t.Month()), true
+	case Week:
+		_, week := t.ISOWeek()
+		return int64(week), true
+	case Day:
+		return int64(t.Day()), true
+	case Hour:
+		return int64(t.Hour()), true
+	case Minute:
+		return int64(t.Minute()), true
+	case Second:
+		return int64(t.Second()), true
+	case Millisecond:
+		// Seconds-of-minute scaled to milliseconds, plus the sub-second component.
+		return int64(t.Second())*1000 + int64(t.Nanosecond())/1_000_000, true
+	case Microsecond:
+		// Seconds-of-minute scaled to microseconds, plus the sub-second component.
+		return int64(t.Second())*1_000_000 + int64(t.Nanosecond())/1_000, true
+	case Nanosecond:
+		// Seconds-of-minute scaled to nanoseconds, plus the sub-second component.
+		return int64(t.Second())*1_000_000_000 + int64(t.Nanosecond()), true
+	case DOW:
+		return int64(t.Weekday()), true
+	case DOY:
+		return int64(t.YearDay()), true
+	case Epoch:
+		// Whole seconds since the Unix epoch. Sub-second precision is truncated by
+		// the int64 return type; select the millisecond/microsecond/nanosecond
+		// part for finer resolution.
+		return t.Unix(), true
+	case ISODOW:
+		// ISO 8601 day of the week: Monday=1 ... Sunday=7.
+		// Go's time.Weekday() is Sunday=0 ... Saturday=6, so every weekday
+		// already maps onto its ISO value except Sunday, which becomes 7.
+		dow := int64(t.Weekday())
+		if dow == 0 {
+			return int64(7), true // Sunday
+		}
+		return dow, true
+	default:
+		return 0, false
+	}
+}
+
+func ValidateDatePart(args []influxql.Expr) error {
+	if exp, got := DatePartArgCount, len(args); exp != got {
+		return fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
+	}
+
+	exprStr, ok := args[0].(*influxql.StringLiteral)
+	if !ok {
+		return errors.New("date_part: first argument must be a string")
+	}
+
+	_, ok = ParseDatePartExpr(exprStr.Val)
+	if !ok {
+		valid := make([]string, 0, Invalid)
+		for i := Year; i < Invalid; i++ {
+			valid = append(valid, i.String())
+		}
+		return fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(valid, ", "))
+	}
+
+	tstamp, ok := args[1].(*influxql.VarRef)
+	if !ok {
+		return errors.New("date_part: second argument must be a variable reference")
+	} else if tstamp.Val != models.TimeString {
+		// check if tstamp.Val is "time" keyword currently, we only support using time as the second argument
+		// this may seem redundant, but we would like to keep consistency with SQL date_part
+		return errors.New("date_part: second argument must be time VarRef")
+	}
+
+	return nil
+}
+
+// exprContainsDatePart reports whether expr contains a call to the date_part
+// function at any nesting depth. A nil expr contains none. It descends the
+// same expression nodes influxql.Walk does, without WalkFunc's closure, so the
+// checks every query runs through here do not allocate.
+func exprContainsDatePart(expr influxql.Expr) bool {
+	switch e := expr.(type) {
+	case *influxql.Call:
+		if e.Name == DatePartString {
+			return true
+		}
+		for _, arg := range e.Args {
+			if exprContainsDatePart(arg) {
+				return true
+			}
+		}
+	case *influxql.BinaryExpr:
+		return exprContainsDatePart(e.LHS) || exprContainsDatePart(e.RHS)
+	case *influxql.ParenExpr:
+		return exprContainsDatePart(e.Expr)
+	}
+	return false
+}
+
+// Sentinel errors returned by date_part validation. Named values so tests can
+// reference them (via export_test.go) instead of duplicating the strings.
+var (
+	errDatePartRequiresAggregate    = errors.New("date_part: GROUP BY date_part requires an aggregate or selector function")
+	errDatePartSingleAggregate      = errors.New("date_part: GROUP BY date_part supports only a single aggregate or selector function")
+	errDatePartFillPrevious         = errors.New("date_part: fill(previous) is not supported with GROUP BY date_part")
+	errDatePartFillLinear           = errors.New("date_part: fill(linear) is not supported with GROUP BY date_part")
+	errDatePartFillValue            = errors.New("date_part: fill(<value>) is not supported with GROUP BY date_part")
+	errDatePartFillNull             = errors.New("date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)")
+	errDatePartIntervalMultiplePart = errors.New("date_part: GROUP BY time() supports only one GROUP BY date_part dimension")
+	errDatePartOverGroupedSubquery  = errors.New("date_part: GROUP BY date_part over a subquery that groups by date_part requires both to group by the same single part")
+	errDatePartTimeOverGrouped      = errors.New("date_part: date_part(..., time) over a subquery that groups by date_part would read its bucket timestamps; use the subquery's part column instead")
+	errDatePartLimitMultiplePart    = errors.New("date_part: LIMIT and OFFSET are not supported with more than one GROUP BY date_part dimension")
+)
+
+// datePartDimensions returns the statement's GROUP BY date_part dimensions in
+// GROUP BY order with duplicates removed. That order fixes the injected output
+// columns and their aux slots (see buildCursor), so every consumer derives it
+// through appendDatePartDimension.
+func datePartDimensions(stmt *influxql.SelectStatement) ([]DatePartDimension, error) {
+	var dims []DatePartDimension
+	for _, d := range stmt.Dimensions {
+		if call, ok := d.Expr.(*influxql.Call); ok && call.Name == DatePartString {
+			var err error
+			if dims, err = appendDatePartDimension(dims, call); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return dims, nil
+}
+
+// appendDatePartDimension appends the part named by a GROUP BY date_part call
+// unless it is already present: a repeated part (e.g. GROUP BY date_part('year',
+// time), date_part('year', time)) would inject a duplicate output column and
+// double-aggregate the same series.
+func appendDatePartDimension(dims []DatePartDimension, call *influxql.Call) ([]DatePartDimension, error) {
+	// This should already be validated during compilation, but keep this code
+	// defensive to avoid panics if an invalid statement reaches this point.
+	expr, ok := matchDatePartCall(call)
+	if !ok {
+		return dims, fmt.Errorf("invalid date part expression: %s", call.String())
+	}
+	for _, d := range dims {
+		if d.Expr == expr {
+			return dims, nil
+		}
+	}
+	return append(dims, DatePartDimension{Expr: expr}), nil
+}
+
+// datePartEffectiveFill returns the fill option a statement executes with:
+// writing into a target turns fill(null) into fill(none) (see
+// newIteratorOptionsStmt), so validation must not reject it as fill(null).
+func datePartEffectiveFill(fill influxql.FillOption, hasTarget bool) influxql.FillOption {
+	if fill == influxql.NullFill && hasTarget {
+		return influxql.NoFill
+	}
+	return fill
+}
+
+// validateDatePartSelectFields rejects an explicit date_part('part', time) in the
+// SELECT list whose part is not one of the GROUP BY date_part dimensions, when the
+// query groups by date_part. Under such grouping the emitted row's timestamp is the
+// bucket's representative time (not a per-row time), so a non-grouped date_part has
+// no well-defined value for the group and would silently return misleading data.
+//
+// Queries without a date_part GROUP BY are unaffected: raw queries evaluate
+// date_part against each point's real timestamp, and GROUP BY time() buckets carry a
+// meaningful timestamp, both of which are correct.
+//
+// An interval inherited from the parent query is not this statement's own
+// GROUP BY time(): the subquery runs with fill(none) (see
+// newIteratorOptionsSubstatement), so it is validated as un-windowed.
+func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectStatement) error {
+	return validateDatePartFields(stmt, datePartEffectiveFill(c.FillOption, c.HasTarget), !c.Interval.IsZero() && !c.InheritedInterval)
+}
+
+// validateDatePartTree runs validateDatePartFields over a statement and every
+// subquery source beneath it, deriving the fill option and interval from each
+// statement itself. This is the Prepare-time re-run: RewriteFields rewrites the
+// whole statement tree, so a wildcard expanded inside a subquery (which the
+// per-statement compile passes ran before expansion) is only visible here.
+func validateDatePartTree(stmt *influxql.SelectStatement, subquery bool) error {
+	interval, err := stmt.GroupByInterval()
+	if err != nil {
+		return err
+	}
+	fill := datePartEffectiveFill(stmt.Fill, stmt.Target != nil)
+	// Subquery compilation rewrites a redundant fill(null) with an interval to
+	// fill(none) (see (*compiledStatement).subquery). Mirror that here so this
+	// pass does not reject a shape the executed plan never produces.
+	if subquery && interval > 0 && fill == influxql.NullFill {
+		fill = influxql.NoFill
+	}
+	if err := validateDatePartFields(stmt, fill, interval > 0); err != nil {
+		return err
+	}
+	if err := validateDatePartOverGroupedSources(stmt); err != nil {
+		return err
+	}
+	for _, source := range stmt.Sources {
+		if sub, ok := source.(*influxql.SubQuery); ok {
+			if err := validateDatePartTree(sub.Statement, true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// datePartStreamCalls lists the stream-based functions. Their reducers process
+// points in timestamp order keyed on tags only and never consult the date_part
+// grouper, so combining them with GROUP BY date_part would silently flatten
+// the groups into one series. count_hll qualifies too: its inner sum_hll stage
+// groups, but the outer stream stage merges the groups back together.
+var datePartStreamCalls = map[string]struct{}{
+	"count_hll":                         {},
+	"derivative":                        {},
+	"non_negative_derivative":           {},
+	"difference":                        {},
+	"non_negative_difference":           {},
+	"elapsed":                           {},
+	"moving_average":                    {},
+	"exponential_moving_average":        {},
+	"double_exponential_moving_average": {},
+	"triple_exponential_moving_average": {},
+	"triple_exponential_derivative":     {},
+	"relative_strength_index":           {},
+	"kaufmans_efficiency_ratio":         {},
+	"kaufmans_adaptive_moving_average":  {},
+	"chande_momentum_oscillator":        {},
+	"cumulative_sum":                    {},
+	"integral":                          {},
+	"holt_winters":                      {},
+	"holt_winters_with_fit":             {},
+}
+
+// datePartAnchorCalls collects the outermost non-math, non-date_part function
+// calls in the SELECT fields. Math functions are transparent (their arguments
+// may hold the anchoring call); aggregate/selector arguments are not descended
+// into, so a nested shape like count(distinct(value)) counts once. Unlike
+// c.FunctionCalls this is derived from the statement, so it sees the fields
+// RewriteFields expanded from a wildcard.
+func datePartAnchorCalls(fields influxql.Fields) []*influxql.Call {
+	var calls []*influxql.Call
+	var walk func(expr influxql.Expr)
+	walk = func(expr influxql.Expr) {
+		switch e := expr.(type) {
+		case *influxql.Call:
+			if e.Name == DatePartString {
+				return
+			}
+			if isMathFunction(e) {
+				for _, arg := range e.Args {
+					walk(arg)
+				}
+				return
+			}
+			calls = append(calls, e)
+		case *influxql.BinaryExpr:
+			walk(e.LHS)
+			walk(e.RHS)
+		case *influxql.ParenExpr:
+			walk(e.Expr)
+		case *influxql.Distinct:
+			calls = append(calls, e.NewCall())
+		}
+	}
+	for _, f := range fields {
+		walk(f.Expr)
+	}
+	return calls
+}
+
+func validateDatePartFields(stmt *influxql.SelectStatement, fillOption influxql.FillOption, hasInterval bool) error {
+	var groupByParts map[DatePartExpr]struct{}
+	for _, d := range stmt.Dimensions {
+		if part, ok := matchDatePartCall(d.Expr); ok {
+			if groupByParts == nil {
+				groupByParts = make(map[DatePartExpr]struct{})
+			}
+			groupByParts[part] = struct{}{}
+		}
+	}
+	if len(groupByParts) == 0 {
+		return nil
+	}
+	return validateDatePartGrouping(stmt, groupByParts, fillOption, hasInterval)
+}
+
+// validateDatePartGrouping validates a statement that groups by the date_part
+// parts in groupByParts. It is split from validateDatePartFields so a statement
+// without date_part never allocates the state the closures below capture.
+func validateDatePartGrouping(stmt *influxql.SelectStatement, groupByParts map[DatePartExpr]struct{}, fillOption influxql.FillOption, hasInterval bool) error {
+	// GROUP BY date_part is implemented by a single reduce/grouper per query.
+	// The raw (no-aggregate) path takes the aux-cursor branch and does no grouping
+	// at all, silently returning one flat ungrouped series. The multi-aggregate
+	// path aligns the per-call scanners on (ts, name, tags) only and merges their
+	// values under a single shared date_part key, so each call's group value
+	// overwrites the others (mislabeled results). Require exactly one non-date_part
+	// aggregate or selector call so neither broken shape can compile.
+	anchorCalls := datePartAnchorCalls(stmt.Fields)
+	if len(anchorCalls) == 0 {
+		return errDatePartRequiresAggregate
+	}
+	if len(anchorCalls) > 1 {
+		return errDatePartSingleAggregate
+	}
+	if _, ok := datePartStreamCalls[anchorCalls[0].Name]; ok {
+		return fmt.Errorf("date_part: %s() is not supported with GROUP BY date_part", anchorCalls[0].Name)
+	}
+
+	// Value-carrying fill modes (previous/linear/<number>) synthesize values for
+	// empty windows. For a GROUP BY date_part dimension this would leak a value
+	// into a series where that dimension is not active, so reject those modes.
+	//
+	// fill(null) (the default) is safe for a bare GROUP BY date_part, but when it
+	// is combined with a time() interval the fill iterator emits empty-window rows
+	// that carry no date_part value: their grouping value is lost and the
+	// emitter splits them into spurious extra series, fragmenting the real ones.
+	// Reject fill(null) only in that combined case (use fill(none) instead).
+	// fill(none) is always unaffected (it produces no fill iterator).
+	switch fillOption {
+	case influxql.PreviousFill:
+		return errDatePartFillPrevious
+	case influxql.LinearFill:
+		return errDatePartFillLinear
+	case influxql.NumberFill:
+		return errDatePartFillValue
+	case influxql.NullFill:
+		if hasInterval {
+			return errDatePartFillNull
+		}
+	}
+
+	// With a time() interval each reduce emits one window's buckets for every
+	// part together, so two or more parts make the output alternate between the
+	// parts' series window by window, splitting each series into one fragment
+	// per window.
+	if hasInterval && len(groupByParts) > 1 {
+		return errDatePartIntervalMultiplePart
+	}
+
+	// LIMIT and OFFSET count rows per tag set, but with two or more parts each
+	// part is its own series within a tag set, so the limit would cut across
+	// parts and drop whole series.
+	if len(groupByParts) > 1 && (stmt.Limit > 0 || stmt.Offset > 0) {
+		return errDatePartLimitMultiplePart
+	}
+
+	// A subquery grouped by date_part emits every bucket at a representative
+	// timestamp (the window start for an aggregate), so recomputing a part from
+	// those timestamps would collapse its buckets. The outer grouping reads the
+	// subquery's injected part column instead (see subqueryBuilder.mapAuxField),
+	// which is defined for every row only when both group by one same part.
+	// That column exists only on a direct subquery: one grouped by date_part
+	// further down, below a subquery that does not group by it, hands its
+	// representative timestamps up with no part column to read, so reject it.
+	for _, src := range stmt.Sources {
+		sub, ok := src.(*influxql.SubQuery)
+		if !ok {
+			continue
+		}
+		inner, err := datePartDimensions(sub.Statement)
+		if err != nil {
+			return err
+		}
+		if len(inner) == 0 {
+			nested, err := subqueriesGroupByDatePart(sub.Statement)
+			if err != nil {
+				return err
+			}
+			if nested {
+				return errDatePartOverGroupedSubquery
+			}
+			continue
+		}
+		if _, ok := groupByParts[inner[0].Expr]; !ok || len(inner) > 1 || len(groupByParts) > 1 {
+			return errDatePartOverGroupedSubquery
+		}
+	}
+
+	// GROUP BY date_part injects an output column named after the canonical part
+	// (e.g. "year"). Reject a user-selected field/alias of the same name: the
+	// duplicate column names collapse in column-name-keyed result handling (e.g.
+	// SELECT INTO via convertRowToPoints), silently dropping data.
+	injected := make(map[string]struct{}, len(groupByParts))
+	for part := range groupByParts {
+		injected[part.String()] = struct{}{}
+	}
+	for _, f := range stmt.Fields {
+		if _, ok := injected[f.Name()]; ok {
+			return fmt.Errorf("date_part: output column %q collides with the GROUP BY date_part('%s', time) dimension; alias the field to a different name", f.Name(), f.Name())
+		}
+		// top/bottom tag arguments become output columns named after the tag
+		// (see buildTopBottomIterator), so they collide the same way.
+		if call, ok := f.Expr.(*influxql.Call); ok && (call.Name == "top" || call.Name == "bottom") && len(call.Args) > 2 {
+			for _, arg := range call.Args[1 : len(call.Args)-1] {
+				if ref, ok := arg.(*influxql.VarRef); ok {
+					if _, ok := injected[ref.Val]; ok {
+						return fmt.Errorf("date_part: %s() tag argument %q collides with the GROUP BY date_part('%s', time) dimension", call.Name, ref.Val, ref.Val)
+					}
+				}
+			}
+		}
+	}
+
+	// A GROUP BY tag with the same name collides with the injected column too:
+	// column-name-keyed handling (e.g. SELECT INTO promoting grouping columns to
+	// tags) would silently overwrite the real tag's value with the part value.
+	for _, d := range stmt.Dimensions {
+		if ref, ok := d.Expr.(*influxql.VarRef); ok {
+			if _, ok := injected[ref.Val]; ok {
+				return fmt.Errorf("date_part: GROUP BY dimension %q collides with the GROUP BY date_part('%s', time) dimension", ref.Val, ref.Val)
+			}
+		}
+	}
+
+	// Over a subquery source, a reference to an injected part name resolves to
+	// the grouping driver (datePartMap) before the subquery's fields (see
+	// subqueryBuilder.mapAuxField), so a subquery column of the same name is
+	// silently shadowed by the extracted part value. Reject the reference when
+	// the subquery actually emits the colliding column; an unreferenced column
+	// is harmless and aliasing it in the subquery lifts the restriction.
+	referenced := make(map[string]struct{})
+	collectRefs := func(n influxql.Node) {
+		if ref, ok := n.(*influxql.VarRef); ok {
+			referenced[ref.Val] = struct{}{}
+		}
+	}
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, collectRefs)
+	}
+	if stmt.Condition != nil {
+		influxql.WalkFunc(stmt.Condition, collectRefs)
+	}
+	for _, src := range stmt.Sources {
+		sub, ok := src.(*influxql.SubQuery)
+		if !ok {
+			continue
+		}
+		for _, col := range sub.Statement.ColumnNames() {
+			if _, ok := injected[col]; !ok {
+				continue
+			}
+			if _, ok := referenced[col]; ok {
+				return fmt.Errorf("date_part: subquery column %q is shadowed by the GROUP BY date_part('%s', time) dimension; alias the column in the subquery to a different name", col, col)
+			}
+		}
+	}
+
+	var badPart string
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			if badPart != "" {
+				return
+			}
+			part, ok := matchDatePartCall(n)
+			if !ok {
+				return
+			}
+			if _, ok := groupByParts[part]; !ok {
+				badPart = part.String()
+			}
+		})
+		if badPart != "" {
+			return fmt.Errorf("date_part: SELECT date_part('%s', time) requires '%s' to be a GROUP BY date_part dimension", badPart, badPart)
+		}
+	}
+	return nil
+}
+
+// subqueriesGroupByDatePart reports whether any subquery source of stmt, at any
+// depth, groups by date_part.
+func subqueriesGroupByDatePart(stmt *influxql.SelectStatement) (bool, error) {
+	for _, src := range stmt.Sources {
+		sub, ok := src.(*influxql.SubQuery)
+		if !ok {
+			continue
+		}
+		dims, err := datePartDimensions(sub.Statement)
+		if err != nil || len(dims) > 0 {
+			return len(dims) > 0, err
+		}
+		if nested, err := subqueriesGroupByDatePart(sub.Statement); nested || err != nil {
+			return nested, err
+		}
+	}
+	return false, nil
+}
+
+// validateDatePartOverGroupedSources rejects date_part(..., time) evaluated
+// from the rows of a date_part-grouped subquery, at any depth. Those rows carry
+// a bucket's representative timestamp (the window start for an aggregate),
+// not a point's, so the part would be the same for every bucket. The one
+// exception is a SELECT of a part this statement groups by, which is resolved
+// from the grouped bucket rather than the timestamp.
+func validateDatePartOverGroupedSources(stmt *influxql.SelectStatement) error {
+	grouped, err := subqueriesGroupByDatePart(stmt)
+	if err != nil || !grouped {
+		return err
+	}
+	if exprContainsDatePart(stmt.Condition) {
+		return errDatePartTimeOverGrouped
+	}
+	own, err := datePartDimensions(stmt)
+	if err != nil {
+		return err
+	}
+	var bad bool
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			if part, ok := matchDatePartCall(n); ok && !slices.ContainsFunc(own, func(d DatePartDimension) bool { return d.Expr == part }) {
+				bad = true
+			}
+		})
+	}
+	if bad {
+		return errDatePartTimeOverGrouped
+	}
+	return nil
+}
+
+// typeSubqueryDatePartRefs types the VarRefs of a statement over subquery
+// sources that name a date_part value the planner supplies rather than a
+// subquery field: an active GROUP BY date_part part (datePartMap) or a column
+// a subquery injects for its own GROUP BY date_part. RewriteFields cannot see
+// either and leaves them Unknown, and an aggregate driven by an Unknown ref
+// (e.g. max(year)) plans as a null cursor and silently returns nothing.
+//
+// Subqueries are typed first, so a column a subquery passes such a value up
+// through (e.g. SELECT count, day FROM (... GROUP BY date_part('day', time)))
+// is typed from that subquery's now-typed field. It reports whether it typed
+// any ref, so a parent knows when its own refs may need the same.
+func typeSubqueryDatePartRefs(stmt *influxql.SelectStatement) (bool, error) {
+	var (
+		inner       []DatePartDimension
+		typedSubs   []*influxql.SelectStatement
+		hasSubquery bool
+	)
+	for _, src := range stmt.Sources {
+		sub, ok := src.(*influxql.SubQuery)
+		if !ok {
+			continue
+		}
+		hasSubquery = true
+		typed, err := typeSubqueryDatePartRefs(sub.Statement)
+		if err != nil {
+			return false, err
+		}
+		if typed {
+			typedSubs = append(typedSubs, sub.Statement)
+		}
+		dims, err := datePartDimensions(sub.Statement)
+		if err != nil {
+			return false, err
+		}
+		inner = append(inner, dims...)
+	}
+	if !hasSubquery {
+		return false, nil
+	}
+	outer, err := datePartDimensions(stmt)
+	if err != nil {
+		return false, err
+	}
+	if len(inner) == 0 && len(outer) == 0 && len(typedSubs) == 0 {
+		return false, nil
+	}
+	names := make(map[string]struct{}, len(inner)+len(outer))
+	for _, d := range append(inner, outer...) {
+		names[d.Expr.String()] = struct{}{}
+	}
+	typed := false
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			ref, ok := n.(*influxql.VarRef)
+			if !ok || ref.Type != influxql.Unknown {
+				return
+			}
+			if _, ok := names[ref.Val]; ok {
+				ref.Type = influxql.Integer
+				typed = true
+			} else if typ := subqueryColumnType(typedSubs, ref.Val); typ != influxql.Unknown {
+				ref.Type = typ
+				typed = true
+			}
+		})
+	}
+	return typed, nil
+}
+
+// subqueryColumnType returns the type of the column name one of subs emits,
+// evaluated from its field as this pass typed it, or Unknown.
+func subqueryColumnType(subs []*influxql.SelectStatement, name string) influxql.DataType {
+	for _, s := range subs {
+		for _, f := range s.Fields {
+			if f.Name() == name {
+				return influxql.EvalType(f.Expr, nil, FunctionTypeMapper{})
+			}
+		}
+	}
+	return influxql.Unknown
+}
+
+// validateDatePartAnchor rejects a SELECT that uses date_part(...) but has no
+// real anchor to drive the scan. date_part derives its value purely from the row
+// timestamp, so it cannot itself produce points; it must be paired with a stored
+// field or a non-date_part aggregate/selector. A bare tag reference is not an
+// anchor (the storage engine cannot emit timestamps from a tag-only cursor), so a
+// query like `SELECT host, date_part('year', time) FROM cpu` would otherwise plan
+// as an aux-only iterator and silently return no rows.
+//
+// This runs after RewriteFields, once VarRef types (field vs tag) are known: that
+// distinction is not available during compilation, where HasAuxiliaryFields is set
+// for any bare VarRef including tags, so the compile-time check cannot catch it.
+func validateDatePartAnchor(stmt *influxql.SelectStatement) error {
+	// Skip the walk entirely for the common statement without date_part.
+	hasDatePart := false
+	for _, f := range stmt.Fields {
+		if exprContainsDatePart(f.Expr) {
+			hasDatePart = true
+			break
+		}
+	}
+	if hasDatePart {
+		var hasAnchor bool
+		for _, f := range stmt.Fields {
+			influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+				switch n := n.(type) {
+				case *influxql.Call:
+					// An aggregate or selector (count, max, ...) anchors the scan.
+					if n.Name != DatePartString && !isMathFunction(n) {
+						hasAnchor = true
+					}
+				case *influxql.VarRef:
+					// Only a stored field anchors the scan. Tags, the time column
+					// (the date_part argument, typed Time/Unknown here), and untyped
+					// refs do not, so match the concrete stored-field types explicitly.
+					switch n.Type {
+					case influxql.Float, influxql.Integer, influxql.Unsigned, influxql.String, influxql.Boolean:
+						hasAnchor = true
+					}
+				}
+			})
+		}
+		if !hasAnchor {
+			return errAtLeastOneNonTimeField
+		}
+	}
+
+	// Recurse into subquery sources. RewriteFields rewrites the whole statement
+	// tree, so inner VarRef types are resolved by the time this runs in Prepare.
+	// Without this, a tag-only-anchor inner query (e.g.
+	// SELECT host, date_part('year', time) AS yr FROM cpu) escapes the check: it
+	// plans as an aux-only iterator emitting no points, so an outer aggregate over
+	// it silently returns nothing even though the equivalent top-level query is
+	// rejected.
+	for _, source := range stmt.Sources {
+		if sub, ok := source.(*influxql.SubQuery); ok {
+			if err := validateDatePartAnchor(sub.Statement); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+type DatePartValuer struct {
+	Valuer influxql.MapValuer
+	// Location is the timezone in which calendar fields are computed.
+	// A nil Location is treated as UTC (see LocationOrUTC).
+	Location *time.Location
+	// Grouped holds the query's GROUP BY date_part dimensions, if any. A
+	// grouped part is read from its dimension column in Valuer rather than
+	// computed from the row timestamp.
+	Grouped *DatePartGrouper
+}
+
+// LocationOrUTC returns loc, or time.UTC when loc is nil. Shared with the TSM
+// iterator so date_part extraction defaults consistently.
+func LocationOrUTC(loc *time.Location) *time.Location {
+	if loc == nil {
+		return time.UTC
+	}
+	return loc
+}
+
+var _ influxql.CallValuer = DatePartValuer{}
+
+func (v DatePartValuer) Value(key string) (interface{}, bool) {
+	if v.Valuer == nil {
+		return nil, false
+	}
+	// Convert the special date_part symbol back to "time"
+	if key == DatePartTimeString {
+		key = models.TimeString
+	}
+	return v.Valuer.Value(key)
+}
+
+func (v DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) {
+	if name != DatePartString {
+		return nil, false
+	}
+	if len(args) != DatePartArgCount {
+		return nil, false
+	}
+
+	exprStr, ok := args[0].(string)
+	if !ok {
+		return nil, false
+	}
+
+	expr, ok := ParseDatePartExpr(exprStr)
+	if !ok {
+		return nil, false
+	}
+
+	// Under GROUP BY date_part(...), the row timestamp is only a bucket
+	// representative and must not be used: a grouped part is read from its
+	// dimension column, which holds the bucket value for the active dimension
+	// and is null for the others. This keeps nested expressions (e.g.
+	// date_part('year', time) + 1) consistent with the dimension column.
+	if v.Grouped.index(expr) >= 0 {
+		val, _ := v.Valuer.Value(expr.String())
+		return val, val != nil
+	}
+
+	timestampRaw, ok := args[1].(int64)
+	if !ok {
+		return nil, false
+	}
+
+	timestamp := time.Unix(0, timestampRaw).In(LocationOrUTC(v.Location))
+	return ExtractDatePartExpr(timestamp, expr)
+}
+
+// datePartCondKeyPrefix prefixes the reserved eval-map keys written by
+// DatePartCondition.SetTime. The NUL byte keeps the names out of the space of
+// real field and tag names.
+const datePartCondKeyPrefix = "\x00date_part:"
+
+type datePartCondPart struct {
+	part DatePartExpr
+	name string
+
+	// Boxing cache: the extracted value is converted to interface{} only when
+	// it changes between points, so repeated scans of the same hour/day/year
+	// reuse the previous boxed value instead of allocating.
+	lastVal   int64
+	lastBoxed interface{}
+}
+
+// DatePartCondition evaluates date_part references in a condition without
+// per-point function-call evaluation. It rewrites each date_part call to a
+// reserved variable reference once at construction; SetTime then extracts the
+// referenced parts from a point's timestamp and publishes them to the
+// condition-evaluation map. A DatePartCondition carries per-point state and
+// must not be shared between concurrently scanning iterators.
+type DatePartCondition struct {
+	expr  influxql.Expr
+	parts []datePartCondPart
+	loc   *time.Location
+}
+
+// NewDatePartCondition returns a DatePartCondition for cond, or nil when cond
+// is nil or contains no date_part call. cond itself is never modified; the
+// rewrite operates on a clone.
+func NewDatePartCondition(cond influxql.Expr, loc *time.Location) *DatePartCondition {
+	if cond == nil {
+		return nil
+	}
+	c := &DatePartCondition{loc: loc}
+	rewritten := influxql.RewriteExpr(influxql.CloneExpr(cond), func(e influxql.Expr) influxql.Expr {
+		part, ok := matchDatePartCall(e)
+		if !ok {
+			return e
+		}
+		return &influxql.VarRef{Val: c.varName(part)}
+	})
+	if len(c.parts) == 0 {
+		return nil
+	}
+	c.expr = rewritten
+	return c
+}
+
+// varName returns the reserved variable name for part, registering it on
+// first use so SetTime knows which parts to extract.
+func (c *DatePartCondition) varName(part DatePartExpr) string {
+	for i := range c.parts {
+		if c.parts[i].part == part {
+			return c.parts[i].name
+		}
+	}
+	name := datePartCondKeyPrefix + part.String()
+	c.parts = append(c.parts, datePartCondPart{part: part, name: name})
+	return name
+}
+
+// Expr returns the rewritten condition. Every date_part call has been replaced
+// by a reserved variable reference resolved through SetTime.
+func (c *DatePartCondition) Expr() influxql.Expr { return c.expr }
+
+// SetTime extracts each date_part referenced by the condition from ts and
+// stores the values in m under the reserved names.
+func (c *DatePartCondition) SetTime(ts int64, m map[string]interface{}) {
+	t := time.Unix(0, ts).In(LocationOrUTC(c.loc))
+	for i := range c.parts {
+		m[c.parts[i].name] = c.parts[i].value(t)
+	}
+}
+
+// NumParts returns the number of reserved variables the rewritten condition
+// references.
+func (c *DatePartCondition) NumParts() int { return len(c.parts) }
+
+// PartName returns the reserved variable name of part i.
+func (c *DatePartCondition) PartName(i int) string { return c.parts[i].name }
+
+// PartValue returns part i of the timestamp ts as SetTime publishes it.
+func (c *DatePartCondition) PartValue(i int, ts int64) interface{} {
+	return c.parts[i].value(time.Unix(0, ts).In(LocationOrUTC(c.loc)))
+}
+
+// value returns the part of t, boxed through the part's cache.
+func (p *datePartCondPart) value(t time.Time) interface{} {
+	v, ok := ExtractDatePartExpr(t, p.part)
+	if !ok {
+		return nil
+	}
+	if p.lastBoxed == nil || v != p.lastVal {
+		p.lastVal = v
+		p.lastBoxed = v
+	}
+	return p.lastBoxed
+}
+
+// DatePartDimension is a GROUP BY date_part dimension. Its output column is
+// named by Expr.String() — the canonical part name (e.g. "dow"), regardless of
+// how the user spelled the literal (e.g. "DOW").
+type DatePartDimension struct {
+	Expr DatePartExpr
+}
+
+// extractVal extracts an int64 date_part value from an aux slot. The TSM
+// iterator and subquery mappers supply every dimension's value; a reduce emits
+// only the active dimension's, leaving the others nil.
+func extractVal(auxVal interface{}) (int64, bool, error) {
+	switch v := auxVal.(type) {
+	case int64:
+		return v, true, nil
+	case nil:
+		return 0, false, nil
+	default:
+		return 0, false, fmt.Errorf("date_part: unexpected aux value type: %T", auxVal)
+	}
+}
+
+// TagSubset identifies the tag subset a point belongs to at the current level
+// of the query. HasTags distinguishes "no tag dimensions in the GROUP BY" from
+// a tag subset whose ID happens to be empty, so composite grouping keys stay
+// unambiguous.
+type TagSubset struct {
+	ID      string
+	HasTags bool
+}
+
+// GroupingEntry is one resolved GROUP BY date_part value for a point. DimKey
+// is the in-memory grouping and series-ordering key; Expr and Val are the
+// value, which the reduce carries on the points it emits.
+type GroupingEntry struct {
+	DimKey string
+	Expr   DatePartExpr
+	Val    int64
+}
+
+// DatePartGrouper resolves the GROUP BY date_part buckets of points in the
+// reduce. It holds no mutable state, so it is safe for concurrent use.
+type DatePartGrouper struct {
+	dims []DatePartDimension
+}
+
+func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
+	return &DatePartGrouper{dims: dims}
+}
+
+// Dimensions returns the GROUP BY date_part dimensions in output column order.
+// A nil grouper has none.
+func (g *DatePartGrouper) Dimensions() []DatePartDimension {
+	if g == nil {
+		return nil
+	}
+	return g.dims
+}
+
+// index returns the position of part among the dimensions, or -1 when it is
+// not one of them or the grouper is nil.
+func (g *DatePartGrouper) index(part DatePartExpr) int {
+	for i, d := range g.Dimensions() {
+		if d.Expr == part {
+			return i
+		}
+	}
+	return -1
+}
+
+// computeDimKey builds a grouping key string that uniquely identifies a
+// (tag subset, expr, val) tuple; it is used as a map key and is never decoded.
+// Note the reduce path SORTS these keys to order the output series, so the
+// format is observable: the leading expr.String() makes series sort by part
+// name, which the GROUP BY date_part result ordering depends on. When tags are
+// present the tag subset ID is length-prefixed (8-byte big-endian) so the
+// encoding stays unambiguous even if the ID contains NUL bytes — which it can,
+// e.g. when a series has empty tag values.
+func computeDimKey(expr DatePartExpr, val int64, tags TagSubset) string {
+	var buf [8]byte
+	// Flip the sign bit so lexicographic byte order matches signed numeric
+	// order; without this a negative value (e.g. a pre-1970 'epoch') encodes
+	// with its high bit set and sorts after every non-negative value.
+	binary.BigEndian.PutUint64(buf[:], uint64(val)^(1<<63))
+	valStr := string(buf[:])
+	if tags.HasTags {
+		var lenBuf [8]byte
+		binary.BigEndian.PutUint64(lenBuf[:], uint64(len(tags.ID)))
+		return string(lenBuf[:]) + tags.ID + expr.String() + ":" + valStr
+	}
+	return expr.String() + ":" + valStr
+}
+
+// newGroupingEntry builds one resolved dimension value.
+func newGroupingEntry(expr DatePartExpr, val int64, tags TagSubset) GroupingEntry {
+	return GroupingEntry{
+		DimKey: computeDimKey(expr, val, tags),
+		Expr:   expr,
+		Val:    val,
+	}
+}
+
+// ResolveKeys returns a grouping entry for each dimension whose value the
+// point carries in its trailing aux slots: every dimension for a point read
+// from storage or a subquery, and only the active one for a point a lower
+// reduce level emitted.
+func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tags TagSubset) ([]GroupingEntry, error) {
+	if len(aux) < len(g.dims) {
+		return nil, nil
+	}
+	startIdx := len(aux) - len(g.dims)
+	entries := make([]GroupingEntry, 0, len(g.dims))
+	for i, dim := range g.dims {
+		val, ok, err := extractVal(aux[startIdx+i])
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			entries = append(entries, newGroupingEntry(dim.Expr, val, tags))
+		}
+	}
+	return entries, nil
+}

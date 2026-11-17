@@ -605,14 +605,14 @@ type IteratorOptions struct {
 	StartTime int64
 	EndTime   int64
 
-	// Sorted in time ascending order if true.
-	Ascending bool
-
 	// Limits the number of points per series.
 	Limit, Offset int
 
 	// Limits the number of series.
 	SLimit, SOffset int
+
+	// Sorted in time ascending order if true.
+	Ascending bool
 
 	// Removes the measurement name. Useful for meta queries.
 	StripName bool
@@ -623,6 +623,11 @@ type IteratorOptions struct {
 	// Determines if this is a query for raw data or an aggregate/selector.
 	Ordered bool
 
+	// NeedTimeRef indicates whether the condition contains functions (e.g. date_part)
+	// that require a reference to the point's timestamp. Cached here to avoid
+	// repeatedly walking the condition AST for every iterator creation.
+	NeedTimeRef bool
+
 	// Limits on the creation of iterators.
 	MaxSeriesN int
 
@@ -632,6 +637,12 @@ type IteratorOptions struct {
 
 	// Authorizer can limit access to data
 	Authorizer FineAuthorizer
+
+	// DatePart holds the GROUP BY date_part dimensions; nil when the query has
+	// none. Every per-series storage iterator embeds IteratorOptions, so the
+	// struct must not grow for queries without date_part: Ascending sits with
+	// the other bool flags so this pointer takes the padding it used to leave.
+	DatePart *DatePartGrouper
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
@@ -676,15 +687,27 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Ordered = true
 
 	// Determine dimensions.
+	var datePartDims []DatePartDimension
 	opt.GroupBy = make(map[string]struct{}, len(opt.Dimensions))
 	for _, d := range stmt.Dimensions {
 		if d, ok := d.Expr.(*influxql.VarRef); ok {
 			opt.Dimensions = append(opt.Dimensions, d.Val)
 			opt.GroupBy[d.Val] = struct{}{}
 		}
+
+		if d, ok := d.Expr.(*influxql.Call); ok && d.Name == DatePartString {
+			if datePartDims, err = appendDatePartDimension(datePartDims, d); err != nil {
+				return opt, err
+			}
+		}
+	}
+	if len(datePartDims) > 0 {
+		opt.DatePart = NewDatePartGrouper(datePartDims)
 	}
 
 	opt.Condition = condition
+	// date_part calls in the condition need access to the point's timestamp.
+	opt.NeedTimeRef = exprContainsDatePart(condition)
 	opt.Ascending = stmt.TimeAscending()
 	opt.Dedupe = stmt.Dedupe
 	opt.StripName = stmt.StripName
@@ -967,20 +990,32 @@ func (opt *IteratorOptions) UnmarshalBinary(buf []byte) error {
 
 func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 	pb := &internal.IteratorOptions{
-		Interval:   encodeInterval(opt.Interval),
-		Dimensions: opt.Dimensions,
-		Fill:       proto.Int32(int32(opt.Fill)),
-		StartTime:  proto.Int64(opt.StartTime),
-		EndTime:    proto.Int64(opt.EndTime),
-		Ascending:  proto.Bool(opt.Ascending),
-		Limit:      proto.Int64(int64(opt.Limit)),
-		Offset:     proto.Int64(int64(opt.Offset)),
-		SLimit:     proto.Int64(int64(opt.SLimit)),
-		SOffset:    proto.Int64(int64(opt.SOffset)),
-		StripName:  proto.Bool(opt.StripName),
-		Dedupe:     proto.Bool(opt.Dedupe),
-		MaxSeriesN: proto.Int64(int64(opt.MaxSeriesN)),
-		Ordered:    proto.Bool(opt.Ordered),
+		Interval:    encodeInterval(opt.Interval),
+		Dimensions:  opt.Dimensions,
+		Fill:        proto.Int32(int32(opt.Fill)),
+		StartTime:   proto.Int64(opt.StartTime),
+		EndTime:     proto.Int64(opt.EndTime),
+		Ascending:   proto.Bool(opt.Ascending),
+		Limit:       proto.Int64(int64(opt.Limit)),
+		Offset:      proto.Int64(int64(opt.Offset)),
+		SLimit:      proto.Int64(int64(opt.SLimit)),
+		SOffset:     proto.Int64(int64(opt.SOffset)),
+		StripName:   proto.Bool(opt.StripName),
+		Dedupe:      proto.Bool(opt.Dedupe),
+		MaxSeriesN:  proto.Int64(int64(opt.MaxSeriesN)),
+		Ordered:     proto.Bool(opt.Ordered),
+		NeedTimeRef: proto.Bool(opt.NeedTimeRef),
+	}
+
+	// Encode date_part GROUP BY dimensions; the grouper is rebuilt from them on
+	// decode.
+	if dims := opt.DatePart.Dimensions(); len(dims) > 0 {
+		pb.DatePartDimensions = make([]*internal.DatePartDimension, len(dims))
+		for i, d := range dims {
+			pb.DatePartDimensions[i] = &internal.DatePartDimension{
+				Expr: proto.Int32(int32(d.Expr)),
+			}
+		}
 	}
 
 	// Set expression, if set.
@@ -1037,20 +1072,36 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 
 func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, error) {
 	opt := &IteratorOptions{
-		Interval:   decodeInterval(pb.GetInterval()),
-		Dimensions: pb.GetDimensions(),
-		Fill:       influxql.FillOption(pb.GetFill()),
-		StartTime:  pb.GetStartTime(),
-		EndTime:    pb.GetEndTime(),
-		Ascending:  pb.GetAscending(),
-		Limit:      int(pb.GetLimit()),
-		Offset:     int(pb.GetOffset()),
-		SLimit:     int(pb.GetSLimit()),
-		SOffset:    int(pb.GetSOffset()),
-		StripName:  pb.GetStripName(),
-		Dedupe:     pb.GetDedupe(),
-		MaxSeriesN: int(pb.GetMaxSeriesN()),
-		Ordered:    pb.GetOrdered(),
+		Interval:    decodeInterval(pb.GetInterval()),
+		Dimensions:  pb.GetDimensions(),
+		Fill:        influxql.FillOption(pb.GetFill()),
+		StartTime:   pb.GetStartTime(),
+		EndTime:     pb.GetEndTime(),
+		Ascending:   pb.GetAscending(),
+		Limit:       int(pb.GetLimit()),
+		Offset:      int(pb.GetOffset()),
+		SLimit:      int(pb.GetSLimit()),
+		SOffset:     int(pb.GetSOffset()),
+		StripName:   pb.GetStripName(),
+		Dedupe:      pb.GetDedupe(),
+		MaxSeriesN:  int(pb.GetMaxSeriesN()),
+		Ordered:     pb.GetOrdered(),
+		NeedTimeRef: pb.GetNeedTimeRef(),
+	}
+
+	// Decode date_part GROUP BY dimensions and rebuild the grouper from them.
+	if dims := pb.GetDatePartDimensions(); len(dims) > 0 {
+		datePartDims := make([]DatePartDimension, len(dims))
+		for i, d := range dims {
+			// Reject a part this node does not know (corruption or a newer
+			// peer) here rather than grouping under a meaningless value.
+			expr := DatePartExpr(d.GetExpr())
+			if expr < Year || expr >= Invalid {
+				return nil, fmt.Errorf("invalid date_part dimension: %d", d.GetExpr())
+			}
+			datePartDims[i] = DatePartDimension{Expr: expr}
+		}
+		opt.DatePart = NewDatePartGrouper(datePartDims)
 	}
 
 	// Set expression, if set.

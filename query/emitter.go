@@ -12,6 +12,10 @@ type Emitter struct {
 	series  Series
 	row     *models.Row
 	columns []string
+
+	// grouping is the cursor when the query groups by date_part, and nil
+	// otherwise. A concrete pointer keeps Emitter in its base size class.
+	grouping *scannerCursorBase
 }
 
 // NewEmitter returns a new instance of Emitter that pulls from itrs.
@@ -20,11 +24,22 @@ func NewEmitter(cur Cursor, chunkSize int) *Emitter {
 	for i, col := range cur.Columns() {
 		columns[i] = col.Val
 	}
-	return &Emitter{
+	e := &Emitter{
 		cur:       cur,
 		chunkSize: chunkSize,
 		columns:   columns,
 	}
+	var grouping *scannerCursorBase
+	switch c := cur.(type) {
+	case *scannerCursor:
+		grouping = &c.scannerCursorBase
+	case *multiScannerCursor:
+		grouping = &c.scannerCursorBase
+	}
+	if grouping != nil && grouping.datePart != nil {
+		e.grouping = grouping
+	}
+	return e
 }
 
 // Close closes the underlying iterators.
@@ -34,6 +49,12 @@ func (e *Emitter) Close() error {
 
 // Emit returns the next row from the iterators.
 func (e *Emitter) Emit() (*models.Row, bool, error) {
+	// A query grouped by date_part takes a separate path so this one stays as
+	// it was for queries without date_part.
+	if e.grouping != nil {
+		return e.emitGrouped()
+	}
+
 	// Continually read from the cursor until it is exhausted.
 	for {
 		// Scan the next row. If there are no rows left, return the current row.
@@ -69,6 +90,39 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 	}
 }
 
+// emitGrouped is Emit for a query grouped by date_part, where the active GROUP
+// BY date_part dimension identifies the series along with the name and tags.
+func (e *Emitter) emitGrouped() (*models.Row, bool, error) {
+	for {
+		var row Row
+		if !e.cur.Scan(&row) {
+			if err := e.cur.Err(); err != nil {
+				return nil, false, err
+			}
+			r := e.row
+			e.row = nil
+			return r, false, nil
+		}
+
+		groupingKey := e.grouping.groupingKey
+		if e.row == nil {
+			e.createGroupedRow(row.Series, groupingKey, row.Values)
+		} else if e.series.SameSeries(row.Series) && e.row.GroupingKey == groupingKey {
+			if e.chunkSize > 0 && len(e.row.Values) >= e.chunkSize {
+				r := e.row
+				r.Partial = true
+				e.createGroupedRow(row.Series, groupingKey, row.Values)
+				return r, true, nil
+			}
+			e.row.Values = append(e.row.Values, row.Values)
+		} else {
+			r := e.row
+			e.createGroupedRow(row.Series, groupingKey, row.Values)
+			return r, true, nil
+		}
+	}
+}
+
 // createRow creates a new row attached to the emitter.
 func (e *Emitter) createRow(series Series, values []interface{}) {
 	e.series = series
@@ -78,4 +132,11 @@ func (e *Emitter) createRow(series Series, values []interface{}) {
 		Columns: e.columns,
 		Values:  [][]interface{}{values},
 	}
+}
+
+// createGroupedRow creates a new row for the GROUP BY date_part dimension
+// groupingKey (zero when the row has none).
+func (e *Emitter) createGroupedRow(series Series, groupingKey models.GroupingKey, values []interface{}) {
+	e.createRow(series, values)
+	e.row.GroupingKey = groupingKey
 }
