@@ -2378,12 +2378,7 @@ func TestMeasurementFieldSet_CloseConcurrent(t *testing.T) {
 	path := filepath.Join(dir, "fields.idx")
 	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
 	require.NoError(t, err)
-	_, _, err = mf.CreateFieldsIfNotExists([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
-	require.NoError(t, err)
-	require.NoError(t, mf.Save(tsdb.FieldChanges{{
-		FieldCreate: tsdb.FieldCreate{Measurement: []byte("cpu"), Field: &tsdb.Field{Name: "value", Type: influxql.Float}},
-		ChangeType:  tsdb.AddMeasurementField,
-	}}))
+	applyFieldSetOps(t, mf, []fieldSetOp{{measurement: "cpu", field: "value", typ: influxql.Float}})
 
 	var mu sync.RWMutex
 	var concurrency, maxConcurrency atomic.Int64
@@ -2424,9 +2419,7 @@ func TestMeasurementFieldSet_CloseConcurrent(t *testing.T) {
 	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
 	require.NoError(t, err)
 	defer checkMeasurementFieldSetClose(t, mf2)
-	fields := mf2.FieldsByString("cpu")
-	require.NotNil(t, fields, "cpu missing from fields.idx")
-	require.NotNil(t, fields.Field("value"), "cpu.value missing from fields.idx")
+	require.Equal(t, map[string]map[string]influxql.DataType{"cpu": {"value": influxql.Float}}, fieldSetContents(mf2), "fields.idx contents")
 }
 
 // TestMeasurementFieldSet_CloseAfterChangesFileFailure saves a change while
@@ -2460,9 +2453,7 @@ func TestMeasurementFieldSet_CloseAfterChangesFileFailure(t *testing.T) {
 	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
 	require.NoError(t, err)
 	defer checkMeasurementFieldSetClose(t, mf2)
-	fields := mf2.FieldsByString("cpu")
-	require.NotNil(t, fields, "cpu missing from fields.idx")
-	require.NotNil(t, fields.Field("value"), "cpu.value missing from fields.idx")
+	require.Equal(t, map[string]map[string]influxql.DataType{"cpu": {"value": influxql.Float}}, fieldSetContents(mf2), "fields.idx contents")
 }
 
 // TestMeasurementFieldSet_SaveDuringClose orders saves around Close. Saves

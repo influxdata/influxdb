@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	goslices "slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1909,9 +1910,8 @@ func (fs *MeasurementFieldSet) SaveAfter(fn func() (FieldChanges, error)) error 
 }
 
 func (fscm *measurementFieldSetChangeMgr) RequestSave(fn func() (FieldChanges, error)) error {
-	done := make(chan error)
-	queued, err := fscm.enqueue(done, fn)
-	if queued {
+	done, err := fscm.enqueue(fn)
+	if done != nil {
 		// The write errors already name the changes file.
 		err = errors.Join(err, <-done)
 	}
@@ -1920,25 +1920,27 @@ func (fscm *measurementFieldSetChangeMgr) RequestSave(fn func() (FieldChanges, e
 
 // enqueue runs fn and queues the changes it returns for SaveWriter, holding
 // off Close until both are done. After Close it returns
-// ErrMeasurementFieldSetClosed without running fn. queued reports whether
-// the result of writing the changes will be sent on done. enqueue does not
-// wait for the write, so Close never waits on a caller's changes file I/O.
-func (fscm *measurementFieldSetChangeMgr) enqueue(done errorChannel, fn func() (FieldChanges, error)) (queued bool, err error) {
+// ErrMeasurementFieldSetClosed without running fn. The result of writing the
+// changes arrives on done, which is nil if nothing was queued. enqueue does
+// not wait for the write, so Close never waits on a caller's changes file
+// I/O, and done is buffered, so SaveWriter never waits on a caller.
+func (fscm *measurementFieldSetChangeMgr) enqueue(fn func() (FieldChanges, error)) (done <-chan error, err error) {
 	if fscm == nil {
-		return false, fmt.Errorf("saving field changes without a change writer: %w", ErrMeasurementFieldSetClosed)
+		return nil, fmt.Errorf("saving field changes without a change writer: %w", ErrMeasurementFieldSetClosed)
 	}
 	fscm.chMu.RLock()
 	defer fscm.chMu.RUnlock()
 	if fscm.writeRequests == nil {
-		return false, fmt.Errorf("saving field changes to %s: %w", fscm.changeFilePath, ErrMeasurementFieldSetClosed)
+		return nil, fmt.Errorf("saving field changes to %s: %w", fscm.changeFilePath, ErrMeasurementFieldSetClosed)
 	}
 	changes, err := fn()
 	if len(changes) == 0 {
-		return false, err
+		return nil, err
 	}
+	written := make(chan error, 1)
 	fscm.changed.Store(true)
-	fscm.writeRequests <- writeRequest{errorReturn: done, changes: changes}
-	return true, err
+	fscm.writeRequests <- writeRequest{errorReturn: written, changes: changes}
+	return written, err
 }
 
 func (fscm *measurementFieldSetChangeMgr) SaveWriter(writeRequests <-chan writeRequest) {
@@ -2387,34 +2389,26 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 	// after a crash or a failed directory sync, and replaying the skipped
 	// changes could then fail, for a field added with one type before the
 	// deletion and with another type after it.
+	all := goslices.Concat(changes...)
 	lastDeletion := make(map[string]int)
-	n := 0
-	for _, fcs := range changes {
-		for _, fc := range fcs {
-			if fc.ChangeType == DeleteMeasurement {
-				lastDeletion[string(fc.Measurement)] = n
-			}
-			n++
+	for i, fc := range all {
+		if fc.ChangeType == DeleteMeasurement {
+			lastDeletion[string(fc.Measurement)] = i
 		}
 	}
 
-	n = 0
-	for _, fcs := range changes {
-		for _, fc := range fcs {
-			pos := n
-			n++
-			if last, ok := lastDeletion[string(fc.Measurement)]; ok && pos < last {
-				continue
-			}
-			if fc.ChangeType == DeleteMeasurement {
-				fs.Delete(string(fc.Measurement))
-			} else {
-				mf := fs.CreateFieldsIfNotExists(fc.Measurement)
-				if _, _, err := mf.CreateFieldIfNotExists(fc.Field.Name, fc.Field.Type); err != nil {
-					err = fmt.Errorf("failed creating %q.%q: %w", fc.Measurement, fc.Field.Name, err)
-					log.Error("field creation", zap.Error(err))
-					return err
-				}
+	for i, fc := range all {
+		if last, ok := lastDeletion[string(fc.Measurement)]; ok && i < last {
+			continue
+		}
+		if fc.ChangeType == DeleteMeasurement {
+			fs.Delete(string(fc.Measurement))
+		} else {
+			mf := fs.CreateFieldsIfNotExists(fc.Measurement)
+			if _, _, err := mf.CreateFieldIfNotExists(fc.Field.Name, fc.Field.Type); err != nil {
+				err = fmt.Errorf("failed creating %q.%q: %w", fc.Measurement, fc.Field.Name, err)
+				log.Error("field creation", zap.Error(err))
+				return err
 			}
 		}
 	}
