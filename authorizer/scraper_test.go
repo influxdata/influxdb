@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
@@ -27,6 +29,20 @@ var scraperCmpOptions = cmp.Options{
 		})
 		return out
 	}),
+}
+
+// scraperBuckets returns a bucket service in which bucket 100 is in org 10, the
+// bucket and org used by the scraper target fixtures below. Bucket 300 is a
+// second bucket in org 10, for moving a target to another bucket.
+func scraperBuckets() *mock.BucketService {
+	bs := mock.NewBucketService()
+	bs.FindBucketByIDFn = func(_ context.Context, id platform.ID) (*influxdb.Bucket, error) {
+		if id == 100 || id == 300 {
+			return &influxdb.Bucket{ID: id, OrgID: 10}, nil
+		}
+		return nil, influxdb.ErrBucketNotFound
+	}
+	return bs
 }
 
 func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
@@ -106,7 +122,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(), mock.NewOrganizationService(), scraperBuckets())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
@@ -231,7 +247,7 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
-				mock.NewOrganizationService())
+				mock.NewOrganizationService(), scraperBuckets())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
@@ -396,18 +412,158 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "bucket does not exist",
+			fields: fields{
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
+					GetTargetByIDF: func(ctc context.Context, id platform.ID) (*influxdb.ScraperTarget, error) {
+						return &influxdb.ScraperTarget{
+							ID:       1,
+							OrgID:    10,
+							BucketID: 100,
+						}, nil
+					},
+					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID platform.ID) (*influxdb.ScraperTarget, error) {
+						return upd, nil
+					},
+				},
+			},
+			args: args{
+				id:       1,
+				bucketID: 200,
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type: influxdb.ScraperResourceType,
+							ID:   influxdbtesting.IDPtr(1),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.BucketsResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: influxdb.ErrBucketNotFound,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
-				mock.NewOrganizationService())
+				mock.NewOrganizationService(), scraperBuckets())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: tt.args.id, BucketID: tt.args.bucketID}, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+		})
+	}
+}
+
+// TestScraperTargetStoreService_UpdateTarget_unsetIDs updates a target without
+// setting its org or bucket. The update reaches the store with the target's
+// current org and bucket, not with them left for the store to fill in.
+func TestScraperTargetStoreService_UpdateTarget_unsetIDs(t *testing.T) {
+	var got *influxdb.ScraperTarget
+	store := &mock.ScraperTargetStoreService{
+		GetTargetByIDF: func(context.Context, platform.ID) (*influxdb.ScraperTarget, error) {
+			return &influxdb.ScraperTarget{ID: 1, OrgID: 10, BucketID: 100}, nil
+		},
+		UpdateTargetF: func(_ context.Context, upd *influxdb.ScraperTarget, _ platform.ID) (*influxdb.ScraperTarget, error) {
+			got = upd
+			return upd, nil
+		},
+	}
+	s := authorizer.NewScraperTargetStoreService(store, mock.NewUserResourceMappingService(),
+		mock.NewOrganizationService(), scraperBuckets())
+
+	ctx := influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(false, []influxdb.Permission{
+		{
+			Action:   influxdb.WriteAction,
+			Resource: influxdb.Resource{Type: influxdb.ScraperResourceType, ID: influxdbtesting.IDPtr(1)},
+		},
+		{
+			Action:   influxdb.WriteAction,
+			Resource: influxdb.Resource{Type: influxdb.BucketsResourceType, ID: influxdbtesting.IDPtr(100)},
+		},
+	}))
+
+	_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: 1, Name: "renamed"}, platform.ID(1))
+	require.NoError(t, err)
+	require.Equal(t, &influxdb.ScraperTarget{ID: 1, Name: "renamed", OrgID: 10, BucketID: 100}, got)
+}
+
+// TestScraperTargetStoreService_UpdateTarget_newBucket moves a target from
+// bucket 100 to bucket 300, both in org 10. The caller must be able to write to
+// the new bucket as well as the current one.
+func TestScraperTargetStoreService_UpdateTarget_newBucket(t *testing.T) {
+	write := func(rt influxdb.ResourceType, id platform.ID) influxdb.Permission {
+		return influxdb.Permission{
+			Action:   influxdb.WriteAction,
+			Resource: influxdb.Resource{Type: rt, ID: influxdbtesting.IDPtr(id)},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		permissions []influxdb.Permission
+		wantErr     error
+	}{
+		{
+			name: "unauthorized to write to the new bucket",
+			permissions: []influxdb.Permission{
+				write(influxdb.ScraperResourceType, 1),
+				write(influxdb.BucketsResourceType, 100),
+			},
+			wantErr: &errors.Error{
+				Msg:  "write:orgs/000000000000000a/buckets/000000000000012c is unauthorized",
+				Code: errors.EUnauthorized,
+			},
+		},
+		{
+			name: "authorized to write to the new bucket",
+			permissions: []influxdb.Permission{
+				write(influxdb.ScraperResourceType, 1),
+				write(influxdb.BucketsResourceType, 100),
+				write(influxdb.BucketsResourceType, 300),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got *influxdb.ScraperTarget
+			store := &mock.ScraperTargetStoreService{
+				GetTargetByIDF: func(context.Context, platform.ID) (*influxdb.ScraperTarget, error) {
+					return &influxdb.ScraperTarget{ID: 1, OrgID: 10, BucketID: 100}, nil
+				},
+				UpdateTargetF: func(_ context.Context, upd *influxdb.ScraperTarget, _ platform.ID) (*influxdb.ScraperTarget, error) {
+					got = upd
+					return upd, nil
+				},
+			}
+			s := authorizer.NewScraperTargetStoreService(store, mock.NewUserResourceMappingService(),
+				mock.NewOrganizationService(), scraperBuckets())
+			ctx := influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(false, tt.permissions))
+
+			_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: 1, BucketID: 300}, platform.ID(1))
+
+			if tt.wantErr != nil {
+				require.EqualError(t, err, tt.wantErr.Error())
+				require.Equal(t, errors.ErrorCode(tt.wantErr), errors.ErrorCode(err))
+				require.Nil(t, got, "the update must not reach the store")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, &influxdb.ScraperTarget{ID: 1, OrgID: 10, BucketID: 300}, got)
 		})
 	}
 }
@@ -507,7 +663,7 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
-				mock.NewOrganizationService())
+				mock.NewOrganizationService(), scraperBuckets())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
@@ -642,12 +798,45 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "bucket does not exist",
+			fields: fields{
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
+					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID platform.ID) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				orgID:    10,
+				bucketID: 200,
+				permissions: []influxdb.Permission{
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.ScraperResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
+					},
+					{
+						Action: influxdb.WriteAction,
+						Resource: influxdb.Resource{
+							Type:  influxdb.BucketsResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: influxdb.ErrBucketNotFound,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
-				mock.NewOrganizationService())
+				mock.NewOrganizationService(), scraperBuckets())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))

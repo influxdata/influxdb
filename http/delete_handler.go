@@ -104,7 +104,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, err := influxdb.NewPermissionAtID(dr.Bucket.ID, influxdb.WriteAction, influxdb.BucketsResourceType, dr.Org.ID)
+	p, err := influxdb.NewPermissionAtID(dr.Bucket.ID, influxdb.WriteAction, influxdb.BucketsResourceType, dr.Bucket.OrgID)
 	if err != nil {
 		h.HandleHTTPError(ctx, &errors.Error{
 			Code: errors.EInternal,

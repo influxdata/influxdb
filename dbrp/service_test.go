@@ -2,12 +2,10 @@ package dbrp_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 )
@@ -16,13 +14,7 @@ func initDBRPMappingService(f itesting.DBRPMappingFields, t *testing.T) (influxd
 	s, closeStore := itesting.NewTestBoltStore(t)
 	if f.BucketSvc == nil {
 		f.BucketSvc = &mock.BucketService{
-			FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
-				// always find a bucket.
-				return &influxdb.Bucket{
-					ID:   id,
-					Name: fmt.Sprintf("bucket-%v", id),
-				}, nil
-			},
+			FindBucketByIDFn: itesting.FindDBRPMappingTestBucketByID,
 			FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 				return []*influxdb.Bucket{}, 0, nil
 			},

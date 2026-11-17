@@ -124,6 +124,192 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: true,
 		},
 		{
+			name: "matching action resource and ID with no org in permission",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(2),
+					ID:    influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type: platform.BucketsResourceType,
+						ID:   influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "matching action resource and ID with no org in request",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.BucketsResourceType,
+					ID:   influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "users permission with an org does not match by ID",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.UsersResourceType,
+					ID:   influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.UsersResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "orgs permission with an org does not match by ID",
+			permission: platform.Permission{
+				Action: platform.ReadAction,
+				Resource: platform.Resource{
+					Type: platform.OrgsResourceType,
+					ID:   influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.ReadAction,
+					Resource: platform.Resource{
+						Type:  platform.OrgsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "users permission by ID with no org",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.UsersResourceType,
+					ID:   influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type: platform.UsersResourceType,
+						ID:   influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "orgs permission by ID with no org",
+			permission: platform.Permission{
+				Action: platform.ReadAction,
+				Resource: platform.Resource{
+					Type: platform.OrgsResourceType,
+					ID:   influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.ReadAction,
+					Resource: platform.Resource{
+						Type: platform.OrgsResourceType,
+						ID:   influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "orgs permission by ID with no org matches a request with an org",
+			permission: platform.Permission{
+				Action: platform.ReadAction,
+				Resource: platform.Resource{
+					Type:  platform.OrgsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.ReadAction,
+					Resource: platform.Resource{
+						Type: platform.OrgsResourceType,
+						ID:   influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "orgs permission with an org matches a request with the same org",
+			permission: platform.Permission{
+				Action: platform.ReadAction,
+				Resource: platform.Resource{
+					Type:  platform.OrgsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.ReadAction,
+					Resource: platform.Resource{
+						Type:  platform.OrgsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "users permission for every user",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.UsersResourceType,
+					ID:   influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type: platform.UsersResourceType,
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
 			name: "matching action resource with total",
 			permission: platform.Permission{
 				Action: platform.WriteAction,

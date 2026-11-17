@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors3 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/query"
@@ -191,27 +192,8 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter taskmodel.RunF
 
 	  `, sb.ID.String(), filter.Task.String(), filterPart, constructedTimeFilter, filter.Limit-len(runs))
 
-	// At this point we are behind authorization
-	// so we are faking a read only permission to the org's system bucket
-	runSystemBucketID := sb.ID
-	runAuth := &influxdb.Authorization{
-		Status: influxdb.Active,
-		ID:     sb.ID,
-		OrgID:  task.OrganizationID,
-		Permissions: []influxdb.Permission{
-			{
-				Action: influxdb.ReadAction,
-				Resource: influxdb.Resource{
-					Type:  influxdb.BucketsResourceType,
-					OrgID: &task.OrganizationID,
-					ID:    &runSystemBucketID,
-				},
-			},
-		},
-	}
-	request := &query.Request{Authorization: runAuth, OrganizationID: task.OrganizationID, Compiler: lang.FluxCompiler{Query: runsScript}}
-
-	ittr, err := as.qs.Query(ctx, request)
+	qctx, request := systemBucketQuery(ctx, task.OrganizationID, sb.ID, runsScript)
+	ittr, err := as.qs.Query(qctx, request)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -254,6 +236,45 @@ func (as *AnalyticalStorage) combineRuns(currentRuns, completeRuns []*taskmodel.
 	return append(currentRuns, completeRuns...)
 }
 
+// systemBucketQuery returns a context and request for running script against
+// the org's task system bucket. Callers are already behind task authorization,
+// so the query runs with a read-only authorization instead of the caller's,
+// which may be absent (e.g. at startup) or lack org read.
+//
+// The authorization grants read on the org, which allows reading any of the
+// org's system buckets, and read on bucketID, which applies if that bucket is
+// not a system bucket.
+//
+// The authorization must be set on the context as well as the request, because
+// the query engine authorizes bucket lookups using the authorizer on the
+// context.
+func systemBucketQuery(ctx context.Context, orgID, bucketID platform.ID, script string) (context.Context, *query.Request) {
+	runAuth := &influxdb.Authorization{
+		ID:     bucketID,
+		Status: influxdb.Active,
+		OrgID:  orgID,
+		Permissions: []influxdb.Permission{
+			{
+				Action: influxdb.ReadAction,
+				Resource: influxdb.Resource{
+					Type: influxdb.OrgsResourceType,
+					ID:   &orgID,
+				},
+			},
+			{
+				Action: influxdb.ReadAction,
+				Resource: influxdb.Resource{
+					Type:  influxdb.BucketsResourceType,
+					OrgID: &orgID,
+					ID:    &bucketID,
+				},
+			},
+		},
+	}
+	request := &query.Request{Authorization: runAuth, OrganizationID: orgID, Compiler: lang.FluxCompiler{Query: script}}
+	return icontext.SetAuthorizer(ctx, runAuth), request
+}
+
 // FindRunByID returns a single run.
 // First see if it is in the existing TaskService. If not pull it from analytical storage.
 func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
@@ -288,27 +309,8 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID plat
 	|> filter(fn: (r) => r.runID == %q)
 	  `, sb.ID.String(), taskID.String(), runID.String())
 
-	// At this point we are behind authorization
-	// so we are faking a read only permission to the org's system bucket
-	runSystemBucketID := sb.ID
-	runAuth := &influxdb.Authorization{
-		ID:     sb.ID,
-		Status: influxdb.Active,
-		OrgID:  task.OrganizationID,
-		Permissions: []influxdb.Permission{
-			{
-				Action: influxdb.ReadAction,
-				Resource: influxdb.Resource{
-					Type:  influxdb.BucketsResourceType,
-					OrgID: &task.OrganizationID,
-					ID:    &runSystemBucketID,
-				},
-			},
-		},
-	}
-	request := &query.Request{Authorization: runAuth, OrganizationID: task.OrganizationID, Compiler: lang.FluxCompiler{Query: findRunScript}}
-
-	ittr, err := as.qs.Query(ctx, request)
+	qctx, request := systemBucketQuery(ctx, task.OrganizationID, sb.ID, findRunScript)
+	ittr, err := as.qs.Query(qctx, request)
 	if err != nil {
 		return nil, err
 	}

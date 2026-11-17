@@ -16,11 +16,39 @@ func (BucketLookup) Lookup(_ context.Context, orgID platform2.ID, name string) (
 	return platform2.InvalidID(), false
 }
 
+func (BucketLookup) LookupByID(_ context.Context, orgID platform2.ID, id platform2.ID) (platform2.ID, bool) {
+	if id == 1 {
+		return platform2.ID(1), true
+	}
+	return platform2.InvalidID(), false
+}
+
 func (BucketLookup) LookupName(_ context.Context, orgID platform2.ID, id platform2.ID) string {
 	if id == 1 {
 		return "my-bucket"
 	}
 	return ""
+}
+
+// BucketLookupFn implements the BucketLookup interface needed by flux "from" and "to"
+// by delegating to its function fields. A nil function field reports the bucket as not found.
+type BucketLookupFn struct {
+	LookupFn     func(ctx context.Context, orgID platform2.ID, name string) (platform2.ID, bool)
+	LookupByIDFn func(ctx context.Context, orgID platform2.ID, id platform2.ID) (platform2.ID, bool)
+}
+
+func (b BucketLookupFn) Lookup(ctx context.Context, orgID platform2.ID, name string) (platform2.ID, bool) {
+	if b.LookupFn == nil {
+		return platform2.InvalidID(), false
+	}
+	return b.LookupFn(ctx, orgID, name)
+}
+
+func (b BucketLookupFn) LookupByID(ctx context.Context, orgID platform2.ID, id platform2.ID) (platform2.ID, bool) {
+	if b.LookupByIDFn == nil {
+		return platform2.InvalidID(), false
+	}
+	return b.LookupByIDFn(ctx, orgID, id)
 }
 
 // OrganizationLookup implements the OrganizationLookup interface needed by flux "from" and "to".

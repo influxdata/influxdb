@@ -30,6 +30,24 @@ import (
 
 var ctx = context.Background()
 
+func TestLauncher_Pkger_ExportBucketByIDWithNewName(t *testing.T) {
+	l := RunAndSetupNewLauncherOrFail(ctx, t, func(o *InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel
+	})
+	defer l.ShutdownOrFail(t, ctx)
+
+	template, err := l.PkgerService(t).Export(ctx, pkger.ExportWithExistingResources(pkger.ResourceToClone{
+		Kind: pkger.KindBucket,
+		ID:   l.Bucket.ID,
+		Name: "new name",
+	}))
+	require.NoError(t, err)
+
+	bkts := template.Summary().Buckets
+	require.Len(t, bkts, 1)
+	require.Equal(t, "new name", bkts[0].Name)
+}
+
 func TestLauncher_Pkger(t *testing.T) {
 	l := RunAndSetupNewLauncherOrFail(ctx, t, func(o *InfluxdOpts) {
 		o.LogLevel = zap.ErrorLevel

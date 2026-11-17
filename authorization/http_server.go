@@ -308,7 +308,7 @@ func (h *AuthHandler) newPermissionsResponse(ctx context.Context, ps []influxdb.
 		}
 
 		if p.Resource.ID != nil {
-			name, err := h.getNameForResource(ctx, p.Resource.Type, *p.Resource.ID)
+			name, err := h.getNameForPermission(ctx, p)
 			if errors.ErrorCode(err) == errors.ENotFound {
 				continue
 			}
@@ -330,6 +330,31 @@ func (h *AuthHandler) newPermissionsResponse(ctx context.Context, ps []influxdb.
 		}
 	}
 	return res, nil
+}
+
+// getNameForPermission returns the name of the resource that p names by ID. A
+// bucket permission with an organization only names a bucket in that
+// organization. Users and organizations don't belong to an organization, so a
+// permission that names one by ID and has an organization names nothing.
+// p.Resource.ID must not be nil.
+func (h *AuthHandler) getNameForPermission(ctx context.Context, p influxdb.Permission) (string, error) {
+	r := p.Resource
+	if r.OrgID != nil {
+		switch r.Type {
+		case influxdb.UsersResourceType, influxdb.OrgsResourceType:
+			return "", &errors.Error{Code: errors.ENotFound, Msg: "resource not found"}
+		case influxdb.BucketsResourceType:
+			if ok := r.ID.Valid(); !ok {
+				return "", platform.ErrInvalidID
+			}
+			b, err := influxdb.FindBucketInOrg(ctx, h.tenantService, *r.OrgID, *r.ID)
+			if err != nil {
+				return "", err
+			}
+			return b.Name, nil
+		}
+	}
+	return h.getNameForResource(ctx, r.Type, *r.ID)
 }
 
 func (h *AuthHandler) getNameForResource(ctx context.Context, resource influxdb.ResourceType, id platform.ID) (string, error) {
