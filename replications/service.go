@@ -152,7 +152,7 @@ func (s *service) CreateReplication(ctx context.Context, request influxdb.Create
 		return nil, fmt.Errorf("please supply one of: remoteBucketID, remoteBucketName")
 	}
 
-	if _, err := s.bucketService.FindBucketByID(ctx, request.LocalBucketID); err != nil {
+	if _, err := influxdb.FindBucketInOrg(ctx, s.bucketService, request.OrgID, request.LocalBucketID); err != nil {
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 
@@ -174,7 +174,7 @@ func (s *service) CreateReplication(ctx context.Context, request influxdb.Create
 }
 
 func (s *service) ValidateNewReplication(ctx context.Context, request influxdb.CreateReplicationRequest) error {
-	if _, err := s.bucketService.FindBucketByID(ctx, request.LocalBucketID); err != nil {
+	if _, err := influxdb.FindBucketInOrg(ctx, s.bucketService, request.OrgID, request.LocalBucketID); err != nil {
 		return errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 

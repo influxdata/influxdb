@@ -246,7 +246,11 @@ func TestCreateReplication(t *testing.T) {
 			mocks.serviceStore.EXPECT().Lock()
 			mocks.serviceStore.EXPECT().Unlock()
 
-			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.create.LocalBucketID).Return(nil, tt.bucketErr)
+			var bucket *influxdb.Bucket
+			if tt.bucketErr == nil {
+				bucket = &influxdb.Bucket{ID: tt.create.LocalBucketID, OrgID: tt.create.OrgID}
+			}
+			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.create.LocalBucketID).Return(bucket, tt.bucketErr)
 
 			if tt.bucketErr == nil {
 				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes, tt.create.OrgID, tt.create.LocalBucketID, tt.create.MaxAgeSeconds).Return(tt.queueManagerErr)
@@ -310,7 +314,11 @@ func TestValidateNewReplication(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mocks := newTestService(t)
 
-			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.req.LocalBucketID).Return(nil, tt.bucketErr)
+			var bucket *influxdb.Bucket
+			if tt.bucketErr == nil {
+				bucket = &influxdb.Bucket{ID: tt.req.LocalBucketID, OrgID: tt.req.OrgID}
+			}
+			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.req.LocalBucketID).Return(bucket, tt.bucketErr)
 
 			testConfig := &influxdb.ReplicationHTTPConfig{RemoteBucketID: &tt.req.RemoteBucketID}
 			if tt.bucketErr == nil {

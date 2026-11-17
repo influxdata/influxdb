@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 const (
@@ -99,6 +100,30 @@ type BucketService interface {
 	// DeleteBucket removes a bucket by ID.
 	DeleteBucket(ctx context.Context, id platform.ID) error
 	FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*Bucket, error)
+}
+
+// ErrBucketNotFound is returned when a bucket cannot be found.
+var ErrBucketNotFound = &errors.Error{
+	Code: errors.ENotFound,
+	Msg:  "bucket not found",
+}
+
+// BucketByIDFinder finds a bucket by ID.
+type BucketByIDFinder interface {
+	FindBucketByID(ctx context.Context, id platform.ID) (*Bucket, error)
+}
+
+// FindBucketInOrg returns the bucket with the given id in orgID.
+// It returns ErrBucketNotFound if there is no such bucket in orgID.
+func FindBucketInOrg(ctx context.Context, bs BucketByIDFinder, orgID, id platform.ID) (*Bucket, error) {
+	b, err := bs.FindBucketByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if b == nil || b.OrgID != orgID {
+		return nil, ErrBucketNotFound
+	}
+	return b, nil
 }
 
 // BucketUpdate represents updates to a bucket.

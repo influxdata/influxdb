@@ -1122,6 +1122,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		TSDBStore:         m.engine.TSDBStore(),
 		ShardMapper:       mapper,
 		DBRP:              dbrpSvc,
+		BucketService:     ts.BucketService,
 		MaxSelectPointN:   opts.CoordinatorConfig.MaxSelectPointN,
 		MaxSelectSeriesN:  opts.CoordinatorConfig.MaxSelectSeriesN,
 		MaxSelectBucketsN: opts.CoordinatorConfig.MaxSelectBucketsN,

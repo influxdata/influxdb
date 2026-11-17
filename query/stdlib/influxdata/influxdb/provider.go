@@ -196,33 +196,7 @@ func (p Provider) readFilterSpec(ctx context.Context, conf influxdb.Config, boun
 }
 
 func (p Provider) lookupBucketID(ctx context.Context, orgID platform.ID, bucket influxdb.NameOrID) (platform.ID, error) {
-	// Determine bucketID
-	switch {
-	case bucket.Name != "":
-		b, ok := p.BucketLookup.Lookup(ctx, orgID, bucket.Name)
-		if !ok {
-			return 0, &flux.Error{
-				Code: codes.NotFound,
-				Msg:  fmt.Sprintf("could not find bucket %q", bucket.Name),
-			}
-		}
-		return b, nil
-	case len(bucket.ID) != 0:
-		var b platform.ID
-		if err := b.DecodeFromString(bucket.ID); err != nil {
-			return 0, &flux.Error{
-				Code: codes.Invalid,
-				Msg:  "invalid bucket id",
-				Err:  err,
-			}
-		}
-		return b, nil
-	default:
-		return 0, &flux.Error{
-			Code: codes.Invalid,
-			Msg:  "no bucket name or id have been specified",
-		}
-	}
+	return lookupBucketID(ctx, orgID, p.BucketLookup, bucket.Name, bucket.ID)
 }
 
 type seriesCardinalityReader struct {

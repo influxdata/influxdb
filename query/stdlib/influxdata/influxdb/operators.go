@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -72,33 +71,7 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 }
 
 func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID platform.ID, buckets BucketLookup) (platform.ID, error) {
-	// Determine bucketID
-	switch {
-	case s.Bucket != "":
-		b, ok := buckets.Lookup(ctx, orgID, s.Bucket)
-		if !ok {
-			return 0, &flux.Error{
-				Code: codes.NotFound,
-				Msg:  fmt.Sprintf("could not find bucket %q", s.Bucket),
-			}
-		}
-		return b, nil
-	case len(s.BucketID) != 0:
-		var b platform.ID
-		if err := b.DecodeFromString(s.BucketID); err != nil {
-			return 0, &flux.Error{
-				Code: codes.Invalid,
-				Msg:  "invalid bucket id",
-				Err:  err,
-			}
-		}
-		return b, nil
-	default:
-		return 0, &flux.Error{
-			Code: codes.Invalid,
-			Msg:  "no bucket name or id have been specified",
-		}
-	}
+	return lookupBucketID(ctx, orgID, buckets, s.Bucket, s.BucketID)
 }
 
 // TimeBounds implements plan.BoundsAwareProcedureSpec.

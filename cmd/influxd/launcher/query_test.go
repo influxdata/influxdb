@@ -169,6 +169,50 @@ func TestLauncher_WriteV2_Query(t *testing.T) {
 
 }
 
+// TestLauncher_InfluxQL_Delete removes measurements through a 1.x database and
+// checks that the rest of the bucket's data stays.
+func TestLauncher_InfluxQL_Delete(t *testing.T) {
+	be := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer be.ShutdownOrFail(t, ctx)
+
+	now := time.Now().UTC().UnixNano()
+	be.WritePointsOrFail(t, fmt.Sprintf("deleted n=1i %d\ndropped n=1i %d\nkept n=1i %d", now, now, now))
+
+	require.NoError(t, be.DBRPMappingService().Create(context2.SetAuthorizer(ctx, mock.NewMockAuthorizer(true, nil)), &influxdb.DBRPMapping{
+		Database:        "mydb",
+		RetentionPolicy: "autogen",
+		Default:         true,
+		OrganizationID:  be.Org.ID,
+		BucketID:        be.Bucket.ID,
+	}))
+
+	bucketContents := func(t *testing.T) string {
+		t.Helper()
+		return be.FluxQueryOrFail(t, be.Org, be.Auth.Token,
+			fmt.Sprintf(`from(bucket: %q) |> range(start: -1h)`, be.Bucket.Name))
+	}
+
+	for _, tt := range []struct {
+		stmt        string
+		measurement string
+	}{
+		{stmt: "DELETE FROM deleted", measurement: "deleted"},
+		{stmt: "DROP MEASUREMENT dropped", measurement: "dropped"},
+	} {
+		t.Run(tt.stmt, func(t *testing.T) {
+			require.Contains(t, bucketContents(t), tt.measurement)
+
+			req := be.NewHTTPRequestOrFail(t, "POST", "/query?db=mydb", be.Auth.Token, tt.stmt)
+			req.Header.Set("Content-Type", "application/vnd.influxql")
+			require.JSONEq(t, `{}`, string(mustDoRequest(t, req, nethttp.StatusOK)))
+
+			got := bucketContents(t)
+			require.NotContains(t, got, tt.measurement)
+			require.Contains(t, got, "kept")
+		})
+	}
+}
+
 func getMemoryUnused(t *testing.T, reg *prom.Registry) int64 {
 	t.Helper()
 
@@ -799,6 +843,31 @@ from(bucket: "%s")
 
 	// Make sure that the data we stored matches the CSV
 	if err := executetest.EqualResultIterators(csvResultIterator, fromResultIterator); err != nil {
+		t.Fatal(err)
+	}
+
+	// experimental.to() can also address the target bucket by ID.
+	byIDBucket := &influxdb.Bucket{OrgID: l.Org.ID, Name: "experimental-to-by-id"}
+	require.NoError(t, l.BucketService(t).CreateBucket(ctx, byIDBucket))
+	res = l.MustExecuteQuery(pivotQuery + fmt.Sprintf(`|> experimental.to(bucketID: "%s") |> yield(name: "_result")`, byIDBucket.ID))
+	// Points are written as the output is consumed.
+	for _, r := range res.Results {
+		require.NoError(t, r.Tables().Do(func(tbl flux.Table) error {
+			return tbl.Do(func(flux.ColReader) error { return nil })
+		}))
+	}
+	res.Done()
+
+	res = l.MustExecuteQuery(csvQuery)
+	defer res.Done()
+	csvResultIterator = flux.NewSliceResultIterator(res.Results)
+	res = l.MustExecuteQuery(fmt.Sprintf(`
+from(bucket: "%s")
+  |> range(start: 2018-05-15T00:00:00Z, stop: 2018-06-01T00:00:00Z)
+  |> drop(columns: ["_start", "_stop"])
+`, byIDBucket.Name))
+	defer res.Done()
+	if err := executetest.EqualResultIterators(csvResultIterator, flux.NewSliceResultIterator(res.Results)); err != nil {
 		t.Fatal(err)
 	}
 }

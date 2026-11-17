@@ -202,8 +202,9 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platform.ID(2),
-							Name: "bucket1",
+							ID:    platform.ID(2),
+							OrgID: platform.ID(1),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -252,8 +253,9 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platform.ID(2),
-							Name: "bucket1",
+							ID:    platform.ID(2),
+							OrgID: platform.ID(1),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -303,8 +305,9 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platform.ID(2),
-							Name: "bucket1",
+							ID:    platform.ID(2),
+							OrgID: platform.ID(1),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -357,8 +360,9 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platform.ID(2),
-							Name: "bucket1",
+							ID:    platform.ID(2),
+							OrgID: platform.ID(1),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -411,8 +415,9 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platform.ID(2),
-							Name: "bucket1",
+							ID:    platform.ID(2),
+							OrgID: platform.ID(1),
+							Name:  "bucket1",
 						}, nil
 					},
 				},
@@ -465,8 +470,9 @@ func TestDelete(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:   platform.ID(2),
-							Name: "bucket1",
+							ID:    platform.ID(2),
+							OrgID: platform.ID(1),
+							Name:  "bucket1",
 						}, nil
 					},
 				},

@@ -221,11 +221,11 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 
 	switch {
 	case r.Kind.is(KindBucket):
+		// With an ID, r.Name is the bucket's name in the template, not a filter.
 		filter := influxdb.BucketFilter{}
 		if r.ID != platform.ID(0) {
 			filter.ID = &r.ID
-		}
-		if len(r.Name) > 0 {
+		} else if len(r.Name) > 0 {
 			filter.Name = &r.Name
 		}
 

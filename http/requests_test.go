@@ -134,21 +134,50 @@ func Test_queryBucket(t *testing.T) {
 		{
 			name: "bucket id finds bucket",
 			want: &platform.Bucket{
-				ID: platform2.ID(1),
+				ID:    platform2.ID(1),
+				OrgID: platform2.ID(1),
 			},
 			args: args{
 				ctx: context.Background(),
 				r:   httptest.NewRequest(http.MethodPost, "/api/v2/query?bucketID=0000000000000001", nil),
 				svc: &mock.BucketService{
-					FindBucketFn: func(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
-						if *filter.ID == platform2.ID(1) {
+					FindBucketByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Bucket, error) {
+						if id == platform2.ID(1) {
 							return &platform.Bucket{
-								ID: platform2.ID(1),
+								ID:    platform2.ID(1),
+								OrgID: platform2.ID(1),
 							}, nil
 						}
 						return nil, &errors.Error{
 							Code: errors.EInvalid,
 							Msg:  "unknown org name",
+						}
+					},
+				},
+			},
+		},
+		{
+			name: "bucket id takes precedence over bucket name",
+			want: &platform.Bucket{
+				ID:    platform2.ID(1),
+				OrgID: platform2.ID(1),
+				Name:  "bucket1",
+			},
+			args: args{
+				ctx: context.Background(),
+				r:   httptest.NewRequest(http.MethodPost, "/api/v2/query?bucket=bucket2&bucketID=0000000000000001", nil),
+				svc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Bucket, error) {
+						if id == platform2.ID(1) {
+							return &platform.Bucket{
+								ID:    platform2.ID(1),
+								OrgID: platform2.ID(1),
+								Name:  "bucket1",
+							}, nil
+						}
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
+							Msg:  "bucket not found",
 						}
 					},
 				},
@@ -190,16 +219,18 @@ func Test_queryBucket(t *testing.T) {
 		{
 			name: "bucket id as bucket finds bucket",
 			want: &platform.Bucket{
-				ID: platform2.ID(1),
+				ID:    platform2.ID(1),
+				OrgID: platform2.ID(1),
 			},
 			args: args{
 				ctx: context.Background(),
 				r:   httptest.NewRequest(http.MethodPost, "/api/v2/query?bucket=0000000000000001", nil),
 				svc: &mock.BucketService{
-					FindBucketFn: func(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
-						if *filter.ID == platform2.ID(1) {
+					FindBucketByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Bucket, error) {
+						if id == platform2.ID(1) {
 							return &platform.Bucket{
-								ID: platform2.ID(1),
+								ID:    platform2.ID(1),
+								OrgID: platform2.ID(1),
 							}, nil
 						}
 						return nil, &errors.Error{
@@ -213,16 +244,18 @@ func Test_queryBucket(t *testing.T) {
 		{
 			name: "invalid orgID fails to return bucket",
 			want: &platform.Bucket{
-				ID: platform2.ID(1),
+				ID:    platform2.ID(1),
+				OrgID: platform2.ID(1),
 			},
 			args: args{
 				ctx: context.Background(),
 				r:   httptest.NewRequest(http.MethodPost, "/api/v2/query?bucket=0000000000000001", nil),
 				svc: &mock.BucketService{
-					FindBucketFn: func(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
-						if *filter.OrganizationID == platform2.ID(1) {
+					FindBucketByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Bucket, error) {
+						if id == platform2.ID(1) {
 							return &platform.Bucket{
-								ID: platform2.ID(1),
+								ID:    platform2.ID(1),
+								OrgID: platform2.ID(1),
 							}, nil
 						}
 						return nil, &errors.Error{

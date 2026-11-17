@@ -14,18 +14,32 @@ var _ influxdb.ScraperTargetStoreService = (*ScraperTargetStoreService)(nil)
 type ScraperTargetStoreService struct {
 	influxdb.UserResourceMappingService
 	influxdb.OrganizationService
-	s influxdb.ScraperTargetStoreService
+	s       influxdb.ScraperTargetStoreService
+	buckets influxdb.BucketByIDFinder
 }
 
 // NewScraperTargetStoreService constructs an instance of an authorizing scraper target store service.
 func NewScraperTargetStoreService(s influxdb.ScraperTargetStoreService,
 	urm influxdb.UserResourceMappingService,
 	org influxdb.OrganizationService,
+	buckets influxdb.BucketByIDFinder,
 ) *ScraperTargetStoreService {
 	return &ScraperTargetStoreService{
 		UserResourceMappingService: urm,
 		s:                          s,
+		buckets:                    buckets,
 	}
+}
+
+// authorizeTargetBucket checks that bucketID is a bucket in orgID and that the
+// authorizer on context has write access to it.
+func (s *ScraperTargetStoreService) authorizeTargetBucket(ctx context.Context, orgID, bucketID platform.ID) error {
+	b, err := influxdb.FindBucketInOrg(ctx, s.buckets, orgID, bucketID)
+	if err != nil {
+		return err
+	}
+	_, _, err = AuthorizeWrite(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
+	return err
 }
 
 // GetTargetByID checks to see if the authorizer on context has read access to the id provided.
@@ -52,18 +66,21 @@ func (s *ScraperTargetStoreService) ListTargets(ctx context.Context, filter infl
 	return ss, err
 }
 
-// AddTarget checks to see if the authorizer on context has write access to the global scraper target resource.
+// AddTarget checks to see if the authorizer on context has write access to the global scraper target resource,
+// that the target's bucket is in the target's organization, and that the caller can write to it.
 func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.ScraperTarget, userID platform.ID) error {
 	if _, _, err := AuthorizeCreate(ctx, influxdb.ScraperResourceType, st.OrgID); err != nil {
 		return err
 	}
-	if _, _, err := AuthorizeWrite(ctx, influxdb.BucketsResourceType, st.BucketID, st.OrgID); err != nil {
+	if err := s.authorizeTargetBucket(ctx, st.OrgID, st.BucketID); err != nil {
 		return err
 	}
 	return s.s.AddTarget(ctx, st, userID)
 }
 
 // UpdateTarget checks to see if the authorizer on context has write access to the scraper target provided.
+// The updated target's bucket must be in the updated target's organization, and the caller must be able to
+// write to it. Moving the target to a different organization requires create access to scrapers in that organization.
 func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influxdb.ScraperTarget, userID platform.ID) (*influxdb.ScraperTarget, error) {
 	st, err := s.s.GetTargetByID(ctx, upd.ID)
 	if err != nil {
@@ -75,6 +92,27 @@ func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influ
 	if _, _, err := AuthorizeWrite(ctx, influxdb.BucketsResourceType, st.BucketID, st.OrgID); err != nil {
 		return nil, err
 	}
+
+	// Unset IDs keep their stored values.
+	orgID, bucketID := st.OrgID, st.BucketID
+	if upd.OrgID.Valid() {
+		orgID = upd.OrgID
+	}
+	if upd.BucketID.Valid() {
+		bucketID = upd.BucketID
+	}
+	if orgID != st.OrgID {
+		if _, _, err := AuthorizeCreate(ctx, influxdb.ScraperResourceType, orgID); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.authorizeTargetBucket(ctx, orgID, bucketID); err != nil {
+		return nil, err
+	}
+
+	// Store the IDs that were checked, so that the store doesn't fill in unset
+	// IDs from a target that has changed since.
+	upd.OrgID, upd.BucketID = orgID, bucketID
 	return s.s.UpdateTarget(ctx, upd, userID)
 }
 

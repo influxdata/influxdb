@@ -114,10 +114,7 @@ func NewWriteHandler(log *zap.Logger, b *WriteBackend, opts ...WriteHandlerOptio
 
 func (h *WriteHandler) findBucket(ctx context.Context, orgID platform.ID, bucket string) (*influxdb.Bucket, error) {
 	if id, err := platform.IDFromString(bucket); err == nil {
-		b, err := h.BucketService.FindBucket(ctx, influxdb.BucketFilter{
-			OrganizationID: &orgID,
-			ID:             id,
-		})
+		b, err := influxdb.FindBucketInOrg(ctx, h.BucketService, orgID, *id)
 		if err != nil && errors.ErrorCode(err) != errors.ENotFound {
 			return nil, err
 		} else if err == nil {
@@ -174,7 +171,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	span.LogKV("bucket_id", bucket.ID)
 
-	if err := checkBucketWritePermissions(auth, org.ID, bucket.ID); err != nil {
+	if err := checkBucketWritePermissions(auth, bucket.OrgID, bucket.ID); err != nil {
 		h.HandleHTTPError(ctx, err, sw)
 		return
 	}

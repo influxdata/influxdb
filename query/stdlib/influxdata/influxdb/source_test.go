@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/dependencies/dependenciestest"
 	"github.com/influxdata/flux/dependency"
 	"github.com/influxdata/flux/execute"
@@ -22,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxdb/v2/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 )
 
 type mockTableIterator struct {
@@ -281,7 +283,12 @@ func TestReadWindowAggregateSource(t *testing.T) {
 			metrics := influxdb.NewMetrics(nil)
 			deps := influxdb.StorageDependencies{
 				FromDeps: influxdb.FromDependencies{
-					Reader:  reader,
+					Reader: reader,
+					BucketLookup: mock.BucketLookupFn{
+						LookupByIDFn: func(_ context.Context, _ platform2.ID, id platform2.ID) (platform2.ID, bool) {
+							return id, id == bucketID
+						},
+					},
 					Metrics: metrics,
 				},
 			}
@@ -305,4 +312,101 @@ func TestReadWindowAggregateSource(t *testing.T) {
 			return s
 		},
 	)
+}
+
+// TestCreateSource_BucketID ensures that every storage source resolves an
+// explicit bucket ID through the BucketLookup and refuses to read a bucket the
+// lookup rejects.
+func TestCreateSource_BucketID(t *testing.T) {
+	orgID, allowedID, deniedID := platform2.ID(1), platform2.ID(2), platform2.ID(3)
+
+	sources := []struct {
+		name   string
+		create func(spec influxdb.ReadRangePhysSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error)
+	}{
+		{
+			name: "ReadFilter",
+			create: func(spec influxdb.ReadRangePhysSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+				return influxdb.CreateReadFilterSource(&spec, id, a)
+			},
+		},
+		{
+			name: "ReadGroup",
+			create: func(spec influxdb.ReadRangePhysSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+				return influxdb.CreateReadGroupSource(&influxdb.ReadGroupPhysSpec{ReadRangePhysSpec: spec}, id, a)
+			},
+		},
+		{
+			name: "ReadWindowAggregate",
+			create: func(spec influxdb.ReadRangePhysSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+				return influxdb.CreateReadWindowAggregateSource(&influxdb.ReadWindowAggregatePhysSpec{ReadRangePhysSpec: spec}, id, a)
+			},
+		},
+		{
+			name: "ReadTagKeys",
+			create: func(spec influxdb.ReadRangePhysSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+				return influxdb.CreateReadTagKeysSource(&influxdb.ReadTagKeysPhysSpec{ReadRangePhysSpec: spec}, id, a)
+			},
+		},
+		{
+			name: "ReadTagValues",
+			create: func(spec influxdb.ReadRangePhysSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+				return influxdb.CreateReadTagValuesSource(&influxdb.ReadTagValuesPhysSpec{ReadRangePhysSpec: spec, TagKey: "host"}, id, a)
+			},
+		},
+	}
+
+	for _, src := range sources {
+		for _, tc := range []struct {
+			name     string
+			bucketID platform2.ID
+			wantErr  bool
+		}{
+			{name: "allowed", bucketID: allowedID},
+			{name: "denied", bucketID: deniedID, wantErr: true},
+		} {
+			t.Run(src.name+"/"+tc.name, func(t *testing.T) {
+				var lookups []platform2.ID
+				deps := influxdb.StorageDependencies{
+					FromDeps: influxdb.FromDependencies{
+						Reader: &mockReader{},
+						BucketLookup: mock.BucketLookupFn{
+							LookupByIDFn: func(_ context.Context, gotOrgID platform2.ID, id platform2.ID) (platform2.ID, bool) {
+								require.Equal(t, orgID, gotOrgID)
+								lookups = append(lookups, id)
+								if id != allowedID {
+									return platform2.InvalidID(), false
+								}
+								return id, true
+							},
+						},
+						Metrics: influxdb.NewMetrics(nil),
+					},
+				}
+				ctx, span := dependency.Inject(context.Background(), deps)
+				defer span.Finish()
+				ctx = query.ContextWithRequest(ctx, &query.Request{
+					OrganizationID: orgID,
+				})
+				a := mockAdministration{
+					Ctx: ctx,
+					StreamBounds: &execute.Bounds{
+						Start: execute.Time(0),
+						Stop:  execute.Time(30),
+					},
+				}
+
+				spec := influxdb.ReadRangePhysSpec{BucketID: tc.bucketID.String()}
+				s, err := src.create(spec, execute.DatasetID(uuid.FromTime(time.Now())), a)
+				require.Equal(t, []platform2.ID{tc.bucketID}, lookups)
+				if tc.wantErr {
+					require.Nil(t, s)
+					require.Equal(t, codes.NotFound, flux.ErrorCode(err))
+					return
+				}
+				require.NoError(t, err)
+				require.NotNil(t, s)
+			})
+		}
+	}
 }
