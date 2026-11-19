@@ -574,8 +574,9 @@ func (cm *TLSConfigManager) setLogger(logger *zap.Logger) {
 	cm.logger = cm.logger.With(zap.String(logUsageContext, cm.usage))
 }
 
-// checkClientCertificate sanity checks the certificate the client will present
-// for client authentication, returning an error if the load should fail.
+// checkClientCertificate sanity checks clientCert, the certificate the client
+// will present for client authentication, returning an error if the load should
+// fail.
 //
 // The checks live here rather than in the cert loader because they need what
 // only the manager knows: whether the certificate is the client's own or
@@ -600,7 +601,7 @@ func (cm *TLSConfigManager) setLogger(logger *zap.Logger) {
 // will verify this client in turn.
 //
 // An error is downgraded to a warning when sanity checks are being ignored.
-func (cm *TLSConfigManager) checkClientCertificate(c *tlsConfigManagerConfig) error {
+func (cm *TLSConfigManager) checkClientCertificate(c *tlsConfigManagerConfig, clientCert LoadedCertificate) error {
 	certPath, keyPath, usingFallback := c.clientCertificatePaths()
 
 	// Both of these only mean something for a manager that is also a server: a
@@ -622,7 +623,7 @@ func (cm *TLSConfigManager) checkClientCertificate(c *tlsConfigManagerConfig) er
 		verifiedOnlyErrs []error
 	)
 
-	if certPath == "" && keyPath == "" {
+	if clientCert.IsEmpty() {
 		// Presenting no client certificate is a valid configuration, until a
 		// peer demands one and checks it.
 		if !peersVerify {
@@ -632,18 +633,9 @@ func (cm *TLSConfigManager) checkClientCertificate(c *tlsConfigManagerConfig) er
 			"%s: no client certificate is configured, but client certificates are verified: %w",
 			cm.usage, ErrCertificateEmpty))
 	} else {
-		// The cert loader has already prepared this same certificate, so a read
-		// failure here is a race with a changing file rather than something for
-		// this check to report.
-		loadedCert, err := LoadCertificate(certPath, keyPath,
-			WithLoadCertificateIgnoreFilePermissions(c.ignoreFilePermissions))
-		if err != nil {
-			return nil
-		}
-
 		// A leaf that will not parse is a fault rather than a judgment, so it
 		// fails the load even when sanity checks are ignored.
-		leaf, err := loadedCert.GetLeaf()
+		leaf, err := clientCert.GetLeaf()
 		if err != nil {
 			return fmt.Errorf("%s: %w", cm.usage, err)
 		}
@@ -698,16 +690,18 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 	}
 	if !c.useTLS {
 		return func() error {
+			// Stop serving TLS before discarding the certificates.
+			cm.mu.Lock()
+			cm.config = c
+			cm.tlsConfig = nil
+			cm.mu.Unlock()
+
 			if cm.clientCertLoader != nil {
 				cm.clientCertLoader.Clear()
 			}
 			if cm.serverCertLoader != nil {
 				cm.serverCertLoader.Clear()
 			}
-			cm.mu.Lock()
-			defer cm.mu.Unlock()
-			cm.config = c
-			cm.tlsConfig = nil
 
 			return nil
 		}, nil
@@ -760,29 +754,48 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 
 	// Prepare certificate load for server certificate loader.
 	var applyServerCert func() error
+	var serverCert LoadedCertificate
 	if cm.serverCertLoader != nil {
-		if apply, err := cm.serverCertLoader.PrepareLoad(c.serverCertLoaderOpts()...); err != nil {
+		if apply, cert, err := cm.serverCertLoader.prepareLoad(c.serverCertLoaderOpts()...); err != nil {
 			return nil, fmt.Errorf("%s: error configuring server cert loader: %w", cm.usage, err)
 		} else {
 			applyServerCert = apply
+			serverCert = cert
 		}
 	}
 
-	// Prepare certificate load for server certificate loader.
+	// Prepare certificate load for client certificate loader.
 	var applyClientCert func() error
+	var clientCert LoadedCertificate
 	if cm.clientCertLoader != nil {
-		if apply, err := cm.clientCertLoader.PrepareLoad(c.clientCertLoaderOpts()...); err != nil {
+		if apply, cert, err := cm.clientCertLoader.prepareLoad(c.clientCertLoaderOpts()...); err != nil {
 			return nil, fmt.Errorf("%s: error configuring client cert loader: %w", cm.usage, err)
 		} else {
 			applyClientCert = apply
+			clientCert = cert
 		}
 
 		// The client sanity check lives here rather than in the cert loader
 		// because it needs what only the manager knows: whether the certificate
 		// is the client's own or the server's, and how clients are authenticated.
-		if err := cm.checkClientCertificate(c); err != nil {
+		if err := cm.checkClientCertificate(c, clientCert); err != nil {
 			return nil, err
 		}
+	}
+
+	// tlsConfig carries the prepared certificates themselves rather than
+	// callbacks that read the loaders. The loaders are updated one at a time by
+	// the apply function, before tlsConfig is published, so reading them could
+	// pair a reloaded certificate with the previous tlsConfig, or a reloaded
+	// server certificate with a client certificate not yet reloaded.
+	if cm.serverCertLoader != nil {
+		// The server cert loader has refused an empty certificate.
+		tlsConfig.GetCertificate = makeGetCertificate(serverCert.Certificate)
+	}
+	if cm.clientCertLoader != nil && !clientCert.IsEmpty() {
+		// An empty client certificate leaves the base config's callback, if
+		// any, in place.
+		tlsConfig.GetClientCertificate = makeGetClientCertificate(clientCert.Certificate)
 	}
 
 	return func() error {
@@ -790,14 +803,12 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 			if err := applyServerCert(); err != nil {
 				return fmt.Errorf("%s: error applying server certificate: %w", cm.usage, err)
 			}
-			cm.serverCertLoader.SetupTLSConfig(tlsConfig)
 		}
 
 		if applyClientCert != nil {
 			if err := applyClientCert(); err != nil {
 				return fmt.Errorf("%s: error applying client certificate: %w", cm.usage, err)
 			}
-			cm.clientCertLoader.SetupTLSConfig(tlsConfig)
 		}
 
 		cm.mu.Lock()
@@ -808,6 +819,47 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 		return nil
 	}, nil
 
+}
+
+// makeGetCertificate returns a tls.Config.GetCertificate callback that always
+// presents cert. A callback is used rather than tls.Config.Certificates because
+// a client/server manager also presents a client certificate, and Certificates
+// would put both in one slice.
+func makeGetCertificate(cert *tls.Certificate) func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		// No ClientHelloInfo.SupportsCertificate check, unlike
+		// makeGetClientCertificate. A server has exactly one certificate and no
+		// alternative to fall back to, so if the client cannot use it the
+		// handshake fails anyway, with a proper alert, during cipher suite or
+		// signature algorithm selection. Go itself skips the check when
+		// Certificates holds a single certificate.
+		return cert, nil
+	}
+}
+
+// makeGetClientCertificate returns a tls.Config.GetClientCertificate callback
+// that presents cert whenever the server will accept it.
+func makeGetClientCertificate(cert *tls.Certificate) func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	return func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		// The GetClientCertificate contract requires a non-nil certificate,
+		// even alongside an error.
+		if cri == nil {
+			return new(tls.Certificate), fmt.Errorf("tls client: %w", ErrCertificateRequestInfoNil)
+		}
+		if cert == nil {
+			return new(tls.Certificate), fmt.Errorf("tls client: %w", ErrCertificateNil)
+		}
+
+		// Will our certificate be accepted by server?
+		if err := cri.SupportsCertificate(cert); err == nil {
+			return cert, nil
+		}
+
+		// We don't have a certificate that would be accepted by the server. Don't return an error.
+		// This replicates Go's behavior when tls.Config.Certificates is used instead of GetClientCertificate
+		// and gives a better error on both the client and server side.
+		return new(tls.Certificate), nil
+	}
 }
 
 // NewServerTLSConfigManager returns a TLSConfigManager for a given set options for server-only
@@ -867,6 +919,11 @@ func NewDisabledTLSConfigManager() *TLSConfigManager {
 
 // TLSConfig returns a tls.Config for use with dial and listen functions. When TLS is disabled the return is nil.
 // The returned tls.Config is a clone and does not need to be cloned again.
+//
+// The returned tls.Config is a point-in-time snapshot. Its certificates are the
+// ones loaded when TLSConfig was called; later certificate reloads and
+// reconfigurations do not reach it. Fetch a new one for each connection rather
+// than holding onto it.
 func (cm *TLSConfigManager) TLSConfig() *tls.Config {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
