@@ -233,6 +233,12 @@ func (cl *TLSCertLoader) Certificate() *tls.Certificate {
 // tlsConfig may be nil. If other fields like tlsConfig.Certificates or
 // tlsConfig.NameToCertificate have been set, then cl's certificate may not be used
 // as expected.
+//
+// Deprecated: The callbacks SetupTLSConfig installs read cl's certificate on
+// every handshake, so a Load or Clear reaches a tls.Config already in use and
+// cannot be kept consistent with the rest of it, such as its CA pools. Use
+// TLSConfigManager, which gives each tls.Config a fixed snapshot of its
+// certificates.
 func (cl *TLSCertLoader) SetupTLSConfig(tlsConfig *tls.Config) {
 	if tlsConfig == nil {
 		return
@@ -250,14 +256,20 @@ func (cl *TLSCertLoader) SetupTLSConfig(tlsConfig *tls.Config) {
 // GetCertificate is for use with a tls.Config's GetCertificate member. This allows a
 // tls.Config to dynamically update its certificate when Load changes the active
 // certificate.
+//
+// Deprecated: A tls.Config using this callback reads cl's certificate on every
+// handshake, so a Load or Clear reaches the tls.Config while it is in use and
+// cannot be kept consistent with the rest of it, such as its CA pools. Use
+// TLSConfigManager, which gives each tls.Config a fixed snapshot of its
+// certificates.
 func (cl *TLSCertLoader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 	cert := cl.Certificate()
 	if cert != nil {
 		return cert, nil
 	} else {
-		// It should be impossible to get here. If we can't load a certificate in
-		// NewTLSCertLoader then we don't return the CertLoader. If we fail during Load,
-		// then we keep using the currently loaded certificate.
+		// cl has no certificate, such as when it was created without one or
+		// Clear has discarded it. A failed Load does not get here: it keeps the
+		// previously loaded certificate.
 		return nil, ErrCertificateNil
 	}
 }
@@ -265,24 +277,14 @@ func (cl *TLSCertLoader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate,
 // GetClientCertificate is for use with a tls.Config's GetClientCertificate member. This allows a
 // tls.Config to dynamically update its client certificates when Load changes the active
 // certificate.
+//
+// Deprecated: A tls.Config using this callback reads cl's certificate on every
+// handshake, so a Load or Clear reaches the tls.Config while it is in use and
+// cannot be kept consistent with the rest of it, such as its CA pools. Use
+// TLSConfigManager, which gives each tls.Config a fixed snapshot of its
+// certificates.
 func (cl *TLSCertLoader) GetClientCertificate(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	if cri == nil {
-		return new(tls.Certificate), fmt.Errorf("tls client: %w", ErrCertificateRequestInfoNil)
-	}
-	cert := cl.Certificate()
-	if cert == nil {
-		return new(tls.Certificate), fmt.Errorf("tls client: %w", ErrCertificateNil)
-	}
-
-	// Will our certificate be accepted by server?
-	if err := cri.SupportsCertificate(cert); err == nil {
-		return cert, nil
-	}
-
-	// We don't have a certificate that would be accepted by the server. Don't return an error.
-	// This replicates Go's behavior when tls.Config.Certificates is used instead of GetClientCertificate
-	// and gives a better error on both the client and server side.
-	return new(tls.Certificate), nil
+	return makeGetClientCertificate(cl.Certificate())(cri)
 }
 
 // Leaf returns the parsed x509 certificate of the currently loaded certificate.
@@ -319,6 +321,13 @@ func (cl *TLSCertLoader) copyCurrentConfig() *tlsCertLoaderConfig {
 // If the certificate can be loaded, a function that will apply the certificate reload is
 // returned. Otherwise, an error is returned.
 func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, error) {
+	apply, _, err := cl.prepareLoad(opts...)
+	return apply, err
+}
+
+// prepareLoad is PrepareLoad, but on success it also returns the certificate
+// that the returned function will make active.
+func (cl *TLSCertLoader) prepareLoad(opts ...TLSCertLoaderOpt) (func() error, LoadedCertificate, error) {
 	// Start with the current config so any options that are not overridden with opts
 	// will not change.
 	c := cl.copyCurrentConfig()
@@ -349,7 +358,7 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 	loadedCert, err := LoadCertificate(c.certPath, c.keyPath, WithLoadCertificateIgnoreFilePermissions(c.ignoreFilePermissions))
 	if err != nil {
 		logLoadError(err)
-		return nil, err
+		return nil, LoadedCertificate{}, err
 	}
 
 	// Sanity check the certificate against how a server will use it. A
@@ -363,14 +372,14 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 		if loadedCert.IsEmpty() {
 			err := fmt.Errorf("%s: cannot use an empty certificate for a server: %w", cl.usage, ErrCertificateEmpty)
 			logLoadError(err)
-			return nil, err
+			return nil, LoadedCertificate{}, err
 		}
 
 		leaf, err := loadedCert.GetLeaf()
 		if err != nil {
 			err = fmt.Errorf("%s: %w", cl.usage, err)
 			logLoadError(err)
-			return nil, err
+			return nil, LoadedCertificate{}, err
 		}
 
 		// Everything below is a sanity check: the certificate is real, but this
@@ -387,7 +396,7 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 			sanityErr := errors.Join(sanityErrs...)
 			if !c.ignoreSanityChecks {
 				logLoadError(sanityErr)
-				return nil, sanityErr
+				return nil, LoadedCertificate{}, sanityErr
 			}
 			log.Warn("TLS certificate failed sanity checks, loading it anyway because sanity checks are being ignored",
 				zap.Error(sanityErr))
@@ -405,7 +414,7 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 		}()
 		cl.monitor.QueueWarnIssues(cl)
 		return nil
-	}, nil
+	}, loadedCert, nil
 }
 
 // Close shuts down the goroutine monitoring certificate expiration.

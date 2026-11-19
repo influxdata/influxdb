@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -146,9 +149,149 @@ func TestTLSConfigManager_CertLoaderCallbacksSet(t *testing.T) {
 	tlsConfig := manager.TLSConfig()
 	require.NotNil(t, tlsConfig)
 
-	// Verify that TLSCertLoader.SetupTLSConfig was called by checking callbacks are set
+	// Verify that the server certificate was installed by checking callbacks are set
 	require.NotNil(t, tlsConfig.GetCertificate, "GetCertificate callback should be set")
 	require.Nil(t, tlsConfig.GetClientCertificate, "GetClientCertificate callback should not be set")
+}
+
+func TestMakeGetCertificate(t *testing.T) {
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	loaded, err := LoadCertificate(ss.CertPath, ss.KeyPath)
+	require.NoError(t, err)
+	serverCert := loaded.Certificate
+	require.NotNil(t, serverCert)
+
+	getCertificate := makeGetCertificate(serverCert)
+
+	// The server has one certificate to offer, whatever the client asks for.
+	for _, hello := range []*tls.ClientHelloInfo{nil, {}, {ServerName: "other.influxdata.edge"}} {
+		cert, err := getCertificate(hello)
+		require.NoError(t, err)
+		require.Same(t, serverCert, cert)
+	}
+}
+
+func TestMakeGetClientCertificate(t *testing.T) {
+	ss := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("client.influxdata.edge"))
+
+	loaded, err := LoadCertificate(ss.CertPath, ss.KeyPath)
+	require.NoError(t, err)
+	clientCert := loaded.Certificate
+	require.NotNil(t, clientCert)
+
+	// Test happy path: certificate supports the request.
+	// The selfsigned package creates RSA certificates, so we use RSA signature schemes.
+	t.Run("supported certificate", func(t *testing.T) {
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.PKCS1WithSHA256,
+				tls.PKCS1WithSHA384,
+				tls.PKCS1WithSHA512,
+			},
+		}
+
+		cert, err := makeGetClientCertificate(clientCert)(cri)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		require.Same(t, clientCert, cert)
+	})
+
+	t.Run("nil CertificateRequestInfo", func(t *testing.T) {
+		cert, err := makeGetClientCertificate(clientCert)(nil)
+		require.ErrorIs(t, err, ErrCertificateRequestInfoNil)
+		require.NotNil(t, cert)
+		require.Empty(t, cert.Certificate)
+	})
+
+	// The tls.Config.GetClientCertificate contract requires a non-nil,
+	// empty certificate alongside the error.
+	t.Run("nil certificate", func(t *testing.T) {
+		cert, err := makeGetClientCertificate(nil)(&tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{tls.PKCS1WithSHA256},
+		})
+		require.ErrorIs(t, err, ErrCertificateNil)
+		require.NotNil(t, cert)
+		require.Empty(t, cert.Certificate)
+	})
+
+	// Test unsupported certificate: CertificateRequestInfo only accepts Ed25519,
+	// but our certificate uses RSA.
+	t.Run("unsupported certificate", func(t *testing.T) {
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.Ed25519, // Our RSA cert doesn't support this
+			},
+		}
+
+		// We should get an empty certificate with no error. This replicates Go's behavior when
+		// tls.Config.Certificates is used and none of the certificates are accepted by the server.
+		cert, err := makeGetClientCertificate(clientCert)(cri)
+		require.NoError(t, err)
+		// The callback must return a non-nil certificate even on error
+		// (per the tls.Config.GetClientCertificate contract).
+		require.NotNil(t, cert)
+		// The returned certificate should be an empty certificate, not the loaded one.
+		require.NotEqual(t, clientCert, cert)
+		require.Empty(t, cert.Certificate)
+	})
+
+	// Test with AcceptableCAs that include our CA.
+	t.Run("acceptable CA", func(t *testing.T) {
+		// Verify that if we change cri to ss's CA subject then we do get cert.
+		caCert, err := os.ReadFile(ss.CACertPath)
+		require.NoError(t, err)
+
+		// Parse the CA cert to get its RawSubject for AcceptableCAs.
+		block, rest := pem.Decode(caCert)
+		require.NotNil(t, block)
+		require.Empty(t, rest, "the CA file should hold a single PEM block")
+		parsedCA, err := x509.ParseCertificate(block.Bytes)
+		require.NoError(t, err)
+
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.PKCS1WithSHA256,
+			},
+			AcceptableCAs: [][]byte{parsedCA.RawSubject},
+		}
+
+		cert, err := makeGetClientCertificate(clientCert)(cri)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		require.Same(t, clientCert, cert)
+	})
+
+	// Test with AcceptableCAs that don't include our CA.
+	t.Run("unacceptable CA", func(t *testing.T) {
+		// Create a certificate with a different CA subject.
+		ss2 := selfsigned.NewSelfSignedCert(t,
+			selfsigned.WithCASubject("different_org", "Different CA"),
+		)
+		caCert2, err := os.ReadFile(ss2.CACertPath)
+		require.NoError(t, err)
+
+		// Parse the CA cert to get its RawSubject for AcceptableCAs.
+		block2, rest2 := pem.Decode(caCert2)
+		require.NotNil(t, block2)
+		require.Empty(t, rest2, "the CA file should hold a single PEM block")
+		parsedCA2, err := x509.ParseCertificate(block2.Bytes)
+		require.NoError(t, err)
+
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.PKCS1WithSHA256,
+			},
+			AcceptableCAs: [][]byte{parsedCA2.RawSubject},
+		}
+
+		// This should return an empty certificate with no error to replicate
+		// Go's behavior when tls.Config.Certificates is used.
+		cert, err := makeGetClientCertificate(clientCert)(cri)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		require.Empty(t, cert.Certificate)
+	})
 }
 
 func TestTLSConfigManager_ConstructorError(t *testing.T) {
@@ -596,6 +739,15 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 	})
 }
 
+// requireHandshakeComplete checks that conn is a TLS connection whose
+// handshake has finished.
+func requireHandshakeComplete(t *testing.T, conn net.Conn) {
+	t.Helper()
+	tlsConn, ok := conn.(*tls.Conn)
+	require.True(t, ok, "expected a *tls.Conn, got %T", conn)
+	require.True(t, tlsConn.ConnectionState().HandshakeComplete, "TLS handshake should be complete")
+}
+
 func TestTLSConfigManager_Dial(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
@@ -673,7 +825,11 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 		defer th.CheckedClose(t, listener)()
 
 		testDialConnection(t, listener, func(addr string) (net.Conn, error) {
-			return manager.Dial("tcp", addr)
+			conn, err := manager.Dial("tcp", addr)
+			require.NoError(t, err)
+			// Dial completes the handshake before returning.
+			requireHandshakeComplete(t, conn)
+			return conn, nil
 		})
 	})
 
@@ -698,7 +854,11 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 		defer th.CheckedClose(t, listener)()
 
 		testDialConnection(t, listener, func(addr string) (net.Conn, error) {
-			return manager.Dial("tcp", addr)
+			conn, err := manager.Dial("tcp", addr)
+			require.NoError(t, err)
+			// Dial completes the handshake before returning.
+			requireHandshakeComplete(t, conn)
+			return conn, nil
 		})
 	})
 
@@ -1991,7 +2151,11 @@ func TestTLSConfigManager_DialWithDialer(t *testing.T) {
 		defer th.CheckedClose(t, listener)()
 
 		testDialWithDialerConnection(t, listener, func(dialer *net.Dialer, addr string) (net.Conn, error) {
-			return manager.DialWithDialer(dialer, "tcp", addr)
+			conn, err := manager.DialWithDialer(dialer, "tcp", addr)
+			require.NoError(t, err)
+			// DialWithDialer completes the handshake before returning.
+			requireHandshakeComplete(t, conn)
+			return conn, nil
 		})
 	})
 }
@@ -2657,6 +2821,41 @@ func TestTLSConfigManager_ClientCertificateSanityChecks(t *testing.T) {
 	})
 }
 
+// TestTLSConfigManager_CheckClientCertificateUsesPreparedCertificate checks
+// that checkClientCertificate judges the certificate it is given rather than
+// reading the configured files again. The files are removed after loading, so
+// a second read would fail. A check that read them again would then have
+// nothing to judge, and would let a certificate without client authentication
+// through.
+func TestTLSConfigManager_CheckClientCertificateUsesPreparedCertificate(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	manager, err := NewClientTLSConfigManager(monitor, WithUseTLS(true))
+	require.NoError(t, err)
+	defer th.CheckedClose(t, manager)()
+
+	ss := serverOnlyCert(t)
+	loaded, err := LoadCertificate(ss.CertPath, ss.KeyPath)
+	require.NoError(t, err)
+	require.False(t, loaded.IsEmpty())
+
+	require.NoError(t, os.Remove(ss.CertPath))
+	require.NoError(t, os.Remove(ss.KeyPath))
+	require.NoFileExists(t, ss.CertPath)
+	require.NoFileExists(t, ss.KeyPath)
+
+	// Configure the removed files as the client's own certificate, so the
+	// check holds it to client authentication instead of excusing it as a
+	// borrowed server certificate.
+	c := manager.copyCurrentConfig()
+	c.clientCertPath = ss.CertPath
+	c.clientKeyPath = ss.KeyPath
+
+	err = manager.checkClientCertificate(c, loaded)
+	require.ErrorIs(t, err, ErrCertificateNotClientAuth)
+}
+
 // TestTLSConfigManager_LoggerCarriesUsage covers the manager's logger being
 // usable and already carrying the usage, so that code logging through it does
 // not have to add the context itself.
@@ -2704,4 +2903,302 @@ func TestTLSConfigManager_LoggerCarriesUsage(t *testing.T) {
 			require.NoError(t, manager.Close())
 		})
 	})
+}
+
+// TestTLSConfigManager_TLSConfigFreezesCertificates checks that TLSConfig
+// returns a snapshot whose certificates later reconfigurations do not reach,
+// while new calls to TLSConfig keep following them.
+func TestTLSConfigManager_TLSConfigFreezesCertificates(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	t.Run("server certificate survives reconfigure", func(t *testing.T) {
+		ss1 := selfsigned.NewSelfSignedCert(t)
+		ss2 := selfsigned.NewSelfSignedCert(t)
+
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss1.CertPath, ss1.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		frozenCert := manager.serverCertLoader.LoadedCertificate().Certificate
+		frozen := manager.TLSConfig()
+		require.NotNil(t, frozen)
+
+		apply, err := manager.PrepareReconfigure(WithServerCertificate(ss2.CertPath, ss2.KeyPath))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+
+		cert, err := frozen.GetCertificate(&tls.ClientHelloInfo{})
+		require.NoError(t, err)
+		require.Same(t, frozenCert, cert)
+
+		cert, err = manager.TLSConfig().GetCertificate(&tls.ClientHelloInfo{})
+		require.NoError(t, err)
+		require.Same(t, manager.serverCertLoader.LoadedCertificate().Certificate, cert)
+		require.NotSame(t, frozenCert, cert, "a new TLSConfig should use the reconfigured certificate")
+	})
+
+	t.Run("client certificate survives disabling TLS", func(t *testing.T) {
+		clientSS := selfsigned.NewSelfSignedCert(t)
+
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithClientCertificate(clientSS.CertPath, clientSS.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		frozenCert := manager.clientCertLoader.LoadedCertificate().Certificate
+		frozen := manager.TLSConfig()
+		require.NotNil(t, frozen)
+
+		apply, err := manager.PrepareReconfigure(WithUseTLS(false))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+		require.Nil(t, manager.TLSConfig())
+		require.Nil(t, manager.clientCertLoader.LoadedCertificate().Certificate, "disabling TLS should clear the loader")
+
+		cert, err := frozen.GetClientCertificate(certRequestFrom(t, clientSS))
+		require.NoError(t, err)
+		require.Same(t, frozenCert, cert)
+	})
+
+	t.Run("no client certificate leaves the base config's callback", func(t *testing.T) {
+		baseCert := new(tls.Certificate)
+		baseConfig := &tls.Config{
+			GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+				return baseCert, nil
+			},
+		}
+
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(baseConfig))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		tlsConfig := manager.TLSConfig()
+		require.NotNil(t, tlsConfig)
+		require.Nil(t, tlsConfig.GetCertificate)
+		require.NotNil(t, tlsConfig.GetClientCertificate)
+		cert, err := tlsConfig.GetClientCertificate(&tls.CertificateRequestInfo{})
+		require.NoError(t, err)
+		require.Same(t, baseCert, cert)
+	})
+
+	t.Run("frozen client certificate is withheld when the server won't accept it", func(t *testing.T) {
+		clientSS := selfsigned.NewSelfSignedCert(t)
+		otherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("other", "Other CA"))
+
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithClientCertificate(clientSS.CertPath, clientSS.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		cert, err := manager.TLSConfig().GetClientCertificate(certRequestFrom(t, otherSS))
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		require.Empty(t, cert.Certificate)
+	})
+
+	// A connection opened before TLS was disabled must still complete its
+	// handshake afterwards. A tls.Client connection does not handshake until
+	// its first read or write. Before certificates were frozen, that handshake
+	// read the client certificate from the loader that disabling TLS had
+	// cleared, and failed with ErrCertificateNil. The manager's own dial
+	// methods handshake before returning, so this is reached by a caller that
+	// wraps its own connection using TLSConfig.
+	t.Run("deferred mTLS handshake completes after TLS is disabled", func(t *testing.T) {
+		serverSS := selfsigned.NewSelfSignedCert(t)
+		clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("client_org", "Client CA"))
+
+		serverManager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath),
+			WithClientCA(&CAConfig{Paths: []string{clientSS.CACertPath}}),
+			WithClientAuth(tls.RequireAndVerifyClientCert))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, serverManager)()
+
+		listener, err := serverManager.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		testData := []byte("hello")
+		serverDone := make(chan error, 1)
+		go simpleEchoServer(serverDone, listener, len(testData))
+
+		clientManager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithClientCertificate(clientSS.CertPath, clientSS.KeyPath),
+			WithAllowInsecure(true))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, clientManager)()
+
+		frozen := clientManager.TLSConfig()
+		require.NotNil(t, frozen)
+
+		rawConn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+		conn := tls.Client(rawConn, frozen)
+		defer th.CheckedClose(t, conn)()
+		require.False(t, conn.ConnectionState().HandshakeComplete, "the handshake should wait for the first write")
+
+		apply, err := clientManager.PrepareReconfigure(WithUseTLS(false))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+		require.Nil(t, clientManager.TLSConfig())
+		require.Nil(t, clientManager.clientCertLoader.LoadedCertificate().Certificate, "disabling TLS should clear the loader")
+
+		// The write triggers the handshake. The server requires and verifies a
+		// client certificate, so the echo below only arrives if the frozen
+		// client certificate was presented.
+		n, err := conn.Write(testData)
+		require.NoError(t, err)
+		require.Equal(t, len(testData), n)
+		requireHandshakeComplete(t, conn)
+		buf := make([]byte, len(testData))
+		n, err = io.ReadFull(conn, buf)
+		require.NoError(t, err)
+		require.Equal(t, len(buf), n)
+		require.Equal(t, testData, buf)
+
+		require.NoError(t, <-serverDone)
+	})
+}
+
+// TestTLSConfigManager_TLSConfigConsistentDuringReload checks that TLSConfig
+// never returns a configuration mixing two reloads, while reconfigurations
+// alternate between two generations of certificates and CAs.
+//
+// Each generation pairs a server certificate with the root CA that signed it and
+// a client certificate with the client CA that signed it. A configuration from
+// one generation holding a certificate from the other fails to verify: a server
+// certificate that does not chain to RootCAs means a certificate was swapped
+// without its tls.Config, and a client certificate that does not chain to
+// ClientCAs means a partial reload, where one loader had been reloaded and the
+// other had not.
+func TestTLSConfigManager_TLSConfigConsistentDuringReload(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	type generation struct {
+		server, client *selfsigned.Cert
+	}
+	newGeneration := func(name string) generation {
+		return generation{
+			server: selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject(name+"_server", name+" Server CA")),
+			client: selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject(name+"_client", name+" Client CA")),
+		}
+	}
+	generations := []generation{newGeneration("gen0"), newGeneration("gen1")}
+
+	opts := func(g generation) []TLSConfigManagerOpt {
+		return []TLSConfigManagerOpt{
+			WithUseTLS(true),
+			WithServerCertificate(g.server.CertPath, g.server.KeyPath),
+			WithClientCertificate(g.client.CertPath, g.client.KeyPath),
+			WithRootCA(&CAConfig{Paths: []string{g.server.CACertPath}}),
+			WithClientCA(&CAConfig{Paths: []string{g.client.CACertPath}}),
+		}
+	}
+
+	manager, err := NewClientServerTLSConfigManager(monitor, opts(generations[0])...)
+	require.NoError(t, err)
+	defer th.CheckedClose(t, manager)()
+
+	verifies := func(cert *tls.Certificate, roots *x509.CertPool) error {
+		if cert == nil || len(cert.Certificate) == 0 {
+			return errors.New("no certificate")
+		}
+		leaf, err := x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return err
+		}
+		chains, err := leaf.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}})
+		if err != nil {
+			return err
+		}
+		// Each leaf is signed directly by its generation's CA, so there is
+		// exactly one chain: the leaf and that CA.
+		if len(chains) != 1 || len(chains[0]) != 2 {
+			return fmt.Errorf("expected one chain of two certificates, got %d chains", len(chains))
+		}
+		return nil
+	}
+
+	// checkConsistent reports the first inconsistent configuration TLSConfig
+	// returns. It runs off the test goroutine, so it returns an error rather
+	// than failing the test itself.
+	checkConsistent := func() error {
+		tlsConfig := manager.TLSConfig()
+		if tlsConfig == nil {
+			return errors.New("TLSConfig returned nil")
+		}
+		serverCert, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{})
+		if err != nil {
+			return fmt.Errorf("GetCertificate: %w", err)
+		}
+		if err := verifies(serverCert, tlsConfig.RootCAs); err != nil {
+			return fmt.Errorf("server certificate does not match RootCAs: %w", err)
+		}
+		// No AcceptableCAs, so the server accepts any certificate and the
+		// client always offers its own.
+		clientCert, err := tlsConfig.GetClientCertificate(&tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{tls.PKCS1WithSHA256},
+		})
+		if err != nil {
+			return fmt.Errorf("GetClientCertificate: %w", err)
+		}
+		if err := verifies(clientCert, tlsConfig.ClientCAs); err != nil {
+			return fmt.Errorf("client certificate does not match ClientCAs: %w", err)
+		}
+		return nil
+	}
+
+	stop := make(chan struct{})
+	stopReader := sync.OnceFunc(func() { close(stop) })
+	readerDone := make(chan error, 1)
+	readerExited := make(chan struct{})
+	// Stop the reader and wait for it even when a require below fails, so it
+	// does not keep running against a closed manager.
+	defer func() {
+		stopReader()
+		<-readerExited
+	}()
+	go func() {
+		defer close(readerExited)
+		for {
+			select {
+			case <-stop:
+				readerDone <- nil
+				return
+			default:
+			}
+			if err := checkConsistent(); err != nil {
+				readerDone <- err
+				return
+			}
+		}
+	}()
+
+	const reloads = 100
+	for i := 1; i <= reloads; i++ {
+		apply, err := manager.PrepareReconfigure(opts(generations[i%len(generations)])...)
+		require.NoError(t, err)
+		require.NoError(t, apply())
+	}
+	stopReader()
+	require.NoError(t, <-readerDone)
+
+	// The reader may have been starved; check the settled state as well.
+	require.NoError(t, checkConsistent())
 }
