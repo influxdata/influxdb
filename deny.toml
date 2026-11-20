@@ -67,6 +67,61 @@ ignore = [
     "RUSTSEC-2026-0391", # https://rustsec.org/advisories/RUSTSEC-2026-0391
     "RUSTSEC-2026-0398", # https://rustsec.org/advisories/RUSTSEC-2026-0398
     "RUSTSEC-2026-0403", # https://rustsec.org/advisories/RUSTSEC-2026-0403
+    # thrift 0.17 has an unbounded read from untrusted parquet files (denial of
+    # service attack). See https://rustsec.org/advisories/RUSTSEC-2026-0435. We
+    # can't take arrow/parquet 58.2+ on DataFusion 53 (per comment in
+    # Cargo.toml and the DataFusion 54 upgrade already in progress
+    # (https://github.com/influxdata/influxdb_pro/issues/6494)); ignore for now
+    "RUSTSEC-2026-0435", # https://rustsec.org/advisories/RUSTSEC-2026-0435
+    # SQLite's page-cache disclosure requires opening an attacker-supplied
+    # DB and sibling WAL with mismatched page sizes. Core uses SQLx only for
+    # data_types' type/codec implementations, not to open databases.
+    # sqlx-sqlite 0.8.6 requires libsqlite3-sys 0.30.x; even 0.9.0 requires
+    # <0.38.0, excluding the fixed >=0.39.0. Remove when SQLx accepts the fix.
+    "RUSTSEC-2026-0459", # https://rustsec.org/advisories/RUSTSEC-2026-0459
+    # chrono, chrono-tz and humantime are unmaintained across all versions;
+    # no patched upgrades exist. These are maintenance-only advisories.
+    # We use chrono, chrono-tz and humantime directly, and Arrow/DataFusion also
+    # require chrono and chrono-tz. Remove these exceptions when we and our
+    # dependencies migrate to maintained alternatives.
+    "RUSTSEC-2026-0542", # https://rustsec.org/advisories/RUSTSEC-2026-0542
+    "RUSTSEC-2026-0543", # https://rustsec.org/advisories/RUSTSEC-2026-0543
+    "RUSTSEC-2026-0555", # https://rustsec.org/advisories/RUSTSEC-2026-0555
+    # wasmtime 50.0.1 advisories, all fixed in wasmtime 50.0.2. Each one lets a
+    # WebAssembly guest make the host panic, abort or use memory without bound
+    # (denial of service). The only guests we run are Python UDFs, which are
+    # off unless `iox.udfs_enabled` is set. Remove these exceptions when
+    # wasmtime moves to 50.0.2 or later.
+    # - RUSTSEC-2026-0566: empty writes to a wasmtime-wasi `AsyncWriteStream`
+    #   grow host memory without bound.
+    # - RUSTSEC-2026-0567: abort when the threads proposal is enabled in a
+    #   build without the `threads` feature.
+    # - RUSTSEC-2026-0568: a stale GC heap base pointer lets a guest abort the
+    #   host process.
+    # - RUSTSEC-2026-0569: `Caller::get_module_export` panics when the host
+    #   function was not called from WebAssembly.
+    # - RUSTSEC-2026-0570: abort on a function subtype check in a build
+    #   without the `gc` feature.
+    # - RUSTSEC-2026-0571: empty wasmtime-wasi-http body writes over HTTP/2
+    #   grow host memory without bound.
+    # - RUSTSEC-2026-0572: panic when a component cancels a stream or future
+    #   copy on the wrong end.
+    # - RUSTSEC-2026-0573: abort when a GC heap that cannot move has a
+    #   reservation that is not a multiple of the page size.
+    "RUSTSEC-2026-0566", # https://rustsec.org/advisories/RUSTSEC-2026-0566
+    "RUSTSEC-2026-0567", # https://rustsec.org/advisories/RUSTSEC-2026-0567
+    "RUSTSEC-2026-0568", # https://rustsec.org/advisories/RUSTSEC-2026-0568
+    "RUSTSEC-2026-0569", # https://rustsec.org/advisories/RUSTSEC-2026-0569
+    "RUSTSEC-2026-0570", # https://rustsec.org/advisories/RUSTSEC-2026-0570
+    "RUSTSEC-2026-0571", # https://rustsec.org/advisories/RUSTSEC-2026-0571
+    "RUSTSEC-2026-0572", # https://rustsec.org/advisories/RUSTSEC-2026-0572
+    "RUSTSEC-2026-0573", # https://rustsec.org/advisories/RUSTSEC-2026-0573
+    # RUSTSEC-2026-0587: on Windows, a WASI guest can escape its filesystem
+    # sandbox through a drive-prefixed path component. Fixed in wasmtime
+    # 36.0.22, 48.0.10, 49.0.7 and 50.0.3. The only guests we run are Python
+    # UDFs, which see an in-memory file system, not a host directory. Remove
+    # this exception when wasmtime moves to a fixed version.
+    "RUSTSEC-2026-0587", # https://rustsec.org/advisories/RUSTSEC-2026-0587
 ]
 git-fetch-with-cli = true
 

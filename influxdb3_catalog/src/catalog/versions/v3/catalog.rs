@@ -2845,6 +2845,22 @@ impl Catalog {
         self.update::<EnableTriggerOp>(EnableTriggerArgs {
             db_name: db_name.to_string(),
             trigger_name: trigger_name.to_string(),
+            refresh: false,
+        })
+        .await
+    }
+
+    /// Re-announce an enabled trigger, so that every node reloads its plugin on the next run.
+    pub async fn refresh_processing_engine_trigger(
+        self: &Arc<Self>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<Arc<TriggerDefinition>> {
+        info!(db_name, trigger_name, "refresh processing engine trigger");
+        self.update::<EnableTriggerOp>(EnableTriggerArgs {
+            db_name: db_name.to_string(),
+            trigger_name: trigger_name.to_string(),
+            refresh: true,
         })
         .await
     }

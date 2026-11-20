@@ -1126,6 +1126,49 @@ impl ProcessingEngineManagerImpl {
         ))
     }
 
+    /// Re-fetch a trigger's plugin, then drop the plugin the trigger holds, so that its next run
+    /// loads the new code. A failed fetch leaves the trigger untouched.
+    ///
+    /// Nothing is written to the catalog: Core is one node, and announcing an enabled trigger
+    /// again would register it a second time, because `run_trigger` is not idempotent here.
+    pub async fn refresh_plugin(
+        &self,
+        db: &str,
+        trigger_name: &str,
+        plugin_filename: &str,
+    ) -> Result<(), ProcessingEngineError> {
+        let (db_id, trigger) = self
+            .catalog
+            .db_schema(db)
+            .and_then(|schema| {
+                let trigger = schema
+                    .processing_engine_triggers
+                    .get_by_name(trigger_name)?;
+                Some((schema.id, trigger))
+            })
+            .ok_or_else(|| {
+                influxdb3_catalog::CatalogError::NotFound(format!(
+                    "trigger '{trigger_name}' in database '{db}'"
+                ))
+            })?;
+        if trigger.plugin_filename != plugin_filename {
+            return Err(
+                influxdb3_catalog::CatalogError::invalid_configuration(format!(
+                    "trigger '{trigger_name}' runs plugin '{}', not '{plugin_filename}'",
+                    trigger.plugin_filename
+                ))
+                .into(),
+            );
+        }
+        self.read_plugin_code(plugin_filename).await?;
+
+        self.worker.forget_trigger(scheduler::TriggerKey {
+            db_id,
+            trigger_id: trigger.trigger_id,
+        });
+        Ok(())
+    }
+
     /// Replace an entire plugin directory atomically with new files.
     pub async fn replace_plugin_directory(
         self: &Arc<Self>,

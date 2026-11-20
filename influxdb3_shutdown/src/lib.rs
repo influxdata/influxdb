@@ -30,6 +30,10 @@ use tokio::{sync::oneshot, task::JoinError};
 pub use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
+/// How long process exit waits for the io runtime's threads. Threads still running after this
+/// are leaked.
+pub const IO_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// Wait for a `SIGTERM` or `SIGINT` to stop the process on UNIX systems
 #[cfg(unix)]
 pub async fn wait_for_signal() {
@@ -50,6 +54,10 @@ pub async fn wait_for_signal() {
     let _ = tokio::signal::ctrl_c().await;
     info!("Received SIGINT");
 }
+
+/// Bound on how long a DataFusion executor's runtime waits for worker threads at shutdown. A task
+/// that never yields would otherwise hold up the process exit for the executor's 5 min default.
+pub const EXECUTOR_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Manage application shutdown
 ///

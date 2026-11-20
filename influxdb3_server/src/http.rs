@@ -745,9 +745,13 @@ impl IntoResponse for Error {
                     .body(bytes_to_response_body(err.to_string()))
                     .unwrap()
             }
-            Self::Catalog(err) | Self::WriteBuffer(WriteBufferError::CatalogUpdateError(err)) => {
-                err.into_response()
-            }
+            Self::Catalog(err)
+            | Self::WriteBuffer(WriteBufferError::CatalogUpdateError(err))
+            | Self::ProcessingEngine(
+                influxdb3_processing_engine::manager::ProcessingEngineError::CatalogUpdateError(
+                    err,
+                ),
+            ) => err.into_response(),
             Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => {
                 ResponseBuilder::new()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
@@ -2252,6 +2256,30 @@ impl HttpApi {
             .status(StatusCode::OK)
             .body(empty_response_body())?)
     }
+
+    async fn refresh_plugin(&self, req: Request) -> Result<Response> {
+        let token_id = self.authorize_admin(&req).await?;
+
+        let ProcessingEngineTriggerRefreshRequest {
+            db,
+            trigger_name,
+            plugin_filename,
+        } = serde_urlencoded::from_str(req.uri().query().unwrap_or(""))?;
+
+        self.processing_engine
+            .refresh_plugin(&db, &trigger_name, &plugin_filename)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        info!(
+            "Plugin '{}' re-fetched for trigger '{}' in database '{}' by token {:?}",
+            plugin_filename, trigger_name, db, token_id
+        );
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
+    }
 }
 
 /// Check that the content type is application/json
@@ -2942,6 +2970,9 @@ async fn perform_routing(
         (Method::PUT, all_paths::API_V3_PLUGINS_FILES) => http_server.update_plugin_file(req).await,
         (Method::PUT, all_paths::API_V3_PLUGINS_DIRECTORY) => {
             http_server.replace_plugin_directory(req).await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_PROCESSING_ENGINE_REFRESH) => {
+            http_server.refresh_plugin(req).await
         }
         _ => return Err(RoutingError::NotFound),
     }

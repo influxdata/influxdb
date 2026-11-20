@@ -151,6 +151,8 @@ impl CatalogOp for DeleteTriggerOp {
 pub(crate) struct EnableTriggerArgs {
     pub db_name: String,
     pub trigger_name: String,
+    /// Re-announce an enabled trigger instead of enabling a disabled one.
+    pub refresh: bool,
 }
 
 pub(crate) struct EnableTriggerOp {
@@ -174,8 +176,10 @@ impl CatalogOp for EnableTriggerOp {
             .get_by_name(&args.trigger_name)
             .ok_or_else(|| CatalogError::NotFound(args.trigger_name.clone()))?;
 
-        if !trigger.disabled {
-            return Err(CatalogError::TriggerAlreadyEnabled);
+        match (trigger.disabled, args.refresh) {
+            (false, false) => return Err(CatalogError::TriggerAlreadyEnabled),
+            (true, true) => return Err(CatalogError::TriggerAlreadyDisabled),
+            _ => {}
         }
 
         records.push(&EnableTrigger {

@@ -6,6 +6,7 @@ mod offline_tokens;
 mod schema_enforcement;
 mod system_tables;
 mod tls_no_verify;
+mod update_trigger_gh;
 
 use crate::server::{ConfigProvider, TestServer};
 use assert_cmd::cargo::cargo_bin_cmd;

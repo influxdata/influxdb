@@ -130,7 +130,7 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.12.2"
+version = "3.12.3"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -325,6 +325,11 @@ debug = false
 
 # Patching Datafusion
 [patch.crates-io]
+# object_store 0.12.5 with upstream's LocalFileSystem fsync backported (branch
+# base-object-store-0125) plus the directory-sync fixes of
+# influxdata/arrow-rs-object-store#5 mirrored onto it (#9, merged as
+# 36cca19). Drop when upgrading to object_store >= 0.14.
+object_store = { git = "https://github.com/influxdata/arrow-rs-object-store.git", rev = "36cca19484f8a7da8a7bbfb3410135791c8e929e" }
 # Use DataFusion fork
 # Pinned to https://github.com/influxdata/arrow-datafusion/tree/upgrade-df-ver5250-d
 # See for contents:
