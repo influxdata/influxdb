@@ -222,6 +222,15 @@ pub struct UpdatePluginFileRequest {
     pub content: String,
 }
 
+/// Request definition for the `POST /api/v3/configure/processing_engine_trigger/refresh` API
+/// Re-fetches a trigger's `gh:` plugin, which the trigger runs from its next run on
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ProcessingEngineTriggerRefreshRequest {
+    pub db: String,
+    pub trigger_name: String,
+    pub plugin_filename: String,
+}
+
 /// Request definition for the `PUT /api/v3/plugins/directory` API
 /// Replaces an entire plugin directory atomically
 #[derive(Debug, Deserialize, Serialize)]

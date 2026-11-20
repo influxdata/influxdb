@@ -3,7 +3,7 @@ use std::{
     future::Future,
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex, Once},
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use arrow::record_batch::RecordBatch;
@@ -43,6 +43,7 @@ mod ping;
 mod plugin_restriction;
 mod query;
 mod schema_enforcement;
+mod shutdown;
 mod system_tables;
 mod telemetry;
 mod write;
@@ -97,6 +98,7 @@ pub struct TestConfig {
     without_admin_token: bool,
     node_id: Option<String>,
     plugin_dir: Option<String>,
+    plugin_repo: Option<String>,
     virtual_env_dir: Option<String>,
     package_manager: Option<String>,
     disable_package_management: bool,
@@ -170,6 +172,12 @@ impl TestConfig {
     /// Set the plugin dir for this [`TestServer`]
     pub fn with_plugin_dir<S: Into<String>>(mut self, plugin_dir: S) -> Self {
         self.plugin_dir = Some(plugin_dir.into());
+        self
+    }
+
+    /// Set the repository that this [`TestServer`] fetches `gh:` plugins from
+    pub fn with_plugin_repo<S: Into<String>>(mut self, plugin_repo: S) -> Self {
+        self.plugin_repo = Some(plugin_repo.into());
         self
     }
 
@@ -304,6 +312,12 @@ impl ConfigProvider for TestConfig {
 
         if let Some(plugin_dir) = &self.plugin_dir {
             args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
+        }
+        if let Some(plugin_repo) = &self.plugin_repo {
+            args.append(&mut vec![
+                "--plugin-repo".to_string(),
+                plugin_repo.to_owned(),
+            ]);
         }
         if let Some(virtual_env_dir) = &self.virtual_env_dir {
             args.append(&mut vec![
@@ -795,12 +809,57 @@ impl TestServer {
         self.server_process.kill().expect("kill the server process");
     }
 
+    /// Ask the server to stop the way an orchestrator does.
+    #[cfg(unix)]
+    pub fn send_sigterm(&mut self) {
+        let pid = self.server_process.id() as libc::pid_t;
+        // SAFETY: kill(2) on a pid this harness spawned and has not reaped.
+        let rc = unsafe { libc::kill(pid, libc::SIGTERM) };
+        assert_eq!(
+            rc,
+            0,
+            "send SIGTERM to {pid}: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
     pub fn is_stopped(&mut self) -> bool {
         self.server_process
             .try_wait()
             .inspect_err(|error| println!("error when checking for stopped: {error:?}"))
             .expect("check process status")
             .is_some()
+    }
+
+    /// Wait for the server process to exit and return its status. Panics with
+    /// the last log lines if it is still running after 30 seconds.
+    pub async fn wait_until_stopped(&mut self) -> std::process::ExitStatus {
+        const TIMEOUT: Duration = Duration::from_secs(30);
+        let deadline = Instant::now() + TIMEOUT;
+        loop {
+            if let Some(status) = self
+                .server_process
+                .try_wait()
+                .inspect_err(|error| println!("error when checking for stopped: {error:?}"))
+                .expect("check process status")
+            {
+                return status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "server did not stop within {TIMEOUT:?}; last log lines:\n{}",
+                self.get_logs(Some(80)).unwrap_or_default()
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// Kill the server process (`SIGKILL`) and wait for it to exit, so a test
+    /// can start another server on the same store or node id without racing
+    /// the old one.
+    pub async fn kill_and_wait(&mut self) {
+        self.kill();
+        self.wait_until_stopped().await;
     }
 
     /// Get captured stdout as a string, if log capture was enabled

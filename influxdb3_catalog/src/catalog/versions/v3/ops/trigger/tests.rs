@@ -139,6 +139,7 @@ fn prepare_enable_disable_trigger() {
         &EnableTriggerArgs {
             db_name: "mydb".to_string(),
             trigger_name: "my_trigger".to_string(),
+            refresh: false,
         },
         &catalog,
         &mut batch,
@@ -164,6 +165,7 @@ fn prepare_enable_already_enabled() {
         &EnableTriggerArgs {
             db_name: "mydb".to_string(),
             trigger_name: "my_trigger".to_string(),
+            refresh: false,
         },
         &catalog,
         &mut batch,

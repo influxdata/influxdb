@@ -1,7 +1,7 @@
 //! Object-store wrappers for exercising compare-and-swap / conditional-put
 //! logic (ambiguous-success retries, version-keyed backends, transient errors).
 
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use object_store::ObjectStore;
 
@@ -22,9 +22,13 @@ pub enum LostResponseError {
 #[derive(Debug)]
 pub struct LostResponseStore {
     inner: Arc<dyn ObjectStore>,
-    lose_next_put_response: std::sync::Mutex<Option<LostResponseError>>,
+    lose_put_responses: std::sync::Mutex<VecDeque<LostResponseError>>,
     collision_shape: std::sync::Mutex<Option<LostResponseError>>,
     last_get: std::sync::Mutex<Option<(Option<object_store::GetRange>, bool)>>,
+    /// Per path, the bytes of the last put whose success reached the caller, or
+    /// `None` if a put landed there without one; see [`Self::power_cut`].
+    acknowledged:
+        std::sync::Mutex<std::collections::HashMap<object_store::path::Path, Option<bytes::Bytes>>>,
 }
 
 /// The error a lost response, or a reshaped collision, surfaces as.
@@ -52,9 +56,27 @@ impl LostResponseStore {
     pub fn new(inner: Arc<dyn ObjectStore>) -> Self {
         Self {
             inner,
-            lose_next_put_response: std::sync::Mutex::new(None),
+            lose_put_responses: std::sync::Mutex::new(VecDeque::new()),
             collision_shape: std::sync::Mutex::new(None),
             last_get: std::sync::Mutex::new(None),
+            acknowledged: Default::default(),
+        }
+    }
+
+    /// Roll every path written through this store back to the last put whose
+    /// success reached the caller, as a store that reports success only once a
+    /// write is durable leaves it after a power cut.
+    pub async fn power_cut(&self) {
+        let acknowledged = self.acknowledged.lock().expect("lock not poisoned").clone();
+        for (path, bytes) in acknowledged {
+            match bytes {
+                Some(bytes) => {
+                    self.inner.put(&path, bytes.into()).await.unwrap();
+                }
+                None => {
+                    let _ = self.inner.delete(&path).await;
+                }
+            }
         }
     }
 
@@ -77,10 +99,17 @@ impl LostResponseStore {
     }
 
     pub fn lose_next_put_response_with(&self, error: LostResponseError) {
-        *self
-            .lose_next_put_response
+        let mut responses = self.lose_put_responses.lock().expect("lock not poisoned");
+        responses.clear();
+        responses.push_back(error);
+    }
+
+    /// Lose the next `count` put responses as `error`.
+    pub fn lose_next_put_responses_with(&self, count: usize, error: LostResponseError) {
+        self.lose_put_responses
             .lock()
-            .expect("lock not poisoned") = Some(error);
+            .expect("lock not poisoned")
+            .extend(std::iter::repeat_n(error, count));
     }
 }
 
@@ -98,6 +127,12 @@ impl ObjectStore for LostResponseStore {
         payload: object_store::PutPayload,
         opts: object_store::PutOptions,
     ) -> object_store::Result<object_store::PutResult> {
+        let bytes: bytes::Bytes = payload
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<u8>>()
+            .into();
         let result = match self.inner.put_opts(location, payload, opts).await {
             Ok(result) => result,
             Err(e @ object_store::Error::AlreadyExists { .. }) => {
@@ -108,13 +143,20 @@ impl ObjectStore for LostResponseStore {
         };
         // The write landed, but the caller sees the failure its own retry got.
         let taken = self
-            .lose_next_put_response
+            .lose_put_responses
             .lock()
             .expect("lock not poisoned")
-            .take();
+            .pop_front();
+        let mut acknowledged = self.acknowledged.lock().expect("lock not poisoned");
         match taken {
-            Some(error) => Err(lost_response_error(error, location)),
-            None => Ok(result),
+            Some(error) => {
+                acknowledged.entry(location.clone()).or_insert(None);
+                Err(lost_response_error(error, location))
+            }
+            None => {
+                acknowledged.insert(location.clone(), Some(bytes));
+                Ok(result)
+            }
         }
     }
 

@@ -15,9 +15,10 @@ use clap::{CommandFactory, FromArgMatches, parser::ValueSource};
 use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::{TokioDatafusionConfig, TokioIoConfig};
 use influxdb3_server::VERSION_STRING;
+use influxdb3_shutdown::IO_SHUTDOWN_TIMEOUT;
 use influxdb3_startup::env_compat::{self, ENV_ALIASES};
 use influxdb3_telemetry::ServeInvocationMethod;
-use observability_deps::tracing::{self, warn};
+use observability_deps::tracing::{self, info, warn};
 use owo_colors::OwoColorize;
 use std::collections::HashMap;
 
@@ -338,7 +339,7 @@ fn serve_main(
     let user_params = extract_user_params(matches);
 
     let tokio_runtime = runtime_config.builder()?.build()?;
-    if let Err(e) = tokio_runtime.block_on(async move {
+    let result = tokio_runtime.block_on(async move {
         fn handle_init_logs(r: Result<TroggingGuard, trogging::Error>) -> TroggingGuard {
             match r {
                 Ok(guard) => guard,
@@ -354,7 +355,12 @@ fn serve_main(
         ));
 
         commands::serve::command(serve_config, user_params).await
-    }) {
+    });
+    // A plugin stuck in an uninterruptible call holds a blocking-pool thread, and
+    // dropping the runtime would wait on it forever. The thread dies with the process.
+    tokio_runtime.shutdown_timeout(IO_SHUTDOWN_TIMEOUT);
+    info!("io runtime stopped");
+    if let Err(e) = result {
         eprintln!("Serve command failed: {e}");
 
         std::process::exit(ReturnCode::Failure as _)

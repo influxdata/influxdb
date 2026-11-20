@@ -53,7 +53,7 @@ RUN \
   --mount=type=cache,id=influxdb3_git,sharing=locked,target=/usr/local/cargo/git \
   --mount=type=cache,id=influxdb3_target,sharing=locked,target=/influxdb3/target \
     du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb3/target && \
-    PYO3_CONFIG_FILE="/influxdb3/python-artifacts/$PBS_TARGET/pyo3_config_file.txt" cargo build --target-dir /influxdb3/target --package="$PACKAGE" --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
+    PYO3_CONFIG_FILE="/influxdb3/python-artifacts/$PBS_TARGET/pyo3_config_file.txt" cargo build --locked --target-dir /influxdb3/target --package="$PACKAGE" --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
     objcopy --compress-debug-sections "target/$PROFILE/$PACKAGE" && \
     cp "/influxdb3/target/$PROFILE/$PACKAGE" "/root/$PACKAGE" && \
     patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' "/root/$PACKAGE" && \

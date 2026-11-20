@@ -39,6 +39,8 @@ pub(crate) const API_V3_TEST_PLUGIN_ROUTE: &str = "/api/v3/plugin_test/schedule"
 pub(crate) const API_V3_TEST_TELEMETRY_SNAPSHOT: &str = "/api/v3/test/telemetry_snapshot";
 pub(crate) const API_V3_PLUGINS_FILES: &str = "/api/v3/plugins/files";
 pub(crate) const API_V3_PLUGINS_DIRECTORY: &str = "/api/v3/plugins/directory";
+pub(crate) const API_V3_CONFIGURE_PROCESSING_ENGINE_REFRESH: &str =
+    "/api/v3/configure/processing_engine_trigger/refresh";
 
 /****** headers ********/
 pub(crate) const API_HEADER_CLUSTER_UUID: &str = "cluster-uuid";

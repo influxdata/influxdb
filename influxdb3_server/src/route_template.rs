@@ -63,6 +63,9 @@ pub(crate) fn route_template(path: &str) -> &'static str {
         all_paths::API_V3_TEST_TELEMETRY_SNAPSHOT => return "/api/v3/test/:action",
         all_paths::API_V3_PLUGINS_FILES => return "/api/v3/plugins/files",
         all_paths::API_V3_PLUGINS_DIRECTORY => return "/api/v3/plugins/directory",
+        all_paths::API_V3_CONFIGURE_PROCESSING_ENGINE_REFRESH => {
+            return "/api/v3/configure/processing_engine_trigger/refresh";
+        }
         _ => {}
     }
 

@@ -77,7 +77,8 @@ pub struct UpdateTrigger {
     #[clap(long = "trigger-name", short = 't')]
     trigger_name: String,
 
-    /// Path to file containing plugin code to update
+    /// Path to a plugin file or directory to upload, or the trigger's `gh:` plugin path to
+    /// re-fetch it from the plugin repository for the trigger's next run
     #[clap(long, short = 'p')]
     path: PathBuf,
 
@@ -178,11 +179,18 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 client = client.with_auth_token(token.expose_secret());
             }
 
-            if !path.exists() {
-                return Err(format!("Path does not exist: {}", path.display()).into());
-            }
+            if let Some(gh_path) = path.to_str().filter(|p| p.starts_with("gh:")) {
+                client
+                    .api_v3_refresh_plugin(&database_name, &trigger_name, gh_path)
+                    .await?;
 
-            if path.is_file() {
+                println!(
+                    "Trigger '{}' updated successfully (re-fetched {})",
+                    trigger_name, gh_path
+                );
+            } else if !path.exists() {
+                return Err(format!("Path does not exist: {}", path.display()).into());
+            } else if path.is_file() {
                 let content = fs::read_to_string(&path).await?;
 
                 client

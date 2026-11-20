@@ -924,6 +924,28 @@ impl Client {
         Ok(())
     }
 
+    /// Re-fetch a trigger's `gh:` plugin from the plugin repository for its next run
+    pub async fn api_v3_refresh_plugin(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        plugin_filename: impl Into<String> + Send,
+    ) -> Result<()> {
+        self.send_json_get_bytes(
+            Method::POST,
+            "/api/v3/configure/processing_engine_trigger/refresh",
+            None::<()>,
+            Some(ProcessingEngineTriggerRefreshRequest {
+                db: db.into(),
+                trigger_name: trigger_name.into(),
+                plugin_filename: plugin_filename.into(),
+            }),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
     /// Make a request to the `POST /api/v3/plugin_test/wal` API
     pub async fn wal_plugin_test(
         &self,
