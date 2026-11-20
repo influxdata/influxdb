@@ -4,7 +4,6 @@
 #![expect(
     clippy::clone_on_ref_ptr,
     clippy::derive_partial_eq_without_eq,
-    clippy::large_enum_variant,
     clippy::use_self,
     clippy::allow_attributes,
     clippy::uninlined_format_args,

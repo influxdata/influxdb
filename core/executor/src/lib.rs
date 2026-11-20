@@ -159,6 +159,36 @@ impl std::fmt::Debug for DedicatedExecutor {
     }
 }
 
+/// Builder for a [`DedicatedExecutor`], created by [`DedicatedExecutor::builder`].
+#[derive(Debug)]
+pub struct DedicatedExecutorBuilder {
+    name: String,
+    runtime_builder: tokio::runtime::Builder,
+    metric_registry: Arc<Registry>,
+    shutdown_timeout: Duration,
+}
+
+impl DedicatedExecutorBuilder {
+    /// Bounds how long the runtime waits for its worker and blocking threads
+    /// when the executor shuts down or is dropped. A thread still running
+    /// after that is leaked and ends with the process. Defaults to 5 minutes.
+    pub fn shutdown_timeout(mut self, shutdown_timeout: Duration) -> Self {
+        self.shutdown_timeout = shutdown_timeout;
+        self
+    }
+
+    /// Creates the [`DedicatedExecutor`].
+    pub fn build(self) -> DedicatedExecutor {
+        DedicatedExecutor::new_inner(
+            &self.name,
+            self.runtime_builder,
+            self.metric_registry,
+            self.shutdown_timeout,
+            false,
+        )
+    }
+}
+
 /// [`DedicatedExecutor`] for testing purposes.
 static TESTING_EXECUTOR: OnceLock<DedicatedExecutor> = OnceLock::new();
 
@@ -179,13 +209,29 @@ impl DedicatedExecutor {
         runtime_builder: tokio::runtime::Builder,
         metric_registry: Arc<Registry>,
     ) -> Self {
-        Self::new_inner(name, runtime_builder, metric_registry, false)
+        Self::builder(name, runtime_builder, metric_registry).build()
+    }
+
+    /// Returns a [`DedicatedExecutorBuilder`] for an executor with the same
+    /// semantics as [`DedicatedExecutor::new`], plus optional settings.
+    pub fn builder(
+        name: &str,
+        runtime_builder: tokio::runtime::Builder,
+        metric_registry: Arc<Registry>,
+    ) -> DedicatedExecutorBuilder {
+        DedicatedExecutorBuilder {
+            name: name.to_owned(),
+            runtime_builder,
+            metric_registry,
+            shutdown_timeout: SHUTDOWN_TIMEOUT,
+        }
     }
 
     fn new_inner(
         name: &str,
         runtime_builder: tokio::runtime::Builder,
         metric_registry: Arc<Registry>,
+        shutdown_timeout: Duration,
         testing: bool,
     ) -> Self {
         let name = name.to_owned();
@@ -239,7 +285,7 @@ impl DedicatedExecutor {
                     shutdown.await;
                 });
 
-                runtime.shutdown_timeout(SHUTDOWN_TIMEOUT);
+                runtime.shutdown_timeout(shutdown_timeout);
 
                 // send shutdown "done" signal
                 tx_shutdown.send(()).ok();
@@ -279,6 +325,7 @@ impl DedicatedExecutor {
                     "testing",
                     runtime_builder,
                     Arc::new(Registry::default()),
+                    SHUTDOWN_TIMEOUT,
                     true,
                 )
             })
@@ -630,6 +677,39 @@ mod tests {
         exec.clone().join().await;
         exec.clone().join().await;
         exec.join().await;
+    }
+
+    #[tokio::test]
+    async fn join_returns_once_configured_shutdown_timeout_elapses() {
+        let bound = Duration::from_secs(1);
+        let barrier = Arc::new(Barrier::new(2));
+        let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
+        runtime_builder.worker_threads(1);
+        runtime_builder.enable_all();
+        let exec = DedicatedExecutor::builder(
+            "Test DedicatedExecutor",
+            runtime_builder,
+            Arc::new(Registry::default()),
+        )
+        .shutdown_timeout(bound)
+        .build();
+        let captured = Arc::clone(&barrier);
+        // Never yields, so the worker never exits and the shutdown waits for the full bound.
+        let _stuck = exec.spawn(async move {
+            captured.wait();
+            loop {
+                std::thread::park();
+            }
+        });
+        barrier.wait();
+
+        let started = std::time::Instant::now();
+        tokio::time::timeout(Duration::from_secs(10), exec.join())
+            .await
+            .expect("join must return once the configured timeout elapses");
+        let elapsed = started.elapsed();
+        assert!(elapsed >= bound - Duration::from_millis(200), "{elapsed:?}");
+        assert!(elapsed < bound + Duration::from_secs(4), "{elapsed:?}");
     }
 
     #[tokio::test]

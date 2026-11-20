@@ -184,9 +184,9 @@ mod cache_operations {
             TestStep::ExpectCacheMiss { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(3)) },
             TestStep::CacheOpGet { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(3)) }, // Should evict table 2
             TestStep::ExpectCacheSize { count: 2 }, // Still 2, but table 2 was evicted
-            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)), expected: false }, // Table 1 should still be cached
+            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)), expected: true }, // Table 1 was read, so it stays cached
             TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(3)), expected: true }, // Table 3 should be cached
-            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(2)), expected: true }, // Table 2 should be evicted
+            TestStep::ExpectCached { table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(2)), expected: false }, // Table 2 was never read, so it is evicted
         ],
     })]
     #[case::clear_operation(CacheTestCase {
@@ -3446,4 +3446,39 @@ mod purge {
 
         runner.validate_steps(test).await;
     }
+}
+
+#[tokio::test]
+async fn touch_records_nanoseconds_since_start() {
+    let id = TableIndexId::new("test_node", DbId::from(1), TableId::from(10));
+    // `new` forces the start time, so `before` is well above zero.
+    let entry = CachedTableIndex::new(create_test_index(id, 1));
+    let before = TABLE_INDEX_CACHE_START_TIME.elapsed().as_nanos() as u64;
+    entry.touch().await;
+    let after = TABLE_INDEX_CACHE_START_TIME.elapsed().as_nanos() as u64;
+    let stored = entry
+        .inner
+        .last_access_time_since_start_ns
+        .load(Ordering::Relaxed);
+
+    assert!(before > 0);
+    assert!(
+        (before..=after).contains(&stored),
+        "{before} <= {stored} <= {after}"
+    );
+}
+
+#[tokio::test]
+async fn stale_duration_saturates_at_zero() {
+    let table_index_id = TableIndexId::new("test_node", DbId::from(1), TableId::from(10));
+    let cached = CachedTableIndex::new(create_test_index(table_index_id, 1));
+
+    // Simulates another thread recording an access after this one read the clock.
+    let future_access = TABLE_INDEX_CACHE_START_TIME.elapsed() + Duration::from_secs(3600);
+    cached
+        .inner
+        .last_access_time_since_start_ns
+        .store(future_access.as_nanos() as u64, Ordering::Relaxed);
+
+    assert_eq!(cached.stale_duration_ns().await, 0);
 }

@@ -2370,6 +2370,227 @@ mod startup_fast_fail {
 }
 
 // ---------------------------------------------------------------------------
+// promote_core_catalog_to_cluster_prefix
+// ---------------------------------------------------------------------------
+
+mod promote_core_catalog {
+    use super::super::promote_core_catalog_to_cluster_prefix;
+    use super::*;
+    use crate::catalog::versions::v2::InnerCatalog as V2InnerCatalog;
+    use crate::catalog::versions::v2::Snapshot as V2Snapshot;
+    use crate::log::versions::v4::StorageMode as V2StorageMode;
+    use crate::object_store::versions as ostore;
+
+    #[tokio::test]
+    async fn prefers_v3_core_catalog_over_stale_v2_core_catalog() {
+        // When a node upgraded from Core 3.9 to 3.10+, check_and_migrate_v2_to_v3
+        // migrated the catalog to v3 but left {node_id}/catalog/v2 intact.
+        // Schema updates made in 3.10+ were written to v3.
+        // Enterprise promotion must pick the live v3 catalog, not the stale v2 one.
+        let store: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        let node_id: Arc<str> = Arc::from("node-1");
+        let cluster_id: Arc<str> = Arc::from("cluster-1");
+
+        // 1.  Seed a v2 catalog at node-1.
+        let v2_uuid = Uuid::new_v4();
+        let v2_inner = V2InnerCatalog::new(Arc::clone(&node_id), v2_uuid);
+        let v2_store = ostore::v2::ObjectStoreCatalog::new(
+            Arc::clone(&node_id),
+            u64::MAX,
+            Arc::clone(&store),
+            V2StorageMode::default(),
+        );
+        v2_store
+            .persist_catalog_checkpoint(&v2_inner.snapshot())
+            .await
+            .unwrap();
+
+        // 2.  Start Core (3.10+), which migrates v2 to v3 in place.
+        let core_cat = test_load_or_create("node-1", Arc::clone(&store))
+            .await
+            .expect("migration to v3");
+
+        // 3.  Make schema changes on the live v3 catalog in Core.
+        core_cat.create_database("db_v3").await.unwrap();
+
+        // Both v2 checkpoint and v3 snapshot exist at node-1.
+        assert!(v2_store.checkpoint_exists().await.unwrap());
+
+        // 4.  Run promotion to cluster-1.
+        promote_core_catalog_to_cluster_prefix(
+            Arc::clone(&node_id),
+            Arc::clone(&cluster_id),
+            Arc::clone(&store),
+            StorageMode::default(),
+        )
+        .await
+        .unwrap();
+
+        // 5.  Load the cluster catalog and verify db_v3 is present.
+        let cluster_cat = test_load_or_create("cluster-1", Arc::clone(&store))
+            .await
+            .expect("cluster catalog load");
+
+        assert!(
+            cluster_cat.db_schema("db_v3").is_some(),
+            "cluster catalog should have schema updates from live v3 core catalog"
+        );
+    }
+
+    #[tokio::test]
+    async fn promotes_v2_core_catalog_when_no_v3_core_catalog_exists() {
+        let store: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        let node_id: Arc<str> = Arc::from("node-1");
+        let cluster_id: Arc<str> = Arc::from("cluster-1");
+
+        // Seed only a v2 catalog at node-1 (simulating pre-3.10 Core).
+        let v2_uuid = Uuid::new_v4();
+        let v2_inner = V2InnerCatalog::new(Arc::clone(&node_id), v2_uuid);
+        let v2_store = ostore::v2::ObjectStoreCatalog::new(
+            Arc::clone(&node_id),
+            u64::MAX,
+            Arc::clone(&store),
+            V2StorageMode::default(),
+        );
+        v2_store
+            .persist_catalog_checkpoint(&v2_inner.snapshot())
+            .await
+            .unwrap();
+
+        promote_core_catalog_to_cluster_prefix(
+            Arc::clone(&node_id),
+            Arc::clone(&cluster_id),
+            Arc::clone(&store),
+            StorageMode::default(),
+        )
+        .await
+        .unwrap();
+
+        // Cluster should now have the v2 checkpoint, which load_or_create migrates.
+        let cluster_cat = test_load_or_create("cluster-1", Arc::clone(&store))
+            .await
+            .expect("cluster catalog load");
+        assert_eq!(cluster_cat.catalog_uuid(), v2_uuid);
+    }
+
+    #[tokio::test]
+    async fn promotes_v3_core_catalog_when_no_v2_core_catalog_exists() {
+        let store: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        let node_id: Arc<str> = Arc::from("node-1");
+        let cluster_id: Arc<str> = Arc::from("cluster-1");
+
+        // Fresh v3 Core node with no legacy v2 catalog.
+        let core_cat = test_load_or_create("node-1", Arc::clone(&store))
+            .await
+            .expect("fresh v3 core catalog");
+        core_cat.create_database("db_fresh").await.unwrap();
+
+        promote_core_catalog_to_cluster_prefix(
+            Arc::clone(&node_id),
+            Arc::clone(&cluster_id),
+            Arc::clone(&store),
+            StorageMode::default(),
+        )
+        .await
+        .unwrap();
+
+        let cluster_cat = test_load_or_create("cluster-1", Arc::clone(&store))
+            .await
+            .expect("cluster catalog load");
+        assert!(cluster_cat.db_schema("db_fresh").is_some());
+    }
+
+    #[tokio::test]
+    async fn no_op_when_cluster_already_has_v3_catalog() {
+        let store: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        let node_id: Arc<str> = Arc::from("node-1");
+        let cluster_id: Arc<str> = Arc::from("cluster-1");
+
+        let core_cat = test_load_or_create("node-1", Arc::clone(&store))
+            .await
+            .unwrap();
+        core_cat.create_database("db_node").await.unwrap();
+
+        let cluster_cat = test_load_or_create("cluster-1", Arc::clone(&store))
+            .await
+            .unwrap();
+        cluster_cat.create_database("db_existing").await.unwrap();
+
+        promote_core_catalog_to_cluster_prefix(
+            Arc::clone(&node_id),
+            Arc::clone(&cluster_id),
+            Arc::clone(&store),
+            StorageMode::default(),
+        )
+        .await
+        .unwrap();
+
+        let reloaded = test_load_or_create("cluster-1", Arc::clone(&store))
+            .await
+            .unwrap();
+        assert!(reloaded.db_schema("db_existing").is_some());
+        assert!(reloaded.db_schema("db_node").is_none());
+    }
+
+    #[tokio::test]
+    async fn no_op_when_cluster_already_has_v2_catalog() {
+        let store: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        let node_id: Arc<str> = Arc::from("node-1");
+        let cluster_id: Arc<str> = Arc::from("cluster-1");
+
+        let core_cat = test_load_or_create("node-1", Arc::clone(&store))
+            .await
+            .unwrap();
+        core_cat.create_database("db_node").await.unwrap();
+
+        // Seed a v2 catalog directly at cluster-1.
+        let cluster_v2_uuid = Uuid::new_v4();
+        let cluster_v2_inner = V2InnerCatalog::new(Arc::clone(&cluster_id), cluster_v2_uuid);
+        let cluster_v2_store = ostore::v2::ObjectStoreCatalog::new(
+            Arc::clone(&cluster_id),
+            u64::MAX,
+            Arc::clone(&store),
+            V2StorageMode::default(),
+        );
+        cluster_v2_store
+            .persist_catalog_checkpoint(&cluster_v2_inner.snapshot())
+            .await
+            .unwrap();
+
+        promote_core_catalog_to_cluster_prefix(
+            Arc::clone(&node_id),
+            Arc::clone(&cluster_id),
+            Arc::clone(&store),
+            StorageMode::default(),
+        )
+        .await
+        .unwrap();
+
+        // Cluster should still have the original cluster v2 uuid after migration.
+        let reloaded = test_load_or_create("cluster-1", Arc::clone(&store))
+            .await
+            .unwrap();
+        assert_eq!(reloaded.catalog_uuid(), cluster_v2_uuid);
+        assert!(reloaded.db_schema("db_node").is_none());
+    }
+
+    #[tokio::test]
+    async fn no_op_when_node_id_equals_cluster_id() {
+        let store: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        let node_id: Arc<str> = Arc::from("node-1");
+
+        let res = promote_core_catalog_to_cluster_prefix(
+            Arc::clone(&node_id),
+            Arc::clone(&node_id),
+            store,
+            StorageMode::default(),
+        )
+        .await;
+        assert!(res.is_ok());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Read-only accessors
 // ---------------------------------------------------------------------------
 
