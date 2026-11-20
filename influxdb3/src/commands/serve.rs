@@ -44,7 +44,9 @@ use influxdb3_server::http::route_operator_request;
 use influxdb3_server::{
     CommonServerState, CreateServerArgs, Server, serve, serve_admin_token_recovery_endpoint,
 };
-use influxdb3_shutdown::{ShutdownManager, ShutdownToken, wait_for_signal};
+use influxdb3_shutdown::{
+    EXECUTOR_SHUTDOWN_TIMEOUT, ShutdownManager, ShutdownToken, wait_for_signal,
+};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::{
     MetricsError, PluginTriggerInvocationMetrics, ProcessingEngineMetrics,
@@ -1119,7 +1121,7 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
             per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
             heap_memory_limit: None,
         },
-        DedicatedExecutor::new(
+        DedicatedExecutor::builder(
             "datafusion",
             tokio_datafusion_config
                 .builder()
@@ -1129,7 +1131,9 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
                 })
                 .map_err(Error::TokioRuntime)?,
             Arc::clone(&metrics),
-        ),
+        )
+        .shutdown_timeout(EXECUTOR_SHUTDOWN_TIMEOUT)
+        .build(),
     ));
 
     // Note: using same metrics registry causes runtime panic.
@@ -1153,13 +1157,15 @@ pub async fn command(mut config: Config, user_params: HashMap<String, String>) -
             per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
             heap_memory_limit: None,
         },
-        DedicatedExecutor::new(
+        DedicatedExecutor::builder(
             "datafusion_write_path",
             tokio_datafusion_config
                 .builder()
                 .map_err(Error::TokioRuntime)?,
             Arc::clone(&write_path_metrics),
-        ),
+        )
+        .shutdown_timeout(EXECUTOR_SHUTDOWN_TIMEOUT)
+        .build(),
     ));
 
     let trace_header_parser = TraceHeaderParser::new()

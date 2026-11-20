@@ -42,6 +42,7 @@ mod packages;
 mod ping;
 mod plugin_restriction;
 mod query;
+mod shutdown;
 mod system_tables;
 mod telemetry;
 mod write;
@@ -786,6 +787,20 @@ impl TestServer {
         self.server_process.kill().expect("kill the server process");
     }
 
+    /// Ask the server to stop the way an orchestrator does.
+    #[cfg(unix)]
+    pub fn send_sigterm(&mut self) {
+        let pid = self.server_process.id() as libc::pid_t;
+        // SAFETY: kill(2) on a pid this harness spawned and has not reaped.
+        let rc = unsafe { libc::kill(pid, libc::SIGTERM) };
+        assert_eq!(
+            rc,
+            0,
+            "send SIGTERM to {pid}: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
     pub fn is_stopped(&mut self) -> bool {
         self.server_process
             .try_wait()
@@ -794,12 +809,20 @@ impl TestServer {
             .is_some()
     }
 
-    /// Wait for the server process to exit. Panics with the last log lines if
-    /// it is still running after 30 seconds.
-    pub async fn wait_until_stopped(&mut self) {
+    /// Wait for the server process to exit and return its status. Panics with
+    /// the last log lines if it is still running after 30 seconds.
+    pub async fn wait_until_stopped(&mut self) -> std::process::ExitStatus {
         const TIMEOUT: Duration = Duration::from_secs(30);
         let deadline = Instant::now() + TIMEOUT;
-        while !self.is_stopped() {
+        loop {
+            if let Some(status) = self
+                .server_process
+                .try_wait()
+                .inspect_err(|error| println!("error when checking for stopped: {error:?}"))
+                .expect("check process status")
+            {
+                return status;
+            }
             assert!(
                 Instant::now() < deadline,
                 "server did not stop within {TIMEOUT:?}; last log lines:\n{}",

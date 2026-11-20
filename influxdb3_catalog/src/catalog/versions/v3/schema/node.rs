@@ -34,8 +34,8 @@ pub struct NodeDefinition {
     pub(crate) conn_info: Option<Arc<str>>,
     /// CLI parameters used to start this node (non-sensitive params only, JSON format)
     pub(crate) cli_params: Option<Arc<str>>,
-    /// Lowest row-delete-predicate version this node understands. Carried
-    /// through from the v2 catalog; not yet acted on by the v3 runtime.
+    /// Highest row-delete-predicate version this node supports. The row-delete
+    /// handler rejects predicates above the lowest value across all node entries.
     pub(crate) row_delete_predicate_version: u64,
     /// Feature level of the process that registered the node. `FeatureLevel::ZERO` implies that
     /// the node was registered prior to the availability of this feature.

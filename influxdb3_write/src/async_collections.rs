@@ -4,7 +4,6 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 use tokio::sync::Notify;
-use tokio::time::sleep;
 
 /// A priority queue that allows items to be pushed with a specific time and popped when their time
 /// is reached.
@@ -15,9 +14,25 @@ use tokio::time::sleep;
 /// It is cheap and safe to clone, so that a separate task can be used to push items into the queue.
 #[derive(Clone)]
 pub(crate) struct PriorityQueue<T> {
-    heap: Arc<Mutex<BinaryHeap<Reverse<Item<T>>>>>,
+    queue: Arc<Mutex<Queue<T>>>,
     notify: Arc<Notify>,
     time_provider: Arc<dyn TimeProvider>,
+}
+
+/// The queued items and the source of the sequence numbers that order items
+/// sharing a time. They are updated together, so one lock covers both.
+struct Queue<T> {
+    heap: BinaryHeap<Reverse<Item<T>>>,
+    next_sequence: u64,
+}
+
+impl<T> Default for Queue<T> {
+    fn default() -> Self {
+        Self {
+            heap: BinaryHeap::new(),
+            next_sequence: 0,
+        }
+    }
 }
 
 impl<T> PriorityQueue<T>
@@ -27,7 +42,7 @@ where
     /// Creates a new empty `PriorityQueue`.
     pub(crate) fn new(time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
-            heap: Arc::new(Mutex::new(BinaryHeap::new())),
+            queue: Arc::new(Mutex::new(Queue::default())),
             notify: Arc::new(Notify::new()),
             time_provider,
         }
@@ -35,8 +50,10 @@ where
 
     /// Push an item into the queue with a specific time.
     pub(crate) fn push(&self, time: Time, item: T) {
-        let mut heap = self.heap.lock();
-        heap.push(Reverse(Item::new(time, item)));
+        let mut queue = self.queue.lock();
+        let sequence = queue.next_sequence;
+        queue.next_sequence += 1;
+        queue.heap.push(Reverse(Item::new(time, sequence, item)));
         self.notify.notify_one(); // Wake up the waiting task
     }
 
@@ -45,10 +62,11 @@ where
         loop {
             let notify = Arc::clone(&self.notify);
             let next_time = {
-                let mut heap = self.heap.lock();
-                if let Some(Reverse(Item { time, .. })) = heap.peek() {
+                let mut queue = self.queue.lock();
+                if let Some(Reverse(Item { time, .. })) = queue.heap.peek() {
                     if *time <= self.time_provider.now() {
-                        return heap
+                        return queue
+                            .heap
                             .pop()
                             .map(|Reverse(Item { item, .. })| item)
                             // Expect is safe because we already checked the time via the peek.
@@ -63,14 +81,9 @@ where
             if let Some(time) = next_time {
                 let now = self.time_provider.now();
                 if time > now {
-                    if let Some(delay) = time.checked_duration_since(now) {
-                        tokio::select! {
-                            _ = sleep(delay) => {},
-                            _ = notify.notified() => continue, // Re-evaluate if woken up
-                        }
-                    } else {
-                        // If duration calculation fails, just yield
-                        tokio::task::yield_now().await;
+                    tokio::select! {
+                        _ = self.time_provider.sleep_until(time) => {},
+                        _ = notify.notified() => continue, // Re-evaluate if woken up
                     }
                 }
             } else {
@@ -84,12 +97,18 @@ where
 struct Item<T> {
     /// The time when the item should be dequeued.
     time: Time,
+    /// Tie-breaker for items sharing a `time`, so they dequeue in push order.
+    sequence: u64,
     item: T,
 }
 
 impl<T> Item<T> {
-    fn new(time: Time, item: T) -> Self {
-        Self { time, item }
+    fn new(time: Time, sequence: u64, item: T) -> Self {
+        Self {
+            time,
+            sequence,
+            item,
+        }
     }
 }
 
@@ -97,7 +116,7 @@ impl<T> Eq for Item<T> {}
 
 impl<T> PartialEq<Self> for Item<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.time == other.time
+        self.time == other.time && self.sequence == other.sequence
     }
 }
 
@@ -109,7 +128,9 @@ impl<T> PartialOrd<Self> for Item<T> {
 
 impl<T> Ord for Item<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.time.cmp(&other.time)
+        self.time
+            .cmp(&other.time)
+            .then_with(|| self.sequence.cmp(&other.sequence))
     }
 }
 

@@ -3750,12 +3750,13 @@ impl influxdb3_authz::IdProvider for Catalog {
 
 impl influxdb3_authz::CatalogProvider for Catalog {}
 
-/// If neither a v3 nor a v2 catalog exists at `cluster_id` but a v2 catalog
-/// exists at `current_node_id` (i.e. this binary previously ran as a core
-/// node), copy the v2 core catalog to the cluster prefix with its
-/// `catalog_id` rewritten so the v2 → v3 migration runner can pick it up.
+/// If neither a v3 nor a v2 catalog exists at `cluster_id`, check whether a core
+/// catalog exists at `current_node_id` to promote to the cluster prefix.
 ///
-/// Mirrors the equivalent step in v2's `Catalog::new_enterprise`.
+/// Prefer a v3 core catalog if present (e.g.  when upgrading from a 3.10+ core
+/// node, which leaves an obsolete v2 catalog behind after format migration).
+/// If no v3 core catalog exists, fall back to promoting a v2 core catalog with
+/// its `catalog_id` rewritten so the v2 -> v3 migration runner can pick it up.
 async fn promote_core_catalog_to_cluster_prefix(
     current_node_id: Arc<str>,
     cluster_id: Arc<str>,
@@ -3786,6 +3787,36 @@ async fn promote_core_catalog_to_cluster_prefix(
         return Ok(());
     }
 
+    // Prefer a v3 core catalog over a v2 one: if a node ran on Core 3.9
+    // and then upgraded to 3.10+, check_and_migrate_v2_to_v3 created a
+    // v3 catalog at `current_node_id` but left the stale v2 catalog in
+    // place.  Always promote the live v3 catalog when present.
+    let v3_core = V3Store::new(
+        Arc::clone(&current_node_id),
+        Arc::clone(&store),
+        storage_mode,
+    );
+    if let Some(load) = v3_core
+        .load_catalog()
+        .await
+        .map_err(|e| CatalogError::Internal {
+            details: format!("loading v3 core catalog from {current_node_id}: {e}"),
+        })?
+    {
+        let mut inner = load.inner;
+        inner.catalog_id = Arc::clone(&cluster_id);
+        let _ = v3_cluster
+            .initialize_snapshot(inner.create_snapshot())
+            .await
+            .map_err(|e| CatalogError::Internal {
+                details: format!("persisting v3 catalog at cluster prefix {cluster_id}: {e}"),
+            })?;
+        return Ok(());
+    }
+
+    // No v3 core catalog exists: the node may have run an older (pre-3.10)
+    // Core build that only wrote a v2 catalog.  Copy it to the v2 cluster prefix
+    // so downstream startup can run `check_and_migrate_v2_to_v3`.
     let v2_core = V2Store::new(
         Arc::clone(&current_node_id),
         u64::MAX,
@@ -3815,29 +3846,6 @@ async fn promote_core_catalog_to_cluster_prefix(
         return Ok(());
     }
 
-    // No v2 core checkpoint: the node may have run the v3 Core build, which
-    // writes a v3 catalog. Copy it directly to the v3 cluster prefix.
-    let v3_core = V3Store::new(
-        Arc::clone(&current_node_id),
-        Arc::clone(&store),
-        storage_mode,
-    );
-    if let Some(load) = v3_core
-        .load_catalog()
-        .await
-        .map_err(|e| CatalogError::Internal {
-            details: format!("loading v3 core catalog from {current_node_id}: {e}"),
-        })?
-    {
-        let mut inner = load.inner;
-        inner.catalog_id = Arc::clone(&cluster_id);
-        let _ = v3_cluster
-            .initialize_snapshot(inner.create_snapshot())
-            .await
-            .map_err(|e| CatalogError::Internal {
-                details: format!("persisting v3 catalog at cluster prefix {cluster_id}: {e}"),
-            })?;
-    }
     Ok(())
 }
 
