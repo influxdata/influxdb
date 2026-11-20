@@ -73,7 +73,7 @@ func (c *Config) ApplyDefaults() {
 	c.RetentionPolicy = DefaultRetentionPolicy
 	c.ConsistencyLevel = DefaultConsistencyLevel
 	c.TLSEnabled = false
-	c.Certificate = DefaultCertificate // TLSCertLoader will default PrivateKey if PrivateKey remains empty.
+	c.Certificate = DefaultCertificate // The TLS certificate loader will default PrivateKey if PrivateKey remains empty.
 	c.BatchSize = DefaultBatchSize
 	c.BatchPending = DefaultBatchPending
 	c.BatchTimeout = toml.Duration(DefaultBatchTimeout)

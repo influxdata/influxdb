@@ -44,10 +44,10 @@ func certRequestFrom(t *testing.T, ss *selfsigned.Cert) *tls.CertificateRequestI
 }
 
 // leafSerial returns the serial of the certificate a loader currently holds.
-func leafSerial(t *testing.T, cl *TLSCertLoader) string {
+func leafSerial(t *testing.T, cl *tlsCertLoader) string {
 	t.Helper()
 	require.NotNil(t, cl)
-	leaf := cl.Leaf()
+	leaf := cl.LoadedCertificate().Leaf
 	require.NotNil(t, leaf)
 	return leaf.SerialNumber.String()
 }
@@ -68,11 +68,11 @@ func TestTLSConfigManager_WithClientCertificate_Paths(t *testing.T) {
 		require.NoError(t, err)
 		defer th.CheckedClose(t, manager)()
 
-		serverCert, serverKey := manager.serverCertLoader.Paths()
+		serverCert, serverKey := loadedPaths(manager.serverCertLoader)
 		require.Equal(t, serverSS.CertPath, serverCert)
 		require.Equal(t, serverSS.KeyPath, serverKey)
 
-		clientCert, clientKey := manager.clientCertLoader.Paths()
+		clientCert, clientKey := loadedPaths(manager.clientCertLoader)
 		require.Equal(t, clientSS.CertPath, clientCert)
 		require.Equal(t, clientSS.KeyPath, clientKey)
 
@@ -91,7 +91,7 @@ func TestTLSConfigManager_WithClientCertificate_Paths(t *testing.T) {
 		require.NoError(t, err)
 		defer th.CheckedClose(t, manager)()
 
-		clientCert, clientKey := manager.clientCertLoader.Paths()
+		clientCert, clientKey := loadedPaths(manager.clientCertLoader)
 		require.Equal(t, serverSS.CertPath, clientCert, "client should fall back to the server certificate")
 		require.Equal(t, serverSS.KeyPath, clientKey)
 		require.Equal(t, leafSerial(t, manager.serverCertLoader), leafSerial(t, manager.clientCertLoader))
@@ -111,7 +111,7 @@ func TestTLSConfigManager_WithClientCertificate_Paths(t *testing.T) {
 
 		require.Nil(t, manager.serverCertLoader, "a client-only manager has no server cert loader")
 
-		clientCert, clientKey := manager.clientCertLoader.Paths()
+		clientCert, clientKey := loadedPaths(manager.clientCertLoader)
 		require.Equal(t, clientSS.CertPath, clientCert)
 		require.Equal(t, clientSS.KeyPath, clientKey)
 	})
@@ -130,7 +130,7 @@ func TestTLSConfigManager_WithClientCertificate_Paths(t *testing.T) {
 
 		require.Nil(t, manager.clientCertLoader, "a server-only manager has no client cert loader")
 
-		serverCert, _ := manager.serverCertLoader.Paths()
+		serverCert, _ := loadedPaths(manager.serverCertLoader)
 		require.Equal(t, serverSS.CertPath, serverCert)
 	})
 
@@ -150,7 +150,7 @@ func TestTLSConfigManager_WithClientCertificate_Paths(t *testing.T) {
 		require.NoError(t, err)
 		defer th.CheckedClose(t, manager)()
 
-		clientCert, clientKey := manager.clientCertLoader.Paths()
+		clientCert, clientKey := loadedPaths(manager.clientCertLoader)
 		require.Equal(t, combinedSS.CertPath, clientCert)
 		require.Equal(t, combinedSS.CertPath, clientKey, "key should come from the combined certificate file")
 	})
@@ -209,14 +209,14 @@ func TestTLSConfigManager_WithClientCertificate_TLSConfigCallbacks(t *testing.T)
 		cert, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{})
 		require.NoError(t, err)
 		require.NotNil(t, cert)
-		require.Equal(t, manager.serverCertLoader.Certificate(), cert)
+		require.Equal(t, manager.serverCertLoader.LoadedCertificate().Certificate, cert)
 	})
 
 	t.Run("GetClientCertificate returns the client certificate", func(t *testing.T) {
 		cert, err := tlsConfig.GetClientCertificate(certRequestFrom(t, clientSS))
 		require.NoError(t, err)
 		require.NotNil(t, cert)
-		require.Equal(t, manager.clientCertLoader.Certificate(), cert,
+		require.Equal(t, manager.clientCertLoader.LoadedCertificate().Certificate, cert,
 			"the client certificate, not the server certificate, must be offered")
 	})
 
@@ -361,17 +361,17 @@ func TestTLSConfigManager_ReconfigureClientCertificate(t *testing.T) {
 	require.NotNil(t, apply)
 
 	// PrepareReconfigure only validates; nothing changes until apply runs.
-	clientCert, _ := manager.clientCertLoader.Paths()
+	clientCert, _ := loadedPaths(manager.clientCertLoader)
 	require.Equal(t, clientSS.CertPath, clientCert, "PrepareReconfigure must not swap the certificate")
 
 	require.NoError(t, apply())
 
-	clientCert, clientKey := manager.clientCertLoader.Paths()
+	clientCert, clientKey := loadedPaths(manager.clientCertLoader)
 	require.Equal(t, newClientSS.CertPath, clientCert)
 	require.Equal(t, newClientSS.KeyPath, clientKey)
 
 	// The server certificate is left untouched by a client-only reconfigure.
-	serverCert, _ := manager.serverCertLoader.Paths()
+	serverCert, _ := loadedPaths(manager.serverCertLoader)
 	require.Equal(t, serverSS.CertPath, serverCert)
 	require.Equal(t, serverSerial, leafSerial(t, manager.serverCertLoader))
 
@@ -382,7 +382,7 @@ func TestTLSConfigManager_ReconfigureClientCertificate(t *testing.T) {
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Nil(t, apply)
 
-		clientCert, _ := manager.clientCertLoader.Paths()
+		clientCert, _ := loadedPaths(manager.clientCertLoader)
 		require.Equal(t, newClientSS.CertPath, clientCert,
 			"a certificate that fails to load must not disturb the active one")
 	})

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -26,17 +27,9 @@ func newExpiredCert(t *testing.T) *selfsigned.Cert {
 
 // newQuietCertLoader creates a cert loader whose own logging is discarded, so
 // only the monitor's log output is observed.
-func newQuietCertLoader(t *testing.T, monitor *TLSCertMonitor, certPath, keyPath, usage string) *TLSCertLoader {
+func newQuietCertLoader(t *testing.T, monitor *TLSCertMonitor, certPath, keyPath, usage string) *tlsCertLoader {
 	t.Helper()
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(certPath, keyPath),
-		WithCertLoaderLogger(zap.NewNop()),
-		WithCertLoaderUsage(usage))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
-	return cl
+	return newTestCertLoader(t, monitor, zap.NewNop(), usage, certPath, keyPath)
 }
 
 // takeMessages drains every observed entry and returns those matching msg.
@@ -130,7 +123,7 @@ func TestTLSCertMonitor_SetLogger(t *testing.T) {
 	monitor.SetLogger(zap.New(coreB))
 
 	// A subsequent check must warn through the new logger only.
-	require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+	require.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
 	time.Sleep(testWarnWaitTime)
 
 	require.Len(t, takeExpiredWarnings(logsB), 1, "warnings should go to the logger set by SetLogger")
@@ -223,7 +216,7 @@ func TestTLSCertMonitor_SetTriggerDelay(t *testing.T) {
 	require.Empty(t, takeExpiredWarnings(logs), "SetTriggerDelay should not fire an already pending trigger")
 
 	// Queueing a new warning picks up the shortened delay.
-	require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+	require.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
 	time.Sleep(testWarnWaitTime)
 	require.NotEmpty(t, takeExpiredWarnings(logs), "next queued trigger should use the new delay")
 }
@@ -337,7 +330,7 @@ func TestTLSCertMonitor_ClosedMonitorDoesNotBlock(t *testing.T) {
 		for range 50 {
 			monitor.SetCheckInterval(time.Minute)
 			monitor.SetExpirationAdvanced(time.Hour)
-			require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+			assert.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
 		}
 	}()
 
@@ -417,8 +410,8 @@ func TestTLSCertMonitor_RotatedCertificateAtSamePath(t *testing.T) {
 	cl2 := newQuietCertLoader(t, monitor, certPath, keyPath, "opentsdb.server")
 	defer th.CheckedClose(t, cl2)()
 
-	originalSerial := cl1.Leaf().SerialNumber.String()
-	rotatedSerial := cl2.Leaf().SerialNumber.String()
+	originalSerial := cl1.LoadedCertificate().Serial()
+	rotatedSerial := cl2.LoadedCertificate().Serial()
 	require.NotEqual(t, originalSerial, rotatedSerial, "the rotated certificate should be a different one")
 
 	monitor.SetCheckInterval(testCheckTime)

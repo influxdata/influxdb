@@ -131,7 +131,10 @@ func TestTLSConfigManager_NilBaseConfig(t *testing.T) {
 	require.Equal(t, uint16(0), tlsConfig.MaxVersion)
 }
 
-func TestTLSConfigManager_CertLoaderCallbacksSet(t *testing.T) {
+// TestTLSConfigManager_ServerOnlyCertificateCallbacks checks that a server-only
+// manager installs a callback for the certificate it presents as a server, and
+// none for a client certificate.
+func TestTLSConfigManager_ServerOnlyCertificateCallbacks(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
 	monitor := newTestCertMonitor(t)
@@ -232,7 +235,7 @@ func TestMakeGetClientCertificate(t *testing.T) {
 		// (per the tls.Config.GetClientCertificate contract).
 		require.NotNil(t, cert)
 		// The returned certificate should be an empty certificate, not the loaded one.
-		require.NotEqual(t, clientCert, cert)
+		require.NotSame(t, clientCert, cert)
 		require.Empty(t, cert.Certificate)
 	})
 
@@ -1946,8 +1949,8 @@ func TestTLSConfigManager_ClientAuthOverride(t *testing.T) {
 // it should be more than testCheckTime, but less than 2 * testCheckTime.
 const testManagerCheckCapture = 500 * time.Millisecond
 
-func TestTLSConfigManager_WithCertLoaderOptions(t *testing.T) {
-	// This test verifies that WithLogger is properly passed to the underlying TLSCertLoader.
+func TestTLSConfigManager_LoggerReachesCertLoaders(t *testing.T) {
+	// This test verifies that WithLogger is properly passed to the underlying cert loaders.
 
 	// Create a certificate that expires in 24 hours
 	notBefore := time.Now().UTC().Truncate(time.Minute).Add(-7 * 24 * time.Hour)
@@ -2343,8 +2346,9 @@ func TestTLSConfigManager_PrepareReconfigureUseTLS(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, apply())
 
-		certPath, _ := manager.serverCertLoader.Paths()
+		certPath, keyPath := loadedPaths(manager.serverCertLoader)
 		require.Equal(t, newSS.CertPath, certPath)
+		require.Equal(t, newSS.KeyPath, keyPath)
 	})
 
 	t.Run("client can turn TLS off", func(t *testing.T) {
@@ -2364,7 +2368,7 @@ func TestTLSConfigManager_PrepareReconfigureUseTLS(t *testing.T) {
 		require.Nil(t, manager.TLSConfig())
 
 		// Disabling TLS clears the loaded certificate.
-		certPath, keyPath := manager.clientCertLoader.Paths()
+		certPath, keyPath := loadedPaths(manager.clientCertLoader)
 		require.Empty(t, certPath)
 		require.Empty(t, keyPath)
 	})
