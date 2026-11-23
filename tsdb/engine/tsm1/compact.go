@@ -1372,9 +1372,17 @@ type block struct {
 	b                []byte
 	tombstones       []TimeRange
 
+	// tsmFile is the input file this block was read from, used to attribute
+	// read errors to the right file.
+	tsmFile string
+
 	// readMin, readMax are the timestamps range of values have been
 	// read and encoded from this block.
 	readMin, readMax int64
+
+	// boundsChecked is set once minTime and maxTime have been replaced with the
+	// block's encoded first and last timestamps.
+	boundsChecked bool
 }
 
 func (b *block) overlapsTimeRange(min, max int64) bool {
@@ -1470,6 +1478,10 @@ type tsmBatchKeyIterator struct {
 	mergedUnsignedValues *tsdb.UnsignedArray
 	mergedBooleanValues  *tsdb.BooleanArray
 	mergedStringValues   *tsdb.StringArray
+
+	// timeScratch is scratch space for decoding simple8b timestamp words when
+	// normalizing block bounds.
+	timeScratch [240]uint64
 
 	// merged are encoded blocks that have been combined or used as is
 	// without decode
@@ -1606,8 +1618,10 @@ RETRY:
 			blk.typ = typ
 			blk.b = b
 			blk.tombstones = tombstones
+			blk.tsmFile = k.currentTsm
 			blk.readMin = math.MaxInt64
 			blk.readMax = math.MinInt64
+			blk.boundsChecked = false
 
 			blockKey := key
 			for bytes.Equal(iter.PeekNext(), blockKey) {
@@ -1638,8 +1652,10 @@ RETRY:
 				blk.typ = typ
 				blk.b = b
 				blk.tombstones = tombstones
+				blk.tsmFile = k.currentTsm
 				blk.readMin = math.MaxInt64
 				blk.readMax = math.MinInt64
+				blk.boundsChecked = false
 			}
 		}
 
@@ -1706,7 +1722,11 @@ func (k *tsmBatchKeyIterator) merge() {
 	case BlockString:
 		k.mergeString()
 	default:
-		k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("unknown block type: %v", k.typ)})
+		file := k.currentTsm
+		if len(k.blocks) > 0 {
+			file = k.blocks[0].tsmFile
+		}
+		k.AppendError(errBlockRead{file, fmt.Errorf("unknown block type: %v", k.typ)})
 	}
 }
 
@@ -1714,8 +1734,8 @@ func (k *tsmBatchKeyIterator) handleEncodeError(err error, typ string) {
 	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
-func (k *tsmBatchKeyIterator) handleDecodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %w", typ, k.key, err)})
+func (k *tsmBatchKeyIterator) handleDecodeError(b *block, err error, typ string) {
+	k.AppendError(errBlockRead{b.tsmFile, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
