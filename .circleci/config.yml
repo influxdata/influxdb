@@ -391,7 +391,7 @@ jobs:
       - checkout_source
       - run: ./checkfmt.sh
       - run: ./generate.sh
-      - run: go vet ./...
+      - run: go vet -printf.funcs=Capturef ./...
 
   unit_test:
     executor: cross-builder
