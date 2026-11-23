@@ -52,6 +52,21 @@ func (s *Store) HoldWriteForTest(shardID uint64) (deleteHeld func() bool, endWri
 	return deleteHeld, func() { epoch.EndWrite(gen) }
 }
 
+// SetDeleteShardSeriesHookForTest makes DeleteShard call fn before it removes
+// each series from the series file, with the number it has removed so far. It
+// is not synchronized, so it must be set before any DeleteShard is started.
+func (s *Store) SetDeleteShardSeriesHookForTest(fn func(removed uint64)) {
+	s.deleteShardSeriesHook = fn
+}
+
+// ClosingForTest returns a channel that is closed when a Close of the store
+// begins, which is also when deletions in progress are cancelled.
+func (s *Store) ClosingForTest() <-chan struct{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.closing
+}
+
 // failCloseOnceEngine fails its first Close without closing the wrapped engine.
 type failCloseOnceEngine struct {
 	Engine

@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -105,8 +106,7 @@ func (t *tsi1Adapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte,
 
 func (t *tsi1Adapter) Compact() error {
 	t.ti.Compact()
-	t.ti.Wait()
-	return nil
+	return t.ti.Wait(context.Background())
 }
 
 func (t *tsi1Adapter) Close() error {

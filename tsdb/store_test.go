@@ -144,11 +144,7 @@ func TestStore_CloseShard_WaitsForDeletes(t *testing.T) {
 				release := s.holdDelete(t, 1)
 
 				result := runAsync(func() error { return op(s) })
-				select {
-				case err := <-result:
-					require.FailNow(t, name+" returned while a delete was running", "err: %v", err)
-				case <-time.After(100 * time.Millisecond):
-				}
+				requireBlocked(t, result, name+" returned while a delete was running")
 				_, err := sh.Index()
 				require.NoError(t, err, "%s closed the shard while a delete was running", name)
 
@@ -188,17 +184,20 @@ func TestStore_Close_WaitsForDeleteShard(t *testing.T) {
 				10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
 
 			closed := runAsync(s.Store.Close)
-			select {
-			case err := <-closed:
-				require.FailNow(t, "Close returned while DeleteShard was running", "err: %v", err)
-			case <-time.After(100 * time.Millisecond):
-			}
+			requireBlocked(t, closed, "Close returned while DeleteShard was running")
 			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after Close started")
 
 			release()
 			for name, ch := range map[string]<-chan error{"DeleteShard": deleted, "Close": closed} {
 				select {
 				case err := <-ch:
+					// Close cancels a DeleteShard that has not finished with the
+					// series file, and lets one that has run to the end. Which
+					// this one was depends on how far it got before Close began.
+					if name == "DeleteShard" && err != nil {
+						require.ErrorIs(t, err, tsdb.ErrStoreClosed, name)
+						continue
+					}
 					require.NoError(t, err, name)
 				case <-time.After(10 * time.Second):
 					require.FailNow(t, name+" did not return after the delete finished")
@@ -285,8 +284,7 @@ func TestStore_Close_RetriesAfterFailure(t *testing.T) {
 			closeErr := errors.New("injected engine close failure")
 			require.True(t, s.FailNextEngineCloseForTest(1, closeErr), "shard not open")
 
-			// walkShards wraps per-shard errors with %s, so match the message.
-			require.ErrorContains(t, s.Store.Close(), closeErr.Error(), "first Close")
+			require.ErrorIs(t, s.Store.Close(), closeErr, "first Close")
 			require.ErrorIs(t, s.DeleteShard(2), tsdb.ErrStoreClosed, "DeleteShard after failed Close")
 
 			require.NoError(t, s.Store.Close(), "retrying Close")
@@ -297,6 +295,386 @@ func TestStore_Close_RetriesAfterFailure(t *testing.T) {
 			require.NoError(t, s.Reopen(t), "reopening store")
 			require.NotNil(t, s.Shard(1), "shard 1 after reopen")
 			require.NotNil(t, s.Shard(2), "shard 2 after reopen")
+		})
+	}
+}
+
+// cancelTimeout bounds each wait in the tests of deletions cancelled by Close.
+const cancelTimeout = 30 * time.Second
+
+// awaitResult returns the result from ch, failing the test with a goroutine
+// dump if none arrives in time.
+func awaitResult(t *testing.T, ch <-chan error, what string) error {
+	t.Helper()
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(cancelTimeout):
+		dumpGoroutines(t)
+		require.FailNow(t, what+" did not return")
+		return nil
+	}
+}
+
+// requireBlocked fails the test if ch yields a result in the next 100ms. It
+// can pass when the operation behind ch is merely slow, never fail wrongly.
+func requireBlocked(t *testing.T, ch <-chan error, what string) {
+	t.Helper()
+	select {
+	case err := <-ch:
+		require.FailNow(t, what, "err: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// waitClosing returns once a Close of the store has begun, which is also when
+// deletions in progress are cancelled.
+func (s *Store) waitClosing(t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.ClosingForTest():
+	case <-time.After(cancelTimeout):
+		dumpGoroutines(t)
+		require.FailNow(t, "Close never started")
+	}
+}
+
+// holdWrite holds a write in flight on the shard until endWrite is called, so
+// that a delete reaching the shard waits for it; deleteHeld reports whether
+// one is waiting. endWrite also runs as a cleanup, ahead of any cleanup
+// registered earlier, such as CloseStore, which would wait on that delete.
+func (s *Store) holdWrite(t *testing.T, shardID uint64) (deleteHeld func() bool, endWrite func()) {
+	t.Helper()
+	deleteHeld, end := s.HoldWriteForTest(shardID)
+	require.NotNil(t, end, "shard %d has no epoch tracker", shardID)
+	endWrite = sync.OnceFunc(end)
+	t.Cleanup(endWrite)
+	return deleteHeld, endWrite
+}
+
+// TestStore_Close_CancelsDeleteShard checks that Close stops a DeleteShard that
+// is part way through removing the shard's series from the series file: the
+// delete reports ErrStoreClosed and leaves the shard's files, the shard loads
+// again on the next Open, and deleting it again then succeeds.
+func TestStore_Close_CancelsDeleteShard(t *testing.T) {
+	t.Parallel()
+
+	const (
+		uniqueN   = 50
+		stopAfter = 10
+	)
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			for id := uint64(1); id <= 2; id++ {
+				require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+			}
+			// One series both shards hold, and uniqueN only shard 1 holds.
+			lines := []string{"shared,host=a v=1 10"}
+			s.MustWriteToShardString(2, lines...)
+			for i := range uniqueN {
+				lines = append(lines, fmt.Sprintf("only,id=%d v=1 10", i))
+			}
+			s.MustWriteToShardString(1, lines...)
+
+			shardPath := filepath.Join(s.path, "db0", "rp0", "1")
+			walPath := filepath.Join(s.walPath, "db0", "rp0", "1")
+			require.DirExists(t, shardPath, "shard directory before the delete")
+			require.DirExists(t, walPath, "WAL directory before the delete")
+
+			// Stop DeleteShard after it has removed stopAfter series.
+			reached, proceed := make(chan struct{}), make(chan struct{})
+			markReached := sync.OnceFunc(func() { close(reached) })
+			releaseHook := sync.OnceFunc(func() { close(proceed) })
+			// Runs before CloseStore above, which would wait on the delete.
+			t.Cleanup(releaseHook)
+			s.SetDeleteShardSeriesHookForTest(func(removed uint64) {
+				if removed == stopAfter {
+					markReached()
+					<-proceed
+				}
+			})
+
+			deleted := runAsync(func() error { return s.DeleteShard(1) })
+			select {
+			case <-reached:
+			case err := <-deleted:
+				require.FailNow(t, "DeleteShard returned before removing its series", "err: %v", err)
+			case <-time.After(cancelTimeout):
+				dumpGoroutines(t)
+				require.FailNow(t, "DeleteShard never started removing series")
+			}
+
+			closed := runAsync(s.Store.Close)
+			s.waitClosing(t)
+			// Close waits for the step the delete is in.
+			requireBlocked(t, closed, "Close returned while DeleteShard was running")
+
+			releaseHook()
+			require.ErrorIs(t, awaitResult(t, deleted, "DeleteShard"), tsdb.ErrStoreClosed, "cancelled DeleteShard")
+			require.NoError(t, awaitResult(t, closed, "Close"), "Close")
+			require.DirExists(t, shardPath, "cancelled DeleteShard removed the shard directory")
+			require.DirExists(t, walPath, "cancelled DeleteShard removed the WAL directory")
+
+			require.NoError(t, s.Reopen(t), "reopening store")
+			require.NotNil(t, s.Shard(1), "half-deleted shard after reopen")
+			remaining := s.Shard(2)
+			require.NotNil(t, remaining, "shard 2 after reopen")
+			sfile, err := remaining.SeriesFile()
+			require.NoError(t, err, "getting series file")
+			sharedTags := models.NewTags(map[string]string{"host": "a"})
+			uniqueLeft := func() (n int) {
+				for i := range uniqueN {
+					if sfile.HasSeries([]byte("only"), models.NewTags(map[string]string{"id": fmt.Sprint(i)}), nil) {
+						n++
+					}
+				}
+				return n
+			}
+
+			// What the cancelled delete left behind. An inmem shard rebuilds its
+			// index from its data when it loads, which creates the removed series
+			// again; a tsi1 shard loads its index files and does not.
+			if index == tsdb.InmemIndexName {
+				require.Equal(t, uniqueN, uniqueLeft(), "series of the half-deleted shard after reopen")
+			} else {
+				require.Equal(t, uniqueN-stopAfter, uniqueLeft(), "series of the half-deleted shard after reopen")
+			}
+			require.True(t, sfile.HasSeries([]byte("shared"), sharedTags, nil), "shared series after reopen")
+
+			require.NoError(t, s.DeleteShard(1), "deleting the half-deleted shard again")
+			require.NoDirExists(t, shardPath, "shard directory after the second delete")
+			require.NoDirExists(t, walPath, "WAL directory after the second delete")
+			require.Zero(t, uniqueLeft(), "series only the deleted shard held")
+			require.True(t, sfile.HasSeries([]byte("shared"), sharedTags, nil), "series shard 2 still holds")
+		})
+	}
+}
+
+// TestStore_Close_CancelsSeriesDeletes checks that Close stops a DeleteSeries
+// or DeleteMeasurement that is waiting its turn on a shard: the delete reports
+// ErrStoreClosed, visibly through the per-shard wrapping, without having
+// deleted anything, and succeeds when retried after the store is reopened.
+func TestStore_Close_CancelsSeriesDeletes(t *testing.T) {
+	t.Parallel()
+
+	ops := map[string]func(s *Store) error{
+		"DeleteMeasurement": func(s *Store) error { return s.DeleteMeasurement("db0", "cpu") },
+		"DeleteSeries": func(s *Store) error {
+			return s.DeleteSeries("db0", []influxql.Source{&influxql.Measurement{Name: "cpu"}}, nil)
+		},
+	}
+	hostA := models.NewTags(map[string]string{"host": "a"})
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range ops {
+			t.Run(index+"/"+name, func(t *testing.T) {
+				s := MustOpenStore(t, index)
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+				s.MustWriteToShardString(1, "cpu,host=a v=1 10", "mem,host=a v=1 10")
+
+				// The delete waits for this write before it touches the shard.
+				deleteHeld, endWrite := s.holdWrite(t, 1)
+
+				deleted := runAsync(func() error { return op(s) })
+				require.Eventually(t, deleteHeld, cancelTimeout, time.Millisecond, "delete never reached the shard")
+
+				closed := runAsync(s.Store.Close)
+				s.waitClosing(t)
+				endWrite()
+				require.ErrorIs(t, awaitResult(t, deleted, name), tsdb.ErrStoreClosed, "cancelled %s", name)
+				require.NoError(t, awaitResult(t, closed, "Close"), "Close")
+
+				require.NoError(t, s.Reopen(t), "reopening store")
+				sh := s.Shard(1)
+				require.NotNil(t, sh, "shard after reopen")
+				sfile, err := sh.SeriesFile()
+				require.NoError(t, err, "getting series file")
+				require.True(t, sfile.HasSeries([]byte("cpu"), hostA, nil), "cancelled %s deleted its series", name)
+
+				require.NoError(t, op(s), "%s after reopen", name)
+				require.False(t, sfile.HasSeries([]byte("cpu"), hostA, nil), "series after %s", name)
+				require.True(t, sfile.HasSeries([]byte("mem"), hostA, nil), "series %s did not name", name)
+			})
+		}
+	}
+}
+
+// TestStore_Close_CancelsContainerDeletes checks that DeleteDatabase and
+// DeleteRetentionPolicy report ErrStoreClosed and remove nothing once Close has
+// begun, whether they start after it or are already closing the shards, and
+// that Close then succeeds although those shards may already be closed.
+func TestStore_Close_CancelsContainerDeletes(t *testing.T) {
+	t.Parallel()
+
+	ops := map[string]func(s *Store) error{
+		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
+		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
+	}
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range ops {
+			for _, startedFirst := range []bool{false, true} {
+				when := "StartedAfterClose"
+				if startedFirst {
+					when = "StartedBeforeClose"
+				}
+				t.Run(index+"/"+name+"/"+when, func(t *testing.T) {
+					s := MustOpenStore(t, index)
+					t.Cleanup(func() { s.CloseStore(t, index) })
+					require.NoError(t, s.CreateShard("db0", "rp0", 1, true), "creating shard")
+					s.MustWriteToShardString(1, "cpu,host=a v=1 10")
+					rpPath := filepath.Join(s.path, "db0", "rp0")
+					walPath := filepath.Join(s.walPath, "db0", "rp0")
+
+					// Closing shard 1 waits for this delete, which holds Close, and
+					// the op if it is already running, before anything is removed.
+					release := s.holdDelete(t, 1)
+
+					var result <-chan error
+					if startedFirst {
+						result = runAsync(func() error { return op(s) })
+						requireBlocked(t, result, name+" returned while a delete was running")
+					}
+					closed := runAsync(s.Store.Close)
+					s.waitClosing(t)
+					if !startedFirst {
+						require.ErrorIs(t, op(s), tsdb.ErrStoreClosed, "%s after Close started", name)
+					}
+
+					release()
+					if startedFirst {
+						require.ErrorIs(t, awaitResult(t, result, name), tsdb.ErrStoreClosed, "cancelled %s", name)
+					}
+					require.NoError(t, awaitResult(t, closed, "Close"), "Close")
+					require.DirExists(t, rpPath, "cancelled %s removed the data directory", name)
+					require.DirExists(t, walPath, "cancelled %s removed the WAL directory", name)
+
+					// A closed store has no databases listed, which must not read
+					// as the database being already gone.
+					require.ErrorIs(t, op(s), tsdb.ErrStoreClosed, "%s on the closed store", name)
+					require.DirExists(t, rpPath, "%s on the closed store removed the data directory", name)
+
+					require.NoError(t, s.Reopen(t), "reopening store")
+					require.NotNil(t, s.Shard(1), "shard after reopen")
+					require.NoError(t, op(s), "%s after reopen", name)
+					require.NoDirExists(t, rpPath, "data directory after %s", name)
+					require.NoDirExists(t, walPath, "WAL directory after %s", name)
+				})
+			}
+		}
+	}
+}
+
+// TestStore_Close_CancelsConcurrentDeletes runs every kind of cancellable
+// delete at once, starts Close while all of them are in flight, and checks that
+// each reports ErrStoreClosed, that Close succeeds, and that the store reopens
+// with every shard and accepts the same deletes.
+func TestStore_Close_CancelsConcurrentDeletes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		shardN        = 8
+		droppedShardN = 4 // shards 1..droppedShardN get a DeleteShard
+		perKind       = 6 // DeleteSeries and DeleteMeasurement calls
+		opN           = droppedShardN + 2*perKind
+	)
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+
+			// Create the test data, and hold a write on every shard, up front.
+			release := make([]func(), 0, shardN+1)
+			releaseAll := sync.OnceFunc(func() {
+				for _, fn := range release {
+					fn()
+				}
+			})
+			// Runs before CloseStore above, which would wait on the deletes.
+			t.Cleanup(releaseAll)
+			for id := 1; id <= shardN; id++ {
+				require.NoError(t, s.CreateShard("db0", "rp0", uint64(id), true), "creating shard %d", id)
+				// "only" gives each shard a series no other shard holds, so each
+				// DeleteShard has series to remove.
+				s.MustWriteToShardString(id, "cpu,host=a v=1 10", "mem,host=a v=1 10", fmt.Sprintf("only,shard=%d v=1 10", id))
+				// DeleteSeries and DeleteMeasurement wait for this write.
+				_, endWrite := s.holdWrite(t, uint64(id))
+				release = append(release, endWrite)
+			}
+			// DeleteShard waits here, before it removes its first series.
+			proceed := make(chan struct{})
+			release = append(release, func() { close(proceed) })
+			var removingSeries atomic.Int64
+			s.SetDeleteShardSeriesHookForTest(func(removed uint64) {
+				if removed == 0 {
+					removingSeries.Add(1)
+				}
+				<-proceed
+			})
+
+			ops := make([]func(s *Store) error, 0, opN)
+			for id := uint64(1); id <= droppedShardN; id++ {
+				ops = append(ops, func(s *Store) error { return s.DeleteShard(id) })
+			}
+			for range perKind {
+				ops = append(ops,
+					func(s *Store) error {
+						return s.DeleteSeries("db0", []influxql.Source{&influxql.Measurement{Name: "cpu"}}, nil)
+					},
+					func(s *Store) error { return s.DeleteMeasurement("db0", "mem") })
+			}
+			require.Len(t, ops, opN, "operations")
+
+			var mu sync.RWMutex
+			var concurrency, maxConcurrency atomic.Int64
+			errs := make([]error, opN)
+			var wg sync.WaitGroup
+			mu.Lock()
+			for i := range ops {
+				wg.Add(1)
+				go func(idx int) {
+					mu.RLock()
+					defer mu.RUnlock()
+					defer wg.Done()
+					c := concurrency.Add(1)
+					for {
+						old := maxConcurrency.Load()
+						if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+							break
+						}
+					}
+					errs[idx] = ops[idx](s)
+					concurrency.Add(-1)
+				}(i)
+			}
+			mu.Unlock() // Release to start all goroutines simultaneously
+			// Barrier: none of them can finish yet, so all end up in flight.
+			require.Eventually(t, func() bool { return concurrency.Load() == opN },
+				cancelTimeout, time.Millisecond, "deletes never overlapped")
+			// Every DeleteShard is past comparing its shard with the others, so
+			// none finds one of them closed by another cancelled DeleteShard.
+			require.Eventually(t, func() bool { return removingSeries.Load() == droppedShardN },
+				cancelTimeout, time.Millisecond, "DeleteShards never started removing series")
+
+			closed := runAsync(s.Store.Close)
+			s.waitClosing(t)
+			releaseAll()
+
+			require.NoError(t, awaitResult(t, runAsync(func() error { wg.Wait(); return nil }), "deletes"))
+			t.Logf("max concurrency: %d", maxConcurrency.Load())
+			require.EqualValues(t, opN, maxConcurrency.Load(), "max concurrency")
+			for i, err := range errs {
+				require.ErrorIs(t, err, tsdb.ErrStoreClosed, "delete %d", i)
+			}
+			require.NoError(t, awaitResult(t, closed, "Close"), "Close")
+
+			require.NoError(t, s.Reopen(t), "reopening store")
+			require.Equal(t, shardN, s.ShardN(), "shards after reopen")
+			for i, op := range ops {
+				require.NoError(t, op(s), "delete %d after reopen", i)
+			}
+			require.Equal(t, shardN-droppedShardN, s.ShardN(), "shards after the deletes")
 		})
 	}
 }
@@ -591,9 +969,7 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 	expected := []error{tsdb.ErrStoreClosed, tsdb.ErrShardNotFound, tsdb.ErrEngineClosed, tsdb.ErrShardDeletion}
 	isExpected := func(err error) bool {
 		for _, e := range expected {
-			// walkShards wraps per-shard errors with %s, so errors.Is
-			// cannot see through it; match the message as well.
-			if errors.Is(err, e) || strings.Contains(err.Error(), e.Error()) {
+			if errors.Is(err, e) {
 				return true
 			}
 		}
@@ -739,11 +1115,9 @@ func TestStore_DeleteCompactClose_Stress(t *testing.T) {
 				// Barrier: close only while a delete is running. Every delete walks
 				// shard 1, so each one soon blocks on this write, and cannot return
 				// until the write ends, which is not until the close has started.
-				deleteHeld, endWrite := s.HoldWriteForTest(1)
-				require.NotNil(t, endWrite, "shard has no epoch tracker")
-				release := sync.OnceFunc(endWrite)
-				// Runs before the worker cleanup above, which waits on the deletes.
-				t.Cleanup(release)
+				// The cleanup this registers runs before the worker cleanup above,
+				// which waits on the deletes.
+				deleteHeld, release := s.holdWrite(t, 1)
 				require.Eventually(t, deleteHeld, opTimeout, 100*time.Microsecond, "no delete blocked on the write")
 				closeStarted.Store(true)
 				result := runAsync(func() error { return op(s) })

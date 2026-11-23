@@ -1,6 +1,7 @@
 package tsi1_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -169,7 +170,7 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		p.Partition.SetMaxLogFileSize(1)
 		fileN := p.FileN()
 		p.Compact()
-		p.Wait() // settles; cannot re-trigger because the rolled log is empty
+		require.NoError(t, p.Wait(context.Background())) // settles; cannot re-trigger because the rolled log is empty
 		require.Equal(t, fileN+1, p.FileN(),
 			"manifest write in compaction should have succeeded and changed the file count")
 
@@ -187,7 +188,7 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		p.SetManifestPathForTest(badManifestPath)
 		fileN = p.FileN()
 		p.Compact()
-		p.Wait()
+		require.NoError(t, p.Wait(context.Background()))
 		require.Equal(t, fileN, p.FileN(),
 			"failed manifest write must not change the file count")
 	})
@@ -245,6 +246,70 @@ func openPartitionWithRetainedLog(t *testing.T) (*Partition, func(), string) {
 	return p, release, logPath
 }
 
+// waiter is what Partition and Index have in common for the Wait tests.
+type waiter interface {
+	Wait(ctx context.Context) error
+	HoldCompactionForTest() (release func())
+}
+
+// checkWaitCancellable checks that w.Wait returns the cause of its context's
+// cancellation while a compaction is outstanding, and nil once it is not.
+func checkWaitCancellable(t *testing.T, w waiter) {
+	t.Helper()
+	release := sync.OnceFunc(w.HoldCompactionForTest())
+	// Runs before the cleanup that closes w, which waits for the same count.
+	t.Cleanup(release)
+
+	errStop := errors.New("stop waiting")
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	waited := make(chan error, 1)
+	go func() { waited <- w.Wait(ctx) }()
+	select {
+	case err := <-waited:
+		require.FailNow(t, "Wait returned while a compaction was outstanding", "err: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cancel(errStop)
+	select {
+	case err := <-waited:
+		require.ErrorIs(t, err, errStop, "cancelled Wait")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "Wait did not return after its context was cancelled")
+	}
+
+	// A wait that is not cancelled still ends when the compaction does.
+	go func() { waited <- w.Wait(context.Background()) }()
+	release()
+	select {
+	case err := <-waited:
+		require.NoError(t, err, "Wait after the compaction finished")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "Wait did not return after the compaction finished")
+	}
+}
+
+// TestPartition_Wait_Cancel checks that cancelling its context ends
+// Partition.Wait, which otherwise has no time limit.
+func TestPartition_Wait_Cancel(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	t.Cleanup(func() { require.NoError(t, sfile.Close(), "closing series file") })
+	p := MustOpenPartition(sfile.SeriesFile)
+	t.Cleanup(func() { require.NoError(t, p.Close(), "closing partition") })
+
+	checkWaitCancellable(t, p)
+}
+
+// TestIndex_Wait_Cancel checks that cancelling its context ends Index.Wait
+// when one of the index's partitions is what it is waiting for.
+func TestIndex_Wait_Cancel(t *testing.T) {
+	idx := MustOpenIndex(tsi1.DefaultPartitionN)
+	t.Cleanup(func() { require.NoError(t, idx.Close(), "closing index") })
+
+	checkWaitCancellable(t, idx)
+}
+
 // TestPartition_Wait_NotBlockedByReader is the regression test for a deadlock
 // between series deletion and compaction: deletion holds a file set reference
 // and then calls Wait(), while the compaction it waits on blocks closing the
@@ -256,7 +321,7 @@ func TestPartition_Wait_NotBlockedByReader(t *testing.T) {
 	waited := make(chan struct{})
 	go func() {
 		defer close(waited)
-		p.Wait()
+		assert.NoError(t, p.Wait(context.Background()))
 	}()
 	select {
 	case <-waited:
@@ -423,9 +488,13 @@ func TestPartition_Wait_ReadersAndDeleters_Stress(t *testing.T) {
 					return
 				}
 				p.DisableCompactions()
-				p.Wait()
+				waitErr := p.Wait(context.Background())
 				fs.Release()
 				p.EnableCompactions()
+				if waitErr != nil {
+					errs <- fmt.Errorf("deleter %d: %w", d, waitErr)
+					return
+				}
 			}
 		}()
 	}
@@ -453,7 +522,7 @@ func TestPartition_Wait_ReadersAndDeleters_Stress(t *testing.T) {
 	// output on disk until the next Open sweeps it, which is not what this
 	// checks. Close itself must still wait for replaced files to be removed.
 	p.DisableCompactions()
-	p.Wait()
+	require.NoError(t, p.Wait(context.Background()))
 	require.NoError(t, p.Partition.Close(), "closing partition")
 
 	// Every file left on disk must be named by the manifest.

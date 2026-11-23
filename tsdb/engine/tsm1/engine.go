@@ -1483,15 +1483,19 @@ func (e *Engine) WritePoints(points []models.Point, tracker tsdb.StatsTracker) e
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
-func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
-	return e.DeleteSeriesRangeWithPredicate(itr, func(name []byte, tags models.Tags) (int64, int64, bool) {
+func (e *Engine) DeleteSeriesRange(ctx context.Context, itr tsdb.SeriesIterator, min, max int64) error {
+	return e.DeleteSeriesRangeWithPredicate(ctx, itr, func(name []byte, tags models.Tags) (int64, int64, bool) {
 		return min, max, true
 	})
 }
 
 // DeleteSeriesRangeWithPredicate removes the values between min and max (inclusive) from all series
 // for which predicate() returns true. If predicate() is nil, then all values in range are removed.
-func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
+//
+// Series are deleted in batches. If ctx is cancelled the delete stops before
+// the next batch and returns the cancellation cause: batches already applied
+// stay deleted, and the remaining series are untouched.
+func (e *Engine) DeleteSeriesRangeWithPredicate(ctx context.Context, itr tsdb.SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
 	var disableOnce bool
 
 	// Ensure that the index does not compact away the measurement or series we're
@@ -1499,7 +1503,9 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 	if tsiIndex, ok := e.index.(*tsi1.Index); ok {
 		tsiIndex.DisableCompactions()
 		defer tsiIndex.EnableCompactions()
-		tsiIndex.Wait()
+		if err := tsiIndex.Wait(ctx); err != nil {
+			return fmt.Errorf("deleting series in shard %d: %w", e.id, err)
+		}
 
 		fs, err := tsiIndex.RetainFileSet()
 		if err != nil {
@@ -1528,6 +1534,12 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 	batch := make([][]byte, 0, 10000)
 	for {
+		// Nothing in the pending batch has been applied yet, so stopping here
+		// leaves only whole batches deleted.
+		if ctx.Err() != nil {
+			return fmt.Errorf("deleting series in shard %d: %w", e.id, context.Cause(ctx))
+		}
+
 		elem, err := itr.Next()
 		if err != nil {
 			return err
@@ -1566,7 +1578,9 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 			e.sfile.DisableCompactions()
 			defer e.sfile.EnableCompactions()
-			e.sfile.Wait()
+			if err := e.sfile.Wait(ctx); err != nil {
+				return fmt.Errorf("deleting series in shard %d: %w", e.id, err)
+			}
 
 			disableOnce = true
 		}
@@ -1949,7 +1963,7 @@ func (e *Engine) cleanupMeasurement(name []byte) (deleted bool, err error) {
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name []byte) error {
+func (e *Engine) DeleteMeasurement(ctx context.Context, name []byte) error {
 	// Attempt to find the series keys.
 	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
@@ -1959,7 +1973,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return nil
 	}
 	defer itr.Close()
-	return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
+	return e.DeleteSeriesRange(ctx, tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
 }
 
 // ForEachMeasurementName iterates over each measurement name in the engine.

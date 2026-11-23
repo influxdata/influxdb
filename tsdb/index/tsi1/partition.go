@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -349,14 +350,16 @@ func (p *Partition) CurrentCompactionN() int32 {
 // Wait will block until every running compaction has installed its output in
 // the file set or failed. Files replaced by those compactions may still be
 // waiting for readers to release them; Close waits for that cleanup.
-// Must only be called while compactions are disabled.
-func (p *Partition) Wait() {
-	p.waitForZero(&p.currentCompactionN, "compactions to install", "stuck_compactions")
+// Must only be called while compactions are disabled. Wait returns early with
+// the cause of ctx's cancellation if ctx is cancelled first.
+func (p *Partition) Wait(ctx context.Context) error {
+	return p.waitForZero(ctx, &p.currentCompactionN, "compactions to install", "stuck_compactions")
 }
 
 // waitForZero polls n until it reaches zero, logging a warning naming what,
-// with n's value under countKey, every 24 hours it remains non-zero.
-func (p *Partition) waitForZero(n *atomic.Int32, what, countKey string) {
+// with n's value under countKey, every 24 hours it remains non-zero. It
+// returns the cause of ctx's cancellation if ctx is cancelled before then.
+func (p *Partition) waitForZero(ctx context.Context, n *atomic.Int32, what, countKey string) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -366,9 +369,11 @@ func (p *Partition) waitForZero(n *atomic.Int32, what, countKey string) {
 
 	for {
 		if n.Load() == 0 {
-			return
+			return nil
 		}
 		select {
+		case <-ctx.Done():
+			return fmt.Errorf("partition %s: waiting for %s: %w", p.path, what, context.Cause(ctx))
 		case <-ticker.C:
 			elapsed := time.Since(startTime)
 			if elapsed >= timeoutDuration {
@@ -404,12 +409,18 @@ func (p *Partition) Close() error {
 	// Wait for goroutines to finish outstanding compactions. The wait below
 	// covers this one, but a compaction stuck before installing its output is
 	// then reported as that, not as a reader holding replaced files.
-	p.Wait()
+	// Close is not cancellable, so these waits only return once the count is zero.
+	closeCtx := context.Background()
+	if err := p.Wait(closeCtx); err != nil {
+		return err
+	}
 	// Wait for compaction goroutines to finish closing and removing the files
 	// they replaced, so nothing touches the partition directory after Close.
-	p.waitForZero(&p.runningCompactionN,
+	if err := p.waitForZero(closeCtx, &p.runningCompactionN,
 		"compaction goroutines to exit (replaced files may still be referenced by a reader)",
-		"compactions_pending_reclaim")
+		"compactions_pending_reclaim"); err != nil {
+		return err
+	}
 
 	// Lock index and close remaining
 	p.mu.Lock()
