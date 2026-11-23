@@ -1753,6 +1753,49 @@ func TestHandler_Write_V1_Precision(t *testing.T) {
 	}
 }
 
+// Ensure that when AutoIncrementDuplicateTimestamps is enabled, points
+// written in the same request without an explicit timestamp that share a
+// series get distinct, strictly increasing timestamps instead of colliding
+// on the server-assigned write time.
+func TestHandler_Write_AutoIncrementDuplicateTimestamps(t *testing.T) {
+	h := NewHandler(false)
+	h.Config.AutoIncrementDuplicateTimestamps = true
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	var gotPoints []models.Point
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+		gotPoints = points
+		return nil
+	}
+
+	body := "cpu,host=serverA value=1\ncpu,host=serverA value=2\ncpu,host=serverA value=3\n"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write?db=foo", bytes.NewReader([]byte(body))))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d, body: %s", w.Code, w.Body.String())
+	}
+
+	if got, exp := len(gotPoints), 3; got != exp {
+		t.Fatalf("got %d points, expected %d", got, exp)
+	}
+
+	seen := make(map[int64]bool)
+	prev := int64(-1)
+	for i, p := range gotPoints {
+		ts := p.UnixNano()
+		if seen[ts] {
+			t.Fatalf("point %d: timestamp %d collided with an earlier point", i, ts)
+		}
+		seen[ts] = true
+		if ts <= prev {
+			t.Fatalf("point %d: timestamp %d is not strictly increasing after %d", i, ts, prev)
+		}
+		prev = ts
+	}
+}
+
 // TestHandler_Write_V2_Precision verifies v2 writes validate precision.
 func TestHandler_Write_V2_Precision(t *testing.T) {
 	h := NewHandler(false)
@@ -4180,10 +4223,27 @@ func (a *HandlerWriteAuthorizer) AuthorizeWrite(username, database string) error
 
 type HandlerPointsWriter struct {
 	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+
+	lastAssignedTimestamp int64
 }
 
 func (h *HandlerPointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
 	return h.WritePointsFn(database, retentionPolicy, consistencyLevel, user, points)
+}
+
+// NextUniqueTime mirrors (*coordinator.PointsWriter).NextUniqueTime for tests.
+func (h *HandlerPointsWriter) NextUniqueTime() time.Time {
+	for {
+		now := time.Now().UnixNano()
+		last := atomic.LoadInt64(&h.lastAssignedTimestamp)
+		next := now
+		if next <= last {
+			next = last + 1
+		}
+		if atomic.CompareAndSwapInt64(&h.lastAssignedTimestamp, last, next) {
+			return time.Unix(0, next).UTC()
+		}
+	}
 }
 
 // MustNewRequest returns a new HTTP request. Panic on error.
