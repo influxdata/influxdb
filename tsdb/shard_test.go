@@ -559,7 +559,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+			if err := sh.DeleteMeasurement(context.Background(), []byte("cpu")); err != nil {
 				errC <- err
 				return
 			}
@@ -575,7 +575,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+			if err := sh.DeleteMeasurement(context.Background(), []byte("cpu")); err != nil {
 				errC <- err
 				return
 			}
@@ -648,7 +648,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 		}
 
 		for i := 0; i < 500; i++ {
-			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+			if err := sh.DeleteMeasurement(context.Background(), []byte("cpu")); err != nil {
 				errC <- err
 			}
 
@@ -708,7 +708,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 			}
 		}
 		for i := 0; i < 500; i++ {
-			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+			if err := sh.DeleteMeasurement(context.Background(), []byte("cpu")); err != nil {
 				errC <- err
 			}
 
@@ -1053,7 +1053,7 @@ cpu,secret=foo value=100 0
 		// We can't call directly on the index as we need to ensure the series
 		// file is updated appropriately.
 		sitr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=serverA,region=uswest")}}
-		if err := sh.DeleteSeriesRange(sitr, math.MinInt64, math.MaxInt64); err != nil {
+		if err := sh.DeleteSeriesRange(context.Background(), sitr, math.MinInt64, math.MaxInt64); err != nil {
 			t.Fatalf("failed to drop series: %s", err.Error())
 		}
 

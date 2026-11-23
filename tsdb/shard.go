@@ -158,6 +158,9 @@ type Shard struct {
 	_engine Engine
 	index   Index
 	enabled bool
+	// deleting is set once Store.DeleteShard starts removing the shard's series.
+	// It is never cleared.
+	deleting bool
 
 	// expvar-based stats.
 	stats       *ShardStatistics
@@ -232,6 +235,15 @@ func (s *Shard) setEnabledNoLock(enabled bool) {
 		// Disable background compactions and snapshotting
 		s._engine.SetEnabled(enabled)
 	}
+}
+
+// blockWritesForDeletion makes WritePoints, Restore and Import fail with
+// ErrShardDeletion. It returns once the calls already running have finished, so
+// no series is added to the shard after it returns.
+func (s *Shard) blockWritesForDeletion() {
+	s.mu.Lock()
+	s.deleting = true
+	s.mu.Unlock()
 }
 
 // SetNewReadersBlocked sets if new readers can access the shard. If blocked
@@ -427,8 +439,11 @@ func (s *Shard) closeNoLock() error {
 		s._engine = nil
 	}
 
-	if e := s.index.Close(); e == nil {
-		s.index = nil
+	// The index is already closed and nil if this retries a failed engine close.
+	if s.index != nil {
+		if e := s.index.Close(); e == nil {
+			s.index = nil
+		}
 	}
 	return err
 }
@@ -566,6 +581,9 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 	engine, err := s.engineNoLock()
 	if err != nil {
 		return err
+	}
+	if s.deleting {
+		return ErrShardDeletion
 	}
 
 	var writeError error
@@ -787,31 +805,31 @@ func (s *Shard) saveFieldsAndMeasurements(fieldsToSave []*FieldCreate) (int, err
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
-func (s *Shard) DeleteSeriesRange(itr SeriesIterator, min, max int64) error {
+func (s *Shard) DeleteSeriesRange(ctx context.Context, itr SeriesIterator, min, max int64) error {
 	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteSeriesRange(itr, min, max)
+	return engine.DeleteSeriesRange(ctx, itr, min, max)
 }
 
 // DeleteSeriesRangeWithPredicate deletes all values from for seriesKeys between min and max (inclusive)
 // for which predicate() returns true. If predicate() is nil, then all values in range are deleted.
-func (s *Shard) DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
+func (s *Shard) DeleteSeriesRangeWithPredicate(ctx context.Context, itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
 	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteSeriesRangeWithPredicate(itr, predicate)
+	return engine.DeleteSeriesRangeWithPredicate(ctx, itr, predicate)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
-func (s *Shard) DeleteMeasurement(name []byte) error {
+func (s *Shard) DeleteMeasurement(ctx context.Context, name []byte) error {
 	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteMeasurement(name)
+	return engine.DeleteMeasurement(ctx, name)
 }
 
 // SeriesN returns the unique number of series in the shard.
@@ -1141,6 +1159,9 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 	if s._engine == nil {
 		return ErrEngineClosed
 	}
+	if s.deleting {
+		return ErrShardDeletion
+	}
 
 	// Restore to engine.
 	if err := s._engine.Restore(r, basePath); err != nil {
@@ -1166,6 +1187,9 @@ func (s *Shard) Import(r io.Reader, basePath string) error {
 	defer s.mu.Unlock()
 	if s._engine == nil {
 		return ErrEngineClosed
+	}
+	if s.deleting {
+		return ErrShardDeletion
 	}
 
 	// Import to engine.

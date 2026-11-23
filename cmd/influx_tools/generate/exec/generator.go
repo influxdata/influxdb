@@ -83,7 +83,9 @@ func (g *Generator) Run(ctx context.Context, database, shardPath string, groups 
 
 			if ti != nil {
 				ti.Compact()
-				ti.Wait()
+				if err := ti.Wait(context.Background()); err != nil {
+					ch <- fmt.Errorf("error waiting for TSI1 index %d compactions: %w", id, err)
+				}
 				if err := ti.Close(); err != nil {
 					ch <- fmt.Errorf("error compacting TSI1 index %d: %s", id, err.Error())
 				}

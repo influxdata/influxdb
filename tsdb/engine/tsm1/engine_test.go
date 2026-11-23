@@ -4,8 +4,10 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -50,7 +53,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 
 			// Remove series.
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %s", err.Error())
 			}
 
@@ -120,7 +123,7 @@ func TestEngine_DeleteSeriesAfterCacheSnapshot(t *testing.T) {
 				[]byte("cpu,host=B"),
 			},
 			}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %s", err.Error())
 			}
 
@@ -1155,7 +1158,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 		// Drop all the series for the gpu measurement and they should no longer
 		// be in the series ID set.
-		if err := engine.DeleteMeasurement([]byte("gpu")); err != nil {
+		if err := engine.DeleteMeasurement(context.Background(), []byte("gpu")); err != nil {
 			return err
 		}
 
@@ -1169,7 +1172,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 		// Drop the specific mem series
 		ditr := &seriesIterator{keys: [][]byte{[]byte("mem,host=z")}}
-		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64); err != nil {
+		if err := engine.DeleteSeriesRange(context.Background(), ditr, math.MinInt64, math.MaxInt64); err != nil {
 			return err
 		}
 
@@ -1246,7 +1249,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1307,7 +1310,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 3000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1350,7 +1353,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 9000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1418,7 +1421,7 @@ func TestEngine_DeleteSeriesRange_MultiTSMLocking(t *testing.T) {
 			require.Len(t, keys, 6, "series count mismatch")
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			require.NoError(t, e.DeleteSeriesRange(itr, 0, ts+2000000000), "failed to delete series")
+			require.NoError(t, e.DeleteSeriesRange(context.Background(), itr, 0, ts+2000000000), "failed to delete series")
 
 			keys = e.FileStore.Keys()
 			require.Len(t, keys, 4, "series count mismatch")
@@ -1449,7 +1452,7 @@ func TestEngine_DeleteSeriesRange_MultiTSMLocking(t *testing.T) {
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
-			require.NoError(t, e.DeleteSeriesRange(itr, 0, ts+9000000000), "failed to delete series")
+			require.NoError(t, e.DeleteSeriesRange(context.Background(), itr, 0, ts+9000000000), "failed to delete series")
 
 			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 			iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
@@ -1461,6 +1464,63 @@ func TestEngine_DeleteSeriesRange_MultiTSMLocking(t *testing.T) {
 			elem, err = iter.Next()
 			require.NoError(t, err)
 			require.Equal(t, uint64(0), elem.SeriesID, "got an undeleted series id, but series should be dropped from index")
+		})
+	}
+}
+
+// TestEngine_DeleteSeriesRangeWithPredicate_Cancel checks that a delete whose
+// context is cancelled stops between batches: it returns the cancellation
+// cause, the batches it had applied stay deleted, the series after them are
+// untouched, and running the delete again finishes it.
+func TestEngine_DeleteSeriesRangeWithPredicate_Cancel(t *testing.T) {
+	hosts := []string{"A", "B", "C", "D", "E", "F"}
+	// The delete is cancelled while it looks at this series. The batch before
+	// it is the step in progress, so that one is still applied.
+	const cancelAt = 3
+	var seriesKeys [][]byte
+	var fileKeys []string
+	var points []models.Point
+	for _, host := range hosts {
+		seriesKeys = append(seriesKeys, []byte("cpu,host="+host))
+		fileKeys = append(fileKeys, tsm1.SeriesFieldKey("cpu,host="+host, "value"))
+		points = append(points, MustParsePointString("cpu,host="+host+" value=1.1 1000000000"))
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			e, err := NewEngine(index)
+			require.NoError(t, err, "creating engine")
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			require.NoError(t, e.Open(), "opening engine")
+			t.Cleanup(func() { require.NoError(t, e.Close(), "closing engine") })
+
+			require.NoError(t, e.writePoints(points...), "writing points")
+			require.NoError(t, e.WriteSnapshot(), "writing snapshot")
+			require.ElementsMatch(t, fileKeys, slices.Collect(maps.Keys(e.FileStore.Keys())), "series before the delete")
+
+			errStop := errors.New("stop deleting")
+			ctx, cancel := context.WithCancelCause(context.Background())
+			defer cancel(nil)
+			// A different time range for every series makes each one its own batch.
+			var seen int64
+			predicate := func(name []byte, tags models.Tags) (int64, int64, bool) {
+				if seen == cancelAt {
+					cancel(errStop)
+				}
+				seen++
+				return math.MinInt64 + seen, math.MaxInt64, true
+			}
+
+			err = e.DeleteSeriesRangeWithPredicate(ctx, &seriesIterator{keys: seriesKeys}, predicate)
+			require.ErrorIs(t, err, errStop, "cancelled delete")
+			require.EqualValues(t, cancelAt+1, seen, "series examined before the delete stopped")
+			require.ElementsMatch(t, fileKeys[cancelAt:], slices.Collect(maps.Keys(e.FileStore.Keys())),
+				"series after the cancelled delete")
+
+			err = e.DeleteSeriesRange(context.Background(), &seriesIterator{keys: seriesKeys[cancelAt:]}, math.MinInt64, math.MaxInt64)
+			require.NoError(t, err, "finishing the delete")
+			require.Empty(t, e.FileStore.Keys(), "series after the delete was finished")
 		})
 	}
 }
@@ -1522,7 +1582,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 				}
 				return math.MinInt64, math.MaxInt64, false
 			}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
+			if err := e.DeleteSeriesRangeWithPredicate(context.Background(), itr, predicate); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1567,7 +1627,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 9000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1635,7 +1695,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, nil); err != nil {
+			if err := e.DeleteSeriesRangeWithPredicate(context.Background(), itr, nil); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1735,7 +1795,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 				}
 				return math.MinInt64, math.MaxInt64, false
 			}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
+			if err := e.DeleteSeriesRangeWithPredicate(context.Background(), itr, predicate); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1780,7 +1840,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 9000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1840,7 +1900,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, 0, 0); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1929,7 +1989,7 @@ func TestEngine_LastModified(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 

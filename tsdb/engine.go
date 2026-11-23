@@ -58,8 +58,10 @@ type Engine interface {
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags, tracker StatsTracker) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags, tracker StatsTracker) error
-	DeleteSeriesRange(itr SeriesIterator, min, max int64) error
-	DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error
+	// The deletes stop between batches of series when ctx is cancelled, leaving
+	// the batches already applied in place, and return the cancellation cause.
+	DeleteSeriesRange(ctx context.Context, itr SeriesIterator, min, max int64) error
+	DeleteSeriesRangeWithPredicate(ctx context.Context, itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
@@ -71,7 +73,7 @@ type Engine interface {
 	MeasurementFieldSet() *MeasurementFieldSet
 	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error
-	DeleteMeasurement(name []byte) error
+	DeleteMeasurement(ctx context.Context, name []byte) error
 
 	HasTagKey(name, key []byte) (bool, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)

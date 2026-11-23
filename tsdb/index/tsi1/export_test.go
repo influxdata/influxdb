@@ -52,6 +52,22 @@ func (i *Index) TagValueCacheIdleTimeout() time.Duration {
 	return i.tagValueCache.idleTimeout
 }
 
+// HoldCompactionForTest makes the partition count a compaction that has not
+// installed its output, which is what Wait waits for, until the returned func
+// is called.
+// Only for tests!
+func (p *Partition) HoldCompactionForTest() (release func()) {
+	p.currentCompactionN.Add(1)
+	return func() { p.currentCompactionN.Add(-1) }
+}
+
+// HoldCompactionForTest does the same as Partition.HoldCompactionForTest, on
+// the index's last partition, so Index.Wait passes the others first.
+// Only for tests!
+func (i *Index) HoldCompactionForTest() (release func()) {
+	return i.partitions[len(i.partitions)-1].HoldCompactionForTest()
+}
+
 // TagValueCacheIdleSweeperRunning reports whether the series ID set cache's
 // idle sweeper is running.
 // Only for tests!
