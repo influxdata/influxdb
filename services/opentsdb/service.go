@@ -197,7 +197,7 @@ func (s *Service) Open() error {
 
 // Close closes the openTSDB service.
 func (s *Service) Close() error {
-	if wait, err := func() (bool, error) {
+	wait, err := func() (bool, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -206,29 +206,30 @@ func (s *Service) Close() error {
 		}
 		close(s.done)
 
-		// Close the listeners.
+		// Close the listeners and TLS manager, but keep going on error: s.done
+		// is closed, so the goroutines must still be awaited before Close returns.
+		var errs []error
 		if err := s.ln.Close(); err != nil {
-			return false, err
+			errs = append(errs, err)
 		}
 		if err := s.httpln.Close(); err != nil {
-			return false, err
+			errs = append(errs, err)
 		}
 		if s.tlsManager != nil {
 			tm := s.tlsManager
 			s.tlsManager = nil
 			if err := tm.Close(); err != nil {
-				return false, err
+				errs = append(errs, err)
 			}
 		}
 
 		if s.batcher != nil {
 			s.batcher.Stop()
 		}
-		return true, nil
-	}(); err != nil {
+		return true, errors.Join(errs...)
+	}()
+	if !wait {
 		return err
-	} else if !wait {
-		return nil
 	}
 	s.wg.Wait()
 
@@ -236,7 +237,7 @@ func (s *Service) Close() error {
 	s.done = nil
 	s.mu.Unlock()
 
-	return nil
+	return err
 }
 
 // PrepareReloadTLSCertificates verifies that the configured TLS certificate can be reloaded.
@@ -369,13 +370,17 @@ func (s *Service) serve() {
 			continue
 		}
 
-		// Handle connection in separate goroutine.
+		// Handle connection in separate goroutine. Track it so Close waits for
+		// in-flight connections instead of returning and mutating Service fields
+		// while handleConn is still reading them.
+		s.wg.Add(1)
 		go s.handleConn(conn)
 	}
 }
 
 // handleConn processes conn. This is run in a separate goroutine.
 func (s *Service) handleConn(conn net.Conn) {
+	defer s.wg.Done()
 	defer atomic.AddInt64(&s.stats.ActiveConnections, -1)
 	atomic.AddInt64(&s.stats.ActiveConnections, 1)
 	atomic.AddInt64(&s.stats.HandledConnections, 1)
@@ -394,14 +399,19 @@ func (s *Service) handleConn(conn net.Conn) {
 	// If no HTTP parsing error occurred then process as HTTP.
 	if err == nil {
 		atomic.AddInt64(&s.stats.HTTPConnectionsHandled, 1)
-		s.httpln.ch <- conn
+		// chanListener.Close closes done without draining ch, so an unguarded
+		// send would park forever on shutdown (leaking this goroutine and its
+		// socket, and deadlocking Close's Wait). Drop the connection instead.
+		select {
+		case s.httpln.ch <- conn:
+		case <-s.httpln.done:
+			conn.Close()
+		}
 		return
 	}
 
 	// Otherwise handle in telnet format.
-	s.wg.Add(1)
 	s.handleTelnetConn(conn)
-	s.wg.Done()
 }
 
 // handleTelnetConn accepts OpenTSDB's telnet protocol.
