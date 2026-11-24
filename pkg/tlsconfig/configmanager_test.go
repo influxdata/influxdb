@@ -1949,9 +1949,10 @@ func TestTLSConfigManager_ClientAuthOverride(t *testing.T) {
 // it should be more than testCheckTime, but less than 2 * testCheckTime.
 const testManagerCheckCapture = 500 * time.Millisecond
 
-func TestTLSConfigManager_LoggerReachesCertLoaders(t *testing.T) {
-	// This test verifies that WithLogger is properly passed to the underlying cert loaders.
-
+// TestTLSConfigManager_MonitorWarnsAboutLoadedCertificate checks that a
+// certificate the manager loads is registered with its monitor, which warns
+// that it expires soon both when it is loaded and at later checks.
+func TestTLSConfigManager_MonitorWarnsAboutLoadedCertificate(t *testing.T) {
 	// Create a certificate that expires in 24 hours
 	notBefore := time.Now().UTC().Truncate(time.Minute).Add(-7 * 24 * time.Hour)
 	notAfter := time.Now().UTC().Truncate(time.Hour).Add(24 * time.Hour)
@@ -1961,14 +1962,11 @@ func TestTLSConfigManager_LoggerReachesCertLoaders(t *testing.T) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	logger := zap.New(core)
 
-	// No logger so logging has to come through manager.
+	// The monitor logs the warnings. Its expiration warning window of 2 days
+	// covers the 24 hours the certificate has left.
 	monitor := newTestCertMonitor(t, WithMonitorExpirationAdvanced(2*24*time.Hour), WithMonitorLogger(logger), WithMonitorTriggerDelay(0))
 	defer th.CheckedClose(t, monitor)()
 
-	// Create TLSConfigManager with all three options:
-	// - WithLogger: to capture log output
-	// - WithCertificateCheckInterval: to set a short check interval
-	// - WithExpirationAdvanced: to set the expiration warning window to 2 days (> 24 hours remaining)
 	manager, err := NewServerTLSConfigManager(
 		monitor,
 		WithUseTLS(true),
@@ -2858,6 +2856,271 @@ func TestTLSConfigManager_CheckClientCertificateUsesPreparedCertificate(t *testi
 
 	err = manager.checkClientCertificate(c, loaded)
 	require.ErrorIs(t, err, ErrCertificateNotClientAuth)
+}
+
+// TestTLSConfigManager_CertificateLoadLogging covers the logs a certificate
+// load writes. Success is logged only once the certificate is in use. A
+// certificate rejected for any reason, whether it would not load, failed a
+// check, or was abandoned along with another certificate that was rejected, is
+// never logged as loaded, so an operator cannot mistake a rejected certificate
+// for one in use.
+func TestTLSConfigManager_CertificateLoadLogging(t *testing.T) {
+	const (
+		startMsg   = "Preparing to load TLS certificate (start)"
+		endMsg     = "Preparing to load TLS certificate (end)"
+		successMsg = "Successfully loaded TLS certificate"
+		keptMsg    = "Error loading TLS certificate, continuing to use previously loaded certificate"
+		noneMsg    = "Error loading TLS certificate, no previously loaded TLS certificate is available"
+	)
+
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	// loadEntries returns the entries logged by certificate loads for usage, in
+	// the order logged. It checks that each carries usage exactly once, as
+	// released versions log it, and that they all belong to one load.
+	loadEntries := func(t *testing.T, logs *observer.ObservedLogs, usage string) []observer.LoggedEntry {
+		t.Helper()
+		var entries []observer.LoggedEntry
+		for _, e := range logs.All() {
+			ctx := e.ContextMap()
+			if ctx["op_name"] == "tls_load_cert" && ctx["usage"] == usage {
+				entries = append(entries, e)
+			}
+		}
+		for _, e := range entries {
+			var usages []string
+			for _, f := range e.Context {
+				if f.Key == "usage" {
+					usages = append(usages, f.String)
+				}
+			}
+			require.Equal(t, []string{usage}, usages, "%q should carry the usage exactly once", e.Message)
+			require.Equal(t, entries[0].ContextMap()["trace_id"], e.ContextMap()["trace_id"],
+				"%q should belong to the same load", e.Message)
+		}
+		return entries
+	}
+
+	messages := func(entries []observer.LoggedEntry) []string {
+		msgs := make([]string, 0, len(entries))
+		for _, e := range entries {
+			msgs = append(msgs, e.Message)
+		}
+		return msgs
+	}
+
+	// requireRejected checks that entry logs, as an error, the rejection of the
+	// certificate at failedCert and failedKey for reason, and that err, the
+	// error the load returned, includes the logged error. Comparing text rather
+	// than unwrapping err keeps this independent of how many times err was
+	// wrapped on the way out.
+	requireRejected := func(t *testing.T, entry observer.LoggedEntry, failedCert, failedKey string, err error, reason string) {
+		t.Helper()
+		require.Equal(t, zapcore.ErrorLevel, entry.Level)
+		ctx := entry.ContextMap()
+		require.Equal(t, failedCert, ctx["failedCert"])
+		require.Equal(t, failedKey, ctx["failedKey"])
+		logged, ok := ctx["error"].(string)
+		require.True(t, ok, "the rejection should log its error")
+		require.Contains(t, logged, reason, "the logged error should give the reason")
+		require.ErrorContains(t, err, logged, "the returned error should include the logged one")
+	}
+
+	// requireKept checks that entry names active as the certificate that
+	// remains in use.
+	requireKept := func(t *testing.T, entry observer.LoggedEntry, active LoadedCertificate) {
+		t.Helper()
+		ctx := entry.ContextMap()
+		require.Equal(t, active.CertificatePath, ctx["activeCert"])
+		require.Equal(t, active.KeyPath, ctx["activeKey"])
+		require.NotEqual(t, "N/A", active.Serial())
+		require.Equal(t, active.Serial(), ctx["activeCertSerial"])
+	}
+
+	t.Run("success is logged once the certificate is in use", func(t *testing.T) {
+		ss1 := selfsigned.NewSelfSignedCert(t)
+		ss2 := selfsigned.NewSelfSignedCert(t)
+
+		core, logs := observer.New(zapcore.InfoLevel)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("httpd"),
+			WithLogger(zap.New(core)),
+			WithServerCertificate(ss1.CertPath, ss1.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+
+		entries := loadEntries(t, logs, "httpd.server")
+		require.Equal(t, []string{startMsg, endMsg, successMsg}, messages(entries))
+		for _, e := range entries {
+			require.Equal(t, ss1.CertPath, e.ContextMap()["cert"])
+			require.Equal(t, ss1.KeyPath, e.ContextMap()["key"])
+		}
+		logs.TakeAll()
+
+		apply, err := manager.PrepareReconfigure(WithServerCertificate(ss2.CertPath, ss2.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, apply)
+		require.Equal(t, []string{startMsg, endMsg}, messages(loadEntries(t, logs, "httpd.server")),
+			"a certificate not yet in use should not be logged as loaded")
+
+		require.NoError(t, apply())
+		entries = loadEntries(t, logs, "httpd.server")
+		require.Equal(t, []string{startMsg, endMsg, successMsg}, messages(entries))
+		for _, e := range entries {
+			require.Equal(t, ss2.CertPath, e.ContextMap()["cert"])
+			require.Equal(t, ss2.KeyPath, e.ContextMap()["key"])
+		}
+	})
+
+	t.Run("a certificate that will not load is rejected", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		emptyFile, err := os.CreateTemp(t.TempDir(), "badcert-*.pem")
+		require.NoError(t, err)
+		require.NoError(t, emptyFile.Close())
+		emptyPath := emptyFile.Name()
+
+		core, logs := observer.New(zapcore.InfoLevel)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("httpd"),
+			WithLogger(zap.New(core)),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+		logs.TakeAll()
+
+		active := manager.serverCertLoader.LoadedCertificate()
+		apply, err := manager.PrepareReconfigure(WithServerCertificate(emptyPath, emptyPath))
+		require.ErrorContains(t, err, "failed to find any PEM data")
+		require.Nil(t, apply)
+
+		entries := loadEntries(t, logs, "httpd.server")
+		require.Equal(t, []string{startMsg, keptMsg, endMsg}, messages(entries))
+		requireRejected(t, entries[1], emptyPath, emptyPath, err, "failed to find any PEM data")
+		requireKept(t, entries[1], active)
+	})
+
+	t.Run("a server certificate that fails a check is rejected", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		clientOnlySS := selfsigned.NewSelfSignedCert(t, selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+		core, logs := observer.New(zapcore.InfoLevel)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("httpd"),
+			WithLogger(zap.New(core)),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+		logs.TakeAll()
+
+		active := manager.serverCertLoader.LoadedCertificate()
+		apply, err := manager.PrepareReconfigure(WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.Nil(t, apply)
+
+		entries := loadEntries(t, logs, "httpd.server")
+		require.Equal(t, []string{startMsg, keptMsg, endMsg}, messages(entries))
+		requireRejected(t, entries[1], clientOnlySS.CertPath, clientOnlySS.KeyPath, err, ErrCertificateNotServerAuth.Error())
+		requireKept(t, entries[1], active)
+	})
+
+	t.Run("a client certificate that fails a check is rejected", func(t *testing.T) {
+		clientSS := selfsigned.NewSelfSignedCert(t)
+		serverOnlySS := serverOnlyCert(t)
+
+		core, logs := observer.New(zapcore.InfoLevel)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("subscriber"),
+			WithLogger(zap.New(core)),
+			WithClientCertificate(clientSS.CertPath, clientSS.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+		logs.TakeAll()
+
+		active := manager.clientCertLoader.LoadedCertificate()
+		apply, err := manager.PrepareReconfigure(WithClientCertificate(serverOnlySS.CertPath, serverOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotClientAuth)
+		require.Nil(t, apply)
+
+		entries := loadEntries(t, logs, "subscriber.client")
+		require.Equal(t, []string{startMsg, keptMsg, endMsg}, messages(entries))
+		requireRejected(t, entries[1], serverOnlySS.CertPath, serverOnlySS.KeyPath, err, ErrCertificateNotClientAuth.Error())
+		requireKept(t, entries[1], active)
+	})
+
+	t.Run("a rejected first certificate has none to keep", func(t *testing.T) {
+		clientOnlySS := selfsigned.NewSelfSignedCert(t, selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
+
+		core, logs := observer.New(zapcore.InfoLevel)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("httpd"),
+			WithLogger(zap.New(core)),
+			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.Nil(t, manager)
+
+		entries := loadEntries(t, logs, "httpd.server")
+		require.Equal(t, []string{startMsg, noneMsg, endMsg}, messages(entries))
+		requireRejected(t, entries[1], clientOnlySS.CertPath, clientOnlySS.KeyPath, err, ErrCertificateNotServerAuth.Error())
+	})
+
+	t.Run("a certificate abandoned with a rejected one is not logged as loaded", func(t *testing.T) {
+		serverSS1 := selfsigned.NewSelfSignedCert(t)
+		serverSS2 := selfsigned.NewSelfSignedCert(t)
+		clientSS := selfsigned.NewSelfSignedCert(t)
+		serverOnlySS := serverOnlyCert(t)
+
+		core, logs := observer.New(zapcore.InfoLevel)
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("meta"),
+			WithLogger(zap.New(core)),
+			WithServerCertificate(serverSS1.CertPath, serverSS1.KeyPath),
+			WithClientCertificate(clientSS.CertPath, clientSS.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+		logs.TakeAll()
+
+		// The new server certificate is acceptable, but the client certificate
+		// is not, so neither is used.
+		activeServer := manager.serverCertLoader.LoadedCertificate()
+		activeClient := manager.clientCertLoader.LoadedCertificate()
+		apply, err := manager.PrepareReconfigure(
+			WithServerCertificate(serverSS2.CertPath, serverSS2.KeyPath),
+			WithClientCertificate(serverOnlySS.CertPath, serverOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotClientAuth)
+		require.Nil(t, apply)
+
+		serverEntries := loadEntries(t, logs, "meta.server")
+		require.Equal(t, []string{startMsg, endMsg}, messages(serverEntries),
+			"a server certificate that was never used should not be logged as loaded")
+		require.Equal(t, serverSS2.CertPath, serverEntries[0].ContextMap()["cert"])
+
+		clientEntries := loadEntries(t, logs, "meta.client")
+		require.Equal(t, []string{startMsg, keptMsg, endMsg}, messages(clientEntries))
+		requireRejected(t, clientEntries[1], serverOnlySS.CertPath, serverOnlySS.KeyPath, err, ErrCertificateNotClientAuth.Error())
+		requireKept(t, clientEntries[1], activeClient)
+
+		require.Equal(t, activeServer, manager.serverCertLoader.LoadedCertificate())
+		require.Equal(t, activeClient, manager.clientCertLoader.LoadedCertificate())
+	})
 }
 
 // TestTLSConfigManager_LoggerCarriesUsage covers the manager's logger being

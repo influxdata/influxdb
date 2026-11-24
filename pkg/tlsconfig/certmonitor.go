@@ -327,7 +327,7 @@ func (m *TLSCertMonitor) logIssues(log *zap.Logger, lc LoadedCertificate) {
 		return
 	}
 
-	log = lc.WithLogContext(log)
+	log = lc.AddLogContext(log)
 	if xc, err := lc.GetLeaf(); err == nil {
 		xc.logIssues(log, m.expirationAdvanced())
 	} else {

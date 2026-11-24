@@ -148,14 +148,14 @@ func TestLoadedCertificate_IsEmpty(t *testing.T) {
 	}
 }
 
-func TestLoadedCertificate_WithLogContext(t *testing.T) {
+func TestLoadedCertificate_AddLogContext(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
 	lc, err := LoadCertificate(ss.CertPath, ss.KeyPath)
 	require.NoError(t, err)
 
 	core, logs := observer.New(zapcore.InfoLevel)
-	lc.WithLogContext(zap.New(core)).Info("test message")
+	lc.AddLogContext(zap.New(core)).Info("test message")
 
 	entries := logs.FilterMessage("test message").TakeAll()
 	require.Len(t, entries, 1)

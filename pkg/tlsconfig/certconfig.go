@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/influxdata/influxdb/logger"
-	"go.uber.org/zap"
 )
 
 const (
@@ -39,15 +36,13 @@ var (
 // registers it with a TLSCertMonitor to be checked for expiration. It knows
 // nothing of how the certificate is used: whether it is presented by a server
 // or a client, and the checks that follow from that, are up to the
-// TLSConfigManager that owns it.
+// TLSConfigManager that owns it. So is logging a load, since only the manager
+// knows whether a loaded certificate is accepted.
 type tlsCertLoader struct {
 	// All fields before mu are set at construction and never change.
 
 	// monitor is the certificate monitor for loader.
 	monitor *TLSCertMonitor
-
-	// logger is the logger used for logging status. It already carries usage.
-	logger *zap.Logger
 
 	// usage is the descriptive usage string for logging.
 	usage string
@@ -60,18 +55,14 @@ type tlsCertLoader struct {
 }
 
 // newTLSCertLoader creates a tlsCertLoader with no certificate loaded and
-// registers it with monitor. A nil logger logs nothing.
-func newTLSCertLoader(monitor *TLSCertMonitor, logger *zap.Logger, usage string) (*tlsCertLoader, error) {
+// registers it with monitor.
+func newTLSCertLoader(monitor *TLSCertMonitor, usage string) (*tlsCertLoader, error) {
 	if monitor == nil {
 		return nil, fmt.Errorf("newTLSCertLoader: usage=%q: %w", usage, ErrNoCertificateMonitor)
-	}
-	if logger == nil {
-		logger = zap.NewNop()
 	}
 
 	cl := &tlsCertLoader{
 		monitor: monitor,
-		logger:  logger.With(zap.String(logUsageContext, usage)),
 		usage:   usage,
 	}
 	cl.monitor.registerCertLoader(cl)
@@ -101,35 +92,13 @@ func (cl *tlsCertLoader) LoadedCertificate() LoadedCertificate {
 
 // prepareLoad loads the certificate at certPath and keyPath without changing
 // cl. On success it returns the loaded certificate and a function that makes it
-// cl's active certificate. Empty paths load an empty certificate.
+// cl's active certificate. Empty paths load an empty certificate. Nothing is
+// logged; see TLSConfigManager.prepareCertLoad.
 func (cl *tlsCertLoader) prepareLoad(certPath, keyPath string, ignoreFilePermissions bool) (func() error, LoadedCertificate, error) {
-	log, logEnd := logger.NewOperation(cl.logger, "Loading TLS certificate", "tls_load_cert",
-		zap.String(logCertContext, certPath), zap.String(logKeyContext, keyPath), zap.String(logUsageContext, cl.usage))
-	defer logEnd()
-
-	logLoadError := func(err error) {
-		activeCert := cl.LoadedCertificate()
-		if !activeCert.IsEmpty() {
-			// The leaf should be good, but you can't be too careful with TLS certificates.
-			log.Error("Error loading TLS certificate, continuing to use previously loaded certificate",
-				zap.Error(err),
-				zap.String("failedCert", certPath), zap.String("failedKey", keyPath),
-				zap.String("activeCert", activeCert.CertificatePath), zap.String("activeKey", activeCert.KeyPath),
-				zap.String("activeCertSerial", activeCert.Serial()))
-		} else {
-			log.Error("Error loading TLS certificate, no previously loaded TLS certificate is available",
-				zap.Error(err),
-				zap.String("failedCert", certPath), zap.String("failedKey", keyPath))
-		}
-	}
-
 	loadedCert, err := LoadCertificate(certPath, keyPath, WithLoadCertificateIgnoreFilePermissions(ignoreFilePermissions))
 	if err != nil {
-		logLoadError(err)
 		return nil, LoadedCertificate{}, err
 	}
-
-	loadedCert.WithLogContext(log).Info("Successfully loaded TLS certificate")
 
 	return func() error {
 		func() {
