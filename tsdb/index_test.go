@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -53,6 +54,152 @@ func TestMergeSeriesIDIterators(t *testing.T) {
 		t.Fatal(err)
 	} else if e.SeriesID != 0 {
 		t.Fatalf("expected nil elem: %#v", e)
+	}
+}
+
+// trackedCloser counts Close calls on a set-operation input and returns err.
+type trackedCloser struct {
+	closes int
+	err    error
+}
+
+func (c *trackedCloser) Close() error {
+	c.closes++
+	return c.err
+}
+
+// newTrackedSetIterator returns a SeriesIDSetIterator over ids, so set
+// operations take their set fast path, whose closes are recorded.
+func newTrackedSetIterator(t *testing.T, closeErr error, ids ...uint64) (tsdb.SeriesIDSetIterator, *trackedCloser) {
+	t.Helper()
+	c := &trackedCloser{err: closeErr}
+	itr := tsdb.NewSeriesIDSetIteratorWithCloser(tsdb.NewSeriesIDSet(ids...), c)
+	require.NotNil(t, itr)
+	return itr, c
+}
+
+func requireCloses(t *testing.T, closers []*trackedCloser, want int, msg string) {
+	t.Helper()
+	for i, c := range closers {
+		require.Equal(t, want, c.closes, "input %d: %s", i, msg)
+	}
+}
+
+type seriesIDSetOp struct {
+	name  string
+	apply func(a, b tsdb.SeriesIDIterator) tsdb.SeriesIDIterator
+	want  []uint64 // result for inputs {1,2,3} and {2,3,4}
+}
+
+var seriesIDSetOps = []seriesIDSetOp{
+	{"Merge", func(a, b tsdb.SeriesIDIterator) tsdb.SeriesIDIterator { return tsdb.MergeSeriesIDIterators(a, b) }, []uint64{1, 2, 3, 4}},
+	{"Intersect", tsdb.IntersectSeriesIDIterators, []uint64{2, 3}},
+	{"Union", tsdb.UnionSeriesIDIterators, []uint64{1, 2, 3, 4}},
+	{"Difference", tsdb.DifferenceSeriesIDIterators, []uint64{1}},
+}
+
+// Ensure the set fast path of each set operation leaves its inputs open until
+// the result is closed. Inputs may reference mmapped index files, so closing
+// them early lets those files be unmapped while the result is in use.
+func TestSeriesIDSetIterator_Operations_RetainInputsUntilClose(t *testing.T) {
+	for _, op := range seriesIDSetOps {
+		t.Run(op.name, func(t *testing.T) {
+			a, ac := newTrackedSetIterator(t, nil, 1, 2, 3)
+			b, bc := newTrackedSetIterator(t, nil, 2, 3, 4)
+			closers := []*trackedCloser{ac, bc}
+
+			itr := op.apply(a, b)
+			require.Implements(t, (*tsdb.SeriesIDSetIterator)(nil), itr, "set inputs must take the set fast path")
+			requireCloses(t, closers, 0, "closed when the result was built")
+
+			got, err := tsdb.ReadAllSeriesIDIterator(itr)
+			require.NoError(t, err)
+			require.Equal(t, op.want, got)
+			requireCloses(t, closers, 0, "closed while reading the result")
+
+			require.NoError(t, itr.Close())
+			requireCloses(t, closers, 1, "not closed exactly once by closing the result")
+		})
+	}
+}
+
+// Ensure closing a set-operation result closes every input and returns an
+// input's close error even when another input's close fails.
+func TestSeriesIDSetIterator_Operations_CloseAllInputsOnError(t *testing.T) {
+	for _, op := range seriesIDSetOps {
+		for failing := range 2 {
+			t.Run(fmt.Sprintf("%s/input%d", op.name, failing), func(t *testing.T) {
+				errClose := fmt.Errorf("close input %d", failing)
+				errs := [2]error{}
+				errs[failing] = errClose
+				a, ac := newTrackedSetIterator(t, errs[0], 1, 2, 3)
+				b, bc := newTrackedSetIterator(t, errs[1], 2, 3, 4)
+
+				itr := op.apply(a, b)
+				require.Implements(t, (*tsdb.SeriesIDSetIterator)(nil), itr, "set inputs must take the set fast path")
+				require.ErrorIs(t, itr.Close(), errClose)
+				requireCloses(t, []*trackedCloser{ac, bc}, 1, "not closed exactly once by closing the result")
+			})
+		}
+	}
+}
+
+// Ensure a nested composition of all four set operations retains every leaf
+// until the outermost result is closed, and that closing it closes every leaf
+// even when one leaf's close fails.
+func TestSeriesIDSetIterator_NestedOperations_RetainInputsUntilClose(t *testing.T) {
+	leafIDs := [][]uint64{
+		{1, 2, 3}, {2, 3, 4}, // Intersect -> {2, 3}
+		{10}, {11}, // Union -> {10, 11}
+		{20, 21, 22}, {21}, // Difference -> {20, 22}
+		{20, 30}, {22, 31}, // Merge -> {20, 22, 30, 31}
+		{3}, // subtracted from the outer merge
+	}
+	want := []uint64{2, 10, 11, 20, 22}
+
+	// failing == -1 means no leaf returns a close error.
+	for failing := -1; failing < len(leafIDs); failing++ {
+		t.Run(fmt.Sprintf("failing=%d", failing), func(t *testing.T) {
+			var errClose error
+			leaves := make([]tsdb.SeriesIDIterator, len(leafIDs))
+			closers := make([]*trackedCloser, len(leafIDs))
+			for i, ids := range leafIDs {
+				var err error
+				if i == failing {
+					errClose = fmt.Errorf("close leaf %d", i)
+					err = errClose
+				}
+				leaves[i], closers[i] = newTrackedSetIterator(t, err, ids...)
+			}
+
+			itr := tsdb.DifferenceSeriesIDIterators(
+				tsdb.MergeSeriesIDIterators(
+					tsdb.UnionSeriesIDIterators(
+						tsdb.IntersectSeriesIDIterators(leaves[0], leaves[1]),
+						tsdb.UnionSeriesIDIterators(leaves[2], leaves[3]),
+					),
+					tsdb.IntersectSeriesIDIterators(
+						tsdb.DifferenceSeriesIDIterators(leaves[4], leaves[5]),
+						tsdb.MergeSeriesIDIterators(leaves[6], leaves[7]),
+					),
+				),
+				leaves[8],
+			)
+			require.Implements(t, (*tsdb.SeriesIDSetIterator)(nil), itr, "set inputs must take the set fast path")
+			requireCloses(t, closers, 0, "closed when the result was built")
+
+			got, err := tsdb.ReadAllSeriesIDIterator(itr)
+			require.NoError(t, err)
+			require.Equal(t, want, got)
+			requireCloses(t, closers, 0, "closed while reading the result")
+
+			if err := itr.Close(); errClose == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, errClose)
+			}
+			requireCloses(t, closers, 1, "not closed exactly once by closing the result")
+		})
 	}
 }
 
