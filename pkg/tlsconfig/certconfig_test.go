@@ -3,13 +3,14 @@ package tlsconfig
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -35,49 +36,32 @@ func TestTLSCertLoader_HappyPath(t *testing.T) {
 
 	// Start cert loader
 	usage := "data.server"
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		certMonitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath),
-		WithCertLoaderLogger(logger),
-		WithCertLoaderUsage(usage))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
+	cl := newTestCertLoader(t, certMonitor, usage, ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	{
-		// Check for expected log output
-		require.Equal(t, 5, logs.Len())
+		// Check for expected log output. Only the monitor logs: the loader
+		// registers with it when created, and loading logs nothing, since that
+		// is left to TLSConfigManager.
+		require.Equal(t, 2, logs.Len())
 		logLines := logs.TakeAll()
 		require.Equal(t, "Starting TLS certificate monitor", logLines[0].Message)
-		require.Equal(t, "Loading TLS certificate (start)", logLines[1].Message)
-		require.Equal(t, "Successfully loaded TLS certificate", logLines[2].Message)
-		require.Equal(t, "Loading TLS certificate (end)", logLines[3].Message)
-		require.Equal(t, "Registered certificate loader", logLines[4].Message)
-		for _, l := range logLines[1:3] { // "Starting TLS certificate monitor" doesn't include the cert name and key
-			cm := l.ContextMap()
-			require.Equal(t, usage, cm["usage"])
-			require.Equal(t, ss.CertPath, cm["cert"])
-			require.Equal(t, ss.KeyPath, cm["key"])
-		}
-		require.Equal(t, usage, logLines[4].ContextMap()["usage"])
+		require.Equal(t, "Registered certificate loader", logLines[1].Message)
+		require.Equal(t, usage, logLines[1].ContextMap()["usage"])
 
 		// Get certificate and do some checks on it.
-		cp, kp := cl.Paths()
+		cp, kp := loadedPaths(cl)
 		require.Equal(t, ss.CertPath, cp)
 		require.Equal(t, ss.KeyPath, kp)
-		require.NotNil(t, cl.Certificate())
-		cert, err := cl.GetCertificate(nil)
-		require.NoError(t, err)
+		cert := cl.LoadedCertificate().Certificate
 		require.NotNil(t, cert)
-		require.Equal(t, cl.Certificate(), cert)
 		require.NotEmpty(t, cert.Certificate, "expected at least 1 certificate")
-		require.NotNil(t, cl.Leaf())
+		require.NotNil(t, cl.LoadedCertificate().Leaf)
 		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
 		require.NoError(t, err)
 		require.NotNil(t, x509Cert)
 		require.Equal(t, []string{DNSName}, x509Cert.DNSNames)
-		require.Equal(t, x509Cert, cl.Leaf())
+		require.Equal(t, x509Cert, cl.LoadedCertificate().Leaf)
 	}
 
 	{
@@ -85,35 +69,21 @@ func TestTLSCertLoader_HappyPath(t *testing.T) {
 		const DNSName2 = "data1-ultimate-form.influxdata.edge"
 		logs.TakeAll()
 		ss := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName(DNSName2))
-		require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+		require.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
+		require.Zero(t, logs.Len(), "the loader should not log a load")
 
-		require.Equal(t, 3, logs.Len())
-		logLines := logs.TakeAll()
-		require.Equal(t, "Loading TLS certificate (start)", logLines[0].Message)
-		require.Equal(t, "Successfully loaded TLS certificate", logLines[1].Message)
-		require.Equal(t, "Loading TLS certificate (end)", logLines[2].Message)
-		for _, l := range logLines {
-			cm := l.ContextMap()
-			require.Equal(t, ss.CertPath, cm["cert"])
-			require.Equal(t, ss.KeyPath, cm["key"])
-			require.Equal(t, usage, cm["usage"])
-		}
-
-		cp, kp := cl.Paths()
+		cp, kp := loadedPaths(cl)
 		require.Equal(t, ss.CertPath, cp)
 		require.Equal(t, ss.KeyPath, kp)
-		require.NotNil(t, cl.Certificate())
-		cert, err := cl.GetCertificate(nil)
-		require.NoError(t, err)
+		cert := cl.LoadedCertificate().Certificate
 		require.NotNil(t, cert)
-		require.Equal(t, cl.Certificate(), cert)
 		require.NotEmpty(t, cert.Certificate, "expected at least 1 certificate")
-		require.NotNil(t, cl.Leaf())
+		require.NotNil(t, cl.LoadedCertificate().Leaf)
 		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
 		require.NoError(t, err)
 		require.NotNil(t, x509Cert)
 		require.Equal(t, []string{DNSName2}, x509Cert.DNSNames)
-		require.Equal(t, x509Cert, cl.Leaf())
+		require.Equal(t, x509Cert, cl.LoadedCertificate().Leaf)
 	}
 
 	{
@@ -140,30 +110,20 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 	const DNSName = "data1.influxdata.edge"
 	ss := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName(DNSName))
 
-	core, logs := observer.New(zapcore.InfoLevel)
-	logger := zap.New(core)
-
-	certMonitor := newTestCertMonitor(t, WithMonitorLogger(logger))
+	certMonitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, certMonitor)()
 
 	// Start cert loader
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		certMonitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath),
-		WithCertLoaderLogger(logger))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
+	cl := newTestCertLoader(t, certMonitor, "", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	var goodSerial big.Int
 	{
-		cp, kp := cl.Paths()
+		cp, kp := loadedPaths(cl)
 		require.Equal(t, ss.CertPath, cp)
 		require.Equal(t, ss.KeyPath, kp)
 
-		cert, err := cl.GetCertificate(nil)
-		require.NoError(t, err)
+		cert := cl.LoadedCertificate().Certificate
 		require.NotNil(t, cert)
 		require.NotEmpty(t, cert.Certificate)
 		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
@@ -171,9 +131,6 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		require.NotNil(t, x509Cert)
 		require.NotNil(t, x509Cert.SerialNumber)
 		goodSerial = *x509Cert.SerialNumber
-
-		// Logs for happy case are checked in another test, just dump them here.
-		logs.TakeAll()
 	}
 
 	{
@@ -184,16 +141,15 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		emptyPath := emptyFile.Name()
 		require.NoError(t, emptyFile.Close())
 
-		loadErr := cl.Load(emptyPath, emptyPath)
+		loadErr := loadCert(t, cl, emptyPath, emptyPath)
 		require.ErrorContains(t, loadErr, fmt.Sprintf("error loading x509 key pair (%q / %q): tls: failed to find any PEM data in certificate input", emptyPath, emptyPath))
 
 		// Check that we are still using the previously loaded certificate
-		cp, kp := cl.Paths()
+		cp, kp := loadedPaths(cl)
 		require.Equal(t, ss.CertPath, cp)
 		require.Equal(t, ss.KeyPath, kp)
 
-		cert, err := cl.GetCertificate(nil)
-		require.NoError(t, err)
+		cert := cl.LoadedCertificate().Certificate
 		require.NotNil(t, cert)
 		require.NotEmpty(t, cert.Certificate)
 		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
@@ -201,36 +157,7 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		require.NotNil(t, x509Cert)
 		require.NotNil(t, x509Cert.SerialNumber)
 		require.Equal(t, goodSerial, *x509Cert.SerialNumber)
-
-		// The failed reload should log that it kept the previously loaded
-		// certificate, naming both the certificate that failed and the one still
-		// in use (with its serial), so operators can tell the reload was rejected
-		// rather than silently applied.
-		require.Equal(t, 3, logs.Len())
-		logLines := logs.TakeAll()
-		require.Equal(t, "Loading TLS certificate (start)", logLines[0].Message)
-		require.Equal(t, "Error loading TLS certificate, continuing to use previously loaded certificate", logLines[1].Message)
-		require.Equal(t, "Loading TLS certificate (end)", logLines[2].Message)
-
-		// The start and end lines name the certificate whose load was attempted.
-		for _, l := range []observer.LoggedEntry{logLines[0], logLines[2]} {
-			ctx := l.ContextMap()
-			require.Equal(t, emptyPath, ctx["cert"])
-			require.Equal(t, emptyPath, ctx["key"])
-		}
-
-		// The error line is logged at error level and distinguishes the failed
-		// certificate from the active one that remains in use.
-		require.Equal(t, zapcore.ErrorLevel, logLines[1].Level)
-		cm := logLines[1].ContextMap()
-		require.Equal(t, emptyPath, cm["failedCert"])
-		require.Equal(t, emptyPath, cm["failedKey"])
-		require.Equal(t, ss.CertPath, cm["activeCert"])
-		require.Equal(t, ss.KeyPath, cm["activeKey"])
-		require.Equal(t, goodSerial.String(), cm["activeCertSerial"])
-		require.Contains(t, cm["error"], "failed to find any PEM data")
 	}
-
 }
 
 func TestTLSCertLoader_EmptyPaths(t *testing.T) {
@@ -239,30 +166,22 @@ func TestTLSCertLoader_EmptyPaths(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate("", ss.KeyPath))
-	require.ErrorIs(t, err, ErrPathEmpty)
-	require.Nil(t, cl)
-
-	// This is no longer an error on instantiation for a server role,
-	// only on a PrepareLoad.
-	cl, err = NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate("", ""))
+	cl, err := newTLSCertLoader(monitor, "")
 	require.NoError(t, err)
-	require.NotNil(t, cl)
+	defer th.CheckedClose(t, cl)()
 
-	// For this case, the loader will assume CertPath also contains, which
-	// it does not, so this will fail.
-	cl, err = NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ""))
-	require.ErrorContains(t, err, "found a certificate rather than a key")
-	require.Nil(t, cl)
+	require.ErrorIs(t, loadCert(t, cl, "", ss.KeyPath), ErrPathEmpty)
+	require.True(t, cl.LoadedCertificate().IsEmpty())
+
+	// Empty paths load an empty certificate. Whether that is acceptable is up
+	// to the manager.
+	require.NoError(t, loadCert(t, cl, "", ""))
+	require.True(t, cl.LoadedCertificate().IsEmpty())
+
+	// For this case, the loader will assume CertPath also contains the key,
+	// which it does not, so this will fail.
+	require.ErrorContains(t, loadCert(t, cl, ss.CertPath, ""), "found a certificate rather than a key")
+	require.True(t, cl.LoadedCertificate().IsEmpty())
 }
 
 func TestTLSCertLoader_FileNotFound(t *testing.T) {
@@ -271,29 +190,20 @@ func TestTLSCertLoader_FileNotFound(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
+	cl, err := newTLSCertLoader(monitor, "")
+	require.NoError(t, err)
+	defer th.CheckedClose(t, cl)()
+
 	// Non-existent certificate file
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate("/nonexistent/path/to/cert.pem", ss.KeyPath))
-	require.ErrorIs(t, err, os.ErrNotExist)
-	require.Nil(t, cl)
+	require.ErrorIs(t, loadCert(t, cl, "/nonexistent/path/to/cert.pem", ss.KeyPath), os.ErrNotExist)
 
 	// Non-existent key file
-	cl, err = NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, "/nonexistent/path/to/key.pem"))
-	require.ErrorIs(t, err, os.ErrNotExist)
-	require.Nil(t, cl)
+	require.ErrorIs(t, loadCert(t, cl, ss.CertPath, "/nonexistent/path/to/key.pem"), os.ErrNotExist)
 
 	// Both files non-existent
-	cl, err = NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
-	require.ErrorIs(t, err, os.ErrNotExist)
-	require.Nil(t, cl)
+	require.ErrorIs(t, loadCert(t, cl, "/nonexistent/cert.pem", "/nonexistent/key.pem"), os.ErrNotExist)
+
+	require.True(t, cl.LoadedCertificate().IsEmpty())
 }
 
 func TestTLSCertLoader_MismatchedCertAndKey(t *testing.T) {
@@ -304,23 +214,21 @@ func TestTLSCertLoader_MismatchedCertAndKey(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
+	cl, err := newTLSCertLoader(monitor, "")
+	require.NoError(t, err)
+	defer th.CheckedClose(t, cl)()
+
 	// Try to load cert from first pair with key from second pair
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss1.CertPath, ss2.KeyPath))
+	err = loadCert(t, cl, ss1.CertPath, ss2.KeyPath)
 	require.ErrorContains(t, err, "error loading x509 key pair")
 	require.ErrorContains(t, err, "tls: private key does not match public key")
-	require.Nil(t, cl)
 
 	// Try to load cert from second pair with key from first pair
-	cl, err = NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss2.CertPath, ss1.KeyPath))
+	err = loadCert(t, cl, ss2.CertPath, ss1.KeyPath)
 	require.ErrorContains(t, err, "error loading x509 key pair")
 	require.ErrorContains(t, err, "tls: private key does not match public key")
-	require.Nil(t, cl)
+
+	require.True(t, cl.LoadedCertificate().IsEmpty())
 }
 
 func TestTLSCertLoader_CombinedFile(t *testing.T) {
@@ -334,17 +242,11 @@ func TestTLSCertLoader_CombinedFile(t *testing.T) {
 	defer th.CheckedClose(t, monitor)()
 
 	// Start cert loader with the combined file. Let the cert loader infer that the key is combined with the cert.
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ""))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
+	cl := newTestCertLoader(t, monitor, "", ss.CertPath, "")
 	defer th.CheckedClose(t, cl)()
 
 	// Get certificate and verify it
-	cert, err := cl.GetCertificate(nil)
-	require.NoError(t, err)
+	cert := cl.LoadedCertificate().Certificate
 	require.NotNil(t, cert)
 	require.NotEmpty(t, cert.Certificate, "expected at least 1 certificate")
 	x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
@@ -359,13 +261,25 @@ func TestTLSLoader_CertPermissionsTooOpen(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
+	cl, err := newTLSCertLoader(monitor, "")
+	require.NoError(t, err)
+	defer th.CheckedClose(t, cl)()
+
 	require.NoError(t, os.Chmod(ss.CertPath, 0660))
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+	err = loadCert(t, cl, ss.CertPath, ss.KeyPath)
 	require.ErrorContains(t, err, fmt.Sprintf("LoadCertificate: file permissions are too open: for %q, maximum is 0644 (-rw-r--r--) but found 0660 (-rw-rw----); extra permissions: 0020 (-----w----)", ss.CertPath))
-	require.Nil(t, cl)
+	require.True(t, cl.LoadedCertificate().IsEmpty())
+
+	// ignoreFilePermissions loads it anyway.
+	apply, prepared, err := cl.prepareLoad(ss.CertPath, ss.KeyPath, true)
+	require.NoError(t, err)
+	require.NotNil(t, apply)
+	require.Equal(t, ss.CertPath, prepared.CertificatePath)
+	require.Equal(t, ss.KeyPath, prepared.KeyPath)
+	require.NotNil(t, prepared.Certificate)
+	require.NoError(t, apply())
+	require.False(t, cl.LoadedCertificate().IsEmpty())
+	require.Same(t, prepared.Certificate, cl.LoadedCertificate().Certificate)
 }
 
 func TestTLSLoader_KeyPermissionsTooOpen(t *testing.T) {
@@ -374,13 +288,14 @@ func TestTLSLoader_KeyPermissionsTooOpen(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
+	cl, err := newTLSCertLoader(monitor, "")
+	require.NoError(t, err)
+	defer th.CheckedClose(t, cl)()
+
 	require.NoError(t, os.Chmod(ss.KeyPath, 0644))
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+	err = loadCert(t, cl, ss.CertPath, ss.KeyPath)
 	require.ErrorContains(t, err, fmt.Sprintf("LoadCertificate: file permissions are too open: for %q, maximum is 0600 (-rw-------) but found 0644 (-rw-r--r--); extra permissions: 0044 (----r--r--)", ss.KeyPath))
-	require.Nil(t, cl)
+	require.True(t, cl.LoadedCertificate().IsEmpty())
 }
 
 const (
@@ -407,6 +322,51 @@ func newTestCertMonitor(t *testing.T, opts ...TLSCertMonitorOpt) *TLSCertMonitor
 	return certMonitor
 }
 
+// newTestCertLoader returns a cert loader registered with monitor that has
+// loaded the certificate at certPath and keyPath.
+func newTestCertLoader(t *testing.T, monitor *TLSCertMonitor, usage, certPath, keyPath string) *tlsCertLoader {
+	t.Helper()
+	cl, err := newTLSCertLoader(monitor, usage)
+	require.NoError(t, err)
+	require.NotNil(t, cl)
+	require.NoError(t, loadCert(t, cl, certPath, keyPath))
+	return cl
+}
+
+// loadCert loads the certificate at certPath and keyPath into cl and makes it
+// active, the way TLSConfigManager does, and returns prepareLoad's error. It
+// also checks that a failed prepareLoad returns no certificate, and that apply
+// makes active exactly the certificate prepareLoad returned. The checks use
+// assert so loadCert is safe off the test goroutine; a failed check is also
+// returned as an error.
+func loadCert(t *testing.T, cl *tlsCertLoader, certPath, keyPath string) error {
+	t.Helper()
+	apply, prepared, err := cl.prepareLoad(certPath, keyPath, false)
+	if err != nil {
+		assert.Nil(t, apply)
+		assert.Zero(t, prepared, "a failed prepareLoad should return no certificate")
+		return err
+	}
+	if !assert.NotNil(t, apply) {
+		return errors.New("loadCert: prepareLoad returned no apply function")
+	}
+	if err := apply(); err != nil {
+		return err
+	}
+
+	active := cl.LoadedCertificate()
+	if !assert.Equal(t, prepared, active) || !assert.Same(t, prepared.Certificate, active.Certificate) {
+		return errors.New("loadCert: the active certificate is not the one prepareLoad returned")
+	}
+	return nil
+}
+
+// loadedPaths returns the paths of cl's active certificate.
+func loadedPaths(cl *tlsCertLoader) (certPath, keyPath string) {
+	lc := cl.LoadedCertificate()
+	return lc.CertificatePath, lc.KeyPath
+}
+
 func TestTLSCertLoader_PrematureCertificateLogging(t *testing.T) {
 	notBefore := time.Now().UTC().Truncate(time.Hour).Add(7 * 24 * time.Hour)
 	notAfter := notBefore.Add(7 * 24 * time.Hour)
@@ -419,14 +379,7 @@ func TestTLSCertLoader_PrematureCertificateLogging(t *testing.T) {
 	defer th.CheckedClose(t, monitor)()
 
 	usage := "httpd.server"
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath),
-		WithCertLoaderLogger(logger),
-		WithCertLoaderUsage(usage))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
+	cl := newTestCertLoader(t, monitor, usage, ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	checkWarning := func(t *testing.T) {
@@ -459,13 +412,7 @@ func TestTLSCertLoader_ExpiredCertificateLogging(t *testing.T) {
 	monitor := newTestCertMonitor(t, WithMonitorLogger(logger), WithMonitorTriggerDelay(0))
 	defer th.CheckedClose(t, monitor)()
 
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath),
-		WithCertLoaderLogger(logger))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
+	cl := newTestCertLoader(t, monitor, "", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	checkWarning := func(t *testing.T) {
@@ -498,13 +445,7 @@ func TestTLSCertLoader_CertificateExpiresSoonLogging(t *testing.T) {
 	monitor := newTestCertMonitor(t, WithMonitorExpirationAdvanced(2*24*time.Hour), WithMonitorLogger(logger), WithMonitorTriggerDelay(0))
 	defer th.CheckedClose(t, monitor)()
 
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath),
-		WithCertLoaderLogger(logger))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
+	cl := newTestCertLoader(t, monitor, "", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	checkWarning := func(t *testing.T) {
@@ -535,18 +476,12 @@ func TestTLSCertLoader_VerifyLoad(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
+	cl := newTestCertLoader(t, monitor, "", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
-	cert1, err := cl.GetCertificate(nil)
-	require.NoError(t, err)
+	cert1 := cl.LoadedCertificate().Certificate
 	require.NotNil(t, cert1)
-	leaf1 := cl.Leaf()
+	leaf1 := cl.LoadedCertificate().Leaf
 	require.NotNil(t, leaf1)
 	sn1 := leaf1.SerialNumber.String()
 	require.NotEmpty(t, sn1)
@@ -555,16 +490,17 @@ func TestTLSCertLoader_VerifyLoad(t *testing.T) {
 
 	// Test VerifyLoad with a cert pair that will not load properly.
 	{
-		apply, err := cl.PrepareLoad(WithCertLoaderCertificate(ss2.CACertPath, ss2.KeyPath)) // mismatched cert and key
+		apply, prepared, err := cl.prepareLoad(ss2.CACertPath, ss2.KeyPath, false) // mismatched cert and key
 		require.ErrorContains(t, err, "private key does not match public key")
 		require.Nil(t, apply)
+		require.Zero(t, prepared, "a failed prepareLoad should return no certificate")
 
 		// Make sure nothing in cl changed.
-		cp, kp := cl.Paths()
+		cp, kp := loadedPaths(cl)
 		require.Equal(t, ss.CertPath, cp)
 		require.Equal(t, ss.KeyPath, kp)
-		require.Equal(t, cert1, cl.Certificate())
-		require.Equal(t, leaf1, cl.Leaf())
+		require.Equal(t, cert1, cl.LoadedCertificate().Certificate)
+		require.Equal(t, leaf1, cl.LoadedCertificate().Leaf)
 	}
 
 	// Test VerifyLoad with a proper cert pair.
@@ -576,282 +512,83 @@ func TestTLSCertLoader_VerifyLoad(t *testing.T) {
 		require.NotEmpty(t, sn2)
 		require.NotEqual(t, sn1, sn2)
 
-		apply, err := cl.PrepareLoad(WithCertLoaderCertificate(ss2.CertPath, ss2.KeyPath))
+		apply, prepared, err := cl.prepareLoad(ss2.CertPath, ss2.KeyPath, false)
 		require.NoError(t, err)
 		require.NotNil(t, apply)
+		require.Equal(t, sn2, prepared.Serial(), "prepareLoad should return the certificate apply will load")
 
 		// Make sure nothing in cl changed yet.
-		cp, kp := cl.Paths()
+		cp, kp := loadedPaths(cl)
 		require.Equal(t, ss.CertPath, cp)
 		require.Equal(t, ss.KeyPath, kp)
-		require.Equal(t, cert1, cl.Certificate())
-		require.Equal(t, leaf1, cl.Leaf())
+		require.Equal(t, cert1, cl.LoadedCertificate().Certificate)
+		require.Equal(t, leaf1, cl.LoadedCertificate().Leaf)
 
 		// Call apply function and check for appropriate changes.
 		require.NoError(t, apply())
-		cp, kp = cl.Paths()
+		cp, kp = loadedPaths(cl)
 		require.Equal(t, ss2.CertPath, cp)
 		require.Equal(t, ss2.KeyPath, kp)
 
 		// Verify cert and leaf are different now, then verify the serial on leaf.
-		require.NotNil(t, cl.Certificate())
-		require.NotNil(t, cl.Leaf())
-		require.NotEqual(t, cert1, cl.Certificate())
-		require.NotEqual(t, leaf1, cl.Leaf())
-		require.Equal(t, sn2, cl.Leaf().SerialNumber.String())
+		require.NotNil(t, cl.LoadedCertificate().Certificate)
+		require.NotNil(t, cl.LoadedCertificate().Leaf)
+		require.NotEqual(t, cert1, cl.LoadedCertificate().Certificate)
+		require.NotEqual(t, leaf1, cl.LoadedCertificate().Leaf)
+		require.Equal(t, sn2, cl.LoadedCertificate().Leaf.SerialNumber.String())
 	}
 }
 
-func TestTLSCertLoader_GetClientCertificate(t *testing.T) {
-	ss := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("client.influxdata.edge"))
-
-	monitor := newTestCertMonitor(t)
-	defer th.CheckedClose(t, monitor)()
-
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
-	defer th.CheckedClose(t, cl)()
-
-	// Test happy path: certificate supports the request.
-	// The selfsigned package creates RSA certificates, so we use RSA signature schemes.
-	t.Run("supported certificate", func(t *testing.T) {
-		cri := &tls.CertificateRequestInfo{
-			SignatureSchemes: []tls.SignatureScheme{
-				tls.PKCS1WithSHA256,
-				tls.PKCS1WithSHA384,
-				tls.PKCS1WithSHA512,
-			},
-		}
-
-		cert, err := cl.GetClientCertificate(cri)
-		require.NoError(t, err)
-		require.NotNil(t, cert)
-		require.Equal(t, cl.Certificate(), cert)
-	})
-
-	t.Run("nil CertificateRequestInfo", func(t *testing.T) {
-		cert, err := cl.GetClientCertificate(nil)
-		require.ErrorIs(t, err, ErrCertificateRequestInfoNil)
-		require.NotNil(t, cert)
-		require.Empty(t, cert.Certificate)
-	})
-
-	// Test unsupported certificate: CertificateRequestInfo only accepts Ed25519,
-	// but our certificate uses RSA.
-	t.Run("unsupported certificate", func(t *testing.T) {
-		cri := &tls.CertificateRequestInfo{
-			SignatureSchemes: []tls.SignatureScheme{
-				tls.Ed25519, // Our RSA cert doesn't support this
-			},
-		}
-
-		// We should get an empty certificate with no error. This replicates Go's behavior when
-		// tls.Config.Certificates is used and none of the certificates are accepted by the server.
-		cert, err := cl.GetClientCertificate(cri)
-		require.NoError(t, err)
-		// GetClientCertificate must return a non-nil certificate even on error
-		// (per the tls.Config.GetClientCertificate contract).
-		require.NotNil(t, cert)
-		// The returned certificate should be an empty certificate, not the loaded one.
-		require.NotEqual(t, cl.Certificate(), cert)
-		require.Empty(t, cert.Certificate)
-	})
-
-	// Test with AcceptableCAs that include our CA.
-	t.Run("acceptable CA", func(t *testing.T) {
-		// Verify that if we change cri to ss's CA subject then we do get cert.
-		caCert, err := os.ReadFile(ss.CACertPath)
-		require.NoError(t, err)
-
-		// Parse the CA cert to get its RawSubject for AcceptableCAs.
-		block, _ := pem.Decode(caCert)
-		require.NotNil(t, block)
-		parsedCA, err := x509.ParseCertificate(block.Bytes)
-		require.NoError(t, err)
-
-		cri := &tls.CertificateRequestInfo{
-			SignatureSchemes: []tls.SignatureScheme{
-				tls.PKCS1WithSHA256,
-			},
-			AcceptableCAs: [][]byte{parsedCA.RawSubject},
-		}
-
-		cert, err := cl.GetClientCertificate(cri)
-		require.NoError(t, err)
-		require.NotNil(t, cert)
-		require.Equal(t, cl.Certificate(), cert)
-	})
-
-	// Test with AcceptableCAs that don't include our CA.
-	t.Run("unacceptable CA", func(t *testing.T) {
-		// Create a certificate with a different CA subject.
-		ss2 := selfsigned.NewSelfSignedCert(t,
-			selfsigned.WithCASubject("different_org", "Different CA"),
-		)
-		caCert2, err := os.ReadFile(ss2.CACertPath)
-		require.NoError(t, err)
-
-		// Parse the CA cert to get its RawSubject for AcceptableCAs.
-		block2, _ := pem.Decode(caCert2)
-		require.NotNil(t, block2)
-		parsedCA2, err := x509.ParseCertificate(block2.Bytes)
-		require.NoError(t, err)
-
-		cri := &tls.CertificateRequestInfo{
-			SignatureSchemes: []tls.SignatureScheme{
-				tls.PKCS1WithSHA256,
-			},
-			AcceptableCAs: [][]byte{parsedCA2.RawSubject},
-		}
-
-		// This should return an empty certificate with no error to replicate
-		// Go's behavior when tls.Config.Certificates is used.
-		cert, err := cl.GetClientCertificate(cri)
-		require.NoError(t, err)
-		require.NotNil(t, cert)
-		require.Empty(t, cert.Certificate)
-	})
-}
-
-func TestTLSCertLoader_SetupTLSConfig(t *testing.T) {
-	ss := selfsigned.NewSelfSignedCert(t)
-
-	monitor := newTestCertMonitor(t)
-	defer th.CheckedClose(t, monitor)()
-
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
-	defer th.CheckedClose(t, cl)()
-
-	t.Run("nil config", func(t *testing.T) {
-		require.NotPanics(t, func() {
-			cl.SetupTLSConfig(nil)
-		})
-	})
-
-	t.Run("sets callbacks", func(t *testing.T) {
-		tlsConfig := &tls.Config{}
-
-		require.Nil(t, tlsConfig.GetCertificate)
-		require.Nil(t, tlsConfig.GetClientCertificate)
-
-		cl.SetupTLSConfig(tlsConfig)
-
-		require.NotNil(t, tlsConfig.GetCertificate)
-		require.Nil(t, tlsConfig.GetClientCertificate)
-	})
-}
-
 func TestTLSCertLoader_ConstructorValidation(t *testing.T) {
-	ss := selfsigned.NewSelfSignedCert(t)
-
-	monitor := newTestCertMonitor(t)
-	defer th.CheckedClose(t, monitor)()
-
-	t.Run("combined role is rejected", func(t *testing.T) {
-		// A cert loader holds one certificate, so it serves one role. A manager
-		// that acts as both uses two loaders.
-		cl, err := NewTLSCertLoader(
-			ServerAndClientRole,
-			monitor,
-			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-		require.ErrorIs(t, err, ErrSingleRoleRequired)
-		require.Nil(t, cl)
-	})
-
-	t.Run("invalid role is rejected", func(t *testing.T) {
-		cl, err := NewTLSCertLoader(
-			InvalidRole,
-			monitor,
-			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-		require.ErrorIs(t, err, ErrSingleRoleRequired)
-		require.Nil(t, cl)
-	})
-
 	t.Run("missing monitor is rejected", func(t *testing.T) {
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			nil,
-			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		cl, err := newTLSCertLoader(nil, "httpd.server")
 		require.ErrorIs(t, err, ErrNoCertificateMonitor)
-		require.Nil(t, cl)
-	})
-
-	t.Run("error names the usage", func(t *testing.T) {
-		cl, err := NewTLSCertLoader(
-			ServerAndClientRole,
-			monitor,
-			WithCertLoaderUsage("httpd.server"),
-			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-		require.ErrorContains(t, err, `usage="httpd.server"`)
+		require.ErrorContains(t, err, `usage="httpd.server"`, "the error should name the usage")
 		require.Nil(t, cl)
 	})
 }
 
-func TestTLSCertLoader_GetCertificateWithoutCertificate(t *testing.T) {
+func TestTLSCertLoader_WithoutCertificate(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
-	// Only a client loader can exist without a certificate; a server loader
-	// with an empty certificate is refused at construction.
-	cl, err := NewTLSCertLoader(ClientOnlyRole, monitor)
+	cl, err := newTLSCertLoader(monitor, "")
 	require.NoError(t, err)
 	require.NotNil(t, cl)
 	defer th.CheckedClose(t, cl)()
 
-	require.Nil(t, cl.Certificate())
-	require.Nil(t, cl.Leaf())
+	require.Nil(t, cl.LoadedCertificate().Certificate)
+	require.Nil(t, cl.LoadedCertificate().Leaf)
 	require.True(t, cl.LoadedCertificate().IsEmpty())
 
-	cert, err := cl.GetCertificate(&tls.ClientHelloInfo{})
-	require.ErrorIs(t, err, ErrCertificateNil)
-	require.Nil(t, cert)
-
-	// GetClientCertificate must honor its contract and return a non-nil,
-	// empty certificate alongside the error.
-	clientCert, err := cl.GetClientCertificate(&tls.CertificateRequestInfo{
-		SignatureSchemes: []tls.SignatureScheme{tls.PKCS1WithSHA256},
-	})
-	require.ErrorIs(t, err, ErrCertificateNil)
-	require.NotNil(t, clientCert)
-	require.Empty(t, clientCert.Certificate)
-
-	// A loader with no certificate leaves the tls.Config callbacks unset so the
-	// config falls back to whatever the base config specified.
-	tlsConfig := &tls.Config{}
-	cl.SetupTLSConfig(tlsConfig)
-	require.Nil(t, tlsConfig.GetClientCertificate)
-	require.Nil(t, tlsConfig.GetCertificate)
+	// Whether a certificate is required is up to the manager, so the loader
+	// accepts a reload to no certificate.
+	ss := selfsigned.NewSelfSignedCert(t)
+	require.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
+	require.NoError(t, loadCert(t, cl, "", ""))
+	require.True(t, cl.LoadedCertificate().IsEmpty())
 }
 
-func TestTLSCertLoader_EmptyCertificateRejectedForServer(t *testing.T) {
+func TestTLSConfigManager_EmptyCertificateRejectedForServer(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
 	ss := selfsigned.NewSelfSignedCert(t)
 
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
+	manager, err := NewServerTLSConfigManager(
 		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
+		WithUseTLS(true),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
 	require.NoError(t, err)
-	defer th.CheckedClose(t, cl)()
+	defer th.CheckedClose(t, manager)()
 
 	// Clearing the paths would leave the server with no certificate to present.
-	apply, err := cl.PrepareLoad(WithCertLoaderCertificate("", ""))
+	apply, err := manager.PrepareReconfigure(WithServerCertificate("", ""))
 	require.ErrorIs(t, err, ErrCertificateEmpty)
 	require.Nil(t, apply)
 
 	// The previously loaded certificate is still in place.
-	certPath, _ := cl.Paths()
+	certPath, _ := loadedPaths(manager.serverCertLoader)
 	require.Equal(t, ss.CertPath, certPath)
 }
 
@@ -861,52 +598,47 @@ func TestTLSCertLoader_Clear(t *testing.T) {
 
 	ss := selfsigned.NewSelfSignedCert(t)
 
-	cl, err := NewTLSCertLoader(
-		ClientOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-	require.NoError(t, err)
+	cl := newTestCertLoader(t, monitor, "", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 	require.False(t, cl.LoadedCertificate().IsEmpty())
 
 	cl.Clear()
 
 	require.True(t, cl.LoadedCertificate().IsEmpty())
-	require.Nil(t, cl.Certificate())
-	certPath, keyPath := cl.Paths()
+	require.Nil(t, cl.LoadedCertificate().Certificate)
+	certPath, keyPath := loadedPaths(cl)
 	require.Empty(t, certPath)
 	require.Empty(t, keyPath)
 
 	// A cleared loader can be reloaded.
-	require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
-	certPath, keyPath = cl.Paths()
+	require.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
+	certPath, keyPath = loadedPaths(cl)
 	require.Equal(t, ss.CertPath, certPath)
 	require.Equal(t, ss.KeyPath, keyPath)
 }
 
 func TestRole_Predicates(t *testing.T) {
 	tests := []struct {
-		name                                  string
-		role                                  Role
-		valid, single, serverRole, clientRole bool
+		name                          string
+		role                          Role
+		valid, serverRole, clientRole bool
 	}{
 		{name: "invalid", role: InvalidRole},
-		{name: "server only", role: ServerOnlyRole, valid: true, single: true, serverRole: true},
-		{name: "client only", role: ClientOnlyRole, valid: true, single: true, clientRole: true},
+		{name: "server only", role: ServerOnlyRole, valid: true, serverRole: true},
+		{name: "client only", role: ClientOnlyRole, valid: true, clientRole: true},
 		{name: "server and client", role: ServerAndClientRole, valid: true, serverRole: true, clientRole: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.valid, tt.role.IsValid())
-			require.Equal(t, tt.single, tt.role.IsSingleRole())
 			require.Equal(t, tt.serverRole, tt.role.IsServerRole())
 			require.Equal(t, tt.clientRole, tt.role.IsClientRole())
 		})
 	}
 }
 
-func TestTLSCertLoader_ServerCertificateMustSupportServerAuth(t *testing.T) {
+func TestTLSConfigManager_ServerCertificateMustSupportServerAuth(t *testing.T) {
 	monitor := newTestCertMonitor(t)
 	defer th.CheckedClose(t, monitor)()
 
@@ -916,76 +648,20 @@ func TestTLSCertLoader_ServerCertificateMustSupportServerAuth(t *testing.T) {
 		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
 	serverSS := selfsigned.NewSelfSignedCert(t)
 
-	t.Run("server role rejects a client-only certificate", func(t *testing.T) {
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			monitor,
-			WithCertLoaderUsage("httpd.server"),
-			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
-		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
-		require.ErrorContains(t, err, "httpd.server: ", "the error should name the usage that failed")
-		require.Nil(t, cl)
-	})
-
-	t.Run("client role accepts a client-only certificate", func(t *testing.T) {
-		// The check is specific to how a server uses the certificate; a client
-		// presenting it is exactly what it was issued for.
-		cl, err := NewTLSCertLoader(
-			ClientOnlyRole,
-			monitor,
-			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
-		require.NoError(t, err)
-		require.NotNil(t, cl)
-		defer th.CheckedClose(t, cl)()
-	})
-
-	t.Run("a certificate with no extended key usage is unrestricted", func(t *testing.T) {
-		unrestrictedSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithExtKeyUsage())
-
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			monitor,
-			WithCertLoaderCertificate(unrestrictedSS.CertPath, unrestrictedSS.KeyPath))
-		require.NoError(t, err)
-		require.NotNil(t, cl)
-		defer th.CheckedClose(t, cl)()
-	})
-
-	t.Run("reload to a client-only certificate is refused", func(t *testing.T) {
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			monitor,
-			WithCertLoaderCertificate(serverSS.CertPath, serverSS.KeyPath))
-		require.NoError(t, err)
-		defer th.CheckedClose(t, cl)()
-
-		apply, err := cl.PrepareLoad(WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
-		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
-		require.Nil(t, apply)
-
-		// The working certificate stays in place.
-		certPath, _ := cl.Paths()
-		require.Equal(t, serverSS.CertPath, certPath)
-	})
-}
-
-func TestTLSConfigManager_ServerCertificateMustSupportServerAuth(t *testing.T) {
-	monitor := newTestCertMonitor(t)
-	defer th.CheckedClose(t, monitor)()
-
-	clientOnlySS := selfsigned.NewSelfSignedCert(t,
-		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
-
 	t.Run("server manager refuses it", func(t *testing.T) {
 		manager, err := NewServerTLSConfigManager(
 			monitor,
 			WithUseTLS(true),
+			WithUsage("httpd"),
 			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
 		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.ErrorContains(t, err, "httpd: ", "the error should name the usage that failed")
 		require.Nil(t, manager)
 	})
 
 	t.Run("client manager accepts it as a client certificate", func(t *testing.T) {
+		// The check is specific to how a server uses the certificate; a client
+		// presenting it is exactly what it was issued for.
 		manager, err := NewClientTLSConfigManager(
 			monitor,
 			WithUseTLS(true),
@@ -994,9 +670,41 @@ func TestTLSConfigManager_ServerCertificateMustSupportServerAuth(t *testing.T) {
 		require.NotNil(t, manager)
 		defer th.CheckedClose(t, manager)()
 	})
+
+	t.Run("a certificate with no extended key usage is unrestricted", func(t *testing.T) {
+		unrestrictedSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithExtKeyUsage())
+
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(unrestrictedSS.CertPath, unrestrictedSS.KeyPath))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+	})
+
+	t.Run("reload to a client-only certificate is refused", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		apply, err := manager.PrepareReconfigure(WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
+		require.Nil(t, apply)
+
+		// The working certificate stays in place.
+		certPath, _ := loadedPaths(manager.serverCertLoader)
+		require.Equal(t, serverSS.CertPath, certPath)
+	})
 }
 
-func TestTLSCertLoader_IgnoreSanityChecks(t *testing.T) {
+func TestTLSConfigManager_WithIgnoreSanityChecks(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	// A certificate issued only for client authentication: real and parseable,
 	// but a server should not be presenting it.
 	clientOnlySS := selfsigned.NewSelfSignedCert(t,
@@ -1005,109 +713,30 @@ func TestTLSCertLoader_IgnoreSanityChecks(t *testing.T) {
 	t.Run("loads the certificate and warns", func(t *testing.T) {
 		core, logs := observer.New(zapcore.InfoLevel)
 
-		monitor := newTestCertMonitor(t)
-		defer th.CheckedClose(t, monitor)()
-
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
+		manager, err := NewServerTLSConfigManager(
 			monitor,
-			WithCertLoaderUsage("httpd.server"),
-			WithCertLoaderLogger(zap.New(core)),
-			WithCertLoaderIgnoreSanityChecks(true),
-			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+			WithUseTLS(true),
+			WithLogger(zap.New(core)),
+			WithIgnoreSanityChecks(true),
+			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
 		require.NoError(t, err, "an ignored sanity check must not fail the load")
-		require.NotNil(t, cl)
-		defer th.CheckedClose(t, cl)()
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
 
 		// The certificate is genuinely in use, not merely accepted.
-		certPath, _ := cl.Paths()
+		certPath, _ := loadedPaths(manager.serverCertLoader)
 		require.Equal(t, clientOnlySS.CertPath, certPath)
-		require.NotNil(t, cl.Certificate())
+		cert, err := manager.TLSConfig().GetCertificate(&tls.ClientHelloInfo{})
+		require.NoError(t, err)
+		require.Same(t, manager.serverCertLoader.LoadedCertificate().Certificate, cert)
 
 		warnings := logs.FilterMessage("TLS certificate failed sanity checks, loading it anyway because sanity checks are being ignored").TakeAll()
 		require.Len(t, warnings, 1, "ignoring a sanity check must still say so")
 		require.Equal(t, zap.WarnLevel, warnings[0].Level)
 		require.Contains(t, warnings[0].ContextMap()["error"], ErrCertificateNotServerAuth.Error(),
 			"the warning should say which check failed")
-	})
-
-	t.Run("still fails when not ignored", func(t *testing.T) {
-		monitor := newTestCertMonitor(t)
-		defer th.CheckedClose(t, monitor)()
-
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			monitor,
-			WithCertLoaderIgnoreSanityChecks(false),
-			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
-		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
-		require.Nil(t, cl)
-	})
-
-	t.Run("an empty certificate still fails", func(t *testing.T) {
-		monitor := newTestCertMonitor(t)
-		defer th.CheckedClose(t, monitor)()
-
-		ss := selfsigned.NewSelfSignedCert(t)
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			monitor,
-			WithCertLoaderIgnoreSanityChecks(true),
-			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-		require.NoError(t, err)
-		defer th.CheckedClose(t, cl)()
-
-		// A server always needs a certificate: that is a fault, not a sanity
-		// check, so ignoring sanity checks does not excuse it.
-		apply, err := cl.PrepareLoad(WithCertLoaderCertificate("", ""))
-		require.ErrorIs(t, err, ErrCertificateEmpty)
-		require.Nil(t, apply)
-	})
-
-	t.Run("reload can ignore sanity checks", func(t *testing.T) {
-		monitor := newTestCertMonitor(t)
-		defer th.CheckedClose(t, monitor)()
-
-		ss := selfsigned.NewSelfSignedCert(t)
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			monitor,
-			WithCertLoaderCertificate(ss.CertPath, ss.KeyPath))
-		require.NoError(t, err)
-		defer th.CheckedClose(t, cl)()
-
-		// The option carries through a reload like the rest of the config.
-		apply, err := cl.PrepareLoad(
-			WithCertLoaderIgnoreSanityChecks(true),
-			WithCertLoaderCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
-		require.NoError(t, err)
-		require.NoError(t, apply())
-
-		certPath, _ := cl.Paths()
-		require.Equal(t, clientOnlySS.CertPath, certPath)
-	})
-}
-
-func TestTLSConfigManager_WithIgnoreSanityChecks(t *testing.T) {
-	monitor := newTestCertMonitor(t)
-	defer th.CheckedClose(t, monitor)()
-
-	clientOnlySS := selfsigned.NewSelfSignedCert(t,
-		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
-
-	t.Run("passes through to the cert loader", func(t *testing.T) {
-		manager, err := NewServerTLSConfigManager(
-			monitor,
-			WithUseTLS(true),
-			WithIgnoreSanityChecks(true),
-			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
-		require.NoError(t, err, "the manager option must reach the cert loader")
-		require.NotNil(t, manager)
-		defer th.CheckedClose(t, manager)()
-
-		certPath, _ := manager.serverCertLoader.Paths()
-		require.Equal(t, clientOnlySS.CertPath, certPath)
-		require.NotNil(t, manager.TLSConfig().GetCertificate)
+		require.Equal(t, clientOnlySS.CertPath, warnings[0].ContextMap()[logCertContext],
+			"the warning should name the certificate")
 	})
 
 	t.Run("defaults to enforcing", func(t *testing.T) {
@@ -1117,5 +746,42 @@ func TestTLSConfigManager_WithIgnoreSanityChecks(t *testing.T) {
 			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
 		require.ErrorIs(t, err, ErrCertificateNotServerAuth)
 		require.Nil(t, manager)
+	})
+
+	t.Run("an empty certificate still fails", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithIgnoreSanityChecks(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		// A server always needs a certificate: that is a fault, not a sanity
+		// check, so ignoring sanity checks does not excuse it.
+		apply, err := manager.PrepareReconfigure(WithServerCertificate("", ""))
+		require.ErrorIs(t, err, ErrCertificateEmpty)
+		require.Nil(t, apply)
+	})
+
+	t.Run("reload can ignore sanity checks", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		// The option carries through a reload like the rest of the config.
+		apply, err := manager.PrepareReconfigure(
+			WithIgnoreSanityChecks(true),
+			WithServerCertificate(clientOnlySS.CertPath, clientOnlySS.KeyPath))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+
+		certPath, _ := loadedPaths(manager.serverCertLoader)
+		require.Equal(t, clientOnlySS.CertPath, certPath)
 	})
 }

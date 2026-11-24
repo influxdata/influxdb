@@ -149,8 +149,8 @@ func (lc LoadedCertificate) Serial() string {
 	return "N/A"
 }
 
-// WithLogContext adds context about lc to log and returns the new logger.
-func (lc LoadedCertificate) WithLogContext(log *zap.Logger) *zap.Logger {
+// AddLogContext adds context about lc to log and returns the new logger.
+func (lc LoadedCertificate) AddLogContext(log *zap.Logger) *zap.Logger {
 	return log.With(zap.String(logCertContext, lc.CertificatePath), zap.String(logKeyContext, lc.KeyPath), zap.String(logSerialContext, lc.Serial()))
 }
 

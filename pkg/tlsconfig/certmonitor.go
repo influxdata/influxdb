@@ -60,16 +60,16 @@ type TLSCertMonitor struct {
 	// mu protects all members below.
 	mu sync.RWMutex
 
-	// certLoaders is a set of TLSCertLoader objects whose certificates we monitor.
+	// certLoaders is a set of tlsCertLoader objects whose certificates we monitor.
 	// certLoaders handle registering and unregistering themselves.
-	certLoaders map[*TLSCertLoader]struct{}
+	certLoaders map[*tlsCertLoader]struct{}
 
-	// queuedCertLoaders is a list of TLSCertLoader objects which have queued themselves
+	// queuedCertLoaders is a list of tlsCertLoader objects which have queued themselves
 	// for issue warning when the next requested warn trigger activates. It is essentially
-	// a filter for which CertLoaders will have issues logged, so that only TLSCertLoader
+	// a filter for which CertLoaders will have issues logged, so that only tlsCertLoader
 	// objects with newly loaded certificates will have their issues logged. It does not
 	// apply for the regularly scheduled issue warning.
-	queuedCertLoaders []*TLSCertLoader
+	queuedCertLoaders []*tlsCertLoader
 
 	// certExpirationAdvanced determines how long before a certificate expires a warning is issued.
 	certExpirationAdvanced time.Duration
@@ -131,7 +131,7 @@ func NewTLSCertMonitor(opts ...TLSCertMonitorOpt) *TLSCertMonitor {
 		triggerResetCh:       make(chan time.Duration, chanDepth),
 		checkIntervalResetCh: make(chan time.Duration, chanDepth),
 
-		certLoaders:          make(map[*TLSCertLoader]struct{}),
+		certLoaders:          make(map[*tlsCertLoader]struct{}),
 		triggerDelayInterval: DefaultTriggerDelay,
 	}
 
@@ -273,12 +273,12 @@ func (m *TLSCertMonitor) SetTriggerDelay(d time.Duration) {
 	m.triggerDelayInterval = d
 }
 
-// QueueWarnIssues allows a TLSCertLoader to queue itself for issue warning.
+// queueWarnIssues allows a tlsCertLoader to queue itself for issue warning.
 // When the warn issues trigger occurs, all queued certificate loggers will
 // have their issues logged. This also sets / resets the delayed trigger
 // timer so that when a reload occurs issue warning won't occur until
 // have certificates have been reloaded.
-func (m *TLSCertMonitor) QueueWarnIssues(cl *TLSCertLoader) {
+func (m *TLSCertMonitor) queueWarnIssues(cl *tlsCertLoader) {
 	m.mu.Lock()
 	triggerDelay := m.triggerDelayInterval
 	m.queuedCertLoaders = append(m.queuedCertLoaders, cl)
@@ -288,9 +288,9 @@ func (m *TLSCertMonitor) QueueWarnIssues(cl *TLSCertLoader) {
 	m.resetTrigger(triggerDelay)
 }
 
-// takeQueuedCertLoaders returns and clears TLSCertLoader objects queued
-// through QueueWarnIssues since the last takeQueuedCertLoaders call.
-func (m *TLSCertMonitor) takeQueuedCertLoaders() []*TLSCertLoader {
+// takeQueuedCertLoaders returns and clears tlsCertLoader objects queued
+// through queueWarnIssues since the last takeQueuedCertLoaders call.
+func (m *TLSCertMonitor) takeQueuedCertLoaders() []*tlsCertLoader {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -299,9 +299,9 @@ func (m *TLSCertMonitor) takeQueuedCertLoaders() []*TLSCertLoader {
 	return cls
 }
 
-// registerCertLoader adds cl to the set of TLSCertLoader objects
+// registerCertLoader adds cl to the set of tlsCertLoader objects
 // to monitor.
-func (m *TLSCertMonitor) registerCertLoader(cl *TLSCertLoader) {
+func (m *TLSCertMonitor) registerCertLoader(cl *tlsCertLoader) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.certLoaders[cl] = struct{}{}
@@ -309,9 +309,9 @@ func (m *TLSCertMonitor) registerCertLoader(cl *TLSCertLoader) {
 	m.log.Info("Registered certificate loader", zap.String(logUsageContext, cl.Usage()))
 }
 
-// unregisterCertLoader removes cl from the set of TLSCertLoader objects
+// unregisterCertLoader removes cl from the set of tlsCertLoader objects
 // to monitor.
-func (m *TLSCertMonitor) unregisterCertLoader(cl *TLSCertLoader) {
+func (m *TLSCertMonitor) unregisterCertLoader(cl *tlsCertLoader) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.certLoaders[cl]; ok {
@@ -327,7 +327,7 @@ func (m *TLSCertMonitor) logIssues(log *zap.Logger, lc LoadedCertificate) {
 		return
 	}
 
-	log = lc.WithLogContext(log)
+	log = lc.AddLogContext(log)
 	if xc, err := lc.GetLeaf(); err == nil {
 		xc.logIssues(log, m.expirationAdvanced())
 	} else {
@@ -336,18 +336,18 @@ func (m *TLSCertMonitor) logIssues(log *zap.Logger, lc LoadedCertificate) {
 }
 
 // logIssues logs issues with a given certLoaders
-// gatherCertLoaders gathers all registered TLSCertLoader objects and
+// gatherCertLoaders gathers all registered tlsCertLoader objects and
 // returns them as a slice.
-func (m *TLSCertMonitor) gatherCertLoaders() []*TLSCertLoader {
+func (m *TLSCertMonitor) gatherCertLoaders() []*tlsCertLoader {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return slices.Collect(maps.Keys(m.certLoaders))
 }
 
-// checkCerts checks all registered TLSCertLoader objects for warnings on
+// checkCerts checks all registered tlsCertLoader objects for warnings on
 // their certificates. Duplicate certificates are merged to avoid overly
 // verbose output.
-func (m *TLSCertMonitor) checkCerts(filter []*TLSCertLoader) {
+func (m *TLSCertMonitor) checkCerts(filter []*tlsCertLoader) {
 	// checkCerts does not lock m.mu itself, but it does call functions
 	// which take read locks.
 
@@ -372,7 +372,7 @@ func (m *TLSCertMonitor) checkCerts(filter []*TLSCertLoader) {
 	// cert loaders that queued a warning check before they registered
 	// themselves. This is mainly a race condition found in tests where
 	// the trigger delay may be set to 0.
-	allCertLoaders := make(map[*TLSCertLoader]struct{}, len(certLoaders)+len(filter))
+	allCertLoaders := make(map[*tlsCertLoader]struct{}, len(certLoaders)+len(filter))
 	for _, cl := range append(certLoaders, filter...) {
 		allCertLoaders[cl] = struct{}{}
 	}
@@ -429,7 +429,7 @@ func (m *TLSCertMonitor) checkCerts(filter []*TLSCertLoader) {
 }
 
 // monitor periodically logs certificate errors with the currently registered
-// TLSCertLoader objects.
+// tlsCertLoader objects.
 func (m *TLSCertMonitor) monitorCerts(startWg *sync.WaitGroup, stopWg *sync.WaitGroup) {
 	m.logger().Info("Starting TLS certificate monitor")
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -22,21 +23,6 @@ func newExpiredCert(t *testing.T) *selfsigned.Cert {
 	return selfsigned.NewSelfSignedCert(t,
 		selfsigned.WithNotBefore(notAfter.Add(-7*24*time.Hour)),
 		selfsigned.WithNotAfter(notAfter))
-}
-
-// newQuietCertLoader creates a cert loader whose own logging is discarded, so
-// only the monitor's log output is observed.
-func newQuietCertLoader(t *testing.T, monitor *TLSCertMonitor, certPath, keyPath, usage string) *TLSCertLoader {
-	t.Helper()
-	cl, err := NewTLSCertLoader(
-		ServerOnlyRole,
-		monitor,
-		WithCertLoaderCertificate(certPath, keyPath),
-		WithCertLoaderLogger(zap.NewNop()),
-		WithCertLoaderUsage(usage))
-	require.NoError(t, err)
-	require.NotNil(t, cl)
-	return cl
 }
 
 // takeMessages drains every observed entry and returns those matching msg.
@@ -119,7 +105,7 @@ func TestTLSCertMonitor_SetLogger(t *testing.T) {
 		WithMonitorTriggerDelay(time.Millisecond))
 	defer th.CheckedClose(t, monitor)()
 
-	cl := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "httpd.server")
+	cl := newTestCertLoader(t, monitor, "httpd.server", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	// The load queued at construction warns through the original logger.
@@ -130,7 +116,7 @@ func TestTLSCertMonitor_SetLogger(t *testing.T) {
 	monitor.SetLogger(zap.New(coreB))
 
 	// A subsequent check must warn through the new logger only.
-	require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+	require.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
 	time.Sleep(testWarnWaitTime)
 
 	require.Len(t, takeExpiredWarnings(logsB), 1, "warnings should go to the logger set by SetLogger")
@@ -150,7 +136,7 @@ func TestTLSCertMonitor_SetCheckInterval(t *testing.T) {
 		WithMonitorTriggerDelay(time.Hour))
 	defer th.CheckedClose(t, monitor)()
 
-	cl := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "httpd.server")
+	cl := newTestCertLoader(t, monitor, "httpd.server", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	time.Sleep(testWarnWaitTime)
@@ -180,7 +166,7 @@ func TestTLSCertMonitor_SetExpirationAdvanced(t *testing.T) {
 		WithMonitorTriggerDelay(time.Millisecond))
 	defer th.CheckedClose(t, monitor)()
 
-	cl := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "httpd.server")
+	cl := newTestCertLoader(t, monitor, "httpd.server", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	time.Sleep(testWarnWaitTime)
@@ -210,7 +196,7 @@ func TestTLSCertMonitor_SetTriggerDelay(t *testing.T) {
 		WithMonitorTriggerDelay(time.Hour))
 	defer th.CheckedClose(t, monitor)()
 
-	cl := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "httpd.server")
+	cl := newTestCertLoader(t, monitor, "httpd.server", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	time.Sleep(testWarnWaitTime)
@@ -223,7 +209,7 @@ func TestTLSCertMonitor_SetTriggerDelay(t *testing.T) {
 	require.Empty(t, takeExpiredWarnings(logs), "SetTriggerDelay should not fire an already pending trigger")
 
 	// Queueing a new warning picks up the shortened delay.
-	require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+	require.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
 	time.Sleep(testWarnWaitTime)
 	require.NotEmpty(t, takeExpiredWarnings(logs), "next queued trigger should use the new delay")
 }
@@ -241,9 +227,9 @@ func TestTLSCertMonitor_DuplicateCertificatesGrouped(t *testing.T) {
 
 	// Two services sharing one certificate should produce one warning listing
 	// both usages, rather than one warning per service.
-	cl1 := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "opentsdb.server")
+	cl1 := newTestCertLoader(t, monitor, "opentsdb.server", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl1)()
-	cl2 := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "httpd.server")
+	cl2 := newTestCertLoader(t, monitor, "httpd.server", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl2)()
 
 	monitor.SetCheckInterval(testCheckTime)
@@ -268,9 +254,9 @@ func TestTLSCertMonitor_DistinctCertificatesLoggedSeparately(t *testing.T) {
 		WithMonitorTriggerDelay(time.Hour))
 	defer th.CheckedClose(t, monitor)()
 
-	cl1 := newQuietCertLoader(t, monitor, ss1.CertPath, ss1.KeyPath, "httpd.server")
+	cl1 := newTestCertLoader(t, monitor, "httpd.server", ss1.CertPath, ss1.KeyPath)
 	defer th.CheckedClose(t, cl1)()
-	cl2 := newQuietCertLoader(t, monitor, ss2.CertPath, ss2.KeyPath, "opentsdb.server")
+	cl2 := newTestCertLoader(t, monitor, "opentsdb.server", ss2.CertPath, ss2.KeyPath)
 	defer th.CheckedClose(t, cl2)()
 
 	monitor.SetCheckInterval(testCheckTime)
@@ -298,7 +284,7 @@ func TestTLSCertMonitor_UnregisterStopsMonitoring(t *testing.T) {
 		WithMonitorTriggerDelay(time.Hour))
 	defer th.CheckedClose(t, monitor)()
 
-	cl := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "httpd.server")
+	cl := newTestCertLoader(t, monitor, "httpd.server", ss.CertPath, ss.KeyPath)
 	require.Len(t, takeMessages(logs, "Registered certificate loader"), 1)
 
 	// Closing the loader unregisters it, so its certificate is no longer checked.
@@ -321,7 +307,7 @@ func TestTLSCertMonitor_ClosedMonitorDoesNotBlock(t *testing.T) {
 	ss := newExpiredCert(t)
 
 	monitor := newTestCertMonitor(t, WithMonitorCheckInterval(time.Hour))
-	cl := newQuietCertLoader(t, monitor, ss.CertPath, ss.KeyPath, "httpd.server")
+	cl := newTestCertLoader(t, monitor, "httpd.server", ss.CertPath, ss.KeyPath)
 	defer th.CheckedClose(t, cl)()
 
 	require.NoError(t, monitor.Close())
@@ -337,7 +323,7 @@ func TestTLSCertMonitor_ClosedMonitorDoesNotBlock(t *testing.T) {
 		for range 50 {
 			monitor.SetCheckInterval(time.Minute)
 			monitor.SetExpirationAdvanced(time.Hour)
-			require.NoError(t, cl.Load(ss.CertPath, ss.KeyPath))
+			assert.NoError(t, loadCert(t, cl, ss.CertPath, ss.KeyPath))
 		}
 	}()
 
@@ -405,7 +391,7 @@ func TestTLSCertMonitor_RotatedCertificateAtSamePath(t *testing.T) {
 	copyFile(t, original.CertPath, certPath)
 	copyFile(t, original.KeyPath, keyPath)
 
-	cl1 := newQuietCertLoader(t, monitor, certPath, keyPath, "httpd.server")
+	cl1 := newTestCertLoader(t, monitor, "httpd.server", certPath, keyPath)
 	defer th.CheckedClose(t, cl1)()
 
 	// Replace the files on disk. cl1 keeps serving the certificate it already
@@ -414,11 +400,11 @@ func TestTLSCertMonitor_RotatedCertificateAtSamePath(t *testing.T) {
 	copyFile(t, rotated.CertPath, certPath)
 	copyFile(t, rotated.KeyPath, keyPath)
 
-	cl2 := newQuietCertLoader(t, monitor, certPath, keyPath, "opentsdb.server")
+	cl2 := newTestCertLoader(t, monitor, "opentsdb.server", certPath, keyPath)
 	defer th.CheckedClose(t, cl2)()
 
-	originalSerial := cl1.Leaf().SerialNumber.String()
-	rotatedSerial := cl2.Leaf().SerialNumber.String()
+	originalSerial := cl1.LoadedCertificate().Serial()
+	rotatedSerial := cl2.LoadedCertificate().Serial()
 	require.NotEqual(t, originalSerial, rotatedSerial, "the rotated certificate should be a different one")
 
 	monitor.SetCheckInterval(testCheckTime)

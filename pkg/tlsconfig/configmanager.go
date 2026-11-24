@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 )
 
@@ -34,10 +35,6 @@ var (
 	// create a listener.
 	ErrClientListen = errors.New("client TLS manager cannot Listen")
 
-	// ErrNoCertLoader indicates that an operation requiring a TLSCertLoader did not have one available.
-	// This can happen if the TLSConfigManager was created without a certificate for client-side use only.
-	ErrNoCertLoader = errors.New("no TLSCertLoader available")
-
 	// ErrNoRole indicates that a configuration manager or other object was not initialized
 	// with a valid Role. It is generally due to a misuse of an internal API.
 	ErrNoRole = errors.New("no role specified for TLS certificate")
@@ -59,8 +56,7 @@ var (
 	ErrServerDial = errors.New("server TLS manager cannot Dial / DialWithDialer")
 )
 
-// Role is an enum that specifies how a config manager or cert loader
-// will be used.
+// Role is an enum that specifies how a config manager will be used.
 type Role int
 
 const (
@@ -68,16 +64,16 @@ const (
 	// to determine if a role was properly initialized.
 	InvalidRole Role = iota
 
-	// ServerOnlyRole specifies that a config manager or certificate is only for
-	// server use through Listen.
+	// ServerOnlyRole specifies that a config manager is only for server use
+	// through Listen.
 	ServerOnlyRole
 
-	// ClientOnlyRole specifies that a config manager or certificate is only for
-	// client use through Dial.
+	// ClientOnlyRole specifies that a config manager is only for client use
+	// through Dial.
 	ClientOnlyRole
 
-	// ServerAndClientRole specifies that a config manager or certificate is for
-	// use for both a server (through Listen) and a client (through Dial).
+	// ServerAndClientRole specifies that a config manager is for use for both a
+	// server (through Listen) and a client (through Dial).
 	ServerAndClientRole
 )
 
@@ -85,13 +81,6 @@ const (
 // was initialized properly.
 func (r Role) IsValid() bool {
 	return r != InvalidRole
-}
-
-// IsSingleRole returns true if role specifies a single role, Server or Client.
-// This is used to check for valid values in places where only a single role
-// is accepted.
-func (r Role) IsSingleRole() bool {
-	return r == ServerOnlyRole || r == ClientOnlyRole
 }
 
 // IsServerRole returns true if role specifies a server role.
@@ -126,15 +115,20 @@ type TLSConfigManager struct {
 	// only be set at construction time using WithLogger.
 	logger *zap.Logger
 
+	// baseLogger is logger without the usage. Certificate loads log through it
+	// so that they can carry the loader's usage, such as "httpd.server", as
+	// released versions do, without a second usage key. It is always usable.
+	baseLogger *zap.Logger
+
 	// serverCertLoader is the cert loader for server certificates. It is only
 	// created if role is a server role. It is only modified on instantiation and
 	// does not require a mutex because it has its own internal locking.
-	serverCertLoader *TLSCertLoader
+	serverCertLoader *tlsCertLoader
 
 	// clientCertLoader is the cert loader for client certificates. It is only
 	// created if role is a client role. It is only modified on instantiation and
 	// does not require a mutex because it has its own internal locking.
-	clientCertLoader *TLSCertLoader
+	clientCertLoader *tlsCertLoader
 
 	// mu protects all fields below.
 	mu sync.RWMutex
@@ -283,30 +277,11 @@ type tlsConfigManagerConfig struct {
 	// ignoreFilePermissions indicates if cert loaders should ignore file permissions.
 	ignoreFilePermissions bool
 
-	// ignoreSanityChecks indicates if cert loaders should log and overlook failed
-	// certificate sanity checks instead of failing the load.
+	// ignoreSanityChecks indicates if failed certificate sanity checks should be
+	// logged and overlooked instead of failing the load.
 	ignoreSanityChecks bool
 }
 
-// commonCertLoaderOpts returns a common list of options for the TLSCertLoader.
-func (c *tlsConfigManagerConfig) commonCertLoaderOpts() []TLSCertLoaderOpt {
-	return []TLSCertLoaderOpt{
-		WithCertLoaderLogger(c.logger),
-		WithCertLoaderIgnoreFilePermissions(c.ignoreFilePermissions),
-		WithCertLoaderIgnoreSanityChecks(c.ignoreSanityChecks),
-	}
-}
-
-// serverCertLoaderOpts returns the options needed for the server TLSCertLoader.
-func (c *tlsConfigManagerConfig) serverCertLoaderOpts() []TLSCertLoaderOpt {
-	return append(c.commonCertLoaderOpts(),
-		WithCertLoaderCertificate(c.serverCertPath, c.serverKeyPath),
-	)
-}
-
-// clientCertLoaderOpts returns the options needed for the client TLSCertLoader.
-// If the client certificate is not set, then the server certificate will
-// be used as a fallback.
 // clientCertificatePaths resolves the certificate the client will present. When
 // no client certificate is configured the server pair is used instead, which
 // usingFallback reports. Setting either client path suppresses the fallback.
@@ -334,13 +309,6 @@ func (c *tlsConfigManagerConfig) verifiesClientCertificates() bool {
 		clientAuth = *c.clientAuth
 	}
 	return clientAuth >= tls.VerifyClientCertIfGiven
-}
-
-func (c *tlsConfigManagerConfig) clientCertLoaderOpts() []TLSCertLoaderOpt {
-	certPath, keyPath, _ := c.clientCertificatePaths()
-	return append(c.commonCertLoaderOpts(),
-		WithCertLoaderCertificate(certPath, keyPath),
-	)
 }
 
 // TLSConfigManagerOpt is an option for use with NewTLSConfigManager and related constructors.
@@ -519,24 +487,18 @@ func newTLSConfigManager(opts ...TLSConfigManagerOpt) (*TLSConfigManager, error)
 	}
 
 	// Create certificate loaders.
-	var serverCertLoader *TLSCertLoader
+	var serverCertLoader *tlsCertLoader
 	if c.role.IsServerRole() {
-		cl, err := NewTLSCertLoader(
-			ServerOnlyRole,
-			c.monitor,
-			append(c.commonCertLoaderOpts(), WithCertLoaderUsage(c.usage+".server"))...)
+		cl, err := newTLSCertLoader(c.monitor, c.usage+".server")
 		if err != nil {
 			return nil, fmt.Errorf("error creating server TLS certificate loader: %w", err)
 		}
 		serverCertLoader = cl
 	}
 
-	var clientCertLoader *TLSCertLoader
+	var clientCertLoader *tlsCertLoader
 	if c.role.IsClientRole() {
-		cl, err := NewTLSCertLoader(
-			ClientOnlyRole,
-			c.monitor,
-			append(c.commonCertLoaderOpts(), WithCertLoaderUsage(c.usage+".client"))...)
+		cl, err := newTLSCertLoader(c.monitor, c.usage+".client")
 		if err != nil {
 			return nil, fmt.Errorf("error creating client TLS certificate loader: %w", err)
 		}
@@ -565,13 +527,119 @@ func newTLSConfigManager(opts ...TLSConfigManagerOpt) (*TLSConfigManager, error)
 
 // setLogger sets the current logger and adds context to it.
 func (cm *TLSConfigManager) setLogger(logger *zap.Logger) {
-	cm.logger = logger
-	if cm.logger == nil {
-		cm.logger = zap.NewNop()
+	if logger == nil {
+		logger = zap.NewNop()
 	}
+	cm.baseLogger = logger
 
 	// Add usage to logger.
-	cm.logger = cm.logger.With(zap.String(logUsageContext, cm.usage))
+	cm.logger = logger.With(zap.String(logUsageContext, cm.usage))
+}
+
+// prepareCertLoad prepares a load of the certificate at certPath and keyPath
+// into cl, as configured by c, and judges it with check. It returns what
+// cl.prepareLoad does.
+//
+// All logging for a certificate load is done here, since only the manager
+// knows whether a certificate is accepted. A certificate that fails to load or
+// fails check is logged as rejected, naming the certificate that remains
+// active. Success is not logged until the returned function makes the
+// certificate active. Until then the certificate may still be abandoned, for
+// instance because the other certificate in the configuration was rejected,
+// and a success message followed by a failure would read as though the
+// certificate were in use.
+//
+// The logged operation covers only the preparation, and always ends before
+// prepareCertLoad returns. It cannot extend to the returned function, which
+// callers such as a configuration reload may never call.
+func (cm *TLSConfigManager) prepareCertLoad(c *tlsConfigManagerConfig, cl *tlsCertLoader, certPath, keyPath string,
+	check func(*tlsConfigManagerConfig, LoadedCertificate) error) (func() error, LoadedCertificate, error) {
+	log, logEnd := logger.NewOperation(cm.baseLogger, "Preparing to load TLS certificate", "tls_load_cert",
+		zap.String(logCertContext, certPath), zap.String(logKeyContext, keyPath), zap.String(logUsageContext, cl.Usage()))
+	defer logEnd()
+
+	logLoadError := func(err error) {
+		activeCert := cl.LoadedCertificate()
+		if !activeCert.IsEmpty() {
+			// The leaf should be good, but you can't be too careful with TLS certificates.
+			log.Error("Error loading TLS certificate, continuing to use previously loaded certificate",
+				zap.Error(err),
+				zap.String("failedCert", certPath), zap.String("failedKey", keyPath),
+				zap.String("activeCert", activeCert.CertificatePath), zap.String("activeKey", activeCert.KeyPath),
+				zap.String("activeCertSerial", activeCert.Serial()))
+		} else {
+			log.Error("Error loading TLS certificate, no previously loaded TLS certificate is available",
+				zap.Error(err),
+				zap.String("failedCert", certPath), zap.String("failedKey", keyPath))
+		}
+	}
+
+	apply, loadedCert, err := cl.prepareLoad(certPath, keyPath, c.ignoreFilePermissions)
+	if err == nil {
+		err = check(c, loadedCert)
+	}
+	if err != nil {
+		logLoadError(err)
+		return nil, LoadedCertificate{}, err
+	}
+
+	return func() error {
+		if err := apply(); err != nil {
+			logLoadError(err)
+			return err
+		}
+		// The preparation has ended by now. log carries its trace ID, tying
+		// this message to the preparation it completes.
+		loadedCert.AddLogContext(log).Info("Successfully loaded TLS certificate")
+		return nil
+	}, loadedCert, nil
+}
+
+// checkServerCertificate sanity checks loadedCert, the certificate the server
+// will present, returning an error if the load should fail. A certificate a
+// server cannot present, or that every client will refuse, is caught here
+// rather than at the first handshake, where it would surface per-connection as
+// an error naming neither the certificate nor the reason.
+//
+// An error is downgraded to a warning when sanity checks are being ignored,
+// except for an empty certificate or a leaf that will not parse: those are
+// faults rather than judgments, and a server using TLS always needs a usable
+// certificate.
+func (cm *TLSConfigManager) checkServerCertificate(c *tlsConfigManagerConfig, loadedCert LoadedCertificate) error {
+	if loadedCert.IsEmpty() {
+		return fmt.Errorf("cannot use an empty certificate for a server: %w", ErrCertificateEmpty)
+	}
+
+	leaf, err := loadedCert.GetLeaf()
+	if err != nil {
+		return err
+	}
+
+	// Everything below is a sanity check: the certificate is real, but this
+	// package judges a server unable to use it. Collect them all so one load
+	// reports every problem rather than only the first.
+	var sanityErrs []error
+
+	if !leaf.SupportsServerAuth() {
+		sanityErrs = append(sanityErrs, fmt.Errorf(
+			"cannot use a certificate that does not permit server authentication for a server: %w",
+			ErrCertificateNotServerAuth))
+	}
+
+	if len(sanityErrs) == 0 {
+		return nil
+	}
+	sanityErr := errors.Join(sanityErrs...)
+
+	if c.ignoreSanityChecks {
+		cm.logger.Warn("TLS certificate failed sanity checks, loading it anyway because sanity checks are being ignored",
+			zap.String(logCertContext, loadedCert.CertificatePath),
+			zap.String(logKeyContext, loadedCert.KeyPath),
+			zap.Error(sanityErr))
+		return nil
+	}
+
+	return sanityErr
 }
 
 // checkClientCertificate sanity checks clientCert, the certificate the client
@@ -602,7 +670,7 @@ func (cm *TLSConfigManager) setLogger(logger *zap.Logger) {
 //
 // An error is downgraded to a warning when sanity checks are being ignored.
 func (cm *TLSConfigManager) checkClientCertificate(c *tlsConfigManagerConfig, clientCert LoadedCertificate) error {
-	certPath, keyPath, usingFallback := c.clientCertificatePaths()
+	_, _, usingFallback := c.clientCertificatePaths()
 
 	// Both of these only mean something for a manager that is also a server: a
 	// client-only manager has no server whose certificate it could have
@@ -630,28 +698,28 @@ func (cm *TLSConfigManager) checkClientCertificate(c *tlsConfigManagerConfig, cl
 			return nil
 		}
 		sanityErrs = append(sanityErrs, fmt.Errorf(
-			"%s: no client certificate is configured, but client certificates are verified: %w",
-			cm.usage, ErrCertificateEmpty))
+			"no client certificate is configured, but client certificates are verified: %w",
+			ErrCertificateEmpty))
 	} else {
 		// A leaf that will not parse is a fault rather than a judgment, so it
 		// fails the load even when sanity checks are ignored.
 		leaf, err := clientCert.GetLeaf()
 		if err != nil {
-			return fmt.Errorf("%s: %w", cm.usage, err)
+			return err
 		}
 
 		// A peer only examines the extended key usage when it verifies the
 		// certificate, so this failure is moot until one does.
 		if !leaf.SupportsClientAuth() {
 			verifiedOnlyErrs = append(verifiedOnlyErrs, fmt.Errorf(
-				"%s: certificate presented for client authentication does not permit it: %w",
-				cm.usage, ErrCertificateNotClientAuth))
+				"certificate presented for client authentication does not permit it: %w",
+				ErrCertificateNotClientAuth))
 		}
 	}
 
 	log := cm.logger.With(
-		zap.String(logCertContext, certPath),
-		zap.String(logKeyContext, keyPath))
+		zap.String(logCertContext, clientCert.CertificatePath),
+		zap.String(logKeyContext, clientCert.KeyPath))
 
 	// A borrowed server certificate that no peer will verify keeps working, and
 	// failing it would break configurations that predate these checks. Only the
@@ -756,7 +824,7 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 	var applyServerCert func() error
 	var serverCert LoadedCertificate
 	if cm.serverCertLoader != nil {
-		if apply, cert, err := cm.serverCertLoader.prepareLoad(c.serverCertLoaderOpts()...); err != nil {
+		if apply, cert, err := cm.prepareCertLoad(c, cm.serverCertLoader, c.serverCertPath, c.serverKeyPath, cm.checkServerCertificate); err != nil {
 			return nil, fmt.Errorf("%s: error configuring server cert loader: %w", cm.usage, err)
 		} else {
 			applyServerCert = apply
@@ -768,18 +836,13 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 	var applyClientCert func() error
 	var clientCert LoadedCertificate
 	if cm.clientCertLoader != nil {
-		if apply, cert, err := cm.clientCertLoader.prepareLoad(c.clientCertLoaderOpts()...); err != nil {
+		// When no client certificate is configured, the server's is used.
+		certPath, keyPath, _ := c.clientCertificatePaths()
+		if apply, cert, err := cm.prepareCertLoad(c, cm.clientCertLoader, certPath, keyPath, cm.checkClientCertificate); err != nil {
 			return nil, fmt.Errorf("%s: error configuring client cert loader: %w", cm.usage, err)
 		} else {
 			applyClientCert = apply
 			clientCert = cert
-		}
-
-		// The client sanity check lives here rather than in the cert loader
-		// because it needs what only the manager knows: whether the certificate
-		// is the client's own or the server's, and how clients are authenticated.
-		if err := cm.checkClientCertificate(c, clientCert); err != nil {
-			return nil, err
 		}
 	}
 
@@ -789,7 +852,7 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 	// pair a reloaded certificate with the previous tlsConfig, or a reloaded
 	// server certificate with a client certificate not yet reloaded.
 	if cm.serverCertLoader != nil {
-		// The server cert loader has refused an empty certificate.
+		// checkServerCertificate has refused an empty certificate.
 		tlsConfig.GetCertificate = makeGetCertificate(serverCert.Certificate)
 	}
 	if cm.clientCertLoader != nil && !clientCert.IsEmpty() {
@@ -1063,7 +1126,7 @@ func (cm *TLSConfigManager) PrepareReconfigure(opts ...TLSConfigManagerOpt) (fun
 	return cm.prepareConfigure(c)
 }
 
-// Close closes the underlying TLSCertLoader, if present. This is safe to call multiple times.
+// Close closes the underlying cert loaders, if present. This is safe to call multiple times.
 func (cm *TLSConfigManager) Close() error {
 	var allErrs []error
 
