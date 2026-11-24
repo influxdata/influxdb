@@ -163,9 +163,15 @@ type Shard struct {
 	_engine Engine
 	index   Index
 	enabled bool
-	// deleting is set once Store.DeleteShard starts removing the shard's series.
-	// It is never cleared.
+	// deleting is set once Store.DeleteShard starts working out which of the
+	// shard's series to remove. It is cleared only if that fails and the Store
+	// keeps the shard.
 	deleting bool
+
+	// registeredIndexType is the index type the Store counted for the shard's
+	// database when it registered the shard, which the Store removes from that
+	// count when the shard is deleted. It is guarded by the Store's mutex.
+	registeredIndexType string
 
 	// expvar-based stats.
 	stats       *ShardStatistics
@@ -251,21 +257,38 @@ func (s *Shard) blockWritesForDeletion() {
 	s.mu.Unlock()
 }
 
+// allowWritesAfterFailedDeletion undoes blockWritesForDeletion, for a shard
+// that Store.DeleteShard is keeping after all.
+func (s *Shard) allowWritesAfterFailedDeletion() {
+	s.mu.Lock()
+	s.deleting = false
+	s.mu.Unlock()
+}
+
 // SetNewReadersBlocked sets if new readers can access the shard. If blocked
 // is true, the number of reader blocks is incremented and new readers will
 // receive an error instead of shard access. If blocked is false, the number
 // of reader blocks is decremented. If the reader blocks drops to 0, then
 // new readers will be granted access to the shard.
+//
+// A closed shard has no readers and admits none, so there is nothing to block
+// or unblock on it, and both do nothing.
 func (s *Shard) SetNewReadersBlocked(blocked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s._engine == nil {
+		return nil
+	}
 	return s._engine.SetNewReadersBlocked(blocked)
 }
 
-// InUse returns true if this shard is in-use.
+// InUse returns true if this shard is in-use. A closed shard is not.
 func (s *Shard) InUse() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s._engine == nil {
+		return false, nil
+	}
 	return s._engine.InUse()
 }
 

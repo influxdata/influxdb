@@ -58,7 +58,25 @@ const (
 const SeriesFileDirectory = "_series"
 
 // databaseState keeps track of the state of a database.
-type databaseState struct{ indexTypes map[string]int }
+type databaseState struct {
+	indexTypes map[string]int
+
+	// deleteMu is write-locked by DeleteShard, DeleteDatabase and
+	// DeleteRetentionPolicy for the whole of each call, so that only one of
+	// them works on the database at a time. A DeleteShard hides its shard from
+	// the store while it decides which series only that shard holds; another of
+	// these running then would not see the shard, and would remove series or
+	// files it still needs.
+	//
+	// DeleteMeasurement and DeleteSeries read-lock it for the whole of each
+	// call. They run alongside each other, but not alongside the three above:
+	// they would not see a hidden shard either, and would leave in it the data
+	// they were asked to remove if its DeleteShard then put it back.
+	//
+	// It is taken before Store.mu and before any Shard.mu, never with Store.mu
+	// held. Waiting for it is not interrupted when the store closes.
+	deleteMu sync.RWMutex
+}
 
 // struct to hold the result of opening each readegr in a goroutine
 type shardResponse struct {
@@ -132,9 +150,11 @@ type Store struct {
 	// shared per-database indexes, only if using "inmem".
 	indexes map[string]interface{}
 
-	// Maintains a set of shards that are in the process of deletion.
+	// Maintains the shards that are in the process of deletion, by ID.
 	// This prevents new shards from being created while old ones are being deleted.
-	pendingShardDeletes map[uint64]struct{}
+	// A shard here is hidden, not gone: its DeleteShard may yet put it back in
+	// shards.
+	pendingShardDeletes map[uint64]*Shard
 
 	// Maintains a set of shards that failed to open
 	badShards shardErrorMap
@@ -167,6 +187,15 @@ type Store struct {
 	wg          sync.WaitGroup
 	opened      bool
 
+	// deleteShardUnregisteredHook, if set, is called by DeleteShard with the
+	// shard's ID once it has taken the shard out of s.shards and before it does
+	// anything else. Tests use it to hold a delete there.
+	deleteShardUnregisteredHook func(shardID uint64)
+
+	// removeAll removes a shard's directories for DeleteShard. It is
+	// os.RemoveAll, except in tests of a removal that fails.
+	removeAll func(path string) error
+
 	// deleteShardSeriesHook, if set, is called by DeleteShard before it removes
 	// each series from the series file, with the number removed so far. Tests
 	// use it to stop a delete part way through.
@@ -186,13 +215,14 @@ func NewStore(path string) *Store {
 		path:                path,
 		sfiles:              make(map[string]*SeriesFile),
 		indexes:             make(map[string]interface{}),
-		pendingShardDeletes: make(map[uint64]struct{}),
+		pendingShardDeletes: make(map[uint64]*Shard),
 		badShards:           shardErrorMap{shardErrors: make(map[uint64]error)},
 		epochs:              make(map[uint64]*epochTracker),
 		EngineOptions:       NewEngineOptions(),
 		Logger:              logger,
 		baseLogger:          logger,
 		closeCtx:            context.Background(), // until Open
+		removeAll:           os.RemoveAll,
 	}
 }
 
@@ -675,7 +705,8 @@ func (s *Store) registerShard(res *shardResponse) {
 		if _, ok := s.databases[res.s.database]; !ok {
 			s.databases[res.s.database] = new(databaseState)
 		}
-		s.databases[res.s.database].addIndexType(res.s.IndexType())
+		res.s.registeredIndexType = res.s.IndexType()
+		s.databases[res.s.database].addIndexType(res.s.registeredIndexType)
 	}
 }
 
@@ -753,7 +784,7 @@ func (s *Store) Close() error {
 	s.databases = make(map[string]*databaseState)
 	s.sfiles = map[string]*SeriesFile{}
 	s.indexes = make(map[string]interface{})
-	s.pendingShardDeletes = make(map[uint64]struct{})
+	s.pendingShardDeletes = make(map[uint64]*Shard)
 	s.shards = nil
 	s.opened = false // Store may now be opened again.
 	s.mu.Unlock()
@@ -1052,58 +1083,123 @@ func (s *Store) SetShardEnabled(shardID uint64, enabled bool) error {
 // receive an error instead of shard access. If blocked is false, the number
 // of reader blocks is decremented. If the reader blocks drops to 0, then
 // new readers will be granted access to the shard.
+//
+// For a shard that a DeleteShard has hidden it returns ErrShardDeletion, not
+// ErrShardNotFound, when asked to block: the delete may yet put the shard back,
+// so it must not be taken for gone. Unblocking still reaches a hidden shard, so
+// that a block taken before the delete began is not left on a shard that is
+// put back.
 func (s *Store) SetShardNewReadersBlocked(shardID uint64, blocked bool) error {
-	sh := s.Shard(shardID)
-	if sh == nil {
-		return fmt.Errorf("SetShardNewReadersBlocked: shardID=%d, blocked=%t: %w", shardID, blocked, ErrShardNotFound)
+	sh, deleting := s.shardOrDeleting(shardID)
+	var err error
+	switch {
+	case sh == nil:
+		err = ErrShardNotFound
+	case deleting && blocked:
+		err = ErrShardDeletion
+	default:
+		err = sh.SetNewReadersBlocked(blocked)
 	}
-	return sh.SetNewReadersBlocked(blocked)
+	if err != nil {
+		return fmt.Errorf("SetShardNewReadersBlocked: shardID=%d, blocked=%t: %w", shardID, blocked, err)
+	}
+	return nil
 }
 
 // ShardInUse returns true if a shard is in-use (e.g. has active readers).
 // SetShardNewReadersBlocked(id, true) should be called before checking
 // ShardInUse to prevent race conditions where a reader could gain
 // access to the shard immediately after ShardInUse is called.
+//
+// For a shard that a DeleteShard has hidden it returns ErrShardDeletion, not
+// ErrShardNotFound, since the delete may yet put the shard back.
 func (s *Store) ShardInUse(shardID uint64) (bool, error) {
-	sh := s.Shard(shardID)
+	sh, deleting := s.shardOrDeleting(shardID)
 	if sh == nil {
 		return false, fmt.Errorf("ShardInUse: shardID=%d: %w", shardID, ErrShardNotFound)
+	}
+	if deleting {
+		return false, fmt.Errorf("ShardInUse: shardID=%d: %w", shardID, ErrShardDeletion)
 	}
 	return sh.InUse()
 }
 
-// DeleteShard removes a shard from disk.
+// shardOrDeleting returns the shard with the given ID, and whether a
+// DeleteShard has it hidden from the store. It returns nil if the store has no
+// such shard either way.
+func (s *Store) shardOrDeleting(shardID uint64) (sh *Shard, deleting bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if sh = s.shards[shardID]; sh != nil {
+		return sh, false
+	}
+	sh = s.pendingShardDeletes[shardID]
+	return sh, sh != nil
+}
+
+// DeleteShard removes a shard from disk. If another DeleteShard is already
+// working on the shard, it waits for that one, then returns ErrShardNotFound if
+// the shard was removed, or deletes the shard itself if it was put back.
 func (s *Store) DeleteShard(shardID uint64) error {
-	// Remove the shard from Store, so it's not returned to callers requesting
-	// shards. Also mark that this shard is currently being deleted in a separate
-	// map so that we do not have to retain the global store lock while deleting
-	// files. Check for closing first: Close empties s.shards, so a lookup after
-	// it would report ErrShardNotFound instead.
-	s.mu.Lock()
-	select {
-	case <-s.closing:
+	op := fmt.Sprintf("deleting shard %d", shardID)
+
+	// Take the turn of the shard's database, then remove the shard from Store,
+	// so it's not returned to callers requesting shards. Also mark that this
+	// shard is currently being deleted in a separate map so that we do not have
+	// to retain the global store lock while deleting files.
+	var (
+		sh      *Shard
+		db      string
+		dbState *databaseState
+	)
+	for {
+		s.mu.RLock()
+		// Check for closing first: Close empties s.shards, so a lookup after it
+		// would report ErrShardNotFound instead.
+		if err := cancelCause(s.closeCtx, op); err != nil {
+			s.mu.RUnlock()
+			return err
+		}
+		sh = s.shards[shardID]
+		if sh == nil {
+			// Another DeleteShard may have hidden the shard, and may yet put it
+			// back, so it is not reported as gone, nor as deleted. Wait for that
+			// delete's turn of the database to end, below, and look again: the
+			// shard is then gone, or back in s.shards for this delete to take.
+			sh = s.pendingShardDeletes[shardID]
+		}
+		if sh == nil {
+			s.mu.RUnlock()
+			return ErrShardNotFound
+		}
+		db = sh.Database()
+		dbState = s.databases[db]
+		s.mu.RUnlock()
+		if dbState == nil {
+			return fmt.Errorf("%s: database %q is not known to the store", op, db)
+		}
+
+		dbState.deleteMu.Lock()
+		s.mu.Lock()
+		// The wait for the database may have been long. Start again if the shard
+		// or its database was replaced meanwhile; a shard that was deleted is
+		// found gone above.
+		if s.shards[shardID] == sh && s.databases[db] == dbState {
+			break
+		}
 		s.mu.Unlock()
-		return fmt.Errorf("deleting shard %d: %w", shardID, ErrStoreClosed)
-	default:
+		dbState.deleteMu.Unlock()
 	}
-	sh := s.shards[shardID]
-	if sh == nil {
+	defer dbState.deleteMu.Unlock()
+
+	if err := cancelCause(s.closeCtx, op); err != nil {
 		s.mu.Unlock()
-		return ErrShardNotFound
-	}
-	if _, ok := s.pendingShardDeletes[shardID]; ok {
-		// We are already being deleted? This is possible if delete shard
-		// was called twice in sequence before the shard could be removed from
-		// the mapping.
-		// This is not an error because deleting a shard twice is not an error.
-		s.mu.Unlock()
-		return nil
+		return err
 	}
 	delete(s.shards, shardID)
-	s.pendingShardDeletes[shardID] = struct{}{}
+	s.pendingShardDeletes[shardID] = sh
 	s.shardDeletes.Add(1)
 
-	db := sh.Database()
 	// Determine if the shard contained any series that are not present in any
 	// other shards in the database.
 	shards := s.filterShards(byDatabase(db))
@@ -1111,23 +1207,153 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	ctx := s.closeCtx
 	s.mu.Unlock()
 
-	// Ensure the pending deletion flag is cleared on exit.
+	// op now names the database too, as do the log entries.
+	op = fmt.Sprintf("deleting shard %d of database %q", shardID, db)
+	log := s.Logger.With(logger.Database(db), logger.Shard(shardID), zap.String("path", sh.path))
+
+	// Ensure the pending deletion flag is cleared on exit. Unless the shard was
+	// put back, it has left s.shards for good, however the delete ends, so the
+	// database stops counting its index type here. Readers check that under
+	// s.mu.
+	rolledBack := false
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		delete(s.epochs, shardID)
 		delete(s.pendingShardDeletes, shardID)
+		if !rolledBack {
+			delete(s.epochs, shardID)
+			// The type registerShard counted, since a closed shard no longer
+			// reports one.
+			dbState.removeIndexType(sh.registeredIndexType)
+		}
 		s.shardDeletes.Done()
 	}()
 
-	// Get the shard's local bitset of series IDs.
-	index, err := sh.Index()
-	if err != nil {
-		return err
+	if s.deleteShardUnregisteredHook != nil {
+		s.deleteShardUnregisteredHook(shardID)
 	}
 
-	// The shard is closed below, after which it no longer reports its index type.
-	indexType := index.Type()
+	// Nothing has been removed while the series only this shard holds are being
+	// worked out, so a failure there that may clear, such as a disabled shard,
+	// puts the shard back as it was, and the delete can be tried again.
+	//
+	// Once series are being removed a failure does not end the delete either:
+	// the shard has left s.shards, so neither Store.Close nor anything else
+	// would close it, and the delete goes on to do so. Some of the series may
+	// already be gone from the series file while the shard's files all remain,
+	// which is also what a crash at this point leaves. The shard loads again on
+	// the next Open, and deleting it again then finishes the job.
+	//
+	// A closed shard, this one or another of the database, is not a failure
+	// here. It stays closed until the store restarts, so a retry would fail the
+	// same way, every time, for every shard of the database. The series only
+	// this shard holds cannot be worked out without it, so none are removed:
+	// they stay in the series file, and the delete goes on to remove the
+	// shard's files.
+	var stopErr error
+	index, ss, err := s.shardOnlySeries(sh, shards)
+	if errors.Is(err, ErrEngineClosed) {
+		log.Warn("DeleteShard: a shard of the database is closed, so the series only this shard holds cannot be worked out; removing the shard and leaving its series in the series file",
+			zap.Error(err))
+		// shardOnlySeries may have stopped before it did this.
+		sh.blockWritesForDeletion()
+		// ss is nil, so no series are removed below.
+		err = nil
+	}
+	if err != nil {
+		err = fmt.Errorf("%s: %w", op, err)
+
+		// Writes are let back in before the shard can be found again. Nothing but
+		// a holder of the shard reaches it until then.
+		sh.allowWritesAfterFailedDeletion()
+		s.mu.Lock()
+		// Nothing known replaces the database or takes the shard's place during
+		// a delete: the database's deletes wait for this one, CreateShard is
+		// turned away, and Close waits. If something has, the shard no longer
+		// belongs in the store, and is closed below instead.
+		if s.databases[db] == dbState && s.shards[shardID] == nil {
+			s.shards[shardID] = sh
+			// It is in one map or the other, never both.
+			delete(s.pendingShardDeletes, shardID)
+			rolledBack = true
+		}
+		s.mu.Unlock()
+		if rolledBack {
+			log.Error("DeleteShard: failed before removing anything; the shard is unchanged and the delete can be retried",
+				zap.Error(err))
+			return err
+		}
+		log.Error("DeleteShard: failed before removing anything, and the shard cannot be put back in the store because its database or its place there has changed",
+			zap.Error(err))
+		stopErr = err
+	} else if ss != nil {
+		if err := s.dropShardSeries(ctx, shardID, db, index, ss); err != nil {
+			if ctx.Err() != nil && !errors.Is(err, context.Cause(ctx)) {
+				err = errors.Join(context.Cause(ctx), err)
+			}
+			stopErr = fmt.Errorf("%s: removing series: %w", op, err)
+		}
+	}
+
+	// enter the epoch tracker
+	guards, gen := epoch.StartWrite()
+	defer epoch.EndWrite(gen)
+
+	// wait for any guards before closing the shard
+	for _, guard := range guards {
+		guard.Wait()
+	}
+
+	// Close the shard, which a failed or cancelled delete must still do.
+	closeErr := sh.Close()
+	if closeErr != nil {
+		closeErr = fmt.Errorf("closing shard %d of database %q for deletion: %w", shardID, db, closeErr)
+	}
+	if stopErr != nil {
+		if ctx.Err() == nil {
+			log.Error("DeleteShard: failed before removing the shard's files; the shard is closed and loads again on the next open",
+				zap.Error(stopErr),
+				zap.NamedError("close_error", closeErr))
+		}
+		return errors.Join(stopErr, closeErr)
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+
+	// Remove the on-disk shard data.
+	if err := s.removeAll(sh.path); err != nil {
+		return fmt.Errorf("%s: removing shard directory %q: %w", op, sh.path, err)
+	}
+	if err := s.removeAll(sh.walPath); err != nil {
+		return fmt.Errorf("%s: removing WAL directory %q: %w", op, sh.walPath, err)
+	}
+	return nil
+}
+
+// shardOnlySeries returns the index of sh and the series that only sh holds,
+// among it and others, which are the other shards of its database. It removes
+// nothing. It leaves sh rejecting writes, unless it fails before reaching
+// that, so that no series is added to sh after the set is read. Its error
+// wraps ErrEngineClosed if sh or one of others is closed, or has an engine
+// that failed to close. The set it returns is nil only with an error.
+func (s *Store) shardOnlySeries(sh *Shard, others []*Shard) (Index, *SeriesIDSet, error) {
+	// A shard whose engine failed to close keeps the engine but not the index,
+	// so it reports no error and no index. Its series are as unknown as a
+	// closed shard's.
+	indexOf := func(sh *Shard) (Index, error) {
+		index, err := sh.Index()
+		if err == nil && index == nil {
+			err = fmt.Errorf("shard has no index: %w", ErrEngineClosed)
+		}
+		return index, err
+	}
+
+	// Get the shard's local bitset of series IDs.
+	index, err := indexOf(sh)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting index: %w", err)
+	}
 
 	// A write that found the shard before it left s.shards may still be running.
 	// Wait for it and reject later ones, so every series the shard holds is in
@@ -1140,8 +1366,12 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	// its lock while dropping series from the inmem index takes the index lock.
 	ss := index.SeriesIDSet().Clone()
 
-	err = s.walkShards(shards, func(sh *Shard) error {
-		index, err := sh.Index()
+	// If we couldn't get the index for a shard, then rather than deleting series
+	// which may exist in that shard as well as in the current shard, we stop
+	// here. Otherwise the series left in the set don't exist in any of the
+	// database's remaining shards.
+	if err := s.walkShards(others, func(sh *Shard) error {
+		index, err := indexOf(sh)
 		if err != nil {
 			s.Logger.Error("cannot find shard index", zap.Uint64("shard_id", sh.ID()), zap.Error(err))
 			return err
@@ -1149,67 +1379,10 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 		ss.Diff(index.SeriesIDSet())
 		return nil
-	})
-
-	// If we couldn't get the index for a shard, then rather than deleting series
-	// which may exist in that shard as well as in the current shard, we stop the
-	// current deletion. Otherwise remove any remaining series in the set from
-	// the series file, as they don't exist in any of the database's remaining
-	// shards.
-	if err == nil {
-		err = s.dropShardSeries(ctx, shardID, db, index, ss)
+	}); err != nil {
+		return nil, nil, fmt.Errorf("comparing series with the database's other shards: %w", err)
 	}
-
-	// A failure ends the delete where it stands, unless the store is closing.
-	// Then the delete goes on to close the shard, which has left s.shards so
-	// Store.Close will not, and reports ErrStoreClosed. Some of the series may
-	// already be gone from the series file while the shard's files all remain,
-	// which is also what a crash at this point leaves. The shard loads again on
-	// the next Open, and deleting it again then finishes the job.
-	var cancelErr error
-	if err != nil {
-		if ctx.Err() == nil {
-			return err
-		}
-		if !errors.Is(err, context.Cause(ctx)) {
-			err = errors.Join(context.Cause(ctx), err)
-		}
-		cancelErr = fmt.Errorf("deleting shard %d: %w", shardID, err)
-	}
-
-	// enter the epoch tracker
-	guards, gen := epoch.StartWrite()
-	defer epoch.EndWrite(gen)
-
-	// wait for any guards before closing the shard
-	for _, guard := range guards {
-		guard.Wait()
-	}
-
-	// Close the shard, which a cancelled delete must still do.
-	if err := sh.Close(); err != nil {
-		if cancelErr != nil {
-			return errors.Join(cancelErr, fmt.Errorf("closing shard %d: %w", shardID, err))
-		}
-		return err
-	}
-	if cancelErr != nil {
-		return cancelErr
-	}
-
-	// Remove the on-disk shard data.
-	if err := os.RemoveAll(sh.path); err != nil {
-		return err
-	} else if err = os.RemoveAll(sh.walPath); err != nil {
-		return err
-	} else {
-		// Remove index type from the database on success. Readers check it under
-		// s.mu, and DeleteDatabase may have removed the database state meanwhile.
-		s.mu.Lock()
-		s.databases[db].removeIndexType(indexType)
-		s.mu.Unlock()
-		return nil
-	}
+	return index, ss, nil
 }
 
 // dropShardSeries removes the series in ss, which belong to shard shardID of
@@ -1325,23 +1498,79 @@ func (s *Store) dropShardSeries(ctx context.Context, shardID uint64, db string, 
 	return cancelErr
 }
 
+// lockDatabaseDeletes takes the turn of the database to delete from it, for
+// the operation op, and returns the database's state with its deleteMu held.
+// It returns nil if the store has no such database, with nothing held.
+func (s *Store) lockDatabaseDeletes(op, name string) (*databaseState, error) {
+	s.mu.RLock()
+	// Checked before the lookup: Close empties the database list, so a closed
+	// store would otherwise report every database as already gone.
+	if err := cancelCause(s.closeCtx, op); err != nil {
+		s.mu.RUnlock()
+		return nil, err
+	}
+	dbState := s.databases[name]
+	s.mu.RUnlock()
+	if dbState == nil {
+		return nil, nil
+	}
+	dbState.deleteMu.Lock()
+	return dbState, nil
+}
+
+// rlockDatabaseDeletes holds off DeleteShard, DeleteDatabase and
+// DeleteRetentionPolicy on the database for a delete of its data, and returns
+// the database's state with its deleteMu read-locked, which the caller
+// releases. It returns nil, with nothing held, if the store has no such
+// database.
+func (s *Store) rlockDatabaseDeletes(name string) *databaseState {
+	for {
+		s.mu.RLock()
+		dbState := s.databases[name]
+		s.mu.RUnlock()
+		if dbState == nil {
+			return nil
+		}
+		dbState.deleteMu.RLock()
+		// The wait may have been for a drop of the database. Look again if it
+		// was replaced or removed meanwhile.
+		s.mu.RLock()
+		current := s.databases[name]
+		s.mu.RUnlock()
+		if current == dbState {
+			return dbState
+		}
+		dbState.deleteMu.RUnlock()
+	}
+}
+
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 func (s *Store) DeleteDatabase(name string) error {
 	op := fmt.Sprintf("deleting database %q", name)
 
+	dbState, err := s.lockDatabaseDeletes(op, name)
+	if err != nil {
+		return err
+	} else if dbState == nil {
+		// no files locally, so nothing to do
+		return nil
+	}
+	defer dbState.deleteMu.Unlock()
+
 	s.mu.RLock()
 	ctx := s.closeCtx
-	// Checked before the lookup: Close empties the database list, so a closed
-	// store would otherwise report every database as already gone.
+	// Checked again, since the wait for the database may have been long.
 	if err := cancelCause(ctx, op); err != nil {
 		s.mu.RUnlock()
 		return err
 	}
-	if _, ok := s.databases[name]; !ok {
+	if s.databases[name] != dbState {
 		s.mu.RUnlock()
-		// no files locally, so nothing to do
+		// Deleted while this call waited. A database of the same name created
+		// since then is not the one this call was asked to delete.
 		return nil
 	}
+	// No DeleteShard is running on the database, so no shard of it is hidden.
 	shards := s.filterShards(byDatabase(name))
 	epochs := s.epochsForShards(shards)
 	s.mu.RUnlock()
@@ -1411,28 +1640,31 @@ func (s *Store) DeleteDatabase(name string) error {
 func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	op := fmt.Sprintf("deleting retention policy %q on database %q", name, database)
 
+	dbState, err := s.lockDatabaseDeletes(op, database)
+	if err != nil {
+		return err
+	} else if dbState == nil {
+		// unknown database, nothing to do
+		return nil
+	}
+	defer dbState.deleteMu.Unlock()
+
 	s.mu.RLock()
 	ctx := s.closeCtx
-	// Checked before the lookup: Close empties the database list, so a closed
-	// store would otherwise report every database as already gone.
+	// Checked again, since the wait for the database may have been long.
 	if err := cancelCause(ctx, op); err != nil {
 		s.mu.RUnlock()
 		return err
 	}
-	if _, ok := s.databases[database]; !ok {
+	if s.databases[database] != dbState {
 		s.mu.RUnlock()
-		// unknown database, nothing to do
+		// The database was deleted while this call waited.
 		return nil
 	}
+	// No DeleteShard is running on the database, so no shard of it is hidden.
 	shards := s.filterShards(ComposeShardFilter(byDatabase(database), byRetentionPolicy(name)))
 	epochs := s.epochsForShards(shards)
 	s.mu.RUnlock()
-
-	// A closed shard no longer reports its index type.
-	indexTypes := make([]string, len(shards))
-	for i, sh := range shards {
-		indexTypes[i] = sh.IndexType()
-	}
 
 	// Close and delete all shards under the retention policy on the
 	// database.
@@ -1471,13 +1703,14 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	}
 
 	s.mu.Lock()
-	state := s.databases[database]
-	for i, sh := range shards {
-		// A DeleteShard that overlapped this call has already taken the shard
-		// out of s.shards and removes its index type itself.
+	for _, sh := range shards {
+		// The shards cannot have changed, since nothing else deletes from the
+		// database meanwhile; only a shard still in s.shards is counted there.
+		// It is uncounted under the type registerShard counted, since a shard
+		// that an earlier, failed attempt closed no longer reports one.
 		if s.shards[sh.id] == sh {
 			delete(s.shards, sh.id)
-			state.removeIndexType(indexTypes[i])
+			dbState.removeIndexType(sh.registeredIndexType)
 		}
 	}
 	s.mu.Unlock()
@@ -1486,6 +1719,12 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 
 // DeleteMeasurement removes a measurement and all associated series from a database.
 func (s *Store) DeleteMeasurement(database, name string) error {
+	// No DeleteShard runs on the database meanwhile, so no shard of it is
+	// hidden from the list taken below.
+	if dbState := s.rlockDatabaseDeletes(database); dbState != nil {
+		defer dbState.deleteMu.RUnlock()
+	}
+
 	s.mu.RLock()
 	if s.databases[database].hasMultipleIndexTypes() {
 		s.mu.RUnlock()
@@ -1600,11 +1839,19 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 	return err
 }
 
-// ShardIDs returns a slice of all ShardIDs under management.
+// ShardIDs returns a slice of all ShardIDs under management. That includes a
+// shard that a DeleteShard has hidden from the store, which is not gone until
+// the delete finishes, and comes back if the delete fails early. A caller that
+// took its absence for deletion, as the retention service does to drop meta
+// references, would be wrong about a shard that comes back.
 func (s *Store) ShardIDs() []uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.shardIDs()
+	a := s.shardIDs()
+	for shardID := range s.pendingShardDeletes {
+		a = append(a, shardID)
+	}
+	return a
 }
 
 func (s *Store) shardIDs() []uint64 {
@@ -1870,6 +2117,22 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
 func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
+	// No DeleteShard runs on the database meanwhile, so no shard of it is
+	// hidden from the list taken below.
+	if dbState := s.rlockDatabaseDeletes(database); dbState != nil {
+		defer dbState.deleteMu.RUnlock()
+	}
+
+	const op = "deleting series"
+	// The wait above may have been long. Checked before the shards are read
+	// below, which a closing store is closing.
+	s.mu.RLock()
+	closeCtx := s.closeCtx
+	s.mu.RUnlock()
+	if err := cancelCause(closeCtx, op); err != nil {
+		return err
+	}
+
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
 	if err != nil {
@@ -1936,7 +2199,6 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		return nil, shards, epochs, sfile
 	}
 
-	const op = "deleting series"
 	err, shards, epochs, sfile := getEpochsAndShards()
 	if closeErr := cancelCause(ctx, op); closeErr != nil {
 		// Checked first: a closed store has no series files, which would

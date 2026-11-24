@@ -331,12 +331,7 @@ func requireBlocked(t *testing.T, ch <-chan error, what string) {
 // deletions in progress are cancelled.
 func (s *Store) waitClosing(t *testing.T) {
 	t.Helper()
-	select {
-	case <-s.ClosingForTest():
-	case <-time.After(cancelTimeout):
-		dumpGoroutines(t)
-		require.FailNow(t, "Close never started")
-	}
+	awaitReached(t, s.ClosingForTest(), "Close never started")
 }
 
 // holdWrite holds a write in flight on the shard until endWrite is called, so
@@ -570,6 +565,10 @@ func TestStore_Close_CancelsContainerDeletes(t *testing.T) {
 // delete at once, starts Close while all of them are in flight, and checks that
 // each reports ErrStoreClosed, that Close succeeds, and that the store reopens
 // with every shard and accepts the same deletes.
+//
+// The DeleteShards run on one database and the DeleteSeries and
+// DeleteMeasurements on another, since on one database the two kinds wait for
+// each other and would not all be in flight together.
 func TestStore_Close_CancelsConcurrentDeletes(t *testing.T) {
 	t.Parallel()
 
@@ -594,7 +593,11 @@ func TestStore_Close_CancelsConcurrentDeletes(t *testing.T) {
 			// Runs before CloseStore above, which would wait on the deletes.
 			t.Cleanup(releaseAll)
 			for id := 1; id <= shardN; id++ {
-				require.NoError(t, s.CreateShard("db0", "rp0", uint64(id), true), "creating shard %d", id)
+				db := "db0"
+				if id <= droppedShardN {
+					db = "db1"
+				}
+				require.NoError(t, s.CreateShard(db, "rp0", uint64(id), true), "creating shard %d", id)
 				// "only" gives each shard a series no other shard holds, so each
 				// DeleteShard has series to remove.
 				s.MustWriteToShardString(id, "cpu,host=a v=1 10", "mem,host=a v=1 10", fmt.Sprintf("only,shard=%d v=1 10", id))
@@ -652,10 +655,10 @@ func TestStore_Close_CancelsConcurrentDeletes(t *testing.T) {
 			// Barrier: none of them can finish yet, so all end up in flight.
 			require.Eventually(t, func() bool { return concurrency.Load() == opN },
 				cancelTimeout, time.Millisecond, "deletes never overlapped")
-			// Every DeleteShard is past comparing its shard with the others, so
-			// none finds one of them closed by another cancelled DeleteShard.
-			require.Eventually(t, func() bool { return removingSeries.Load() == droppedShardN },
-				cancelTimeout, time.Millisecond, "DeleteShards never started removing series")
+			// The DeleteShards take turns on the database, so one of them is
+			// removing series and the others are waiting for it.
+			require.Eventually(t, func() bool { return removingSeries.Load() == 1 },
+				cancelTimeout, time.Millisecond, "no DeleteShard started removing series")
 
 			closed := runAsync(s.Store.Close)
 			s.waitClosing(t)
@@ -883,30 +886,831 @@ func TestStore_Delete_RemovesIndexType(t *testing.T) {
 		})
 	}
 
-	// Both calls delete shard 1 here, which must count once.
+	// A DeleteShard of a shard that a DeleteRetentionPolicy is deleting waits
+	// its turn and then finds the shard gone, which must count once.
 	t.Run("Overlapping", func(t *testing.T) {
 		s := mixedStore(t)
 		release := s.holdDelete(t, 1)
 
 		deletedRP := runAsync(func() error { return s.DeleteRetentionPolicy("db0", "rp1") })
-		// Let DeleteRetentionPolicy snapshot the shard and block closing it.
-		time.Sleep(100 * time.Millisecond)
+		// Barrier: DeleteRetentionPolicy has the database, and blocks closing
+		// shard 1.
+		require.Eventually(t, func() bool { return s.DatabaseDeletesLockedForTest("db0") },
+			cancelTimeout, time.Millisecond, "DeleteRetentionPolicy never took the database")
 		deletedShard := runAsync(func() error { return s.DeleteShard(1) })
-		require.Eventually(t, func() bool { return s.Shard(1) == nil },
-			10*time.Second, time.Millisecond, "DeleteShard never removed the shard from the store")
-		time.Sleep(100 * time.Millisecond)
+		requireBlocked(t, deletedShard, "DeleteShard returned while DeleteRetentionPolicy was running")
+		require.NotNil(t, s.Shard(1), "DeleteShard took shard 1 out of the store while DeleteRetentionPolicy was deleting it")
 		release()
 
-		for name, ch := range map[string]<-chan error{"DeleteRetentionPolicy": deletedRP, "DeleteShard": deletedShard} {
-			select {
-			case err := <-ch:
-				require.NoError(t, err, "%s deleting shard 1", name)
-			case <-time.After(30 * time.Second):
-				require.FailNow(t, name+" did not return")
-			}
-		}
+		require.NoError(t, awaitResult(t, deletedRP, "DeleteRetentionPolicy"), "DeleteRetentionPolicy deleting shard 1")
+		require.ErrorIs(t, awaitResult(t, deletedShard, "DeleteShard"), tsdb.ErrShardNotFound, "DeleteShard after shard 1 was deleted")
 		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
 	})
+
+	// A DeleteShard that fails before it removes anything keeps its shard in
+	// the store, where it still counts.
+	t.Run("DeleteShardFailsEarly", func(t *testing.T) {
+		s := mixedStore(t)
+		// Deleting an inmem shard reads the index of every shard in the database.
+		require.NoError(t, s.SetShardEnabled(3, false), "disabling shard 3")
+		for id := uint64(1); id <= 2; id++ {
+			require.ErrorIs(t, s.DeleteShard(id), tsdb.ErrShardDisabled, "deleting shard %d", id)
+			require.NotNil(t, s.Shard(id), "failed delete took shard %d out of the store", id)
+		}
+		require.NoError(t, s.SetShardEnabled(3, true), "enabling shard 3")
+		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shards 1 and 2 still use inmem")
+
+		require.NoError(t, s.DeleteShard(1), "deleting shard 1 again")
+		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still uses inmem")
+		require.NoError(t, s.DeleteShard(2), "deleting shard 2 again")
+		require.NoError(t, s.DeleteMeasurement("db0", "m"), "only tsi1 shards remain")
+	})
+
+	// A DeleteRetentionPolicy that failed after closing its shards leaves them
+	// in the store, closed, where they no longer report an index type. The
+	// retry must still stop counting them under the type they had.
+	t.Run("DeleteRetentionPolicyOfClosedShard", func(t *testing.T) {
+		s := mixedStore(t)
+		for id := uint64(1); id <= 2; id++ {
+			sh := s.Shard(id)
+			require.NotNil(t, sh, "shard %d", id)
+			require.NoError(t, sh.Close(), "closing shard %d", id)
+			require.Empty(t, sh.IndexType(), "closed shard %d still reports an index type", id)
+		}
+		require.NoError(t, s.DeleteRetentionPolicy("db0", "rp1"), "deleting rp1")
+		require.Nil(t, s.Shard(1), "shard 1 after deleting rp1")
+		require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "shard 2 still counts as inmem")
+		require.NoError(t, s.DeleteRetentionPolicy("db0", "rp2"), "deleting rp2")
+		require.NoError(t, s.DeleteMeasurement("db0", "m"), "only tsi1 shards remain")
+	})
+
+	// A DeleteShard that fails once it is removing things takes its shard out
+	// of the store, so the shard must stop counting.
+	t.Run("DeleteShardFailsRemovingFiles", func(t *testing.T) {
+		s := mixedStore(t)
+		removeErr := errors.New("injected removal failure")
+		s.SetRemoveAllForTest(func(string) error { return removeErr })
+		for id := uint64(1); id <= 2; id++ {
+			require.ErrorIs(t, s.DeleteMeasurement("db0", "m"), tsdb.ErrMultipleIndexTypes, "before deleting shard %d", id)
+			require.ErrorIs(t, s.DeleteShard(id), removeErr, "deleting shard %d", id)
+			require.Nil(t, s.Shard(id), "failed delete left shard %d in the store", id)
+		}
+		s.SetRemoveAllForTest(os.RemoveAll)
+		require.NoError(t, s.DeleteMeasurement("db0", "m"), "only tsi1 shards remain in the store")
+	})
+}
+
+// holdDeleteShards makes a DeleteShard of each of the shards stop once it has
+// taken its shard out of the store, before it does anything else, until that
+// shard's release is called. reached[id] is closed when the delete of shard id
+// gets there. The releases also run as a cleanup, ahead of any registered
+// earlier, such as CloseStore, which would wait on the deletes.
+func (s *Store) holdDeleteShards(t *testing.T, ids ...uint64) (reached map[uint64]<-chan struct{}, release map[uint64]func()) {
+	t.Helper()
+	reached = make(map[uint64]<-chan struct{}, len(ids))
+	release = make(map[uint64]func(), len(ids))
+	arrive := make(map[uint64]func(), len(ids))
+	proceed := make(map[uint64]<-chan struct{}, len(ids))
+	for _, id := range ids {
+		r, p := make(chan struct{}), make(chan struct{})
+		reached[id], proceed[id] = r, p
+		arrive[id] = sync.OnceFunc(func() { close(r) })
+		release[id] = sync.OnceFunc(func() { close(p) })
+		t.Cleanup(release[id])
+	}
+	s.SetDeleteShardUnregisteredHookForTest(func(id uint64) {
+		if arrived, ok := arrive[id]; ok {
+			arrived()
+			<-proceed[id]
+		}
+	})
+	return reached, release
+}
+
+// awaitReached fails the test if ch is not closed in time.
+func awaitReached(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(cancelTimeout):
+		dumpGoroutines(t)
+		require.FailNow(t, what)
+	}
+}
+
+// TestStore_DeleteShard_Failure checks where a failed DeleteShard leaves its
+// shard. One that fails before it removes anything puts the shard back in the
+// store as it was, so the delete can be tried again. One that fails later
+// closes the shard, since nothing else can reach it to do so.
+func TestStore_DeleteShard_Failure(t *testing.T) {
+	t.Parallel()
+
+	const uniqueN = 20
+	sharedTags := models.NewTags(map[string]string{"host": "a"})
+	removeErr := errors.New("injected removal failure")
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, tc := range map[string]struct {
+			// breakDelete makes DeleteShard(1) fail with expErr, and fixDelete
+			// undoes it.
+			breakDelete func(t *testing.T, s *Store)
+			fixDelete   func(t *testing.T, s *Store)
+			expErr      error
+			// early is whether the failure comes before anything is removed.
+			early bool
+		}{
+			"TargetDisabled": {
+				breakDelete: func(t *testing.T, s *Store) { require.NoError(t, s.SetShardEnabled(1, false), "disabling shard 1") },
+				fixDelete:   func(t *testing.T, s *Store) { require.NoError(t, s.SetShardEnabled(1, true), "enabling shard 1") },
+				expErr:      tsdb.ErrShardDisabled,
+				early:       true,
+			},
+			"OtherShardDisabled": {
+				breakDelete: func(t *testing.T, s *Store) { require.NoError(t, s.SetShardEnabled(2, false), "disabling shard 2") },
+				fixDelete:   func(t *testing.T, s *Store) { require.NoError(t, s.SetShardEnabled(2, true), "enabling shard 2") },
+				expErr:      tsdb.ErrShardDisabled,
+				early:       true,
+			},
+			"RemoveAllFails": {
+				breakDelete: func(t *testing.T, s *Store) { s.SetRemoveAllForTest(func(string) error { return removeErr }) },
+				fixDelete:   func(t *testing.T, s *Store) { s.SetRemoveAllForTest(os.RemoveAll) },
+				expErr:      removeErr,
+			},
+		} {
+			t.Run(index+"/"+name, func(t *testing.T) {
+				s := MustOpenStore(t, index)
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				for id := uint64(1); id <= 2; id++ {
+					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+				}
+				// One series both shards hold, and uniqueN only shard 1 holds.
+				lines := []string{"shared,host=a v=1 10"}
+				s.MustWriteToShardString(2, lines...)
+				for i := range uniqueN {
+					lines = append(lines, fmt.Sprintf("only,id=%d v=1 10", i))
+				}
+				s.MustWriteToShardString(1, lines...)
+
+				shardPath := filepath.Join(s.path, "db0", "rp0", "1")
+				walPath := filepath.Join(s.walPath, "db0", "rp0", "1")
+				uniqueLeft := func(sfile *tsdb.SeriesFile) (n int) {
+					for i := range uniqueN {
+						if sfile.HasSeries([]byte("only"), models.NewTags(map[string]string{"id": fmt.Sprint(i)}), nil) {
+							n++
+						}
+					}
+					return n
+				}
+
+				sh := s.Shard(1)
+				require.NotNil(t, sh, "shard 1 before the delete")
+				tc.breakDelete(t, s)
+				err := s.DeleteShard(1)
+				require.ErrorIs(t, err, tc.expErr, "DeleteShard")
+				require.ErrorContains(t, err, `deleting shard 1 of database "db0"`, "DeleteShard error does not name the shard")
+				tc.fixDelete(t, s)
+
+				// The other shard is untouched.
+				remaining := s.Shard(2)
+				require.NotNil(t, remaining, "shard 2 after the failed delete")
+				s.MustWriteToShardString(2, "shared,host=a v=2 20")
+				sfile, err := remaining.SeriesFile()
+				require.NoError(t, err, "getting series file")
+				require.True(t, sfile.HasSeries([]byte("shared"), sharedTags, nil), "shared series after the failed delete")
+
+				if !tc.early {
+					// The delete got as far as removing the shard's series, and
+					// closed the shard it had taken out of the store.
+					require.Nil(t, s.Shard(1), "failed delete left the shard in the store")
+					_, err = sh.Engine()
+					require.ErrorIs(t, err, tsdb.ErrEngineClosed, "failed delete left the shard open")
+					require.ErrorIs(t, s.DeleteShard(1), tsdb.ErrShardNotFound, "deleting the shard again")
+					require.Zero(t, uniqueLeft(sfile), "series only the deleted shard held")
+					return
+				}
+
+				// The shard is back in the store as it was.
+				require.Same(t, sh, s.Shard(1), "failed delete did not put the shard back in the store")
+				_, err = sh.Engine()
+				require.NoError(t, err, "failed delete closed the shard")
+				require.DirExists(t, shardPath, "failed delete removed the shard directory")
+				require.DirExists(t, walPath, "failed delete removed the WAL directory")
+				require.Equal(t, uniqueN, uniqueLeft(sfile), "failed delete removed series")
+				_, endWrite := s.HoldWriteForTest(1)
+				require.NotNil(t, endWrite, "failed delete removed the shard's epoch tracker")
+				endWrite()
+				s.MustWriteToShardString(1, "only,id=0 v=2 20") // panics if writes are still turned away
+
+				// Deleting it again needs no reopen.
+				require.NoError(t, s.DeleteShard(1), "deleting the shard again")
+				require.Nil(t, s.Shard(1), "shard 1 after the second delete")
+				require.NoDirExists(t, shardPath, "shard directory after the second delete")
+				require.NoDirExists(t, walPath, "WAL directory after the second delete")
+				require.Zero(t, uniqueLeft(sfile), "series only the deleted shard held")
+				require.True(t, sfile.HasSeries([]byte("shared"), sharedTags, nil), "series shard 2 still holds")
+			})
+		}
+	}
+}
+
+// TestStore_DeleteShard_ClosedShard checks that DeleteShard removes its shard,
+// and does not panic, when that shard or another shard of the database is
+// closed or has an engine that failed to close. Such a shard stays that way
+// until the store restarts, so a delete that failed on it and kept its shard
+// would fail on every retry. The series the deleted shard held cannot be
+// compared with a closed shard's, so they are left in the series file.
+//
+// A shard whose engine failed to close keeps its engine but not its index, so
+// it still passes for open.
+func TestStore_DeleteShard_ClosedShard(t *testing.T) {
+	t.Parallel()
+
+	closeErr := errors.New("injected engine close failure")
+	closers := map[string]func(t *testing.T, s *Store, id uint64){
+		"Closed": func(t *testing.T, s *Store, id uint64) {
+			sh := s.Shard(id)
+			require.NotNil(t, sh, "shard %d", id)
+			require.NoError(t, sh.Close(), "closing shard %d", id)
+			_, err := sh.Index()
+			require.ErrorIs(t, err, tsdb.ErrEngineClosed, "shard %d still open", id)
+		},
+		"HalfClosed": func(t *testing.T, s *Store, id uint64) {
+			// The engine's second Close succeeds, so the store can close.
+			require.True(t, s.FailNextEngineCloseForTest(id, closeErr), "shard %d not open", id)
+			sh := s.Shard(id)
+			require.NotNil(t, sh, "shard %d", id)
+			require.ErrorIs(t, sh.Close(), closeErr, "closing shard %d", id)
+			idx, err := sh.Index()
+			require.NoError(t, err, "shard %d no longer passes for open", id)
+			require.Nil(t, idx, "shard %d kept its index", id)
+		},
+	}
+	for _, index := range tsdb.RegisteredIndexes() {
+		for how, closeShard := range closers {
+			for name, closedID := range map[string]uint64{"Target": 1, "Other": 2} {
+				t.Run(index+"/"+how+"/"+name, func(t *testing.T) {
+					s := MustOpenStore(t, index)
+					t.Cleanup(func() { s.CloseStore(t, index) })
+					for id := uint64(1); id <= 3; id++ {
+						require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+						s.MustWriteToShardString(int(id), "shared,host=a v=1 10", fmt.Sprintf("only,id=%d v=1 10", id))
+					}
+					// Shard 3 stays open throughout.
+					sfile, err := s.Shard(3).SeriesFile()
+					require.NoError(t, err, "getting series file")
+					only := func(id int) bool {
+						return sfile.HasSeries([]byte("only"), models.NewTags(map[string]string{"id": fmt.Sprint(id)}), nil)
+					}
+					shardPath := filepath.Join(s.path, "db0", "rp0", "1")
+					walPath := filepath.Join(s.walPath, "db0", "rp0", "1")
+
+					closeShard(t, s, closedID)
+
+					// What the retention service does before it deletes a shard.
+					require.NoError(t, s.SetShardNewReadersBlocked(1, true), "blocking new readers of shard 1")
+					inUse, err := s.ShardInUse(1)
+					require.NoError(t, err, "checking whether shard 1 is in use")
+					require.False(t, inUse, "shard 1 in use")
+
+					target := s.Shard(1)
+					require.NotNil(t, target, "shard 1 before the delete")
+					require.NoError(t, s.DeleteShard(1), "DeleteShard")
+					require.Nil(t, s.Shard(1), "shard 1 after the delete")
+					require.NotContains(t, s.ShardIDs(), uint64(1), "shard IDs after the delete")
+					_, err = target.Engine()
+					require.ErrorIs(t, err, tsdb.ErrEngineClosed, "delete left shard 1 open")
+					require.NoDirExists(t, shardPath, "shard directory after the delete")
+					require.NoDirExists(t, walPath, "WAL directory after the delete")
+					require.ErrorIs(t, s.DeleteShard(1), tsdb.ErrShardNotFound, "deleting the shard again")
+
+					// No series was removed, since the closed shard's could not
+					// be read.
+					require.True(t, only(1), "series of the deleted shard was removed without comparing it with the closed shard's")
+					require.True(t, sfile.HasSeries([]byte("shared"), models.NewTags(map[string]string{"host": "a"}), nil), "shared series was removed")
+					for id := 2; id <= 3; id++ {
+						require.True(t, only(id), "series of shard %d was removed", id)
+					}
+					require.NotNil(t, s.Shard(2), "shard 2 after the delete")
+					s.MustWriteToShardString(3, "only,id=3 v=2 20") // panics if the open shard was disturbed
+				})
+			}
+		}
+	}
+}
+
+// TestStore_DeleteShard_HiddenShardIsNotGone checks what the store says about a
+// shard while a DeleteShard has it out of the store. The delete may yet put the
+// shard back, so the shard is still listed, and is reported as being deleted
+// rather than not found; the retention service drops the meta reference of a
+// shard that is not found. A second DeleteShard of the shard waits for the
+// first, then finds the shard gone or takes its own turn at it. A block on new
+// readers taken before the delete began can still be released, so it is not
+// left on a shard that is put back.
+func TestStore_DeleteShard_HiddenShardIsNotGone(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		for outcome, deleteFails := range map[string]bool{"DeleteSucceeds": false, "DeleteFails": true} {
+			t.Run(index+"/"+outcome, func(t *testing.T) {
+				s := MustOpenStore(t, index)
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				for id := uint64(1); id <= 2; id++ {
+					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+					s.MustWriteToShardString(int(id), "shared,host=a v=1 10", fmt.Sprintf("only,id=%d v=1 10", id))
+				}
+				first := s.Shard(1)
+				require.NotNil(t, first, "shard 1")
+
+				// A retention check gets as far as blocking readers of shard 1
+				// before another delete of the shard starts.
+				require.NoError(t, s.SetShardNewReadersBlocked(1, true), "blocking new readers of shard 1")
+
+				reached, release := s.holdDeleteShards(t, 1)
+				deleted := runAsync(func() error { return s.DeleteShard(1) })
+				awaitReached(t, reached[1], "DeleteShard never took shard 1 out of the store")
+
+				require.Nil(t, s.Shard(1), "shard 1 is not hidden")
+				require.ElementsMatch(t, []uint64{1, 2}, s.ShardIDs(), "shard IDs while shard 1 is hidden")
+
+				err := s.SetShardNewReadersBlocked(1, true)
+				require.ErrorIs(t, err, tsdb.ErrShardDeletion, "blocking new readers of the hidden shard")
+				require.NotErrorIs(t, err, tsdb.ErrShardNotFound, "blocking new readers of the hidden shard")
+				_, err = s.ShardInUse(1)
+				require.ErrorIs(t, err, tsdb.ErrShardDeletion, "checking whether the hidden shard is in use")
+				require.NotErrorIs(t, err, tsdb.ErrShardNotFound, "checking whether the hidden shard is in use")
+				// A second delete of the shard waits for the first, and is told
+				// neither that the shard is gone nor that it was deleted.
+				second := runAsync(func() error { return s.DeleteShard(1) })
+				requireBlocked(t, second, "a second DeleteShard of the hidden shard returned while the first was running")
+
+				// The retention check gives up and releases its block.
+				require.NoError(t, s.SetShardNewReadersBlocked(1, false), "unblocking new readers of the hidden shard")
+
+				if deleteFails {
+					first.SetEnabled(false)
+				}
+				release[1]()
+				if !deleteFails {
+					require.NoError(t, awaitResult(t, deleted, "DeleteShard"), "DeleteShard")
+					require.ErrorIs(t, awaitResult(t, second, "second DeleteShard"), tsdb.ErrShardNotFound,
+						"second DeleteShard, after the first removed the shard")
+					require.Equal(t, []uint64{2}, s.ShardIDs(), "shard IDs after the delete")
+					require.ErrorIs(t, s.SetShardNewReadersBlocked(1, true), tsdb.ErrShardNotFound, "blocking new readers of the deleted shard")
+					_, err = s.ShardInUse(1)
+					require.ErrorIs(t, err, tsdb.ErrShardNotFound, "checking whether the deleted shard is in use")
+					return
+				}
+
+				require.ErrorIs(t, awaitResult(t, deleted, "DeleteShard"), tsdb.ErrShardDisabled, "failed DeleteShard")
+				// The shard is back, so the second delete takes its own turn at
+				// it, and fails the way the first did while the shard is disabled.
+				require.ErrorIs(t, awaitResult(t, second, "second DeleteShard"), tsdb.ErrShardDisabled,
+					"second DeleteShard, after the first put the shard back")
+				first.SetEnabled(true)
+				require.Same(t, first, s.Shard(1), "shard 1 after its failed deletes")
+				require.ElementsMatch(t, []uint64{1, 2}, s.ShardIDs(), "shard IDs after the failed delete")
+
+				// The shard is back with no block left on it: one block and one
+				// unblock balance, and a second unblock has nothing to release.
+				require.NoError(t, s.SetShardNewReadersBlocked(1, true), "blocking new readers of shard 1")
+				inUse, err := s.ShardInUse(1)
+				require.NoError(t, err, "checking whether shard 1 is in use")
+				require.False(t, inUse, "shard 1 in use")
+				require.NoError(t, s.SetShardNewReadersBlocked(1, false), "unblocking new readers of shard 1")
+				require.Error(t, s.SetShardNewReadersBlocked(1, false), "a block on new readers was left on shard 1")
+			})
+		}
+	}
+}
+
+// TestStore_DeleteShard_SeriesDeletesWait checks that a DeleteMeasurement and a
+// DeleteSeries wait for a DeleteShard that is running on their database, and
+// that a DeleteShard waits for them. One that ran while the DeleteShard had its
+// shard out of the store would not see that shard, and would leave in it the
+// data it was asked to remove if the shard was then put back. Deletes on
+// another database do not wait.
+func TestStore_DeleteShard_SeriesDeletesWait(t *testing.T) {
+	t.Parallel()
+
+	ops := map[string]func(s *Store, db string) error{
+		"DeleteMeasurement": func(s *Store, db string) error { return s.DeleteMeasurement(db, "shared") },
+		"DeleteSeries": func(s *Store, db string) error {
+			return s.DeleteSeries(db, []influxql.Source{&influxql.Measurement{Name: "shared"}}, nil)
+		},
+	}
+	measurements := func(t *testing.T, s *Store, db string) []string {
+		t.Helper()
+		names, err := s.MeasurementNames(context.Background(), query.OpenAuthorizer, db, "", nil)
+		require.NoError(t, err, "listing measurements of %s", db)
+		out := make([]string, 0, len(names))
+		for _, name := range names {
+			out = append(out, string(name))
+		}
+		return out
+	}
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range ops {
+			t.Run(index+"/"+name+"/WaitsForDeleteShard", func(t *testing.T) {
+				for outcome, deleteFails := range map[string]bool{"DeleteSucceeds": false, "DeleteFails": true} {
+					t.Run(outcome, func(t *testing.T) {
+						s := MustOpenStore(t, index)
+						t.Cleanup(func() { s.CloseStore(t, index) })
+						for id := uint64(1); id <= 2; id++ {
+							require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+							s.MustWriteToShardString(int(id), "shared,host=a v=1 10", fmt.Sprintf("only%d,host=a v=1 10", id))
+						}
+						require.NoError(t, s.CreateShard("db1", "rp0", 3, true), "creating shard 3")
+						s.MustWriteToShardString(3, "shared,host=a v=1 10", "only3,host=a v=1 10")
+						first := s.Shard(1)
+						require.NotNil(t, first, "shard 1")
+
+						reached, release := s.holdDeleteShards(t, 1)
+						deleted := runAsync(func() error { return s.DeleteShard(1) })
+						awaitReached(t, reached[1], "DeleteShard never took shard 1 out of the store")
+
+						result := runAsync(func() error { return op(s, "db0") })
+						requireBlocked(t, result, name+" returned while a DeleteShard had a shard of its database hidden")
+						require.NoError(t, op(s, "db1"), "%s on another database", name)
+						require.Equal(t, []string{"only3"}, measurements(t, s, "db1"), "measurements of db1")
+
+						if !deleteFails {
+							release[1]()
+							require.NoError(t, awaitResult(t, deleted, "DeleteShard"), "DeleteShard")
+							require.NoError(t, awaitResult(t, result, name), name)
+							require.Equal(t, []string{"only2"}, measurements(t, s, "db0"), "measurements of db0")
+							return
+						}
+
+						// The delete fails and puts shard 1 back, disabled. The
+						// waiting delete then finds shard 1, the only disabled
+						// shard, and says so rather than passing it by.
+						first.SetEnabled(false)
+						release[1]()
+						require.ErrorIs(t, awaitResult(t, deleted, "DeleteShard"), tsdb.ErrShardDisabled, "failed DeleteShard")
+						require.ErrorIs(t, awaitResult(t, result, name), tsdb.ErrShardDisabled, "%s passed by the shard that was put back", name)
+
+						first.SetEnabled(true)
+						require.NoError(t, op(s, "db0"), "%s once shard 1 is enabled", name)
+						require.ElementsMatch(t, []string{"only1", "only2"}, measurements(t, s, "db0"), "measurements of db0")
+					})
+				}
+			})
+
+			t.Run(index+"/"+name+"/HoldsOffDeleteShard", func(t *testing.T) {
+				s := MustOpenStore(t, index)
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				for id := uint64(1); id <= 2; id++ {
+					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+					s.MustWriteToShardString(int(id), "shared,host=a v=1 10", fmt.Sprintf("only%d,host=a v=1 10", id))
+				}
+				require.NoError(t, s.CreateShard("db1", "rp0", 3, true), "creating shard 3")
+
+				// A write in flight on shard 2 holds the op there, after it has
+				// taken its turn on the database.
+				opHeld, endWrite := s.holdWrite(t, 2)
+				result := runAsync(func() error { return op(s, "db0") })
+				require.Eventually(t, opHeld, cancelTimeout, time.Millisecond, "%s never reached shard 2", name)
+				require.True(t, s.DatabaseDeletesLockedForTest("db0"), "%s is not holding off deletes of shards on its database", name)
+
+				deleted := runAsync(func() error { return s.DeleteShard(1) })
+				requireBlocked(t, deleted, "DeleteShard returned while "+name+" was running on its database")
+				require.NotNil(t, s.Shard(1), "DeleteShard hid its shard while %s was running", name)
+				require.NoError(t, s.DeleteShard(3), "deleting a shard of another database")
+
+				endWrite()
+				require.NoError(t, awaitResult(t, result, name), name)
+				require.NoError(t, awaitResult(t, deleted, "DeleteShard"), "DeleteShard")
+				require.Nil(t, s.Shard(1), "shard 1 after its delete")
+				require.Equal(t, []string{"only2"}, measurements(t, s, "db0"), "measurements of db0")
+			})
+		}
+	}
+}
+
+// TestStore_DeleteShard_TakesTurnsOnDatabase checks that a DeleteShard, a
+// DeleteRetentionPolicy and a DeleteDatabase each wait for a DeleteShard that
+// is running on the same database, whether that one then succeeds or fails and
+// keeps its shard, and that a DeleteShard on another database does not wait.
+func TestStore_DeleteShard_TakesTurnsOnDatabase(t *testing.T) {
+	t.Parallel()
+
+	queued := map[string]func(s *Store) error{
+		"DeleteShard":           func(s *Store) error { return s.DeleteShard(2) },
+		"DeleteRetentionPolicy": func(s *Store) error { return s.DeleteRetentionPolicy("db0", "rp0") },
+		"DeleteDatabase":        func(s *Store) error { return s.DeleteDatabase("db0") },
+	}
+	for _, index := range tsdb.RegisteredIndexes() {
+		for name, op := range queued {
+			for outcome, firstFails := range map[string]bool{"FirstSucceeds": false, "FirstFails": true} {
+				t.Run(index+"/"+name+"/"+outcome, func(t *testing.T) {
+					s := MustOpenStore(t, index)
+					t.Cleanup(func() { s.CloseStore(t, index) })
+					for id := uint64(1); id <= 2; id++ {
+						require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+						s.MustWriteToShardString(int(id), "shared,host=a v=1 10", fmt.Sprintf("only,id=%d v=1 10", id))
+					}
+					require.NoError(t, s.CreateShard("db1", "rp0", 3, true), "creating shard 3")
+					s.MustWriteToShardString(3, "other,host=a v=1 10")
+					first := s.Shard(1)
+					require.NotNil(t, first, "shard 1")
+					rpPath := filepath.Join(s.path, "db0", "rp0")
+
+					reached, release := s.holdDeleteShards(t, 1)
+					deleted := runAsync(func() error { return s.DeleteShard(1) })
+					awaitReached(t, reached[1], "DeleteShard never took shard 1 out of the store")
+
+					result := runAsync(func() error { return op(s) })
+					requireBlocked(t, result, name+" returned while a DeleteShard was running on its database")
+					require.NoError(t, s.DeleteShard(3), "deleting a shard of another database")
+
+					if firstFails {
+						first.SetEnabled(false)
+					}
+					release[1]()
+					if firstFails {
+						require.ErrorIs(t, awaitResult(t, deleted, "DeleteShard"), tsdb.ErrShardDisabled, "failed DeleteShard")
+					} else {
+						require.NoError(t, awaitResult(t, deleted, "DeleteShard"), "DeleteShard")
+					}
+
+					err := awaitResult(t, result, name)
+					if name == "DeleteShard" && firstFails {
+						// Shard 1 is back in the store, disabled, and deleting
+						// shard 2 reads its index.
+						require.ErrorIs(t, err, tsdb.ErrShardDisabled, "DeleteShard of shard 2")
+						require.Same(t, first, s.Shard(1), "shard 1 after its failed delete")
+						require.NotNil(t, s.Shard(2), "shard 2 after its failed delete")
+						return
+					}
+					require.NoError(t, err, name)
+					if name == "DeleteShard" {
+						require.Nil(t, s.Shard(1), "shard 1 after its delete")
+						require.Nil(t, s.Shard(2), "shard 2 after its delete")
+						require.NoDirExists(t, filepath.Join(rpPath, "2"), "directory of shard 2")
+						return
+					}
+					// The drop found shard 1 in the store, if its delete had
+					// put it back, and removed everything.
+					require.Zero(t, s.ShardN(), "shards after %s", name)
+					require.NoDirExists(t, rpPath, "retention policy directory after %s", name)
+					_, err = first.Engine()
+					require.ErrorIs(t, err, tsdb.ErrEngineClosed, "shard 1 left open")
+				})
+			}
+		}
+	}
+}
+
+// TestStore_DeleteShard_RolledBackDeleteKeepsSharedSeries checks that when a
+// DeleteShard fails and keeps its shard, a DeleteShard of another shard of the
+// database that was waiting for it leaves the series the two shards share.
+func TestStore_DeleteShard_RolledBackDeleteKeepsSharedSeries(t *testing.T) {
+	t.Parallel()
+
+	sharedTags := models.NewTags(map[string]string{"host": "a"})
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+			// Only shards 1 and 2 hold the series "shared".
+			for id := uint64(1); id <= 3; id++ {
+				require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+			}
+			s.MustWriteToShardString(1, "shared,host=a v=1 10", "only,id=1 v=1 10")
+			s.MustWriteToShardString(2, "shared,host=a v=1 10", "only,id=2 v=1 10")
+			s.MustWriteToShardString(3, "other,host=a v=1 10")
+			first := s.Shard(1)
+			require.NotNil(t, first, "shard 1")
+			sfile, err := s.Shard(3).SeriesFile()
+			require.NoError(t, err, "getting series file")
+			only := func(id int) bool {
+				return sfile.HasSeries([]byte("only"), models.NewTags(map[string]string{"id": fmt.Sprint(id)}), nil)
+			}
+
+			reached, release := s.holdDeleteShards(t, 1, 2)
+			deleted1 := runAsync(func() error { return s.DeleteShard(1) })
+			awaitReached(t, reached[1], "DeleteShard never took shard 1 out of the store")
+			deleted2 := runAsync(func() error { return s.DeleteShard(2) })
+			requireBlocked(t, deleted2, "DeleteShard of shard 2 returned while shard 1 was being deleted")
+
+			// The delete of shard 1 fails and puts it back.
+			first.SetEnabled(false)
+			release[1]()
+			require.ErrorIs(t, awaitResult(t, deleted1, "DeleteShard of shard 1"), tsdb.ErrShardDisabled, "failed DeleteShard")
+
+			// The delete of shard 2 has its turn now, with shard 1 in the store.
+			awaitReached(t, reached[2], "DeleteShard never took shard 2 out of the store")
+			require.Same(t, first, s.Shard(1), "shard 1 after its failed delete")
+			first.SetEnabled(true)
+			release[2]()
+			require.NoError(t, awaitResult(t, deleted2, "DeleteShard of shard 2"), "DeleteShard of shard 2")
+
+			require.True(t, sfile.HasSeries([]byte("shared"), sharedTags, nil), "series shard 1 still holds was removed")
+			require.True(t, only(1), "series only shard 1 holds was removed")
+			require.False(t, only(2), "series only the deleted shard held")
+			s.MustWriteToShardString(1, "shared,host=a v=2 20") // panics if writes are still turned away
+		})
+	}
+}
+
+// TestStore_DeleteShard_ClosingStore checks DeleteShard against a Close that
+// starts while it has its shard out of the store. A delete that then fails
+// puts the shard back for Close to close. Deletes waiting for their turn on
+// the database report ErrStoreClosed when they get it. Either way every shard
+// loads again with its series.
+func TestStore_DeleteShard_ClosingStore(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		for _, firstFails := range []bool{false, true} {
+			name := "FirstCancelled"
+			if firstFails {
+				name = "FirstFails"
+			}
+			t.Run(index+"/"+name, func(t *testing.T) {
+				s := MustOpenStore(t, index)
+				t.Cleanup(func() { s.CloseStore(t, index) })
+				for id := uint64(1); id <= 2; id++ {
+					require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+					s.MustWriteToShardString(int(id), "shared,host=a v=1 10", fmt.Sprintf("only,id=%d v=1 10", id))
+				}
+				first := s.Shard(1)
+				require.NotNil(t, first, "shard 1")
+
+				reached, release := s.holdDeleteShards(t, 1)
+				deleted := runAsync(func() error { return s.DeleteShard(1) })
+				awaitReached(t, reached[1], "DeleteShard never took shard 1 out of the store")
+				waiting := map[string]<-chan error{
+					"DeleteShard":           runAsync(func() error { return s.DeleteShard(2) }),
+					"DeleteRetentionPolicy": runAsync(func() error { return s.DeleteRetentionPolicy("db0", "rp0") }),
+					"DeleteDatabase":        runAsync(func() error { return s.DeleteDatabase("db0") }),
+				}
+				for what, ch := range waiting {
+					requireBlocked(t, ch, what+" returned while a DeleteShard was running on its database")
+				}
+
+				closed := runAsync(s.Store.Close)
+				s.waitClosing(t)
+				requireBlocked(t, closed, "Close returned while DeleteShard was running")
+
+				if firstFails {
+					first.SetEnabled(false)
+				}
+				release[1]()
+				if firstFails {
+					require.ErrorIs(t, awaitResult(t, deleted, "DeleteShard"), tsdb.ErrShardDisabled, "failed DeleteShard")
+				} else {
+					require.ErrorIs(t, awaitResult(t, deleted, "DeleteShard"), tsdb.ErrStoreClosed, "cancelled DeleteShard")
+				}
+				for what, ch := range waiting {
+					require.ErrorIs(t, awaitResult(t, ch, what), tsdb.ErrStoreClosed, "%s that waited for the database", what)
+				}
+				require.NoError(t, awaitResult(t, closed, "Close"), "Close")
+				_, err := first.Engine()
+				require.ErrorIs(t, err, tsdb.ErrEngineClosed, "shard 1 left open by Close")
+
+				require.NoError(t, s.Reopen(t), "reopening store")
+				require.Equal(t, 2, s.ShardN(), "shards after reopen")
+				sfile, err := s.Shard(2).SeriesFile()
+				require.NoError(t, err, "getting series file")
+				for id := 1; id <= 2; id++ {
+					require.True(t,
+						sfile.HasSeries([]byte("only"), models.NewTags(map[string]string{"id": fmt.Sprint(id)}), nil),
+						"series of shard %d after reopen", id)
+				}
+			})
+		}
+	}
+}
+
+// TestStore_DeleteShard_FailureStress deletes many shards of one database at
+// once, with writes to them running, first with a disabled shard in the
+// database that makes every delete fail, and then without it. Every failed
+// delete must leave its shard open in the store. Then every delete must
+// succeed, and together they must remove every series the shards held.
+func TestStore_DeleteShard_FailureStress(t *testing.T) {
+	t.Parallel()
+
+	const (
+		shardN     = 16
+		disabledID = shardN + 1
+		writeN     = 20
+	)
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := MustOpenStore(t, index)
+			t.Cleanup(func() { s.CloseStore(t, index) })
+
+			// Create the shards, and the points written during the deletes, up front.
+			shards := make([]*tsdb.Shard, shardN)
+			points := make([][]models.Point, shardN)
+			for i := range shardN {
+				id := uint64(i + 1)
+				require.NoError(t, s.CreateShard("db0", "rp0", id, true), "creating shard %d", id)
+				s.MustWriteToShardString(int(id), "shared,host=a v=1 10", fmt.Sprintf("only,id=%d v=1 10", id))
+				shards[i] = s.Shard(id)
+				require.NotNil(t, shards[i], "shard %d", id)
+				var err error
+				points[i], err = models.ParsePointsWithPrecision(
+					[]byte(fmt.Sprintf("only,id=%d v=1 20", id)), time.Time{}, "s")
+				require.NoError(t, err, "parsing points for shard %d", id)
+			}
+			require.NoError(t, s.CreateShard("db0", "rp0", disabledID, true), "creating shard %d", disabledID)
+			require.NoError(t, s.SetShardEnabled(disabledID, false), "disabling shard %d", disabledID)
+
+			// deleteAll deletes every shard at once, writing to each meanwhile if
+			// write is set, and returns the result of each delete and the
+			// failures of the writes.
+			deleteAll := func(write bool) (deleteErrs []error, writeErrs [][]error) {
+				var mu sync.RWMutex
+				var concurrency, maxConcurrency atomic.Int64
+				enter := func() {
+					c := concurrency.Add(1)
+					for {
+						old := maxConcurrency.Load()
+						if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+							break
+						}
+					}
+				}
+
+				deleteErrs = make([]error, shardN)
+				writeErrs = make([][]error, shardN)
+				var wg sync.WaitGroup
+				mu.Lock()
+				for i := range shardN {
+					id := uint64(i + 1)
+					wg.Add(1)
+					go func() {
+						mu.RLock()
+						defer mu.RUnlock()
+						defer wg.Done()
+						enter()
+						deleteErrs[i] = s.DeleteShard(id)
+						concurrency.Add(-1)
+					}()
+					if !write {
+						continue
+					}
+					wg.Add(1)
+					go func() {
+						mu.RLock()
+						defer mu.RUnlock()
+						defer wg.Done()
+						enter()
+						for range writeN {
+							if err := s.WriteToShard(tsdb.WriteContext{}, id, points[i]); err != nil {
+								writeErrs[i] = append(writeErrs[i], err)
+							}
+						}
+						concurrency.Add(-1)
+					}()
+				}
+				mu.Unlock() // Release to start all goroutines simultaneously
+				wg.Wait()
+				t.Logf("max concurrency: %d", maxConcurrency.Load())
+				return deleteErrs, writeErrs
+			}
+
+			deleteErrs, writeErrs := deleteAll(true)
+			for i, sh := range shards {
+				id := uint64(i + 1)
+				require.ErrorIs(t, deleteErrs[i], tsdb.ErrShardDisabled, "deleting shard %d", id)
+				require.Same(t, sh, s.Shard(id), "failed delete did not put shard %d back in the store", id)
+				_, err := sh.Engine()
+				require.NoError(t, err, "failed delete closed shard %d", id)
+				// A write lands, or is turned away while the delete has the shard.
+				for _, err := range writeErrs[i] {
+					require.True(t,
+						errors.Is(err, tsdb.ErrShardDeletion) || errors.Is(err, tsdb.ErrShardNotFound),
+						"write to shard %d during its delete: %v", id, err)
+				}
+				require.NoError(t, s.WriteToShard(tsdb.WriteContext{}, id, points[i]), "writing to shard %d after its failed delete", id)
+			}
+
+			require.NoError(t, s.SetShardEnabled(disabledID, true), "enabling shard %d", disabledID)
+			survivor := s.Shard(disabledID)
+			require.NotNil(t, survivor, "shard %d", disabledID)
+			sfile, err := survivor.SeriesFile()
+			require.NoError(t, err, "getting series file")
+
+			deleteErrs, _ = deleteAll(false)
+			for i := range shards {
+				id := uint64(i + 1)
+				require.NoError(t, deleteErrs[i], "deleting shard %d again", id)
+				require.Nil(t, s.Shard(id), "shard %d after its delete", id)
+				require.False(t,
+					sfile.HasSeries([]byte("only"), models.NewTags(map[string]string{"id": fmt.Sprint(id)}), nil),
+					"series only shard %d held", id)
+			}
+			require.Equal(t, 1, s.ShardN(), "shards after the deletes")
+			// Every shard that held it is gone. Deletes that did not take turns
+			// would each leave it for the others.
+			require.False(t, sfile.HasSeries([]byte("shared"), models.NewTags(map[string]string{"host": "a"}), nil),
+				"series only the deleted shards held")
+		})
+	}
 }
 
 // dumpGoroutines logs the stacks of all goroutines.

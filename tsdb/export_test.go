@@ -60,6 +60,38 @@ func (s *Store) SetDeleteShardSeriesHookForTest(fn func(removed uint64)) {
 	s.deleteShardSeriesHook = fn
 }
 
+// SetDeleteShardUnregisteredHookForTest makes DeleteShard call fn with the
+// shard's ID once it has taken the shard out of the store, before it does
+// anything else. It is not synchronized, so it must be set before any
+// DeleteShard is started.
+func (s *Store) SetDeleteShardUnregisteredHookForTest(fn func(shardID uint64)) {
+	s.deleteShardUnregisteredHook = fn
+}
+
+// DatabaseDeletesLockedForTest reports whether a DeleteShard, DeleteDatabase or
+// DeleteRetentionPolicy holds the turn of the database, which each does for as
+// long as it runs, or a DeleteMeasurement or DeleteSeries is holding them off.
+func (s *Store) DatabaseDeletesLockedForTest(database string) bool {
+	s.mu.RLock()
+	dbState := s.databases[database]
+	s.mu.RUnlock()
+	if dbState == nil {
+		return false
+	}
+	if dbState.deleteMu.TryLock() {
+		dbState.deleteMu.Unlock()
+		return false
+	}
+	return true
+}
+
+// SetRemoveAllForTest replaces the function DeleteShard removes the shard's
+// directories with, which is os.RemoveAll. It is not synchronized, so it must
+// not be set while a DeleteShard is running.
+func (s *Store) SetRemoveAllForTest(fn func(path string) error) {
+	s.removeAll = fn
+}
+
 // ClosingForTest returns a channel that is closed when a Close of the store
 // begins, which is also when deletions in progress are cancelled.
 func (s *Store) ClosingForTest() <-chan struct{} {
