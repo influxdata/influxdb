@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,7 +64,8 @@ type Partition struct {
 	// Fieldset shared with engine.
 	fieldset *tsdb.MeasurementFieldSet
 
-	currentCompactionN atomic.Int32 // counter of in-progress compactions
+	currentCompactionN atomic.Int32 // compactions whose output is not yet installed in the file set
+	runningCompactionN atomic.Int32 // compaction goroutines still running, including close/remove of replaced files
 
 	// Directory of the Partition's index files.
 	path string
@@ -132,6 +134,7 @@ func (p *Partition) bytes() int {
 	b += 12 // once sync.Once is 12 bytes
 	b += int(unsafe.Sizeof(p.closing))
 	b += int(unsafe.Sizeof(p.currentCompactionN))
+	b += int(unsafe.Sizeof(p.runningCompactionN))
 	b += int(unsafe.Sizeof(p.fieldset)) + p.fieldset.Bytes()
 	b += int(unsafe.Sizeof(p.path)) + len(p.path)
 	b += int(unsafe.Sizeof(p.id)) + len(p.id)
@@ -338,14 +341,25 @@ func (p *Partition) buildSeriesSet() error {
 	return nil
 }
 
-// CurrentCompactionN returns the number of compactions currently running.
+// CurrentCompactionN returns the number of running compactions that have not
+// yet installed their output in the file set (or failed).
 func (p *Partition) CurrentCompactionN() int32 {
 	return p.currentCompactionN.Load()
 }
 
-// Wait will block until all compactions are finished.
-// Must only be called while they are disabled.
-func (p *Partition) Wait() {
+// Wait will block until every running compaction has installed its output in
+// the file set or failed. Files replaced by those compactions may still be
+// waiting for readers to release them; Close waits for that cleanup.
+// Must only be called while compactions are disabled. Wait returns early with
+// the cause of ctx's cancellation if ctx is cancelled first.
+func (p *Partition) Wait(ctx context.Context) error {
+	return p.waitForZero(ctx, &p.currentCompactionN, "compactions to install", "stuck_compactions")
+}
+
+// waitForZero polls n until it reaches zero, logging a warning naming what,
+// with n's value under countKey, every 24 hours it remains non-zero. It
+// returns the cause of ctx's cancellation if ctx is cancelled before then.
+func (p *Partition) waitForZero(ctx context.Context, n *atomic.Int32, what, countKey string) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -354,19 +368,25 @@ func (p *Partition) Wait() {
 	startTime := time.Now()
 
 	for {
-		if p.CurrentCompactionN() == 0 {
-			return
+		if n.Load() == 0 {
+			return nil
 		}
 		select {
+		case <-ctx.Done():
+			return fmt.Errorf("partition %s: waiting for %s: %w", p.path, what, context.Cause(ctx))
 		case <-ticker.C:
 			elapsed := time.Since(startTime)
 			if elapsed >= timeoutDuration {
 				files := make([]string, 0)
-				for _, v := range p.fileSet.Files() {
-					files = append(files, v.Path())
+				p.mu.RLock()
+				if p.fileSet != nil {
+					for _, v := range p.fileSet.Files() {
+						files = append(files, v.Path())
+					}
 				}
-				p.logger.Warn("Partition.Wait() timed out waiting for compactions to complete",
-					zap.Int32("stuck_compactions", p.CurrentCompactionN()), zap.Duration("timeout", timeoutDuration),
+				p.mu.RUnlock()
+				p.logger.Warn("Partition timed out waiting for "+what,
+					zap.Int32(countKey, n.Load()), zap.Duration("timeout", timeoutDuration),
 					zap.Strings("files", files))
 				startTime = time.Now()
 			}
@@ -376,12 +396,31 @@ func (p *Partition) Wait() {
 
 // Close closes the index.
 func (p *Partition) Close() error {
-	// Wait for goroutines to finish outstanding compactions.
+	// Mark closing under p.mu: compact() checks isClosing and counts its
+	// goroutine under p.mu, so after this no new compaction can start and every
+	// one that already passed the check is counted.
+	p.mu.Lock()
 	p.once.Do(func() {
 		close(p.closing)
 		close(p.compactionInterrupt)
 	})
-	p.Wait()
+	p.mu.Unlock()
+
+	// Wait for goroutines to finish outstanding compactions. The wait below
+	// covers this one, but a compaction stuck before installing its output is
+	// then reported as that, not as a reader holding replaced files.
+	// Close is not cancellable, so these waits only return once the count is zero.
+	closeCtx := context.Background()
+	if err := p.Wait(closeCtx); err != nil {
+		return err
+	}
+	// Wait for compaction goroutines to finish closing and removing the files
+	// they replaced, so nothing touches the partition directory after Close.
+	if err := p.waitForZero(closeCtx, &p.runningCompactionN,
+		"compaction goroutines to exit (replaced files may still be referenced by a reader)",
+		"compactions_pending_reclaim"); err != nil {
+		return err
+	}
 
 	// Lock index and close remaining
 	p.mu.Lock()
@@ -1038,20 +1077,7 @@ func (p *Partition) compact() {
 			if p.levelCompacting[0] {
 				break
 			}
-			// Mark the level as compacting.
-			p.levelCompacting[0] = true
-			p.currentCompactionN.Add(1)
-			go func() {
-				defer func() {
-					p.mu.Lock()
-					p.currentCompactionN.Add(-1)
-					p.levelCompacting[0] = false
-					p.mu.Unlock()
-					p.Compact()
-				}()
-
-				p.compactLogFile(logFile)
-			}()
+			p.startCompaction(0, func(installed func()) { p.compactLogFile(logFile, installed) })
 		}
 	}
 
@@ -1076,35 +1102,45 @@ func (p *Partition) compact() {
 		// Retain files during compaction.
 		IndexFiles(files).Retain()
 
-		// Mark the level as compacting.
-		p.levelCompacting[level] = true
-
-		// Execute in closure to save reference to the group within the loop.
-		func(files []*IndexFile, level int) {
-			// Start compacting in a separate goroutine.
-			p.currentCompactionN.Add(1)
-			go func() {
-				defer func() {
-					// Ensure compaction lock for the level is released.
-					p.mu.Lock()
-					p.levelCompacting[level] = false
-					p.currentCompactionN.Add(-1)
-					p.mu.Unlock()
-
-					// Check for new compactions
-					p.Compact()
-				}()
-
-				// Compact to a new level.
-				p.compactToLevel(files, level+1, interrupt)
-			}()
-		}(files, level)
+		// Compact to a new level.
+		p.startCompaction(level, func(installed func()) { p.compactToLevel(files, level+1, interrupt, installed) })
 	}
+}
+
+// startCompaction marks level as compacting and runs fn in a new goroutine,
+// counting it in currentCompactionN and runningCompactionN. fn calls installed
+// once its output is in the file set, which stops it counting toward Wait():
+// closing the files it replaced waits for readers, and a reader may itself be
+// waiting in Wait() (series deletion). A compaction that fails stops counting
+// when fn returns. Must be called with p.mu held.
+func (p *Partition) startCompaction(level int, fn func(installed func())) {
+	p.levelCompacting[level] = true
+	p.currentCompactionN.Add(1)
+	p.runningCompactionN.Add(1)
+	go func() {
+		installed := sync.OnceFunc(func() { p.currentCompactionN.Add(-1) })
+		defer func() {
+			installed()
+
+			// Ensure compaction lock for the level is released.
+			p.mu.Lock()
+			p.levelCompacting[level] = false
+			p.mu.Unlock()
+
+			// Check for new compactions
+			p.Compact()
+			// Decrement after Compact so Close cannot return while this
+			// goroutine may still schedule work on the partition.
+			p.runningCompactionN.Add(-1)
+		}()
+		fn(installed)
+	}()
 }
 
 // compactToLevel compacts a set of files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
-func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-chan struct{}) {
+// It calls installed once the new file is in the file set.
+func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-chan struct{}, installed func()) {
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
@@ -1197,6 +1233,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		log.Error("Cannot write manifest", zap.Error(err))
 		return
 	}
+	installed()
 
 	elapsed := time.Since(start)
 	log.Info("Full compaction complete",
@@ -1209,16 +1246,15 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	// Release old files.
 	once.Do(func() { IndexFiles(files).Release() })
 
-	// Close and delete all old index files.
+	// Close and delete all old index files. Keep going past a failure so one
+	// bad file does not leave the rest open and on disk.
 	for _, f := range files {
 		log.Info("Removing index file", zap.String("path", f.Path()))
 
 		if err := f.Close(); err != nil {
-			log.Error("Cannot close index file", zap.Error(err))
-			return
+			log.Error("Cannot close index file", zap.String("path", f.Path()), zap.Error(err))
 		} else if err := os.Remove(f.Path()); err != nil {
-			log.Error("Cannot remove index file", zap.Error(err))
-			return
+			log.Error("Cannot remove index file", zap.String("path", f.Path()), zap.Error(err))
 		}
 	}
 }
@@ -1271,7 +1307,8 @@ func (p *Partition) checkLogFile() error {
 // compactLogFile compacts f into a tsi file. The new file will share the
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
-func (p *Partition) compactLogFile(logFile *LogFile) {
+// It calls installed once the new file is in the file set.
+func (p *Partition) compactLogFile(logFile *LogFile, installed func()) {
 	if p.isClosing() {
 		return
 	}
@@ -1356,6 +1393,7 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		log.Error("Cannot update manifest", zap.Error(err))
 		return
 	}
+	installed()
 
 	elapsed := time.Since(start)
 	log.Info("Log file compacted",

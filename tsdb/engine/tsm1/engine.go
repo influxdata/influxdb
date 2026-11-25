@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1483,15 +1484,19 @@ func (e *Engine) WritePoints(points []models.Point, tracker tsdb.StatsTracker) e
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
-func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
-	return e.DeleteSeriesRangeWithPredicate(itr, func(name []byte, tags models.Tags) (int64, int64, bool) {
+func (e *Engine) DeleteSeriesRange(ctx context.Context, itr tsdb.SeriesIterator, min, max int64) error {
+	return e.DeleteSeriesRangeWithPredicate(ctx, itr, func(name []byte, tags models.Tags) (int64, int64, bool) {
 		return min, max, true
 	})
 }
 
 // DeleteSeriesRangeWithPredicate removes the values between min and max (inclusive) from all series
 // for which predicate() returns true. If predicate() is nil, then all values in range are removed.
-func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
+//
+// Series are deleted in batches. If ctx is cancelled the delete stops before
+// the next batch and returns the cancellation cause: batches already applied
+// stay deleted, and the remaining series are untouched.
+func (e *Engine) DeleteSeriesRangeWithPredicate(ctx context.Context, itr tsdb.SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
 	var disableOnce bool
 
 	// Ensure that the index does not compact away the measurement or series we're
@@ -1499,7 +1504,9 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 	if tsiIndex, ok := e.index.(*tsi1.Index); ok {
 		tsiIndex.DisableCompactions()
 		defer tsiIndex.EnableCompactions()
-		tsiIndex.Wait()
+		if err := tsiIndex.Wait(ctx); err != nil {
+			return fmt.Errorf("deleting series in shard %d: %w", e.id, err)
+		}
 
 		fs, err := tsiIndex.RetainFileSet()
 		if err != nil {
@@ -1528,6 +1535,12 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 	batch := make([][]byte, 0, 10000)
 	for {
+		// Nothing in the pending batch has been applied yet, so stopping here
+		// leaves only whole batches deleted.
+		if ctx.Err() != nil {
+			return fmt.Errorf("deleting series in shard %d: %w", e.id, context.Cause(ctx))
+		}
+
 		elem, err := itr.Next()
 		if err != nil {
 			return err
@@ -1566,7 +1579,9 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 			e.sfile.DisableCompactions()
 			defer e.sfile.EnableCompactions()
-			e.sfile.Wait()
+			if err := e.sfile.Wait(ctx); err != nil {
+				return fmt.Errorf("deleting series in shard %d: %w", e.id, err)
+			}
 
 			disableOnce = true
 		}
@@ -1641,6 +1656,105 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		bytesutil.Sort(seriesKeys)
 	}
 
+	// Remove the data, then the series left without data from the local
+	// index, then the measurements left without series from the index and
+	// the field set, and save their deletion, all with the field set's
+	// Close held off. The engine closes the field set before the TSM files
+	// and the WAL, so they stay open as well. If the field set is already
+	// closed, nothing changes: the data, the series, and their measurements
+	// are all still there for a retried delete to find. Once the series
+	// are gone from the index, a failure to drop one measurement does not
+	// stop the others from being tried, and the series are still removed
+	// from the series file below rather than orphaned there, with
+	// measurementErr returned after.
+	// droppedIDs holds the series dropped from the index, once they are.
+	var droppedIDs []uint64
+	measurementErr := e.fieldset.SaveAfter(func() (tsdb.FieldChanges, error) {
+		deleteKeys, err := e.deleteSeriesData(seriesKeys, min, max)
+		if err != nil {
+			return nil, err
+		}
+		// The series are deleted on disk, but the index may still say
+		// they exist.
+		deleteIDList, deleteKeyList, measurements, err := e.seriesWithoutData(seriesKeys, deleteKeys)
+		if err != nil || len(deleteIDList) == 0 {
+			return nil, err
+		}
+		if err := e.index.DropSeriesList(deleteIDList, deleteKeyList, false); err != nil {
+			return nil, fmt.Errorf("dropping %d series from the index: %w", len(deleteIDList), err)
+		}
+		droppedIDs = deleteIDList
+		var errs []error
+		actuallyDeleted := make([]string, 0, len(measurements))
+		for k := range measurements {
+			if dropped, err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
+				errs = append(errs, fmt.Errorf("dropping measurement %q from the index: %w", k, err))
+			} else if dropped {
+				if deleted, err := e.cleanupMeasurement([]byte(k)); err != nil {
+					errs = append(errs, fmt.Errorf("deleting fields of measurement %q: %w", k, err))
+				} else if deleted {
+					actuallyDeleted = append(actuallyDeleted, k)
+				}
+			}
+		}
+		return tsdb.MeasurementsToFieldChangeDeletions(actuallyDeleted), errors.Join(errs...)
+	})
+	if measurementErr != nil {
+		measurementErr = fmt.Errorf("deleting %d series in shard %s: %w", len(seriesKeys), e.path, measurementErr)
+	}
+	if len(droppedIDs) == 0 {
+		return measurementErr
+	}
+
+	ids := tsdb.NewSeriesIDSet(droppedIDs...)
+
+	// Remove any series IDs for our set that still exist in other shards.
+	// We cannot remove these from the series file yet.
+	if err := e.seriesIDSets.ForEach(func(s *tsdb.SeriesIDSet) {
+		ids = ids.AndNot(s)
+	}); err != nil {
+		return errors.Join(measurementErr, err)
+	}
+
+	// Remove the remaining ids from the series file as they no longer exist
+	// in any shard.
+	var err error
+	var partitionIDs = make(map[int]struct{}, tsdb.SeriesFilePartitionN)
+	ids.ForEach(func(id uint64) {
+		name, tags := e.sfile.Series(id)
+		part, err1 := e.sfile.DeleteSeriesID(id, tsdb.NoFlush)
+		if err1 != nil {
+			err = err1
+			return
+		}
+		partitionIDs[part.ID()] = struct{}{}
+
+		// In the case of the inmem index the series can be removed across
+		// the global index (all shards).
+		if index, ok := e.index.(*inmem.ShardIndex); ok {
+			key := models.MakeKey(name, tags)
+			if e := index.Index.DropSeriesGlobal(key); e != nil {
+				err = e
+			}
+		}
+	})
+	if err != nil {
+		return errors.Join(measurementErr, err)
+	}
+
+	if err := e.sfile.FlushSegments(partitionIDs); err != nil {
+		e.sfile.Logger.Error(
+			"error while flushing a series file segment",
+			zap.String("series_file_path", e.sfile.Path()),
+			zap.Error(err))
+	}
+	return measurementErr
+}
+
+// deleteSeriesData removes the values between min and max (inclusive) of the
+// series in seriesKeys, which must be sorted, from the TSM files, the cache,
+// and the WAL. It returns the sorted cache keys of those series.
+func (e *Engine) deleteSeriesData(seriesKeys [][]byte, min, max int64) (deleteKeys [][]byte, err error) {
 	// Run the delete on each TSM file in parallel
 	if err := e.FileStore.Apply(func(r TSMFile) error {
 		// See if this TSM file contains the keys and time range
@@ -1680,11 +1794,11 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 		return batch.Commit()
 	}); err != nil {
-		return err
+		return nil, fmt.Errorf("deleting %d series from TSM files: %w", len(seriesKeys), err)
 	}
 
 	// find the keys in the cache and remove them
-	deleteKeys := make([][]byte, 0, len(seriesKeys))
+	deleteKeys = make([][]byte, 0, len(seriesKeys))
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
@@ -1708,10 +1822,17 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// delete from the WAL
 	if e.WALEnabled {
 		if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
-			return err
+			return nil, fmt.Errorf("deleting %d keys from the WAL: %w", len(deleteKeys), err)
 		}
 	}
+	return deleteKeys, nil
+}
 
+// seriesWithoutData finds which of the series in seriesKeys have no data left
+// in the TSM files or the cache, after deleteSeriesData removed the cache
+// keys in deleteKeys. It returns their series file ids and keys, and their
+// measurements. It crosses out the entries of seriesKeys that still have data.
+func (e *Engine) seriesWithoutData(seriesKeys, deleteKeys [][]byte) (deleteIDList []uint64, deleteKeyList [][]byte, measurements map[string]struct{}, err error) {
 	// The series are deleted on disk, but the index may still say they exist.
 	// Depending on the the min,max time passed in, the series may or not actually
 	// exists now.  To reconcile the index, we walk the series keys that still exists
@@ -1768,7 +1889,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		}
 		return nil
 	}); err != nil {
-		return err
+		return nil, nil, nil, fmt.Errorf("finding which of %d series still have data in TSM files: %w", len(seriesKeys), err)
 	}
 
 	// The seriesKeys slice is mutated if they are still found in the cache.
@@ -1789,126 +1910,53 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		}
 	}
 
-	// Have we deleted all values for the series? If so, we need to remove
-	// the series from the index.
-	hasDeleted := false
+	// The series not crossed out have no values left, and need to be
+	// removed from the index. Often there are none, as when a delete
+	// leaves data outside its time range in every series.
+	if !slices.ContainsFunc(seriesKeys, func(k []byte) bool { return len(k) > 0 }) {
+		return nil, nil, nil, nil
+	}
+	buf := make([]byte, 1024) // For use when accessing series file.
+	measurements = make(map[string]struct{}, 1)
+
+	deleteIDList = make([]uint64, 0, 10000)
+	deleteKeyList = make([][]byte, 0, 10000)
+
 	for _, k := range seriesKeys {
-		if len(k) > 0 {
-			hasDeleted = true
-			break
+		if len(k) == 0 {
+			continue // This key was wiped because it shouldn't be removed from index.
 		}
+
+		name, tags := models.ParseKeyBytes(k)
+		sid := e.sfile.SeriesID(name, tags, buf)
+		if sid == 0 {
+			continue
+		}
+
+		// See if this series was found in the cache earlier
+		i := bytesutil.SearchBytes(deleteKeys, k)
+
+		var hasCacheValues bool
+		// If there are multiple fields, they will have the same prefix.  If any field
+		// has values, then we can't delete it from the index.
+		for i < len(deleteKeys) && bytes.HasPrefix(deleteKeys[i], k) {
+			if e.Cache.Values(deleteKeys[i]).Len() > 0 {
+				hasCacheValues = true
+				break
+			}
+			i++
+		}
+
+		if hasCacheValues {
+			continue
+		}
+
+		// Insert deleting series info into queue
+		measurements[string(name)] = struct{}{}
+		deleteIDList = append(deleteIDList, sid)
+		deleteKeyList = append(deleteKeyList, k)
 	}
-	if hasDeleted {
-		buf := make([]byte, 1024) // For use when accessing series file.
-		ids := tsdb.NewSeriesIDSet()
-		measurements := make(map[string]struct{}, 1)
-
-		deleteIDList := make([]uint64, 0, 10000)
-		deleteKeyList := make([][]byte, 0, 10000)
-
-		for _, k := range seriesKeys {
-			if len(k) == 0 {
-				continue // This key was wiped because it shouldn't be removed from index.
-			}
-
-			name, tags := models.ParseKeyBytes(k)
-			sid := e.sfile.SeriesID(name, tags, buf)
-			if sid == 0 {
-				continue
-			}
-
-			// See if this series was found in the cache earlier
-			i := bytesutil.SearchBytes(deleteKeys, k)
-
-			var hasCacheValues bool
-			// If there are multiple fields, they will have the same prefix.  If any field
-			// has values, then we can't delete it from the index.
-			for i < len(deleteKeys) && bytes.HasPrefix(deleteKeys[i], k) {
-				if e.Cache.Values(deleteKeys[i]).Len() > 0 {
-					hasCacheValues = true
-					break
-				}
-				i++
-			}
-
-			if hasCacheValues {
-				continue
-			}
-
-			// Insert deleting series info into queue
-			measurements[string(name)] = struct{}{}
-			deleteIDList = append(deleteIDList, sid)
-			deleteKeyList = append(deleteKeyList, k)
-
-			// Add the id to the set of delete ids.
-			ids.Add(sid)
-		}
-		// Remove the series from the local index.
-		if err := e.index.DropSeriesList(deleteIDList, deleteKeyList, false); err != nil {
-			return err
-		}
-
-		actuallyDeleted := make([]string, 0, len(measurements))
-		for k := range measurements {
-			if dropped, err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
-				return err
-			} else if dropped {
-				if deleted, err := e.cleanupMeasurement([]byte(k)); err != nil {
-					return err
-				} else if deleted {
-					actuallyDeleted = append(actuallyDeleted, k)
-				}
-			}
-		}
-		if len(actuallyDeleted) > 0 {
-			if err := e.fieldset.Save(tsdb.MeasurementsToFieldChangeDeletions(actuallyDeleted)); err != nil {
-				return err
-			}
-		}
-
-		// Remove any series IDs for our set that still exist in other shards.
-		// We cannot remove these from the series file yet.
-		if err := e.seriesIDSets.ForEach(func(s *tsdb.SeriesIDSet) {
-			ids = ids.AndNot(s)
-		}); err != nil {
-			return err
-		}
-
-		// Remove the remaining ids from the series file as they no longer exist
-		// in any shard.
-		var err error
-		var partitionIDs = make(map[int]struct{}, tsdb.SeriesFilePartitionN)
-		ids.ForEach(func(id uint64) {
-			name, tags := e.sfile.Series(id)
-			part, err1 := e.sfile.DeleteSeriesID(id, tsdb.NoFlush)
-			if err1 != nil {
-				err = err1
-				return
-			}
-			partitionIDs[part.ID()] = struct{}{}
-
-			// In the case of the inmem index the series can be removed across
-			// the global index (all shards).
-			if index, ok := e.index.(*inmem.ShardIndex); ok {
-				key := models.MakeKey(name, tags)
-				if e := index.Index.DropSeriesGlobal(key); e != nil {
-					err = e
-				}
-			}
-		})
-		if err != nil {
-			return err
-		}
-
-		if err := e.sfile.FlushSegments(partitionIDs); err != nil {
-			e.sfile.Logger.Error(
-				"error while flushing a series file segment",
-				zap.String("series_file_path", e.sfile.Path()),
-				zap.Error(err))
-		}
-	}
-
-	return nil
+	return deleteIDList, deleteKeyList, measurements, nil
 }
 
 func (e *Engine) cleanupMeasurement(name []byte) (deleted bool, err error) {
@@ -1949,7 +1997,7 @@ func (e *Engine) cleanupMeasurement(name []byte) (deleted bool, err error) {
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name []byte) error {
+func (e *Engine) DeleteMeasurement(ctx context.Context, name []byte) error {
 	// Attempt to find the series keys.
 	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
@@ -1959,7 +2007,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return nil
 	}
 	defer itr.Close()
-	return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
+	return e.DeleteSeriesRange(ctx, tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
 }
 
 // ForEachMeasurementName iterates over each measurement name in the engine.

@@ -219,8 +219,15 @@ func (e *exporter) getShards(min, max time.Time) ([]*tsdb.Shard, error) {
 	return e.openStoreWithShardsIDs(ids)
 }
 
+// openStoreWithShardsIDs closes the store and opens it again with only the
+// shards in ids.
 func (e *exporter) openStoreWithShardsIDs(ids []uint64) ([]*tsdb.Shard, error) {
-	e.tsdbStore.Close()
+	// A store whose Close failed still counts as open, so Open would return
+	// without loading these shards, leaving the ones that did close.
+	if err := e.tsdbStore.Close(); err != nil {
+		return nil, fmt.Errorf("closing store %s to reopen it with %d shards of %s.%s: %w",
+			e.tsdbStore.Path(), len(ids), e.db, e.rp, err)
+	}
 	e.tsdbStore.EngineOptions.ShardFilter = func(_, _ string, id uint64) bool {
 		for i := range ids {
 			if id == ids[i] {
@@ -230,7 +237,8 @@ func (e *exporter) openStoreWithShardsIDs(ids []uint64) ([]*tsdb.Shard, error) {
 		return false
 	}
 	if err := e.tsdbStore.Open(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reopening store %s with %d shards of %s.%s: %w",
+			e.tsdbStore.Path(), len(ids), e.db, e.rp, err)
 	}
 	return e.tsdbStore.Shards(ids), nil
 }

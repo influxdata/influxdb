@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -412,11 +413,18 @@ func (i *Index) DisableCompactions() {
 	}
 }
 
-// Wait blocks until all outstanding compactions have completed.
-func (i *Index) Wait() {
+// Wait blocks until every outstanding compaction has installed its output in
+// its partition's file set or failed. Files replaced by those compactions may
+// still be open and on disk, waiting for readers to release them; Close waits
+// for that cleanup. Wait returns early with the cause of ctx's cancellation if
+// ctx is cancelled first.
+func (i *Index) Wait(ctx context.Context) error {
 	for _, p := range i.partitions {
-		p.Wait()
+		if err := p.Wait(ctx); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // Close closes the index.

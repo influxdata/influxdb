@@ -2,9 +2,12 @@ package tsdb_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"testing"
 
 	"github.com/influxdata/influxdb/logger"
@@ -373,6 +376,37 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+// TestSeriesFile_Wait_Cancel checks that cancelling its context ends
+// SeriesFile.Wait while a reader holds the file, and that the file stays usable
+// after the abandoned wait: readers can retain it again, an uncancelled Wait
+// returns once they release, and Close succeeds.
+func TestSeriesFile_Wait_Cancel(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	closeFile := sync.OnceValue(sfile.Close)
+	t.Cleanup(func() { require.NoError(t, closeFile(), "closing series file") })
+
+	release := sync.OnceFunc(sfile.Retain())
+	// Runs before the Close above, which waits for readers.
+	t.Cleanup(release)
+
+	errStop := errors.New("stop waiting")
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	waited := runAsync(func() error { return sfile.Wait(ctx) })
+	requireBlocked(t, waited, "Wait returned while a reader held the file")
+
+	cancel(errStop)
+	require.ErrorIs(t, awaitResult(t, waited, "cancelled Wait"), errStop, "cancelled Wait")
+
+	// The abandoned wait must not leave the file locked against readers.
+	release()
+	retained := runAsync(func() error { sfile.Retain()(); return nil })
+	require.NoError(t, awaitResult(t, retained, "Retain after a cancelled Wait"))
+
+	require.NoError(t, sfile.Wait(context.Background()), "Wait with no readers")
+	require.NoError(t, closeFile(), "closing series file")
 }
 
 func TestSeriesFile_FlushSegments(t *testing.T) {

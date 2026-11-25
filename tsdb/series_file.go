@@ -2,6 +2,7 @@ package tsdb
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -159,10 +160,24 @@ func (f *SeriesFile) DisableCompactions() {
 	}
 }
 
-// Wait waits for all Retains to be released.
-func (f *SeriesFile) Wait() {
-	f.refs.Lock()
-	defer f.refs.Unlock()
+// Wait waits for all Retains to be released. It returns early with the cause
+// of ctx's cancellation if ctx is cancelled first.
+func (f *SeriesFile) Wait(ctx context.Context) error {
+	// Lock rather than poll TryLock: a pending Lock holds off new Retains, so a
+	// steady stream of readers cannot starve the wait. If ctx is cancelled the
+	// goroutine ends when the current readers release.
+	released := make(chan struct{})
+	go func() {
+		f.refs.Lock()
+		defer f.refs.Unlock()
+		close(released)
+	}()
+	select {
+	case <-released:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("series file %s: waiting for readers: %w", f.path, context.Cause(ctx))
+	}
 }
 
 // FileSize returns the size of all partitions, in bytes.

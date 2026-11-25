@@ -2,6 +2,7 @@
 package buildtsi
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -449,7 +450,9 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 	// Attempt to compact the index & wait for all compactions to complete.
 	log.Info("compacting index")
 	tsiIndex.Compact()
-	tsiIndex.Wait()
+	if err := tsiIndex.Wait(context.Background()); err != nil {
+		return errors.Join(fmt.Errorf("waiting for index compactions in %s: %w", tmpPath, err), tsiIndex.Close())
+	}
 
 	// Close TSI index.
 	log.Info("Closing tsi index")
@@ -466,7 +469,9 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 		return err
 	}
 	compactingIndex.Compact()
-	compactingIndex.Wait()
+	if err := compactingIndex.Wait(context.Background()); err != nil {
+		return errors.Join(fmt.Errorf("waiting for index compactions in %s: %w", tmpPath, err), compactingIndex.Close())
+	}
 	// Close TSI index.
 	log.Info("re-closing tsi index")
 	if err := compactingIndex.Close(); err != nil {
