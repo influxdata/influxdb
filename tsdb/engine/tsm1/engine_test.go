@@ -1533,6 +1533,120 @@ func TestEngine_DeleteSeriesRange_FieldSetClosed_Retry(t *testing.T) {
 	}
 }
 
+// failFirstMeasurementDropIndex fails the first DropMeasurementIfSeriesNotExist
+// call with err, whichever measurement it is for, and passes every other call
+// through. The engine walks the measurements of a delete in map order, so
+// failing the first call is what guarantees the others come after a failure.
+// It is not safe for concurrent use.
+type failFirstMeasurementDropIndex struct {
+	tsdb.Index
+	err    error
+	failed string   // measurement of the failed call
+	names  []string // measurement of every call, in order
+}
+
+func (i *failFirstMeasurementDropIndex) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
+	i.names = append(i.names, string(name))
+	if len(i.names) == 1 {
+		i.failed = string(name)
+		return false, i.err
+	}
+	return i.Index.DropMeasurementIfSeriesNotExist(name)
+}
+
+// TestEngine_DeleteSeriesRange_MeasurementDropFails deletes the only series of
+// several measurements when dropping one of those measurements from the index
+// fails, after the series are already gone from the index. The delete must
+// return that failure, and still try every other measurement, persist the
+// field deletions of those it dropped, and remove all the series, the failed
+// measurement's included, from the series file.
+//
+// Wrapping the index hides its concrete type from the engine, so the delete
+// here does not pause TSI compactions or drop series from the database-wide
+// inmem index. The assertions keep to the shard's series id set, the series
+// file, the field set, and the data.
+func TestEngine_DeleteSeriesRange_MeasurementDropFails(t *testing.T) {
+	const ts = 1000000000
+	measurements := []string{"cpu", "disk", "mem", "net"}
+	const kept = "keep"
+	errInjected := errors.New("injected measurement drop failure")
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			e, err := NewEngine(index)
+			require.NoError(t, err)
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			require.NoError(t, e.Open())
+			defer func() { tassert.NoError(t, e.Close()) }()
+
+			// The engine is empty, so this only swaps in the failing index.
+			failing := &failFirstMeasurementDropIndex{Index: e.index, err: errInjected}
+			require.NoError(t, e.LoadMetadataIndex(1, failing))
+
+			seriesKey := func(measurement string) string { return measurement + ",host=A" }
+			points := make([]string, 0, len(measurements)+1)
+			for _, m := range append([]string{kept}, measurements...) {
+				points = append(points, fmt.Sprintf("%s value=1.1 %d", seriesKey(m), ts))
+			}
+			require.NoError(t, e.WritePointsString(points...))
+			for _, m := range append([]string{kept}, measurements...) {
+				saveFloatField(t, e, m, "value")
+			}
+			// Half of the deleted series go to a TSM file, half stay in the cache.
+			require.NoError(t, e.WriteSnapshot())
+			require.NoError(t, e.WritePointsString(
+				fmt.Sprintf("%s value=1.2 %d", seriesKey("mem"), ts+1),
+				fmt.Sprintf("%s value=1.2 %d", seriesKey("net"), ts+1),
+			))
+
+			sids := make(map[string]uint64, len(measurements))
+			keys := make([][]byte, 0, len(measurements))
+			for _, m := range measurements {
+				name, tags := models.ParseKeyBytes([]byte(seriesKey(m)))
+				sids[m] = e.sfile.SeriesID(name, tags, nil)
+				require.NotZero(t, sids[m], "series %s not in the series file", seriesKey(m))
+				require.True(t, e.index.SeriesIDSet().Contains(sids[m]), "series %s not in the index", seriesKey(m))
+				keys = append(keys, []byte(seriesKey(m)))
+			}
+
+			err = e.DeleteSeriesRange(context.Background(), &seriesIterator{keys: keys}, math.MinInt64, math.MaxInt64)
+			require.ErrorIs(t, err, errInjected)
+			require.NotEmpty(t, failing.failed, "no measurement drop was attempted")
+			require.ErrorContains(t, err, fmt.Sprintf("dropping measurement %q from the index", failing.failed))
+			require.ElementsMatch(t, measurements, failing.names, "every measurement is tried once, despite the failure of %s", failing.failed)
+
+			// What holds straight after the delete must still hold once the
+			// engine is rebuilt from disk.
+			check := func(t *testing.T, when string) {
+				t.Helper()
+				for _, m := range measurements {
+					require.False(t, seriesHasValues(t, e, seriesKey(m), "value", ts), "%s: data of %s left", when, seriesKey(m))
+					require.False(t, seriesHasValues(t, e, seriesKey(m), "value", ts+1), "%s: data of %s left", when, seriesKey(m))
+					require.True(t, e.sfile.IsDeleted(sids[m]), "%s: series %s left in the series file", when, seriesKey(m))
+					if m == failing.failed {
+						// The measurement was never dropped, so its fields were
+						// not deleted either. Nothing here retries the drop.
+						require.NotNil(t, e.MeasurementFieldSet().FieldsByString(m), "%s: fields of %s deleted though its drop failed", when, m)
+					} else {
+						require.Nil(t, e.MeasurementFieldSet().FieldsByString(m), "%s: fields of %s left", when, m)
+					}
+				}
+				require.True(t, seriesHasValues(t, e, seriesKey(kept), "value", ts), "%s: data of %s removed", when, seriesKey(kept))
+				require.NotNil(t, e.MeasurementFieldSet().FieldsByString(kept), "%s: fields of %s removed", when, kept)
+			}
+			check(t, "after the delete")
+			for _, m := range measurements {
+				require.False(t, e.index.SeriesIDSet().Contains(sids[m]), "series %s left in the index", seriesKey(m))
+			}
+
+			require.NoError(t, e.Reopen())
+			e.CompactionPlan = &mockPlanner{}
+			check(t, "after a reopen")
+		})
+	}
+}
+
 // TestEngine_DeleteSeriesRange_FieldSetCloseStress races deletes of series
 // held only in the cache, each the only series of its measurement, against
 // the close of the field set, which starts once the first delete has
