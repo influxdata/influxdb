@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/check/checktest"
 	"github.com/influxdata/influxdb/v2/kit/exit"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/stretchr/testify/require"
 	bbolt "go.etcd.io/bbolt"
 )
@@ -295,6 +296,55 @@ func TestLauncher_StartupFailure_PriorVersion(t *testing.T) {
 		"the status must be pinned once, not layered")
 
 	assertEngineFailure(t, l)
+}
+
+// TestLauncher_StartupFailure_EngineConfig covers a storage config whose values
+// each parse but do not make sense together. Only the engine's own validation
+// can see that, and it runs after the HTTP server is up, so the failure has to
+// be reported the way an unparseable value is: as a configuration error, on
+// the engine, and in terms of the option names 2.x actually has.
+func TestLauncher_StartupFailure_EngineConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		set     func(c *tsdb.Config)
+		wantErr error
+	}{
+		{
+			name: "max size without a target hit rate",
+			set: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheMaxSize = 1000
+			},
+			wantErr: tsdb.ErrAdaptiveCacheSizingPairing,
+		},
+		{
+			name: "pair with the cache disabled",
+			set: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 0
+				c.SeriesIDSetCacheMaxSize = 1000
+				c.SeriesIDSetCacheTargetHitRate = 0.9
+			},
+			wantErr: tsdb.ErrAdaptiveCacheSizingRequiresCacheSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := launcher.NewTestLauncherServer()
+			defer func() { require.NoError(t, l.Shutdown(ctx)) }()
+
+			err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) {
+				tt.set(&o.StorageConfig.Data)
+			})
+			require.ErrorIs(t, err, tt.wantErr)
+			require.Equal(t, exit.CodeConfig, exit.Code(err),
+				"an invalid storage config must exit %s, got %s",
+				exit.Name(exit.CodeConfig), exit.Name(exit.Code(err)))
+			require.ErrorContains(t, err, `"storage-" prefix`,
+				"the message must say how the 1.x key names map to 2.x options")
+
+			assertEngineFailure(t, l)
+		})
+	}
 }
 
 // TestLauncher_StartupFailure_TLSKeyPair covers the one site that overrides the

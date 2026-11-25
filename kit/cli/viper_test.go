@@ -338,6 +338,15 @@ func Test_EnvValueRejected(t *testing.T) {
 			},
 		},
 		{
+			name:  "float64",
+			env:   "TEST_TARGET_HIT_RATE",
+			value: "high",
+			opt: func() Opt {
+				var f float64
+				return Opt{DestP: &f, Flag: "target-hit-rate"}
+			},
+		},
+		{
 			name:  "duration",
 			env:   "TEST_STORAGE_RETENTION_CHECK_INTERVAL",
 			value: "30 minutes",
@@ -543,6 +552,7 @@ func Test_BindOptions_Rebind(t *testing.T) {
 		count    int
 		enabled  bool
 		interval time.Duration
+		ratio    float64
 		hosts    []string
 		flags    map[string]string
 		fancy    customFlag
@@ -552,6 +562,7 @@ func Test_BindOptions_Rebind(t *testing.T) {
 		{DestP: &count, Flag: "count", Default: 3},
 		{DestP: &enabled, Flag: "enabled", Default: true},
 		{DestP: &interval, Flag: "interval", Default: time.Minute},
+		{DestP: &ratio, Flag: "ratio", Default: 2.5},
 		{DestP: &hosts, Flag: "hosts", Default: []string{"a", "b"}},
 		{DestP: &flags, Flag: "feature-flags"},
 		{DestP: &fancy, Flag: "fancy-bool", Default: "on"},
@@ -569,9 +580,111 @@ func Test_BindOptions_Rebind(t *testing.T) {
 	assert.Equal(t, 3, count)
 	assert.True(t, enabled)
 	assert.Equal(t, time.Minute, interval)
+	assert.Equal(t, 2.5, ratio)
 	assert.Equal(t, []string{"a", "b"}, hosts)
 	assert.Empty(t, flags)
 	assert.Equal(t, customFlag(true), fancy)
+}
+
+// Test_Float64Option covers every way a float64 option can be supplied. Each
+// config format is written through its own encoder, so the value reaches
+// BindOptions as whatever type that format's decoder produces for a number.
+func Test_Float64Option(t *testing.T) {
+	newProgram := func(dest *float64) *Program {
+		return &Program{
+			Name: "test",
+			Opts: []Opt{{DestP: dest, Flag: "ratio", Default: 2.5}},
+			Run:  func() error { return nil },
+		}
+	}
+	run := func(t *testing.T, args ...string) float64 {
+		t.Helper()
+		var got float64
+		cmd, err := NewCommand(viper.New(), newProgram(&got))
+		require.NoError(t, err)
+		cmd.SetArgs(append([]string{}, args...))
+		require.NoError(t, cmd.Execute())
+		return got
+	}
+
+	t.Run("default", func(t *testing.T) {
+		assert.Equal(t, 2.5, run(t))
+	})
+
+	// A whole-number Default is an int once it is in an interface{}, which
+	// the compiler cannot flag, so the bind has to take it.
+	t.Run("int default", func(t *testing.T) {
+		var got float64
+		cmd, err := NewCommand(viper.New(), &Program{
+			Name: "test",
+			Opts: []Opt{{DestP: &got, Flag: "ratio", Default: 2}},
+			Run:  func() error { return nil },
+		})
+		require.NoError(t, err)
+		cmd.SetArgs([]string{})
+		require.NoError(t, cmd.Execute())
+		assert.Equal(t, 2.0, got)
+	})
+
+	t.Run("flag", func(t *testing.T) {
+		assert.Equal(t, 0.875, run(t, "--ratio=0.875"))
+	})
+
+	t.Run("env", func(t *testing.T) {
+		t.Setenv("TEST_RATIO", "0.875")
+		assert.Equal(t, 0.875, run(t))
+	})
+
+	t.Run("flag over env", func(t *testing.T) {
+		t.Setenv("TEST_RATIO", "0.875")
+		assert.Equal(t, 0.125, run(t, "--ratio=0.125"))
+	})
+
+	for _, writer := range configWriters {
+		t.Run("config "+writer.ext, func(t *testing.T) {
+			confFile, err := writer.writeFn(t.TempDir(), map[string]interface{}{"ratio": 0.875})
+			require.NoError(t, err)
+			t.Setenv("TEST_CONFIG_PATH", confFile)
+			assert.Equal(t, 0.875, run(t))
+		})
+
+		// A whole number in a config file decodes as an integer, not a float.
+		t.Run("config integer "+writer.ext, func(t *testing.T) {
+			confFile, err := writer.writeFn(t.TempDir(), map[string]interface{}{"ratio": 3})
+			require.NoError(t, err)
+			t.Setenv("TEST_CONFIG_PATH", confFile)
+			assert.Equal(t, 3.0, run(t))
+		})
+
+		// cast would read true as 1.0 and false as 0; neither is a number an
+		// operator wrote, and --ratio=true is refused on the command line.
+		t.Run("config bool rejected "+writer.ext, func(t *testing.T) {
+			confFile, err := writer.writeFn(t.TempDir(), map[string]interface{}{"ratio": true})
+			require.NoError(t, err)
+			t.Setenv("TEST_CONFIG_PATH", confFile)
+
+			var got float64
+			_, err = NewCommand(viper.New(), newProgram(&got))
+			require.Error(t, err)
+			assert.Equal(t, exit.CodeConfig, exit.Code(err))
+			assert.ErrorContains(t, err, `"ratio"`)
+		})
+	}
+}
+
+// Test_UnknownDestinationType covers an option whose destination BindOptions
+// has no case for. The error is read by whoever just added the option, so it
+// has to name the type and the flag.
+func Test_UnknownDestinationType(t *testing.T) {
+	var dest uint
+	_, err := NewCommand(viper.New(), &Program{
+		Name: "test",
+		Opts: []Opt{{DestP: &dest, Flag: "count"}},
+		Run:  func() error { return nil },
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "*uint")
+	assert.ErrorContains(t, err, `"count"`)
 }
 
 func setEnvVar(key, val string) func() {

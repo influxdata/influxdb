@@ -80,7 +80,7 @@ func (h *ConfigHandler) parseOptions(opts []cli.Opt) error {
 		var b []byte
 		switch o.DestP.(type) {
 		// Known types for configuration values. Currently, these can all be encoded directly with json.Marshal.
-		case *string, *int, *int32, *int64, *bool, *time.Duration, *[]string, *map[string]string, pflag.Value, *platform.ID, *zapcore.Level:
+		case *string, *int, *int32, *int64, *float64, *bool, *time.Duration, *[]string, *map[string]string, pflag.Value, *platform.ID, *zapcore.Level:
 			var err error
 			b, err = json.Marshal(o.DestP)
 			if err != nil {

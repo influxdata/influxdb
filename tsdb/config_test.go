@@ -2,6 +2,7 @@ package tsdb_test
 
 import (
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -64,6 +65,22 @@ func TestConfig_Validate_Error(t *testing.T) {
 	if err := c.Validate(); err == nil || err.Error() != "series-id-set-cache-size must be non-negative" {
 		t.Errorf("unexpected error: %s", err)
 	}
+}
+
+// TestConfig_Validate_SeriesFileSnapshotCompactionsKey pins the key the
+// message names to the one the field is configured by. It used to say
+// series-file-max-concurrent-compactions, which is not a key in 1.x or an
+// option in 2.x, so the message sent an operator looking for a setting that
+// does not exist.
+func TestConfig_Validate_SeriesFileSnapshotCompactionsKey(t *testing.T) {
+	c := tsdb.NewConfig()
+	c.Dir = "/var/lib/influxdb/data"
+	c.WALDir = "/var/lib/influxdb/wal"
+	c.SeriesFileMaxConcurrentSnapshotCompactions = -1
+
+	field, ok := reflect.TypeOf(c).FieldByName("SeriesFileMaxConcurrentSnapshotCompactions")
+	require.True(t, ok)
+	require.ErrorContains(t, c.Validate(), field.Tag.Get("toml")+" must be non-negative")
 }
 
 // TestConfig_Validate_SizeOverflow exercises the overflow guards added to

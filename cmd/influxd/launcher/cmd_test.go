@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/exit"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -372,4 +373,187 @@ func TestPrintConfig_ReportsStartupErrorLinger(t *testing.T) {
 
 	got := printConfig(t)
 	assert.Contains(t, got, "startup-error-linger: 0s")
+}
+
+// validateStorage runs the validation storage.NewEngine applies to the resolved
+// options. NewEngine fills in the data and WAL directories before it validates,
+// and Validate refuses a config without them, so a copy gets placeholders here.
+func validateStorage(o *InfluxdOpts) error {
+	data := o.StorageConfig.Data
+	data.Dir = "data"
+	data.WALDir = "wal"
+	return data.Validate()
+}
+
+// assertSeriesIDSetCache checks the four series-id-set cache options as the
+// launcher resolved them.
+func assertSeriesIDSetCache(t *testing.T, o *InfluxdOpts, size, maxSize int, target, conservatism float64) {
+	t.Helper()
+	assert.Equal(t, size, o.StorageConfig.Data.SeriesIDSetCacheSize)
+	assert.Equal(t, maxSize, o.StorageConfig.Data.SeriesIDSetCacheMaxSize)
+	assert.Equal(t, target, o.StorageConfig.Data.SeriesIDSetCacheTargetHitRate)
+	assert.Equal(t, conservatism, o.StorageConfig.Data.SeriesIDSetCacheShrinkConservatism)
+}
+
+// TestNewInfluxdCommand_SeriesIDSetCacheAdaptiveSizing covers every way the
+// three adaptive sizing options can be supplied. Two of them are the only
+// float64 options influxd has, and the shrink-conservatism default is not the
+// zero value: an option registered without it would start every server at 0.0.
+func TestNewInfluxdCommand_SeriesIDSetCacheAdaptiveSizing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("absent", func(t *testing.T) {
+		t.Parallel()
+
+		o, err := resolveOpts(t, viper.New())
+		require.NoError(t, err)
+		assert.Equal(t, tsdb.DefaultSeriesIDSetCacheSize, o.StorageConfig.Data.SeriesIDSetCacheSize,
+			"an unset size must leave the cache on, at the size the engine defaults to")
+		assert.Zero(t, o.StorageConfig.Data.SeriesIDSetCacheMaxSize, "adaptive sizing must be off by default")
+		assert.Zero(t, o.StorageConfig.Data.SeriesIDSetCacheTargetHitRate, "adaptive sizing must be off by default")
+		assert.Equal(t, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, o.StorageConfig.Data.SeriesIDSetCacheShrinkConservatism)
+		assert.NoError(t, validateStorage(o), "the defaults must be a config the engine accepts")
+	})
+
+	t.Run("command line", func(t *testing.T) {
+		t.Parallel()
+
+		o, err := resolveOpts(t, viper.New(),
+			"--storage-series-id-set-cache-size=100",
+			"--storage-series-id-set-cache-max-size=1000",
+			"--storage-series-id-set-cache-target-hit-rate=0.9",
+			"--storage-series-id-set-cache-shrink-conservatism=3.5",
+		)
+		require.NoError(t, err)
+		assertSeriesIDSetCache(t, o, 100, 1000, 0.9, 3.5)
+		assert.NoError(t, validateStorage(o))
+	})
+
+	t.Run("config file", func(t *testing.T) {
+		t.Parallel()
+
+		v := viper.New()
+		v.SetConfigType("yaml")
+		require.NoError(t, v.ReadConfig(strings.NewReader(
+			"storage-series-id-set-cache-size: 100\n"+
+				"storage-series-id-set-cache-max-size: 1000\n"+
+				"storage-series-id-set-cache-target-hit-rate: 0.9\n"+
+				"storage-series-id-set-cache-shrink-conservatism: 3.5\n")))
+
+		o, err := resolveOpts(t, v)
+		require.NoError(t, err)
+		assertSeriesIDSetCache(t, o, 100, 1000, 0.9, 3.5)
+		assert.NoError(t, validateStorage(o))
+	})
+
+	// The upgrade command writes TOML, so this is the form an upgraded 1.x
+	// config arrives in.
+	t.Run("toml config file", func(t *testing.T) {
+		t.Parallel()
+
+		v := viper.New()
+		v.SetConfigType("toml")
+		require.NoError(t, v.ReadConfig(strings.NewReader(
+			"storage-series-id-set-cache-size = 100\n"+
+				"storage-series-id-set-cache-max-size = 1000\n"+
+				"storage-series-id-set-cache-target-hit-rate = 0.9\n")))
+
+		o, err := resolveOpts(t, v)
+		require.NoError(t, err)
+		assert.Equal(t, 1000, o.StorageConfig.Data.SeriesIDSetCacheMaxSize)
+		assert.Equal(t, 0.9, o.StorageConfig.Data.SeriesIDSetCacheTargetHitRate)
+		assert.Equal(t, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, o.StorageConfig.Data.SeriesIDSetCacheShrinkConservatism,
+			"a config file that leaves the option out must keep the default")
+		assert.NoError(t, validateStorage(o))
+	})
+
+	// The pair alone is enough: the size it grows from is the default.
+	t.Run("pair without a cache size", func(t *testing.T) {
+		t.Parallel()
+
+		o, err := resolveOpts(t, viper.New(),
+			"--storage-series-id-set-cache-max-size=1000",
+			"--storage-series-id-set-cache-target-hit-rate=0.9",
+		)
+		require.NoError(t, err)
+		assert.Equal(t, tsdb.DefaultSeriesIDSetCacheSize, o.StorageConfig.Data.SeriesIDSetCacheSize)
+		assert.NoError(t, validateStorage(o))
+	})
+}
+
+// TestNewInfluxdCommand_SeriesIDSetCacheAdaptiveSizingFromEnv pins the derived
+// env var names. Not parallel: t.Setenv forbids it.
+func TestNewInfluxdCommand_SeriesIDSetCacheAdaptiveSizingFromEnv(t *testing.T) {
+	t.Setenv("INFLUXD_STORAGE_SERIES_ID_SET_CACHE_SIZE", "100")
+	t.Setenv("INFLUXD_STORAGE_SERIES_ID_SET_CACHE_MAX_SIZE", "1000")
+	t.Setenv("INFLUXD_STORAGE_SERIES_ID_SET_CACHE_TARGET_HIT_RATE", "0.9")
+	t.Setenv("INFLUXD_STORAGE_SERIES_ID_SET_CACHE_SHRINK_CONSERVATISM", "3.5")
+
+	o, err := resolveOpts(t, viper.New())
+	require.NoError(t, err)
+	assertSeriesIDSetCache(t, o, 100, 1000, 0.9, 3.5)
+	assert.NoError(t, validateStorage(o))
+}
+
+// TestPrintConfig_SeriesIDSetCacheAdaptiveSizing keeps the options
+// discoverable and checks that what print-config emits can be fed back in as a
+// config file and resolve to the same values. The printed YAML is parsed
+// rather than matched as text, so the check does not depend on how the encoder
+// spells a float.
+func TestPrintConfig_SeriesIDSetCacheAdaptiveSizing(t *testing.T) {
+	t.Parallel()
+
+	const (
+		sizeKey         = "storage-series-id-set-cache-size"
+		maxSizeKey      = "storage-series-id-set-cache-max-size"
+		targetKey       = "storage-series-id-set-cache-target-hit-rate"
+		conservatismKey = "storage-series-id-set-cache-shrink-conservatism"
+	)
+
+	tests := []struct {
+		name             string
+		args             []string
+		wantSize         int
+		wantMaxSize      int
+		wantTarget       float64
+		wantConservatism float64
+	}{
+		{
+			name:             "defaults",
+			wantSize:         tsdb.DefaultSeriesIDSetCacheSize,
+			wantConservatism: tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+		},
+		{
+			name: "set",
+			args: []string{
+				"--" + sizeKey + "=100",
+				"--" + maxSizeKey + "=1000",
+				"--" + targetKey + "=0.9",
+				"--" + conservatismKey + "=3.5",
+			},
+			wantSize:         100,
+			wantMaxSize:      1000,
+			wantTarget:       0.9,
+			wantConservatism: 3.5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			printed := printConfig(t, tt.args...)
+
+			v := viper.New()
+			v.SetConfigType("yaml")
+			require.NoError(t, v.ReadConfig(strings.NewReader(printed)))
+			for _, key := range []string{sizeKey, maxSizeKey, targetKey, conservatismKey} {
+				assert.True(t, v.InConfig(key), "print-config must report %s", key)
+			}
+
+			o, err := resolveOpts(t, v)
+			require.NoError(t, err)
+			assertSeriesIDSetCache(t, o, tt.wantSize, tt.wantMaxSize, tt.wantTarget, tt.wantConservatism)
+		})
+	}
 }

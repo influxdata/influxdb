@@ -774,7 +774,26 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		{
 			DestP: &o.StorageConfig.Data.SeriesIDSetCacheSize,
 			Flag:  "storage-series-id-set-cache-size",
-			Desc:  "The size of the internal cache used in the TSI index to store previously calculated series results.",
+			// Without a default here pflag writes 0 over the size NewConfig
+			// set, and 0 turns the cache off.
+			Default: o.StorageConfig.Data.SeriesIDSetCacheSize,
+			Desc:    "The size of the internal cache used in the TSI index to store previously calculated series results. A value of 0 disables the cache.",
+		},
+		{
+			DestP: &o.StorageConfig.Data.SeriesIDSetCacheMaxSize,
+			Flag:  "storage-series-id-set-cache-max-size",
+			Desc:  "The size the TSI series results cache may grow to when its hit rate is below storage-series-id-set-cache-target-hit-rate. Must be set together with storage-series-id-set-cache-target-hit-rate, and storage-series-id-set-cache-size must be greater than 0 and less than this value. A value of 0 disables adaptive sizing.",
+		},
+		{
+			DestP: &o.StorageConfig.Data.SeriesIDSetCacheTargetHitRate,
+			Flag:  "storage-series-id-set-cache-target-hit-rate",
+			Desc:  "The hit rate, as a fraction greater than 0.0 and less than 1.0, that the TSI series results cache grows toward. Must be set together with storage-series-id-set-cache-max-size, and storage-series-id-set-cache-size must be greater than 0 and less than storage-series-id-set-cache-max-size. A value of 0 disables adaptive sizing.",
+		},
+		{
+			DestP:   &o.StorageConfig.Data.SeriesIDSetCacheShrinkConservatism,
+			Flag:    "storage-series-id-set-cache-shrink-conservatism",
+			Default: o.StorageConfig.Data.SeriesIDSetCacheShrinkConservatism,
+			Desc:    "How far, in standard deviations, evictions must fall below the count expected at the target hit rate before an adaptively sized TSI series results cache shrinks. Higher values retain more memory. Must be 0.0 or greater. Has no effect unless adaptive sizing is enabled.",
 		},
 		{
 			DestP: &o.StorageConfig.Data.SeriesFileMaxConcurrentSnapshotCompactions,
