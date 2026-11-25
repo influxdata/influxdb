@@ -193,6 +193,34 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				*destP = i
 			}
 
+		case *float64:
+			var d float64
+			if o.Default != nil {
+				// As for the integer types below: a whole-number literal in
+				// an interface{} is an int, so a Default of 2 on a float64
+				// option compiles and would panic here at bind time.
+				var ok bool
+				d, ok = o.Default.(float64)
+				if !ok {
+					d = float64(o.Default.(int))
+				}
+			}
+			if hasShort {
+				flagset.Float64VarP(destP, o.Flag, string(o.Short), d, o.Desc)
+			} else {
+				flagset.Float64Var(destP, o.Flag, d, o.Desc)
+			}
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				f, err := toFloat64(envVal)
+				if err != nil {
+					return errEnvValue(o.Flag, envVal, err)
+				}
+				*destP = f
+			}
+
 		case *int32:
 			var d int32
 			if o.Default != nil {
@@ -438,7 +466,7 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 		default:
 			// if you get this error, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
-			return fmt.Errorf("unknown destination type %t", o.DestP)
+			return fmt.Errorf("unknown destination type %T for flag %q", o.DestP, o.Flag)
 		}
 
 		// N.B. these "Mark" calls must run after the block above,
@@ -566,6 +594,30 @@ func toDuration(value interface{}) (time.Duration, error) {
 		return 0, fmt.Errorf(
 			"cannot read a %T as a duration: a duration needs a unit, as in \"30s\" or \"5m\"",
 			value)
+	}
+}
+
+// toFloat64 reads the value viper produced for a float64 option.
+//
+// cast.ToFloat64E converts a bool to 1 or 0, so a config file that set a
+// float option to true would start the server with 1.0 and one that set it to
+// false would start it with 0, neither with a complaint. pflag's float64 flag
+// parses with strconv.ParseFloat and refuses both, so a string is parsed the
+// same way and only numeric types are converted. The rebind case comes through
+// unharmed: the string viper hands back for an already-bound flag is the
+// shortest form that ParseFloat reads back to the same value.
+//
+// NaN and the infinities parse here as they do on the command line. Whether
+// one is a legal value is for the owner of the option to decide.
+func toFloat64(value interface{}) (float64, error) {
+	switch f := value.(type) {
+	case string:
+		return strconv.ParseFloat(f, 64)
+	case bool:
+		return 0, fmt.Errorf("cannot read a %T as a number", value)
+	default:
+		// A config file yields a number rather than a string.
+		return cast.ToFloat64E(value)
 	}
 }
 

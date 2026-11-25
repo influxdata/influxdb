@@ -318,7 +318,7 @@ func (c *Config) Validate() error {
 	}
 
 	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {
-		return errors.New("series-file-max-concurrent-compactions must be non-negative")
+		return errors.New("series-file-max-concurrent-snapshot-compactions must be non-negative")
 	}
 
 	valid := false

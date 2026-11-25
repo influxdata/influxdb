@@ -887,7 +887,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			storage.WithMetaClient(metaClient),
 		)
 		if err != nil {
-			return err
+			// NewEngine fails only when the storage config does not validate,
+			// so the fix is to edit whatever supplies the options, the same
+			// as for a value that would not parse.
+			err = exit.WithCode(exit.CodeConfig, fmt.Errorf(
+				"invalid storage configuration (keys are named without the \"storage-\" prefix their options carry): %w", err))
+			return m.failSubsystem(SubsystemEngine, "Failed to create engine", err)
 		}
 		m.engine = engine
 	}

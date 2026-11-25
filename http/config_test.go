@@ -23,6 +23,7 @@ func TestConfigHandler(t *testing.T) {
 		stringFlag := "some string"
 		boolFlag := true
 		idFlag := platform.ID(1)
+		floatFlag := 2.5
 
 		opts := []cli.Opt{
 			{
@@ -37,6 +38,10 @@ func TestConfigHandler(t *testing.T) {
 				DestP: &idFlag,
 				Flag:  "id-flag",
 			},
+			{
+				DestP: &floatFlag,
+				Flag:  "float-flag",
+			},
 		}
 
 		want := map[string]interface{}{
@@ -44,6 +49,7 @@ func TestConfigHandler(t *testing.T) {
 				"string-flag": stringFlag,
 				"bool-flag":   boolFlag,
 				"id-flag":     idFlag,
+				"float-flag":  floatFlag,
 			},
 		}
 		wantJsonBytes, err := json.Marshal(want)
@@ -69,18 +75,18 @@ func TestConfigHandler(t *testing.T) {
 	})
 
 	t.Run("unknown type", func(t *testing.T) {
-		var floatFlag float64
+		var uintFlag uint
 
 		opts := []cli.Opt{
 			{
-				DestP: &floatFlag,
-				Flag:  "float-flag",
+				DestP: &uintFlag,
+				Flag:  "uint-flag",
 			},
 		}
 
 		h, err := NewConfigHandler(zaptest.NewLogger(t), opts)
 		require.Nil(t, h)
-		require.Equal(t, errInvalidType(&floatFlag, "float-flag"), err)
+		require.Equal(t, errInvalidType(&uintFlag, "uint-flag"), err)
 	})
 }
 
