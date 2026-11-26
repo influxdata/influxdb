@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -738,4 +739,57 @@ func mustParseLocation(tzname string) *time.Location {
 		panic(err)
 	}
 	return loc
+}
+
+// countingClock is a real clock that counts calls to Now. The scheduler main loop calls Now once per pass,
+// so the count shows whether the loop is waiting on its timer or spinning.
+type countingClock struct {
+	clock.Clock
+	nows int64
+}
+
+func (c *countingClock) Now() time.Time {
+	atomic.AddInt64(&c.nows, 1)
+	return c.Clock.Now()
+}
+
+// Releasing (deactivating or deleting) the task the timer is armed for must not make the scheduler spin
+// when the timer fires and the next task is still in the future.
+func TestTreeScheduler_ReleaseDoesNotSpin(t *testing.T) {
+	clk := &countingClock{Clock: clock.New()}
+	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {}}
+	sch, _, err := NewScheduler(
+		exe,
+		&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error { return nil }},
+		WithTime(clk),
+		WithMaxConcurrentWorkers(2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sch.Stop()
+
+	now := time.Now().UTC()
+	soon, _, err := NewSchedule("* * * * * * *", time.Time{}) // every second: the timer is armed for this one
+	if err != nil {
+		t.Fatal(err)
+	}
+	later, _, err := NewSchedule("0 0 0 1 1 * *", time.Time{}) // once a year: still in the future when the timer fires
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sch.Schedule(mockSchedulable{id: 1, schedule: soon, lastScheduled: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sch.Schedule(mockSchedulable{id: 2, schedule: later, lastScheduled: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sch.Release(1); err != nil {
+		t.Fatal(err)
+	}
+
+	before := atomic.LoadInt64(&clk.nows)
+	time.Sleep(2 * time.Second) // the timer armed for task 1 fires in this window
+	if n := atomic.LoadInt64(&clk.nows) - before; n > 100 {
+		t.Fatalf("scheduler loop spun after the armed task was released: %d calls to Now in 2s", n)
+	}
 }
