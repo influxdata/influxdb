@@ -174,7 +174,7 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 					}
 					it := min.(Item)
 					if ts := s.time.Now(); it.When().After(ts) {
-						s.timer.Reset(ts.Sub(it.When()))
+						s.timer.Reset(it.When().Sub(ts))
 						s.mu.Unlock()
 						continue schedulerLoop
 					}
