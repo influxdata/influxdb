@@ -1436,9 +1436,13 @@ fn no_snapshot_config() -> WalConfig {
 }
 
 async fn put_zero_byte_wal(object_store: &Arc<dyn ObjectStore>, sequence: u64) {
+    put_zero_byte_wal_at(object_store, "my_host", sequence).await;
+}
+
+async fn put_zero_byte_wal_at(object_store: &Arc<dyn ObjectStore>, prefix: &str, sequence: u64) {
     object_store
         .put(
-            &wal_path("my_host", WalFileSequenceNumber::new(sequence)),
+            &wal_path(prefix, WalFileSequenceNumber::new(sequence)),
             PutPayload::from_static(b""),
         )
         .await
@@ -1749,6 +1753,66 @@ async fn repeated_restart_and_replay_cycles_do_not_collide() {
     }
 
     assert_eq!(wal_file_len(&object_store, 5).await, 0);
+}
+
+/// Node identifiers are arbitrary strings and may contain `/`, which makes WAL
+/// object paths deeper than three segments. The replay guard must still read
+/// the sequence number, or a corrupt tail after a valid file collides on the
+/// first flush.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn nested_node_identifier_recovers_corrupt_tail_after_valid_file() {
+    const PREFIX: &str = "org/host";
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+
+    let bytes = crate::serialize::serialize_to_file_bytes(&wal_contents_for(5)).unwrap();
+    object_store
+        .put(
+            &wal_path(PREFIX, WalFileSequenceNumber::new(5)),
+            PutPayload::from_bytes(Bytes::from(bytes)),
+        )
+        .await
+        .unwrap();
+    put_zero_byte_wal_at(&object_store, PREFIX, 6).await;
+
+    let paths = load_all_wal_file_paths(Arc::clone(&object_store), PREFIX.to_owned())
+        .await
+        .unwrap();
+    let wal = WalObjectStore::new_without_replay(
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Arc::clone(&object_store),
+        PREFIX,
+        notifier,
+        no_snapshot_config(),
+        Some(WalFileSequenceNumber::new(4)),
+        None,
+        &paths,
+        10,
+        CancellationToken::new(),
+    );
+    wal.replay(Some(WalFileSequenceNumber::new(4)), &paths, 2, false)
+        .await
+        .unwrap();
+
+    assert_eq!(next_sequence(&wal).await, 7);
+    wal.write_ops_unconfirmed(vec![op()]).await.unwrap();
+    wal.flush_buffer(false).await;
+    object_store
+        .get(&wal_path(PREFIX, WalFileSequenceNumber::new(7)))
+        .await
+        .expect("first post-recovery WAL must use sequence 7");
+    assert_eq!(
+        object_store
+            .get(&wal_path(PREFIX, WalFileSequenceNumber::new(6)))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap()
+            .len(),
+        0,
+        "corrupt file changed"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

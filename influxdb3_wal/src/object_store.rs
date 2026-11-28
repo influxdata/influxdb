@@ -110,11 +110,7 @@ impl WalObjectStore {
         // one of those numbers for the first write after an unclean shutdown.
         let last_disk_sequence_number = all_wal_file_paths
             .iter()
-            .filter_map(|path| {
-                path.filename()
-                    .and_then(|filename| filename.strip_suffix(".wal"))
-                    .and_then(|filename| WalFileSequenceNumber::from_str(filename).ok())
-            })
+            .filter_map(wal_sequence_number_from_path)
             .max();
         let wal_file_sequence_number = last_wal_sequence_number
             .into_iter()
@@ -226,7 +222,7 @@ impl WalObjectStore {
                         // onto this name, so advance past the skipped number. Otherwise the
                         // first flush after recovery collides with it (`AlreadyExists`) and
                         // shuts the node down.
-                        if let Ok(skipped) = WalFileSequenceNumber::try_from(&path) {
+                        if let Some(skipped) = wal_sequence_number_from_path(&path) {
                             let mut buffer = self.flush_buffer.lock().await;
                             let next = skipped.next();
                             if next > buffer.wal_buffer.wal_file_sequence_number {
@@ -585,6 +581,13 @@ impl WalObjectStore {
         // release the permit so the next snapshot can be run when the time comes
         drop(snapshot_permit);
     }
+}
+
+/// Extract the sequence number encoded in a WAL object's filename. Paths that
+/// are not WAL files, or that cannot be parsed, yield `None`. Only the final
+/// path segment is inspected so node identifiers containing `/` work too.
+fn wal_sequence_number_from_path(path: &Path) -> Option<WalFileSequenceNumber> {
+    path.filename()?.strip_suffix(".wal")?.parse().ok()
 }
 
 fn oldest_wal_file_num(all_wal_file_paths: &[Path]) -> Option<WalFileSequenceNumber> {
