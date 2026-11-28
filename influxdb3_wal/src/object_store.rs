@@ -105,7 +105,19 @@ impl WalObjectStore {
         num_wal_files_to_keep: u64,
         shutdown_token: CancellationToken,
     ) -> Self {
-        let wal_file_sequence_number = last_wal_sequence_number.unwrap_or_default().next();
+        // Corrupt or truncated WAL files may be skipped during replay, but their
+        // paths still occupy sequence numbers in the object store. Never reuse
+        // one of those numbers for the first write after an unclean shutdown.
+        let last_disk_sequence_number = all_wal_file_paths
+            .iter()
+            .filter_map(wal_sequence_number_from_path)
+            .max();
+        let wal_file_sequence_number = last_wal_sequence_number
+            .into_iter()
+            .chain(last_disk_sequence_number)
+            .max()
+            .unwrap_or_default()
+            .next();
         let oldest_wal_file_num = oldest_wal_file_num(all_wal_file_paths);
 
         Self {
@@ -205,6 +217,18 @@ impl WalObjectStore {
                         )),
                     ) if !fail_on_error => {
                         warn!(%error, %path, "Skipping corrupt WAL file");
+                        // The skipped file still occupies its sequence number in the object
+                        // store. Replaying an earlier valid file rewinds the next sequence
+                        // onto this name, so advance past the skipped number. Otherwise the
+                        // first flush after recovery collides with it (`AlreadyExists`) and
+                        // shuts the node down.
+                        if let Some(skipped) = wal_sequence_number_from_path(&path) {
+                            let mut buffer = self.flush_buffer.lock().await;
+                            let next = skipped.next();
+                            if next > buffer.wal_buffer.wal_file_sequence_number {
+                                buffer.wal_buffer.wal_file_sequence_number = next;
+                            }
+                        }
                         continue;
                     }
                     (path, Err(error)) => {
@@ -557,6 +581,13 @@ impl WalObjectStore {
         // release the permit so the next snapshot can be run when the time comes
         drop(snapshot_permit);
     }
+}
+
+/// Extract the sequence number encoded in a WAL object's filename. Paths that
+/// are not WAL files, or that cannot be parsed, yield `None`. Only the final
+/// path segment is inspected so node identifiers containing `/` work too.
+fn wal_sequence_number_from_path(path: &Path) -> Option<WalFileSequenceNumber> {
+    path.filename()?.strip_suffix(".wal")?.parse().ok()
 }
 
 fn oldest_wal_file_num(all_wal_file_paths: &[Path]) -> Option<WalFileSequenceNumber> {
